@@ -30,7 +30,12 @@ Rectangle {
     
     // ========== 视觉属性 ==========
     color: Theme.colors.sidebar
-    border {
+    
+    // 右侧分隔线
+    Rectangle {
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.right: parent.right
         width: 1
         color: Theme.colors.sidebarBorder
     }
@@ -38,174 +43,303 @@ Rectangle {
     // ========== 内部布局 ==========
     ColumnLayout {
         anchors.fill: parent
-        anchors.leftMargin: expanded ? Theme.spacing._3 : Theme.spacing._2
-        anchors.rightMargin: expanded ? Theme.spacing._3 : Theme.spacing._2
-        anchors.topMargin: Theme.spacing._3
-        anchors.bottomMargin: Theme.spacing._3
-        spacing: Theme.spacing._2
+        anchors.leftMargin: expanded ? 12 : 8
+        anchors.rightMargin: expanded ? 12 : 8
+        anchors.topMargin: 12
+        anchors.bottomMargin: 12
+        spacing: 8
         
-        // ========== 顶部：新开会话按钮和标题 ==========
+        // ========== 顶部：标题和新建按钮 ==========
         RowLayout {
             Layout.fillWidth: true
-            spacing: Theme.spacing._2
+            spacing: 8
             
             // 标题（仅展开时显示）
             Text {
                 visible: expanded
                 text: qsTr("会话")
                 color: Theme.colors.sidebarForeground
-                font.pixelSize: 14
-                font.bold: true
+                font.pixelSize: 11
+                font.weight: Font.DemiBold
+                font.letterSpacing: 1.0
+                opacity: 0.6
                 Layout.alignment: Qt.AlignVCenter
             }
             
-            Item {
-                Layout.fillWidth: true
-            }
+            Item { Layout.fillWidth: true }
             
-            // 新开会话按钮
+            // 新建会话按钮
             IconButton {
-                iconSource: "+"
+                iconName: "plus"
+                iconSize: 14
+                btnSize: 28
                 tooltip: qsTr("新开会话")
                 Layout.alignment: Qt.AlignVCenter
                 onClicked: {
-                    // TODO: 调用 C++ 控制器创建新会话
                     console.log("创建新会话")
                 }
             }
         }
         
         // ========== 会话列表 ==========
-        Rectangle {
+        ListView {
+            id: sessionList
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: "transparent"
-            radius: Theme.radius.md
+            clip: true
+            spacing: 2
             
-            ListView {
-                id: sessionList
-                anchors.fill: parent
-                anchors.margins: Theme.spacing._1
-                clip: true
+            // 临时会话数据（实际应该使用 C++ 模型）
+            model: ListModel {
+                ListElement { sessionId: "session1"; name: "未命名会话 1"; modifiedAt: "10:30"; fileCount: 3 }
+                ListElement { sessionId: "session2"; name: "未命名会话 2"; modifiedAt: "09:15"; fileCount: 1 }
+                ListElement { sessionId: "session3"; name: "风景照片处理"; modifiedAt: "昨天"; fileCount: 5 }
+            }
+            
+            // 会话项委托
+            delegate: Rectangle {
+                id: sessionItem
+                width: sessionList.width
+                height: expanded ? 52 : 40
+                radius: Theme.radius.md
                 
-                // 临时会话数据（实际应该使用 C++ 模型）
-                model: ListModel {
-                    ListElement { sessionId: "session1"; name: qsTr("未命名会话 1"); modifiedAt: "10:30" }
-                    ListElement { sessionId: "session2"; name: qsTr("未命名会话 2"); modifiedAt: "09:15" }
-                    ListElement { sessionId: "session3"; name: qsTr("风景照片处理"); modifiedAt: "昨天" }
+                property bool isActive: model.sessionId === root.activeSessionId
+                property bool isHovered: mouseArea.containsMouse
+                
+                color: {
+                    if (isActive) return Theme.colors.primary
+                    if (isHovered) return Theme.colors.sidebarAccent
+                    return "transparent"
                 }
                 
-                // 会话项委托
-                delegate: Rectangle {
-                    id: sessionItem
-                    width: sessionList.width
-                    height: expanded ? 48 : 48
-                    radius: Theme.radius.sm
-                    color: model.sessionId === activeSessionId ? Theme.colors.sidebarPrimary : 
-                           (mouseArea.containsMouse ? Theme.colors.sidebarAccent : "transparent")
+                Behavior on color {
+                    ColorAnimation { duration: Theme.animation.fast; easing.type: Easing.OutCubic }
+                }
+                
+                // 鼠标区域
+                MouseArea {
+                    id: mouseArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        root.activeSessionId = model.sessionId
+                        console.log("切换到会话:", model.name)
+                    }
+                }
+                
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 8
+                    spacing: 10
                     
-                    // 鼠标区域
-                    MouseArea {
-                        id: mouseArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        onClicked: {
-                            activeSessionId = model.sessionId
-                            // TODO: 切换到该会话
-                            console.log("切换到会话:", model.name)
+                    // 会话图标
+                    Rectangle {
+                        width: expanded ? 32 : 28
+                        height: expanded ? 32 : 28
+                        radius: Theme.radius.sm
+                        color: sessionItem.isActive ? Qt.rgba(1,1,1,0.2) : Theme.colors.accent
+                        Layout.alignment: Qt.AlignVCenter
+                        
+                        Image {
+                            anchors.centerIn: parent
+                            width: 14
+                            height: 14
+                            source: Theme.icon("message-square")
+                            sourceSize: Qt.size(14, 14)
+                            smooth: true
                         }
                     }
                     
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: Theme.spacing._2
-                        anchors.rightMargin: Theme.spacing._2
-                        spacing: Theme.spacing._2
+                    // 会话信息（仅展开时显示）
+                    ColumnLayout {
+                        visible: expanded
+                        Layout.fillWidth: true
+                        spacing: 2
                         
-                        // 会话图标
-                        Rectangle {
-                            width: 24
-                            height: 24
-                            radius: Theme.radius.sm
-                            color: model.sessionId === activeSessionId ? 
-                                   Theme.colors.sidebarPrimaryForeground : 
-                                   Theme.colors.sidebarForeground
-                            Layout.alignment: Qt.AlignVCenter
-                            
-                            Text {
-                                anchors.centerIn: parent
-                                text: model.name.charAt(0).toUpperCase()
-                                color: model.sessionId === activeSessionId ? 
-                                       Theme.colors.sidebarPrimary : 
-                                       Theme.colors.sidebar
-                                font.pixelSize: 12
-                                font.bold: true
-                            }
+                        Text {
+                            text: model.name
+                            color: sessionItem.isActive ? "#FFFFFF" : Theme.colors.sidebarForeground
+                            font.pixelSize: 13
+                            font.weight: sessionItem.isActive ? Font.DemiBold : Font.Normal
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
                         }
                         
-                        // 会话信息（仅展开时显示）
-                        ColumnLayout {
-                            visible: expanded
-                            Layout.fillWidth: true
-                            spacing: 0
-                            
-                            Text {
-                                text: model.name
-                                color: model.sessionId === activeSessionId ? 
-                                       Theme.colors.sidebarPrimaryForeground : 
-                                       Theme.colors.sidebarForeground
-                                font.pixelSize: 13
-                                elide: Text.ElideRight
-                                Layout.fillWidth: true
-                            }
-                            
+                        RowLayout {
+                            spacing: 6
                             Text {
                                 text: model.modifiedAt
-                                color: Theme.colors.mutedForeground
+                                color: sessionItem.isActive ? Qt.rgba(1,1,1,0.7) : Theme.colors.mutedForeground
                                 font.pixelSize: 11
-                                Layout.fillWidth: true
                             }
-                        }
-                        
-                        // 删除按钮（仅展开且悬停时显示）
-                        IconButton {
-                            visible: expanded && mouseArea.containsMouse
-                            iconSource: "×"
-                            tooltip: qsTr("删除会话")
-                            Layout.alignment: Qt.AlignVCenter
-                            onClicked: {
-                                // TODO: 调用 C++ 控制器删除会话
-                                console.log("删除会话:", model.name)
+                            Rectangle {
+                                width: 3
+                                height: 3
+                                radius: 1.5
+                                color: sessionItem.isActive ? Qt.rgba(1,1,1,0.4) : Theme.colors.mutedForeground
+                                opacity: 0.5
+                            }
+                            Text {
+                                text: model.fileCount + (Theme.language === "zh_CN" ? " 个文件" : " files")
+                                color: sessionItem.isActive ? Qt.rgba(1,1,1,0.7) : Theme.colors.mutedForeground
+                                font.pixelSize: 11
                             }
                         }
                     }
-                }
-                
-                // 空状态提示
-                Rectangle {
-                    visible: sessionList.count === 0
-                    anchors.centerIn: parent
-                    color: "transparent"
                     
-                    ColumnLayout {
-                        spacing: Theme.spacing._2
-                        
-                        Text {
-                            text: qsTr("暂无会话")
-                            color: Theme.colors.mutedForeground
-                            font.pixelSize: 13
-                            horizontalAlignment: Text.AlignHCenter
-                        }
-                        
-                        Text {
-                            text: qsTr("点击 + 创建新会话")
-                            color: Theme.colors.mutedForeground
-                            font.pixelSize: 11
-                            horizontalAlignment: Text.AlignHCenter
+                    // 删除按钮（仅展开且悬停时显示）
+                    IconButton {
+                        visible: expanded && sessionItem.isHovered && !sessionItem.isActive
+                        iconName: "x"
+                        iconSize: 12
+                        btnSize: 24
+                        danger: true
+                        tooltip: qsTr("删除会话")
+                        Layout.alignment: Qt.AlignVCenter
+                        onClicked: {
+                            console.log("删除会话:", model.name)
                         }
                     }
                 }
             }
+            
+            // 空状态提示
+            Item {
+                visible: sessionList.count === 0
+                anchors.fill: parent
+                
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    spacing: 12
+                    
+                    // 空状态图标
+                    Rectangle {
+                        Layout.alignment: Qt.AlignHCenter
+                        width: 48
+                        height: 48
+                        radius: 24
+                        color: Theme.colors.accent
+                        
+                        Image {
+                            anchors.centerIn: parent
+                            width: 20
+                            height: 20
+                            source: Theme.icon("message-square")
+                            sourceSize: Qt.size(20, 20)
+                            smooth: true
+                        }
+                    }
+                    
+                    Text {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: qsTr("暂无会话")
+                        color: Theme.colors.mutedForeground
+                        font.pixelSize: 13
+                    }
+                    
+                    Text {
+                        visible: expanded
+                        Layout.alignment: Qt.AlignHCenter
+                        text: qsTr("点击 + 创建新会话")
+                        color: Theme.colors.mutedForeground
+                        font.pixelSize: 11
+                        opacity: 0.7
+                    }
+                }
+            }
         }
+        
+        // ========== 底部：导航快捷链接 ==========
+        Rectangle {
+            Layout.fillWidth: true
+            height: 1
+            color: Theme.colors.sidebarBorder
+        }
+        
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 2
+            
+            // 首页
+            Rectangle {
+                Layout.fillWidth: true
+                height: 36
+                radius: Theme.radius.md
+                color: homeArea.containsMouse ? Theme.colors.sidebarAccent : "transparent"
+                
+                Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
+                
+                MouseArea {
+                    id: homeArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                }
+                
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    spacing: 10
+                    
+                    Image {
+                        width: 16; height: 16
+                        source: Theme.icon("home")
+                        sourceSize: Qt.size(16, 16)
+                        smooth: true
+                    }
+                    
+                    Text {
+                        visible: expanded
+                        text: qsTr("首页")
+                        color: Theme.colors.sidebarForeground
+                        font.pixelSize: 13
+                    }
+                }
+            }
+            
+            // 设置
+            Rectangle {
+                Layout.fillWidth: true
+                height: 36
+                radius: Theme.radius.md
+                color: settingsArea.containsMouse ? Theme.colors.sidebarAccent : "transparent"
+                
+                Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
+                
+                MouseArea {
+                    id: settingsArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                }
+                
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    spacing: 10
+                    
+                    Image {
+                        width: 16; height: 16
+                        source: Theme.icon("settings")
+                        sourceSize: Qt.size(16, 16)
+                        smooth: true
+                    }
+                    
+                    Text {
+                        visible: expanded
+                        text: qsTr("设置")
+                        color: Theme.colors.sidebarForeground
+                        font.pixelSize: 13
+                    }
+                }
+            }
+        }
+    }
+    
+    // ========== 颜色过渡动画 ==========
+    Behavior on color {
+        ColorAnimation { duration: Theme.animation.normal; easing.type: Easing.OutCubic }
     }
 }

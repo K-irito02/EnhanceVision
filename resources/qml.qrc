@@ -55,6 +55,36 @@
         <file>icons/chevron-right.svg</file>
         <file>icons/check.svg</file>
         <file>icons/x.svg</file>
+        <file>icons/sun.svg</file>
+        <file>icons/moon.svg</file>
+        <file>icons/plus.svg</file>
+        <file>icons/panel-left.svg</file>
+        <file>icons/globe.svg</file>
+        <file>icons/minus.svg</file>
+        <file>icons/square.svg</file>
+        <file>icons/copy.svg</file>
+        <file>icons/arrow-left.svg</file>
+        <file>icons/pencil.svg</file>
+        <file>icons/save.svg</file>
+        <file>icons/x-circle.svg</file>
+        <file>icons/zap.svg</file>
+        <file>icons/sliders.svg</file>
+        <file>icons/rotate-ccw.svg</file>
+        <file>icons/send.svg</file>
+        <file>icons/eye.svg</file>
+        <file>icons/eye-off.svg</file>
+        <file>icons/info.svg</file>
+        <file>icons/alert-triangle.svg</file>
+        <file>icons/check-circle.svg</file>
+        <file>icons/message-square.svg</file>
+        <file>icons/list.svg</file>
+        <file>icons/sparkles.svg</file>
+        <file>icons/file-plus.svg</file>
+        <file>icons/loader.svg</file>
+        <file>icons/layout-grid.svg</file>
+        <file>icons/monitor.svg</file>
+        <file>icons/cpu.svg</file>
+        <file>icons/help-circle.svg</file>
     </qresource>
     
     <qresource prefix="/shaders">

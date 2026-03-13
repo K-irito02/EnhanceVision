@@ -2,185 +2,160 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../styles"
-import "../components"
+import "../controls"
 
 /**
  * @brief 消息列表组件
  * 展示所有处理任务的消息列表，支持滚动、批量操作等
  * 参考功能设计文档 0.2 的 3.5 节
  */
-Item {
+Rectangle {
     id: root
 
     // ========== 属性 ==========
-    /**
-     * @brief 消息模型
-     */
-    property var messageModel: null
-
-    /**
-     * @brief 是否处于批量选择模式
-     */
     property bool batchMode: false
+    property var selectedIds: []
 
-    /**
-     * @brief 编辑消息信号
-     * @param messageId 消息ID
-     */
-    signal editMessage(string messageId)
+    // ========== 视觉属性 ==========
+    color: Theme.colors.card
+    border.width: 1
+    border.color: Theme.colors.cardBorder
+    radius: Theme.radius.lg
 
-    /**
-     * @brief 删除消息信号
-     * @param messageId 消息ID
-     */
-    signal deleteMessage(string messageId)
-
-    /**
-     * @brief 保存消息信号
-     * @param messageId 消息ID
-     */
-    signal saveMessage(string messageId)
-
-    /**
-     * @brief 取消消息信号
-     * @param messageId 消息ID
-     */
-    signal cancelMessage(string messageId)
-
-    /**
-     * @brief 批量保存信号
-     */
-    signal batchSave()
-
-    /**
-     * @brief 批量删除信号
-     */
-    signal batchDelete()
-
-    // ========== 主布局 ==========
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Theme.spacing._3
-        spacing: Theme.spacing._3
+        anchors.margins: 12
+        spacing: 8
 
-        // ========== 顶部工具栏 ==========
+        // ========== 顶部：标题和操作 ==========
         RowLayout {
             Layout.fillWidth: true
-            spacing: Theme.spacing._2
+            spacing: 8
 
-            // 标题
+            Image {
+                width: 16; height: 16
+                source: Theme.icon("list")
+                sourceSize: Qt.size(16, 16)
+                smooth: true
+            }
+
             Text {
-                Layout.fillWidth: true
                 text: qsTr("处理任务")
                 color: Theme.colors.foreground
-                font.pixelSize: Theme.typography.fontSize.lg
-                font.bold: true
+                font.pixelSize: 13
+                font.weight: Font.DemiBold
             }
 
-            // 批量选择按钮
+            Item { Layout.fillWidth: true }
+
             Button {
-                text: batchMode ? qsTr("取消选择") : qsTr("批量选择")
-                onClicked: batchMode = !batchMode
+                text: batchMode ? qsTr("退出选择") : qsTr("批量操作")
+                variant: "ghost"
+                size: "sm"
+                onClicked: {
+                    batchMode = !batchMode
+                    if (!batchMode) selectedIds = []
+                }
+            }
+        }
+
+        // ========== 批处理操作栏 ==========
+        RowLayout {
+            visible: batchMode && selectedIds.length > 0
+            Layout.fillWidth: true
+            spacing: 8
+
+            Text {
+                text: qsTr("已选择 %1 项").arg(selectedIds.length)
+                color: Theme.colors.primary
+                font.pixelSize: 12
+                font.weight: Font.Medium
             }
 
-            // 批量保存按钮（仅在批量模式下显示）
-            Button {
-                visible: batchMode
-                text: qsTr("批量保存")
-                iconSource: "qrc:///icons/save.svg" // TODO: 替换为实际图标
-                onClicked: root.batchSave()
-            }
+            Item { Layout.fillWidth: true }
 
-            // 批量删除按钮（仅在批量模式下显示）
-            Button {
-                visible: batchMode
-                text: qsTr("批量删除")
-                iconSource: "qrc:///icons/trash.svg" // TODO: 替换为实际图标
-                onClicked: root.batchDelete()
-            }
+            Button { text: qsTr("批量保存"); iconName: "save"; variant: "secondary"; size: "sm" }
+            Button { text: qsTr("批量删除"); variant: "destructive"; size: "sm" }
         }
 
         // ========== 消息列表 ==========
         ListView {
-            id: listView
+            id: messageList
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
-            spacing: Theme.spacing._3
-            model: messageModel
-            delegate: MessageItem {
-                width: listView.width - Theme.spacing._6
-                anchors.horizontalCenter: parent.horizontalCenter
+            spacing: 6
 
-                // 绑定数据
-                messageId: model.id
-                timestamp: model.timestamp
-                mode: model.mode
-                modeText: model.modeText
+            model: processingModel
+
+            delegate: MessageItem {
+                width: messageList.width
+                taskId: model.messageId
+                timestamp: model.createdAt
+                mode: model.processingMode
                 status: model.status
-                statusText: model.statusText
-                statusColor: model.statusColor
                 progress: model.progress
                 queuePosition: model.queuePosition
                 errorMessage: model.errorMessage
-                isSelected: root.batchMode && model.isSelected
+                selectable: batchMode
 
-                // 信号连接
-                onEditClicked: root.editMessage(messageId)
-                onDeleteClicked: root.deleteMessage(messageId)
-                onSaveClicked: root.saveMessage(messageId)
-                onCancelClicked: root.cancelMessage(messageId)
+                onCancelClicked: processingController.cancelTask(model.messageId)
+                onEditClicked: console.log("编辑任务:", model.messageId)
+                onSaveClicked: console.log("保存任务:", model.messageId)
+                onDeleteClicked: processingController.deleteTask(model.messageId)
 
-                // 点击选中/取消选中（批量模式）
-                MouseArea {
-                    anchors.fill: parent
-                    enabled: root.batchMode
-                    onClicked: {
-                        if (messageModel) {
-                            messageModel.selectMessage(messageId, !model.isSelected)
-                        }
+                onSelectedChanged: function(isSelected) {
+                    if (isSelected) {
+                        selectedIds = selectedIds.concat([model.messageId])
+                    } else {
+                        selectedIds = selectedIds.filter(function(id) { return id !== model.messageId })
                     }
-                    cursorShape: Qt.PointingHandCursor
                 }
             }
 
+            ScrollBar.vertical: ScrollBar { active: true }
+
             // 空状态
-            placeholder: Item {
+            Item {
+                visible: messageList.count === 0
                 anchors.fill: parent
 
                 ColumnLayout {
                     anchors.centerIn: parent
-                    spacing: Theme.spacing._3
+                    spacing: 12
 
-                    // 占位图标
                     Rectangle {
                         Layout.alignment: Qt.AlignHCenter
-                        width: 64
-                        height: 64
-                        radius: Theme.radius.xl
-                        color: Theme.colors.muted
+                        width: 48; height: 48; radius: 24
+                        color: Theme.colors.primarySubtle
+
+                        Image {
+                            anchors.centerIn: parent
+                            width: 20; height: 20
+                            source: Theme.icon("loader")
+                            sourceSize: Qt.size(20, 20)
+                            smooth: true
+                        }
                     }
 
                     Text {
                         Layout.alignment: Qt.AlignHCenter
                         text: qsTr("暂无处理任务")
                         color: Theme.colors.mutedForeground
-                        font.pixelSize: Theme.typography.fontSize.base
+                        font.pixelSize: 13
                     }
 
                     Text {
                         Layout.alignment: Qt.AlignHCenter
-                        text: qsTr("添加文件后点击\"发送\"开始处理")
+                        text: qsTr("点击\"处理\"按钮开始")
                         color: Theme.colors.mutedForeground
-                        font.pixelSize: Theme.typography.fontSize.sm
+                        font.pixelSize: 11
+                        opacity: 0.7
                     }
                 }
             }
-
-            // 滚动条
-            ScrollBar.vertical: ScrollBar {
-                active: listView.movingVertically || listView.atYBeginning || listView.atYEnd
-            }
         }
     }
+
+    Behavior on color { ColorAnimation { duration: Theme.animation.normal } }
 }

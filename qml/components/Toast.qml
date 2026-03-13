@@ -1,7 +1,8 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import "./../styles"
+import "../styles"
+import "../controls"
 
 /**
  * @brief Toast 提示组件
@@ -44,41 +45,35 @@ Item {
      */
     signal dismissed()
 
-    // ========== 内部属性 ==========
-    /**
-     * @brief 当前主题颜色
-     */
-    readonly property var colors: Theme.isDark ? Colors.dark : Colors.light
-
     /**
      * @brief 获取 Toast 背景色
      */
     readonly property color backgroundColor: {
         switch (type) {
             case Toast.ToastType.Success:
-                return colors.chart5
+                return Theme.colors.success
             case Toast.ToastType.Warning:
-                return colors.chart4
+                return Theme.colors.warning
             case Toast.ToastType.Error:
-                return colors.destructive
+                return Theme.colors.destructive
             default:
-                return colors.primary
+                return Theme.colors.primary
         }
     }
 
     /**
-     * @brief 获取 Toast 图标
+     * @brief 获取 Toast 图标名
      */
-    readonly property string iconSource: {
+    readonly property string toastIconName: {
         switch (type) {
             case Toast.ToastType.Success:
-                return "✓"
+                return "check-circle"
             case Toast.ToastType.Warning:
-                return "⚠"
+                return "alert-triangle"
             case Toast.ToastType.Error:
-                return "✕"
+                return "x-circle"
             default:
-                return "ℹ"
+                return "info"
         }
     }
 
@@ -132,16 +127,14 @@ Item {
         NumberAnimation {
             target: root
             property: "opacity"
-            from: 0
-            to: 1
+            from: 0; to: 1
             duration: 300
             easing.type: Easing.OutCubic
         }
         NumberAnimation {
             target: root
             property: "y"
-            from: -20
-            to: 0
+            from: -20; to: 0
             duration: 300
             easing.type: Easing.OutCubic
         }
@@ -155,16 +148,14 @@ Item {
         NumberAnimation {
             target: root
             property: "opacity"
-            from: 1
-            to: 0
+            from: 1; to: 0
             duration: 300
             easing.type: Easing.InCubic
         }
         NumberAnimation {
             target: root
             property: "y"
-            from: 0
-            to: -20
+            from: 0; to: -20
             duration: 300
             easing.type: Easing.InCubic
         }
@@ -177,29 +168,26 @@ Item {
     // ========== UI 布局 ==========
     Rectangle {
         id: toastRect
-        anchors.centerIn: parent
-        width: Math.min(400, message.length * 12 + 80)
-        height: 56
-        radius: 12
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: Math.min(420, toastRow.implicitWidth + 40)
+        height: 48
+        radius: Theme.radius.xl
         color: backgroundColor
-        opacity: 0.95
 
         RowLayout {
+            id: toastRow
             anchors.fill: parent
             anchors.leftMargin: 16
-            anchors.rightMargin: 16
-            spacing: 12
+            anchors.rightMargin: 12
+            spacing: 10
 
             // 图标
-            Text {
-                Layout.preferredWidth: 24
-                Layout.preferredHeight: 24
+            Image {
+                width: 18; height: 18
+                source: Theme.icon(toastIconName)
+                sourceSize: Qt.size(18, 18)
+                smooth: true
                 Layout.alignment: Qt.AlignVCenter
-                text: iconSource
-                font.pixelSize: 20
-                color: "#ffffff"
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
             }
 
             // 消息文本
@@ -207,20 +195,20 @@ Item {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignVCenter
                 text: message
-                font.pixelSize: 14
+                font.pixelSize: 13
                 font.weight: Font.Medium
-                color: "#ffffff"
+                color: "#FFFFFF"
                 elide: Text.ElideRight
-                wrapMode: Text.Wrap
+                maximumLineCount: 1
             }
 
             // 关闭按钮
             IconButton {
-                Layout.preferredWidth: 28
-                Layout.preferredHeight: 28
-                Layout.alignment: Qt.AlignVCenter
-                iconText: "✕"
-                iconColor: "#ffffff"
+                btnSize: 24
+                iconName: "x"
+                iconSize: 12
+                iconColor: "#FFFFFF"
+                iconHoverColor: "#FFFFFF"
                 onClicked: root.hide()
             }
         }

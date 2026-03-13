@@ -23,14 +23,19 @@ Button {
      */
     property string size: "md"
 
+    /**
+     * @brief 图标名称（可选，显示在文字左侧）
+     */
+    property string iconName: ""
+
     // ========== 尺寸计算 ==========
     readonly property var sizeValues: ({
-        sm: { width: 0, height: 28, padding: 8 },
-        md: { width: 0, height: 36, padding: 16 },
-        lg: { width: 0, height: 44, padding: 24 }
+        sm: { height: 30, padding: 10, fontSize: 12 },
+        md: { height: 36, padding: 16, fontSize: 13 },
+        lg: { height: 44, padding: 24, fontSize: 14 }
     })
 
-    implicitWidth: Math.max(contentItem.implicitWidth + leftPadding + rightPadding, 80)
+    implicitWidth: Math.max(buttonRow.implicitWidth + leftPadding + rightPadding, 80)
     implicitHeight: sizeValues[size].height
 
     leftPadding: sizeValues[size].padding
@@ -42,44 +47,35 @@ Button {
     background: Rectangle {
         id: bg
 
-        readonly property var variantColors: ({
-            primary: {
-                default: Theme.colors.primary,
-                hover: Theme.colors.primaryHover,
-                pressed: Theme.colors.primaryHover,
-                disabled: Theme.colors.primary
-            },
-            secondary: {
-                default: Theme.colors.secondary,
-                hover: Theme.colors.secondaryHover,
-                pressed: Theme.colors.secondaryHover,
-                disabled: Theme.colors.secondary
-            },
-            destructive: {
-                default: Theme.colors.destructive,
-                hover: Theme.colors.destructive,
-                pressed: Theme.colors.destructive,
-                disabled: Theme.colors.destructive
-            },
-            ghost: {
-                default: "transparent",
-                hover: Theme.colors.accent,
-                pressed: Theme.colors.accent,
-                disabled: "transparent"
-            }
-        })
-
-        readonly property var colors: variantColors[root.variant]
-
         radius: Theme.radius.md
         color: {
-            if (!root.enabled) return colors.disabled
-            if (root.pressed) return colors.pressed
-            if (root.hovered) return colors.hover
-            return colors.default
+            var v = root.variant
+            if (!root.enabled) {
+                if (v === "ghost") return "transparent"
+                return Theme.isDark ? Qt.rgba(1,1,1,0.05) : Qt.rgba(0,0,0,0.04)
+            }
+            if (v === "primary") {
+                if (root.pressed) return Theme.colors.primaryHover
+                if (root.hovered) return Theme.colors.primaryHover
+                return Theme.colors.primary
+            }
+            if (v === "secondary") {
+                if (root.pressed) return Theme.colors.secondaryHover
+                if (root.hovered) return Theme.colors.secondaryHover
+                return Theme.colors.secondary
+            }
+            if (v === "destructive") {
+                if (root.pressed) return Qt.darker(Theme.colors.destructive, 1.1)
+                if (root.hovered) return Qt.lighter(Theme.colors.destructive, 1.1)
+                return Theme.colors.destructive
+            }
+            // ghost
+            if (root.pressed) return Theme.isDark ? Qt.rgba(1,1,1,0.1) : Qt.rgba(0,47,167,0.08)
+            if (root.hovered) return Theme.isDark ? Qt.rgba(1,1,1,0.06) : Qt.rgba(0,47,167,0.05)
+            return "transparent"
         }
 
-        // 边框（仅 secondary 变体有边框）
+        // 边框（secondary 和 ghost 悬浮时）
         border.width: root.variant === "secondary" ? 1 : 0
         border.color: {
             if (!root.enabled) return Theme.colors.border
@@ -94,51 +90,53 @@ Button {
         Behavior on color {
             ColorAnimation { duration: Theme.animation.fast; easing.type: Easing.OutCubic }
         }
-        Behavior on border.color {
-            ColorAnimation { duration: Theme.animation.fast; easing.type: Easing.OutCubic }
-        }
-        Behavior on opacity {
-            NumberAnimation { duration: Theme.animation.fast; easing.type: Easing.OutCubic }
-        }
     }
 
     // ========== 内容 ==========
-    contentItem: Text {
-        id: textItem
+    contentItem: Row {
+        id: buttonRow
+        spacing: 6
+        anchors.centerIn: parent
 
-        text: root.text
-        font.pixelSize: size === "sm" ? Theme.typography.size.xs : Theme.typography.size.sm
-        font.weight: Font.Medium
-        color: {
-            if (!root.enabled) {
-                return Theme.colors.mutedForeground
-            }
-            switch (root.variant) {
-                case "primary":
-                    return Theme.colors.primaryForeground
-                case "secondary":
-                    return Theme.colors.secondaryForeground
-                case "destructive":
-                    return Theme.colors.destructiveForeground
-                case "ghost":
-                    return Theme.colors.foreground
-                default:
-                    return Theme.colors.primaryForeground
-            }
+        // 可选图标
+        Image {
+            anchors.verticalCenter: parent.verticalCenter
+            width: 16
+            height: 16
+            source: root.iconName !== "" ? Theme.icon(root.iconName) : ""
+            sourceSize: Qt.size(16, 16)
+            visible: root.iconName !== ""
+            smooth: true
         }
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-        elide: Text.ElideRight
 
-        // 动画
-        Behavior on color {
-            ColorAnimation { duration: Theme.animation.fast; easing.type: Easing.OutCubic }
+        // 文本
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.text
+            font.pixelSize: root.sizeValues[root.size].fontSize
+            font.weight: Font.DemiBold
+            font.letterSpacing: 0.3
+            color: {
+                if (!root.enabled) return Theme.colors.mutedForeground
+                var v = root.variant
+                if (v === "primary") return Theme.colors.primaryForeground
+                if (v === "secondary") return Theme.colors.secondaryForeground
+                if (v === "destructive") return Theme.colors.destructiveForeground
+                return Theme.colors.foreground // ghost
+            }
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+
+            Behavior on color {
+                ColorAnimation { duration: Theme.animation.fast; easing.type: Easing.OutCubic }
+            }
         }
     }
 
     // ========== 按下效果 ==========
-    scale: root.pressed ? 0.98 : 1.0
+    scale: root.pressed ? 0.97 : 1.0
     Behavior on scale {
-        NumberAnimation { duration: Theme.animation.fast; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: 80; easing.type: Easing.OutCubic }
     }
 }

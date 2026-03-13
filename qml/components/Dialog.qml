@@ -1,8 +1,8 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import "./../styles"
-import "./../controls"
+import "../styles"
+import "../controls"
 
 /**
  * @brief 对话框组件
@@ -22,15 +22,6 @@ Item {
         Warning,    // 警告
         Error,      // 错误
         Confirm     // 确认
-    }
-
-    /**
-     * @brief 按钮配置
-     */
-    enum ButtonRole {
-        Primary,    // 主按钮
-        Secondary,  // 次要按钮
-        Destructive // 危险按钮
     }
 
     // ========== 属性定义 ==========
@@ -65,153 +56,76 @@ Item {
     property bool showSecondaryButton: true
 
     // ========== 信号定义 ==========
-    /**
-     * @brief 主按钮点击信号
-     */
     signal primaryButtonClicked()
-
-    /**
-     * @brief 次要按钮点击信号
-     */
     signal secondaryButtonClicked()
-
-    /**
-     * @brief 对话框关闭信号
-     */
     signal closed()
 
     // ========== 内部属性 ==========
-    /**
-     * @brief 当前主题颜色
-     */
-    readonly property var colors: Theme.isDark ? Colors.dark : Colors.light
-
-    /**
-     * @brief 获取对话框图标
-     */
-    readonly property string iconSource: {
+    readonly property string dialogIconName: {
         switch (type) {
-            case Dialog.DialogType.Success:
-                return "✓"
-            case Dialog.DialogType.Warning:
-                return "⚠"
-            case Dialog.DialogType.Error:
-                return "✕"
-            case Dialog.DialogType.Confirm:
-                return "?"
-            default:
-                return "ℹ"
+            case Dialog.DialogType.Success: return "check-circle"
+            case Dialog.DialogType.Warning: return "alert-triangle"
+            case Dialog.DialogType.Error:   return "x-circle"
+            case Dialog.DialogType.Confirm: return "help-circle"
+            default:                        return "info"
         }
     }
 
-    /**
-     * @brief 获取对话框图标颜色
-     */
-    readonly property color iconColor: {
+    readonly property color dialogIconBgColor: {
         switch (type) {
-            case Dialog.DialogType.Success:
-                return colors.chart5
-            case Dialog.DialogType.Warning:
-                return colors.chart4
-            case Dialog.DialogType.Error:
-                return colors.destructive
-            case Dialog.DialogType.Confirm:
-                return colors.primary
-            default:
-                return colors.primary
+            case Dialog.DialogType.Success: return Theme.colors.successSubtle
+            case Dialog.DialogType.Warning: return Theme.colors.warningSubtle
+            case Dialog.DialogType.Error:   return Theme.colors.destructiveSubtle
+            default:                        return Theme.colors.primarySubtle
+        }
+    }
+
+    readonly property color dialogIconColor: {
+        switch (type) {
+            case Dialog.DialogType.Success: return Theme.colors.success
+            case Dialog.DialogType.Warning: return Theme.colors.warning
+            case Dialog.DialogType.Error:   return Theme.colors.destructive
+            default:                        return Theme.colors.primary
         }
     }
 
     // ========== 显示/隐藏方法 ==========
-    /**
-     * @brief 显示对话框
-     * @param dialogTitle 标题
-     * @param dialogMessage 消息
-     * @param dialogType 对话框类型
-     */
     function show(dialogTitle, dialogMessage, dialogType) {
         title = dialogTitle || ""
         message = dialogMessage || ""
         type = dialogType !== undefined ? dialogType : Dialog.DialogType.Info
-        
         visible = true
         opacity = 0
-        scale = 0.9
-        
-        // 启动动画
         showAnimation.start()
     }
 
-    /**
-     * @brief 隐藏对话框
-     */
     function hide() {
         hideAnimation.start()
     }
 
     // ========== 动画 ==========
-    /**
-     * @brief 显示动画
-     */
     ParallelAnimation {
         id: showAnimation
-        NumberAnimation {
-            target: root
-            property: "opacity"
-            from: 0
-            to: 1
-            duration: 200
-            easing.type: Easing.OutCubic
-        }
-        NumberAnimation {
-            target: root
-            property: "scale"
-            from: 0.9
-            to: 1
-            duration: 200
-            easing.type: Easing.OutCubic
-        }
+        NumberAnimation { target: root; property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.OutCubic }
+        NumberAnimation { target: dialogRect; property: "scale"; from: 0.92; to: 1; duration: 250; easing.type: Easing.OutCubic }
     }
 
-    /**
-     * @brief 隐藏动画
-     */
     ParallelAnimation {
         id: hideAnimation
-        NumberAnimation {
-            target: root
-            property: "opacity"
-            from: 1
-            to: 0
-            duration: 150
-            easing.type: Easing.InCubic
-        }
-        NumberAnimation {
-            target: root
-            property: "scale"
-            from: 1
-            to: 0.95
-            duration: 150
-            easing.type: Easing.InCubic
-        }
-        onFinished: {
-            visible = false
-            closed()
-        }
+        NumberAnimation { target: root; property: "opacity"; from: 1; to: 0; duration: 150; easing.type: Easing.InCubic }
+        NumberAnimation { target: dialogRect; property: "scale"; from: 1; to: 0.95; duration: 150; easing.type: Easing.InCubic }
+        onFinished: { visible = false; closed() }
     }
 
     // ========== 背景遮罩 ==========
     Rectangle {
         anchors.fill: parent
-        color: Qt.rgba(0, 0, 0, 0.5)
-        
-        // 点击背景关闭对话框
+        color: Qt.rgba(0, 0, 0, Theme.isDark ? 0.6 : 0.4)
+
         MouseArea {
             anchors.fill: parent
             onClicked: {
-                if (type !== Dialog.DialogType.Confirm) {
-                    root.hide()
-                }
+                if (type !== Dialog.DialogType.Confirm) root.hide()
             }
         }
     }
@@ -220,39 +134,38 @@ Item {
     Rectangle {
         id: dialogRect
         anchors.centerIn: parent
-        width: Math.min(480, parent.width - 48)
-        height: contentColumn.height + 48
-        radius: 16
-        color: colors.card
-        border.color: colors.cardBorder
+        width: Math.min(440, parent.width - 48)
+        implicitHeight: contentColumn.implicitHeight + 48
+        radius: Theme.radius.xxl
+        color: Theme.colors.card
+        border.color: Theme.colors.cardBorder
         border.width: 1
 
         ColumnLayout {
             id: contentColumn
-            anchors.fill: parent
-            anchors.leftMargin: 24
-            anchors.rightMargin: 24
-            anchors.topMargin: 24
-            anchors.bottomMargin: 24
-            spacing: 20
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: 24
+            spacing: 16
 
             // 图标和标题区域
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 16
+                spacing: 14
 
                 // 图标
                 Rectangle {
-                    Layout.preferredWidth: 48
-                    Layout.preferredHeight: 48
-                    radius: 12
-                    color: Qt.tint(iconColor, Qt.rgba(1, 1, 1, 0.1))
-                    
-                    Text {
+                    width: 44; height: 44
+                    radius: Theme.radius.xl
+                    color: dialogIconBgColor
+
+                    Image {
                         anchors.centerIn: parent
-                        text: iconSource
-                        font.pixelSize: 24
-                        color: iconColor
+                        width: 22; height: 22
+                        source: Theme.icon(dialogIconName)
+                        sourceSize: Qt.size(22, 22)
+                        smooth: true
                     }
                 }
 
@@ -260,10 +173,18 @@ Item {
                 Text {
                     Layout.fillWidth: true
                     text: title
-                    font.pixelSize: 20
+                    font.pixelSize: 18
                     font.weight: Font.DemiBold
-                    color: colors.foreground
+                    color: Theme.colors.foreground
                     elide: Text.ElideRight
+                }
+
+                // 关闭按钮
+                IconButton {
+                    iconName: "x"
+                    iconSize: 14
+                    btnSize: 28
+                    onClicked: root.hide()
                 }
             }
 
@@ -272,43 +193,37 @@ Item {
                 Layout.fillWidth: true
                 text: message
                 font.pixelSize: 14
-                color: colors.mutedForeground
+                color: Theme.colors.mutedForeground
                 wrapMode: Text.Wrap
-                lineHeight: 1.5
+                lineHeight: 1.6
+                leftPadding: 58
             }
 
-            Item { Layout.fillHeight: true }
+            // 间距
+            Item { height: 4 }
 
             // 按钮区域
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 12
+                spacing: 10
 
                 Item { Layout.fillWidth: true }
 
                 // 次要按钮
                 Button {
-                    id: secondaryBtn
-                    Layout.preferredWidth: 100
                     visible: showSecondaryButton
                     variant: "secondary"
                     text: secondaryButtonText
-                    onClicked: {
-                        root.secondaryButtonClicked()
-                        root.hide()
-                    }
+                    size: "md"
+                    onClicked: { root.secondaryButtonClicked(); root.hide() }
                 }
 
                 // 主按钮
                 Button {
-                    id: primaryBtn
-                    Layout.preferredWidth: 100
                     variant: type === Dialog.DialogType.Error ? "destructive" : "primary"
                     text: primaryButtonText
-                    onClicked: {
-                        root.primaryButtonClicked()
-                        root.hide()
-                    }
+                    size: "md"
+                    onClicked: { root.primaryButtonClicked(); root.hide() }
                 }
             }
         }

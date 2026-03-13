@@ -206,6 +206,36 @@ qt_add_qml_module(EnhanceVision
         resources/icons/chevron-right.svg
         resources/icons/check.svg
         resources/icons/x.svg
+        resources/icons/sun.svg
+        resources/icons/moon.svg
+        resources/icons/plus.svg
+        resources/icons/panel-left.svg
+        resources/icons/globe.svg
+        resources/icons/minus.svg
+        resources/icons/square.svg
+        resources/icons/copy.svg
+        resources/icons/arrow-left.svg
+        resources/icons/pencil.svg
+        resources/icons/save.svg
+        resources/icons/x-circle.svg
+        resources/icons/zap.svg
+        resources/icons/sliders.svg
+        resources/icons/rotate-ccw.svg
+        resources/icons/send.svg
+        resources/icons/eye.svg
+        resources/icons/eye-off.svg
+        resources/icons/info.svg
+        resources/icons/alert-triangle.svg
+        resources/icons/check-circle.svg
+        resources/icons/message-square.svg
+        resources/icons/list.svg
+        resources/icons/sparkles.svg
+        resources/icons/file-plus.svg
+        resources/icons/loader.svg
+        resources/icons/layout-grid.svg
+        resources/icons/monitor.svg
+        resources/icons/cpu.svg
+        resources/icons/help-circle.svg
 )
 
 # Shader 资源已包含在 qml.qrc 中，使用 qsb 文件

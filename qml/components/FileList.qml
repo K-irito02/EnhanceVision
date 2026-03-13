@@ -15,45 +15,44 @@ Rectangle {
     
     // ========== 视觉属性 ==========
     color: Theme.colors.card
-    border {
-        width: 1
-        color: Theme.colors.border
-    }
-    radius: Theme.radius.md
+    border.width: 1
+    border.color: Theme.colors.cardBorder
+    radius: Theme.radius.lg
     
     // ========== 内部布局 ==========
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Theme.spacing._3
-        spacing: Theme.spacing._2
+        anchors.margins: 12
+        spacing: 8
         
         // ========== 顶部：标题和按钮 ==========
         RowLayout {
             Layout.fillWidth: true
-            spacing: Theme.spacing._2
+            spacing: 8
+            
+            Image {
+                width: 16; height: 16
+                source: Theme.icon("folder")
+                sourceSize: Qt.size(16, 16)
+                smooth: true
+            }
             
             Text {
                 text: qsTr("文件列表")
                 color: Theme.colors.foreground
-                font.pixelSize: 14
-                font.bold: true
+                font.pixelSize: 13
+                font.weight: Font.DemiBold
             }
             
-            Item {
-                Layout.fillWidth: true
-            }
+            Item { Layout.fillWidth: true }
             
             Button {
                 text: qsTr("添加文件")
+                iconName: "file-plus"
+                variant: "secondary"
+                size: "sm"
                 onClicked: fileDialog.open()
             }
-        }
-        
-        // ========== 分隔线 ==========
-        Rectangle {
-            Layout.fillWidth: true
-            height: 1
-            color: Theme.colors.border
         }
         
         // ========== 文件列表视图 ==========
@@ -62,17 +61,21 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             
-            // 拖拽进入时显示高亮边框
+            // 拖拽高亮
             Rectangle {
-                id: dropHighlight
                 anchors.fill: parent
                 color: "transparent"
-                border {
-                    width: dropArea.containsDrag ? 2 : 0
-                    color: Theme.colors.primary
-                }
-                radius: Theme.radius.sm
+                border.width: dropArea.containsDrag ? 2 : 0
+                border.color: Theme.colors.primary
+                radius: Theme.radius.md
                 visible: dropArea.containsDrag
+                
+                Rectangle {
+                    anchors.fill: parent
+                    color: Theme.colors.primarySubtle
+                    radius: parent.radius
+                    opacity: 0.5
+                }
             }
             
             // 文件选择对话框
@@ -102,182 +105,127 @@ Rectangle {
             ListView {
                 id: fileListView
                 anchors.fill: parent
-                anchors.margins: Theme.spacing._1
                 clip: true
-                spacing: Theme.spacing._2
+                spacing: 6
                 orientation: ListView.Horizontal
                 model: fileModel
                 
                 // 文件项委托
-                delegate: Item {
-                    id: fileItem
-                    width: 140
-                    height: fileListView.height
+                delegate: Rectangle {
+                    id: fileCard
+                    width: 130
+                    height: fileListView.height - 4
+                    radius: Theme.radius.md
+                    color: cardMouse.containsMouse ? Theme.colors.surfaceHover : Theme.colors.surface
+                    border.width: 1
+                    border.color: cardMouse.containsMouse ? Theme.colors.primary : Theme.colors.border
                     
-                    // 文件卡片
-                    Rectangle {
-                        id: fileCard
+                    Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
+                    Behavior on border.color { ColorAnimation { duration: Theme.animation.fast } }
+                    
+                    MouseArea {
+                        id: cardMouse
                         anchors.fill: parent
-                        anchors.margins: Theme.spacing._1
-                        radius: Theme.radius.sm
-                        color: Theme.colors.surface
-                        border {
-                            width: 1
-                            color: Theme.colors.border
-                        }
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: console.log("选中文件:", model.fileName)
+                    }
+                    
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 8
+                        spacing: 6
                         
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: Theme.spacing._2
-                            spacing: Theme.spacing._1
+                        // 文件缩略图区域
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 60
+                            radius: Theme.radius.sm
+                            color: Theme.colors.muted
+                            clip: true
                             
-                            // 文件预览/缩略图
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 80
-                                radius: Theme.radius.sm
-                                color: Theme.colors.muted
-                                clip: true
-                                
-                                // 显示缩略图
-                                Item {
-                                    id: thumbnailContainer
-                                    anchors.fill: parent
-                                    anchors.margins: 2
-                                    
-                                    property var thumbnailImage: model.thumbnail
-                                    
-                                    // 如果有缩略图，直接显示
-                                    Canvas {
-                                        id: thumbnailCanvas
-                                        anchors.fill: parent
-                                        visible: !thumbnailContainer.thumbnailImage.isNull
-                                        
-                                        onPaint: {
-                                            var ctx = getContext("2d");
-                                            ctx.clearRect(0, 0, width, height);
-                                            
-                                            if (!thumbnailContainer.thumbnailImage.isNull) {
-                                                // 计算缩放比例，保持宽高比
-                                                var imgWidth = thumbnailContainer.thumbnailImage.width;
-                                                var imgHeight = thumbnailContainer.thumbnailImage.height;
-                                                var scale = Math.min(width / imgWidth, height / imgHeight);
-                                                var scaledWidth = imgWidth * scale;
-                                                var scaledHeight = imgHeight * scale;
-                                                var x = (width - scaledWidth) / 2;
-                                                var y = (height - scaledHeight) / 2;
-                                                
-                                                ctx.drawImage(thumbnailContainer.thumbnailImage, x, y, scaledWidth, scaledHeight);
-                                            }
-                                        }
-                                    }
-                                    
-                                    // 如果没有缩略图，显示占位图标
-                                    Rectangle {
-                                        anchors.centerIn: parent
-                                        width: 40
-                                        height: 40
-                                        radius: 20
-                                        color: Qt.rgba(0, 0, 0, 0.5)
-                                        visible: thumbnailContainer.thumbnailImage.isNull
-                                        
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: model.mediaType === 0 ? "🖼️" : "🎬"
-                                            font.pixelSize: 20
-                                        }
-                                    }
-                                }
-                            }
-                            
-                            // 文件名
-                            Text {
-                                Layout.fillWidth: true
-                                text: model.fileName
-                                color: Theme.colors.foreground
-                                font.pixelSize: 11
-                                elide: Text.ElideMiddle
-                                maximumLineCount: 2
-                                wrapMode: Text.WordWrap
-                            }
-                            
-                            // 文件大小
-                            Text {
-                                Layout.fillWidth: true
-                                text: model.fileSizeDisplay
-                                color: Theme.colors.mutedForeground
-                                font.pixelSize: 10
-                            }
-                            
-                            // 状态指示器
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 4
-                                radius: 2
-                                color: {
-                                    switch(model.status) {
-                                        case 0: return Theme.colors.muted;    // Pending
-                                        case 1: return Theme.colors.primary;  // Processing
-                                        case 2: return Theme.colors.success;  // Completed
-                                        case 3: return Theme.colors.destructive;  // Failed
-                                        case 4: return Theme.colors.mutedForeground;  // Cancelled
-                                        default: return Theme.colors.muted;
-                                    }
-                                }
+                            Image {
+                                anchors.centerIn: parent
+                                width: 24; height: 24
+                                source: model.mediaType === 0 ? Theme.icon("image") : Theme.icon("video")
+                                sourceSize: Qt.size(24, 24)
+                                smooth: true
                             }
                         }
                         
-                        // 删除按钮
-                        IconButton {
-                            id: deleteButton
-                            anchors.top: parent.top
-                            anchors.right: parent.right
-                            anchors.topMargin: 4
-                            anchors.rightMargin: 4
-                            iconSource: "×"
-                            tooltip: qsTr("删除文件")
-                            width: 24
-                            height: 24
-                            onClicked: {
-                                fileController.removeFileAt(index)
+                        // 文件名
+                        Text {
+                            Layout.fillWidth: true
+                            text: model.fileName
+                            color: Theme.colors.foreground
+                            font.pixelSize: 11
+                            font.weight: Font.Medium
+                            elide: Text.ElideMiddle
+                            maximumLineCount: 1
+                        }
+                        
+                        // 文件大小
+                        Text {
+                            Layout.fillWidth: true
+                            text: model.fileSizeDisplay
+                            color: Theme.colors.mutedForeground
+                            font.pixelSize: 10
+                        }
+                        
+                        // 状态指示条
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 3
+                            radius: 1.5
+                            color: {
+                                switch(model.status) {
+                                    case 0: return Theme.colors.muted
+                                    case 1: return Theme.colors.primary
+                                    case 2: return Theme.colors.success
+                                    case 3: return Theme.colors.destructive
+                                    default: return Theme.colors.muted
+                                }
                             }
                         }
                     }
                     
-                    // 鼠标悬停效果
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        onClicked: {
-                            console.log("选中文件:", model.fileName)
-                        }
+                    // 删除按钮
+                    IconButton {
+                        anchors.top: parent.top
+                        anchors.right: parent.right
+                        anchors.margins: 2
+                        iconName: "x"
+                        iconSize: 10
+                        btnSize: 20
+                        visible: cardMouse.containsMouse
+                        danger: true
+                        onClicked: fileController.removeFileAt(index)
                     }
                 }
                 
                 // 空状态提示
-                Rectangle {
-                    id: emptyState
+                Item {
                     visible: fileListView.count === 0
-                    anchors.centerIn: parent
-                    color: "transparent"
+                    anchors.fill: parent
                     
                     ColumnLayout {
-                        spacing: Theme.spacing._2
+                        anchors.centerIn: parent
+                        spacing: 8
                         
-                        Text {
-                            text: qsTr("暂无文件")
-                            color: Theme.colors.mutedForeground
-                            font.pixelSize: 14
-                            horizontalAlignment: Text.AlignHCenter
+                        Image {
                             Layout.alignment: Qt.AlignHCenter
+                            width: 28; height: 28
+                            source: Theme.icon("upload")
+                            sourceSize: Qt.size(28, 28)
+                            smooth: true
+                            opacity: 0.5
                         }
                         
                         Text {
-                            text: qsTr("点击\"添加文件\"或拖拽文件到此处")
-                            color: Theme.colors.mutedForeground
-                            font.pixelSize: 11
-                            horizontalAlignment: Text.AlignHCenter
                             Layout.alignment: Qt.AlignHCenter
+                            text: qsTr("拖拽文件到此处或点击添加")
+                            color: Theme.colors.mutedForeground
+                            font.pixelSize: 12
                         }
                     }
                 }

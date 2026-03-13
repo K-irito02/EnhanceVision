@@ -17,6 +17,12 @@ QtObject {
     property bool isDark: true
 
     /**
+     * @brief 当前语言代码
+     * "zh_CN" 或 "en_US"
+     */
+    property string language: "zh_CN"
+
+    /**
      * @brief 切换主题
      */
     function toggle() {
@@ -31,6 +37,21 @@ QtObject {
         isDark = dark
     }
 
+    /**
+     * @brief 切换语言
+     */
+    function toggleLanguage() {
+        language = (language === "zh_CN") ? "en_US" : "zh_CN"
+    }
+
+    /**
+     * @brief 设置语言
+     * @param lang 语言代码
+     */
+    function setLanguage(lang) {
+        language = lang
+    }
+
     // ========== 颜色系统 ==========
     /**
      * @brief 当前主题的颜色集合
@@ -40,6 +61,16 @@ QtObject {
 
     // ========== 字体系统 ==========
     readonly property var typography: Typography
+
+    // ========== 图标路径辅助 ==========
+    /**
+     * @brief 获取图标资源路径
+     * @param name 图标名称（不含后缀）
+     * @return 图标 URL
+     */
+    function icon(name) {
+        return "qrc:/EnhanceVision/resources/icons/" + name + ".svg"
+    }
 
     // ========== 间距系统 (px) ==========
     readonly property var spacing: QtObject {
@@ -60,6 +91,7 @@ QtObject {
 
     // ========== 圆角系统 (px) ==========
     readonly property var radius: QtObject {
+        readonly property int xs: 4       // 4px - 微圆角
         readonly property int sm: 6       // 6px - 小圆角
         readonly property int md: 8       // 8px - 中圆角
         readonly property int lg: 10      // 10px - 大圆角 (默认)
@@ -72,27 +104,28 @@ QtObject {
     readonly property var animation: QtObject {
         readonly property int fast: 100    // 100ms - 微交互
         readonly property int normal: 200  // 200ms - 标准过渡
-        readonly property int slow: 300     // 300ms - 大动作
+        readonly property int slow: 300    // 300ms - 大动作
+        readonly property int slower: 500  // 500ms - 页面过渡
     }
 
     // ========== 阴影系统 ==========
     readonly property var shadow: QtObject {
         // 亮色主题阴影
         readonly property var light: QtObject {
-            readonly property string sm: "0 1px 2px 0 rgba(0, 0, 0, 0.05)"
-            readonly property string defaultShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)"
-            readonly property string md: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)"
-            readonly property string lg: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)"
-            readonly property string xl: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)"
+            readonly property string sm: "0 1px 2px 0 rgba(0, 47, 167, 0.05)"
+            readonly property string defaultShadow: "0 1px 3px 0 rgba(0, 47, 167, 0.08), 0 1px 2px -1px rgba(0, 47, 167, 0.06)"
+            readonly property string md: "0 4px 6px -1px rgba(0, 47, 167, 0.08), 0 2px 4px -2px rgba(0, 47, 167, 0.06)"
+            readonly property string lg: "0 10px 15px -3px rgba(0, 47, 167, 0.08), 0 4px 6px -4px rgba(0, 47, 167, 0.06)"
+            readonly property string xl: "0 20px 25px -5px rgba(0, 47, 167, 0.1), 0 8px 10px -6px rgba(0, 47, 167, 0.06)"
         }
 
         // 暗色主题阴影
         readonly property var dark: QtObject {
-            readonly property string sm: "0 1px 2px 0 rgba(0, 0, 0, 0.3)"
-            readonly property string defaultShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.4)"
-            readonly property string md: "0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.5)"
-            readonly property string lg: "0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5)"
-            readonly property string xl: "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)"
+            readonly property string sm: "0 1px 2px 0 rgba(0, 0, 0, 0.4)"
+            readonly property string defaultShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.5), 0 1px 2px -1px rgba(0, 0, 0, 0.5)"
+            readonly property string md: "0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -2px rgba(0, 0, 0, 0.5)"
+            readonly property string lg: "0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -4px rgba(0, 0, 0, 0.5)"
+            readonly property string xl: "0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5)"
         }
 
         // 当前主题的阴影
@@ -103,16 +136,16 @@ QtObject {
     readonly property var gradient: QtObject {
         // 亮色主题渐变
         readonly property var light: QtObject {
-            readonly property string welcome: "linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #f0f9ff 100%)"
-            readonly property string card: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)"
-            readonly property string primary: "linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)"
+            readonly property string welcome: "linear-gradient(135deg, #E8EEFB 0%, #D0DFFB 50%, #E8EEFB 100%)"
+            readonly property string card: "linear-gradient(135deg, #FFFFFF 0%, #F5F8FC 100%)"
+            readonly property string primary: "linear-gradient(135deg, #002FA7 0%, #1A56DB 100%)"
         }
 
         // 暗色主题渐变
         readonly property var dark: QtObject {
-            readonly property string welcome: "linear-gradient(135deg, #0f0f11 0%, #1a1a2e 50%, #0f0f11 100%)"
-            readonly property string card: "linear-gradient(135deg, #18181b 0%, #27272a 100%)"
-            readonly property string primary: "linear-gradient(135deg, #3b82f6 0%, #a855f7 100%)"
+            readonly property string welcome: "linear-gradient(135deg, #080C14 0%, #0F1D3A 50%, #080C14 100%)"
+            readonly property string card: "linear-gradient(135deg, #0F1520 0%, #1A2744 100%)"
+            readonly property string primary: "linear-gradient(135deg, #1A56DB 0%, #3B82F6 100%)"
         }
 
         // 当前主题的渐变

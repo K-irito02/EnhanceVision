@@ -25,56 +25,81 @@ Rectangle {
      */
     property bool isDraggable: true
     
-    /**
-     * @brief 当前语言
-     */
-    property string currentLanguage: "zh_CN"
+    // ========== 信号 ==========
+    signal toggleSidebar()
+    signal navigateToSettings()
+    signal navigateToHome()
+    signal newSession()
     
     // ========== 视觉属性 ==========
-    color: Theme.colors.card
+    color: Theme.colors.titleBar
     height: 48
     
-    // ========== 边框和分隔 ==========
-    border {
-        width: 1
-        color: Theme.colors.border
+    // ========== 底部分隔线 ==========
+    Rectangle {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: 1
+        color: Theme.colors.titleBarBorder
     }
     
     // ========== 内部布局 ==========
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: Theme.spacing._2
-        anchors.rightMargin: Theme.spacing._2
-        anchors.topMargin: Theme.spacing._1
-        anchors.bottomMargin: Theme.spacing._1
-        spacing: Theme.spacing._2
+        anchors.leftMargin: 12
+        anchors.rightMargin: 8
+        spacing: 2
         
-        // ========== 左侧：应用图标和标题 ==========
+        // ========== 左侧：品牌标识 ==========
         RowLayout {
-            spacing: Theme.spacing._2
+            spacing: 10
+            Layout.alignment: Qt.AlignVCenter
             
-            // 应用图标
+            // 品牌图标 - 克莱因蓝渐变
             Rectangle {
-                width: 32
-                height: 32
-                radius: Theme.radius.sm
-                color: Theme.colors.primary
+                width: 28
+                height: 28
+                radius: 7
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: "#002FA7" }
+                    GradientStop { position: 1.0; color: "#1A56DB" }
+                }
                 
                 Text {
                     anchors.centerIn: parent
                     text: "E"
-                    color: Theme.colors.primaryForeground
-                    font.pixelSize: 18
-                    font.bold: true
+                    color: "#FFFFFF"
+                    font.pixelSize: 15
+                    font.weight: Font.Bold
+                    font.letterSpacing: -0.5
                 }
             }
             
             // 应用标题
             Text {
-                text: qsTr("EnhanceVision")
+                text: "EnhanceVision"
                 color: Theme.colors.foreground
-                font.pixelSize: 16
-                font.bold: true
+                font.pixelSize: 14
+                font.weight: Font.DemiBold
+                font.letterSpacing: 0.2
+            }
+            
+            // 版本标签
+            Rectangle {
+                width: versionText.implicitWidth + 10
+                height: 18
+                radius: 9
+                color: Theme.colors.primarySubtle
+                
+                Text {
+                    id: versionText
+                    anchors.centerIn: parent
+                    text: "v0.1"
+                    color: Theme.colors.primary
+                    font.pixelSize: 10
+                    font.weight: Font.DemiBold
+                }
             }
         }
         
@@ -109,114 +134,139 @@ Rectangle {
             }
         }
         
-        // ========== 右侧：功能按钮 ==========
+        // ========== 右侧：功能按钮组 ==========
         RowLayout {
-            spacing: Theme.spacing._1
+            spacing: 2
+            Layout.alignment: Qt.AlignVCenter
             
-            // 新开会话按钮
+            // 新建会话按钮
             IconButton {
-                iconSource: "+"
-                tooltip: qsTr("新开会话 (Ctrl+N)")
-                onClicked: {
-                    // TODO: 调用 C++ 控制器创建新会话
-                    console.log("创建新会话")
-                }
+                iconName: "plus"
+                iconSize: 16
+                tooltip: qsTr("新开会话")
+                onClicked: root.newSession()
             }
             
-            // 收缩侧边栏按钮
+            // 侧边栏切换
             IconButton {
-                iconSource: "⇤"
-                tooltip: qsTr("收缩侧边栏")
-                onClicked: {
-                    if (parent && parent.parent && parent.parent.sidebarExpanded !== undefined) {
-                        parent.parent.sidebarExpanded = !parent.parent.sidebarExpanded
-                    }
-                }
+                iconName: "panel-left"
+                iconSize: 16
+                tooltip: qsTr("切换侧边栏")
+                onClicked: root.toggleSidebar()
             }
+            
+            // 间隔
+            Item { width: 4 }
             
             // 主题切换按钮
             IconButton {
-                id: themeButton
-                iconSource: Theme.isDark ? "☀️" : "🌙"
+                iconName: Theme.isDark ? "sun" : "moon"
+                iconSize: 16
                 tooltip: Theme.isDark ? qsTr("切换到亮色主题") : qsTr("切换到暗色主题")
-                onClicked: {
-                    Theme.toggle()
-                }
+                onClicked: Theme.toggle()
             }
             
             // 语言切换按钮
             IconButton {
-                id: languageButton
-                iconSource: currentLanguage === "zh_CN" ? "EN" : "中"
-                tooltip: currentLanguage === "zh_CN" ? qsTr("切换到英文") : qsTr("切换到中文")
-                onClicked: {
-                    currentLanguage = currentLanguage === "zh_CN" ? "en_US" : "zh_CN"
-                    // TODO: 调用 C++ 控制器切换语言
-                    console.log("切换语言到:", currentLanguage)
+                iconName: "globe"
+                iconSize: 16
+                tooltip: Theme.language === "zh_CN" ? qsTr("Switch to English") : qsTr("切换到中文")
+                onClicked: Theme.toggleLanguage()
+                
+                // 语言标签
+                Rectangle {
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    anchors.rightMargin: 2
+                    anchors.bottomMargin: 2
+                    width: 14
+                    height: 10
+                    radius: 3
+                    color: Theme.colors.primary
+                    
+                    Text {
+                        anchors.centerIn: parent
+                        text: Theme.language === "zh_CN" ? "中" : "En"
+                        color: "#FFFFFF"
+                        font.pixelSize: 7
+                        font.weight: Font.Bold
+                    }
                 }
             }
             
             // 设置按钮
             IconButton {
-                iconSource: "⚙"
+                iconName: "settings"
+                iconSize: 16
                 tooltip: qsTr("设置")
-                onClicked: {
-                    if (parent && parent.parent && parent.parent.currentPage !== undefined) {
-                        parent.parent.currentPage = parent.parent.currentPage === 0 ? 1 : 0
-                    }
-                }
+                onClicked: root.navigateToSettings()
             }
             
-            // 分隔线
+            // ========== 分隔线 ==========
             Rectangle {
                 width: 1
-                height: 24
+                height: 20
                 color: Theme.colors.border
+                Layout.alignment: Qt.AlignVCenter
             }
             
-            // 最小化按钮
+            // ========== 窗口控制按钮 ==========
+            // 最小化
             IconButton {
-                iconSource: "−"
+                iconName: "minus"
+                iconSize: 14
+                btnSize: 30
                 tooltip: qsTr("最小化")
                 onClicked: {
-                    if (parentWindow) {
-                        parentWindow.showMinimized()
-                    }
+                    if (parentWindow) parentWindow.showMinimized()
                 }
             }
             
-            // 最大化/还原按钮
+            // 最大化/还原
             IconButton {
-                id: maximizeButton
-                iconSource: (parentWindow && parentWindow.visibility === Window.Maximized) ? "❐" : "□"
+                iconName: (parentWindow && parentWindow.visibility === Window.Maximized) ? "copy" : "square"
+                iconSize: 13
+                btnSize: 30
                 tooltip: (parentWindow && parentWindow.visibility === Window.Maximized) ? qsTr("还原") : qsTr("最大化")
-                onClicked: {
-                    toggleMaximize()
-                }
+                onClicked: toggleMaximize()
             }
             
-            // 关闭按钮
-            IconButton {
-                iconSource: "×"
-                tooltip: qsTr("关闭")
-                onClicked: {
-                    if (parentWindow) {
-                        parentWindow.close()
+            // 关闭按钮 - 特殊红色悬浮效果
+            Button {
+                id: closeBtn
+                width: 30
+                height: 30
+                flat: true
+                padding: 0
+                
+                ToolTip.text: qsTr("关闭")
+                ToolTip.visible: hovered
+                ToolTip.delay: 600
+                
+                background: Rectangle {
+                    radius: Theme.radius.sm
+                    color: closeBtn.hovered ? "#E81123" : "transparent"
+                    Behavior on color {
+                        ColorAnimation { duration: Theme.animation.fast }
                     }
                 }
                 
-                // 关闭按钮特殊样式
-                background: Rectangle {
-                    color: root.hovered ? Theme.colors.destructive : "transparent"
-                    radius: Theme.radius.sm
+                contentItem: Image {
+                    source: Theme.icon("x")
+                    width: 14
+                    height: 14
+                    sourceSize: Qt.size(14, 14)
+                    anchors.centerIn: parent
+                    smooth: true
                 }
                 
-                contentItem: Text {
-                    text: "×"
-                    color: Theme.colors.foreground
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    font.pixelSize: 20
+                onClicked: {
+                    if (parentWindow) parentWindow.close()
+                }
+                
+                scale: pressed ? 0.9 : 1.0
+                Behavior on scale {
+                    NumberAnimation { duration: 80 }
                 }
             }
         }
@@ -247,5 +297,10 @@ Rectangle {
             }
             item = item.parent
         }
+    }
+    
+    // ========== 颜色过渡动画 ==========
+    Behavior on color {
+        ColorAnimation { duration: Theme.animation.normal; easing.type: Easing.OutCubic }
     }
 }

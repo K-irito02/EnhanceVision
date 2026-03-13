@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import Qt5Compat.GraphicalEffects
 import "../styles"
 
 /**
@@ -41,16 +40,6 @@ Rectangle {
     implicitWidth: 280
     implicitHeight: contentItem.implicitHeight + Theme.spacing._4 * 2
 
-    // ========== 阴影效果 ==========
-    layer.enabled: showShadow
-    layer.effect: DropShadow {
-        horizontalOffset: 0
-        verticalOffset: 2
-        radius: 8
-        samples: 16
-        color: Theme.isDark ? "#40000000" : "#20000000"
-    }
-
     // ========== 内容区域 ==========
     Item {
         id: contentItem
@@ -71,13 +60,8 @@ Rectangle {
     }
 
     // ========== 悬停效果 ==========
-    scale: mouseArea.pressed ? 0.98 : (mouseArea.containsMouse && root.clickable ? 1.01 : 1.0)
+    scale: mouseArea.pressed ? 0.98 : (mouseArea.containsMouse && root.clickable ? 1.005 : 1.0)
     Behavior on scale {
-        NumberAnimation { duration: Theme.animation.fast; easing.type: Easing.OutCubic }
-    }
-
-    opacity: mouseArea.containsMouse && root.clickable ? 0.95 : 1.0
-    Behavior on opacity {
         NumberAnimation { duration: Theme.animation.fast; easing.type: Easing.OutCubic }
     }
 

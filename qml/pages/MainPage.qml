@@ -10,14 +10,15 @@ import "../components"
  * 主应用页面，包含文件列表、预览面板和控制面板
  * 参考功能设计文档 0.2 和 UI 设计文档 08-ui-design.md
  */
-Item {
+Rectangle {
     id: root
+    color: Theme.colors.background
     
     // ========== 主布局 ==========
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Theme.spacing._3
-        spacing: Theme.spacing._3
+        anchors.margins: 12
+        spacing: 10
         
         // ========== 文件列表 ==========
         FileList {
@@ -26,34 +27,29 @@ Item {
             Layout.preferredHeight: 140
         }
         
-        // ========== 分隔线 ==========
-        Rectangle {
-            Layout.fillWidth: true
-            height: 1
-            color: Theme.colors.border
-        }
-        
         // ========== 中间区域（预览和控制面板） ==========
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: Theme.spacing._3
+            spacing: 10
             
             // ========== 预览面板 ==========
             PreviewPane {
                 id: previewPane
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumWidth: 400
+                Layout.minimumWidth: 300
             }
             
             // ========== 控制面板 ==========
             ControlPanel {
                 id: controlPanel
-                Layout.preferredWidth: 320
-                Layout.minimumWidth: 280
+                Layout.preferredWidth: 300
+                Layout.minimumWidth: 260
                 Layout.fillHeight: true
             }
         }
     }
+    
+    Behavior on color { ColorAnimation { duration: Theme.animation.normal } }
 }
