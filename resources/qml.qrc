@@ -1,0 +1,73 @@
+<RCC>
+    <qresource prefix="/">
+        <!-- QML 源文件 -->
+        <file>../qml/main.qml</file>
+        <file>../qml/App.qml</file>
+        
+        <!-- 页面组件 -->
+        <file>../qml/pages/MainPage.qml</file>
+        <file>../qml/pages/SettingsPage.qml</file>
+        
+        <!-- 通用组件 -->
+        <file>../qml/components/Card.qml</file>
+        <file>../qml/components/ControlPanel.qml</file>
+        <file>../qml/components/FileList.qml</file>
+        <file>../qml/components/MediaViewer.qml</file>
+        <file>../qml/components/PreviewPane.qml</file>
+        <file>../qml/components/Sidebar.qml</file>
+        <file>../qml/components/TitleBar.qml</file>
+        
+        <!-- 自定义控件 -->
+        <file>../qml/controls/Button.qml</file>
+        <file>../qml/controls/ComboBox.qml</file>
+        <file>../qml/controls/IconButton.qml</file>
+        <file>../qml/controls/Slider.qml</file>
+        <file>../qml/controls/TextField.qml</file>
+        
+        <!-- Shader 效果组件 -->
+        <file>../qml/shaders/BrightnessContrast.qml</file>
+        <file>../qml/shaders/SaturationHue.qml</file>
+        <file>../qml/shaders/SharpenBlur.qml</file>
+        
+        <!-- 样式定义 -->
+        <file>../qml/styles/Theme.qml</file>
+        <file>../qml/styles/Colors.qml</file>
+        <file>../qml/styles/Typography.qml</file>
+        
+        <!-- 工具脚本 -->
+        <file>../qml/utils/Helpers.js</file>
+    </qresource>
+    
+    <qresource prefix="/icons">
+        <!-- 图标资源 -->
+        <file>icons/home.svg</file>
+        <file>icons/settings.svg</file>
+        <file>icons/folder.svg</file>
+        <file>icons/play.svg</file>
+        <file>icons/pause.svg</file>
+        <file>icons/upload.svg</file>
+        <file>icons/download.svg</file>
+        <file>icons/refresh.svg</file>
+        <file>icons/trash.svg</file>
+        <file>icons/image.svg</file>
+        <file>icons/video.svg</file>
+        <file>icons/chevron-left.svg</file>
+        <file>icons/chevron-right.svg</file>
+        <file>icons/check.svg</file>
+        <file>icons/x.svg</file>
+    </qresource>
+    
+    <qresource prefix="/shaders">
+        <!-- Shader 资源 -->
+        <file>shaders/basic.vert</file>
+        <file>shaders/brightness.frag</file>
+        <file>shaders/contrast.frag</file>
+        <file>shaders/saturation.frag</file>
+        <file>shaders/sharpen.frag</file>
+        <file>shaders/blur.frag</file>
+    </qresource>
+    
+    <qresource prefix="/i18n">
+        <!-- 翻译文件 (编译后的 .qm 文件) -->
+    </qresource>
+</RCC>

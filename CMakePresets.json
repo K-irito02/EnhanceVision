@@ -1,0 +1,60 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "windows-msvc-2022-base",
+            "hidden": true,
+            "generator": "Visual Studio 17 2022",
+            "architecture": "x64",
+            "toolchainFile": "",
+            "cacheVariables": {
+                "CMAKE_PREFIX_PATH": "E:/Qt/6.10.2/msvc2022_64",
+                "CMAKE_CXX_COMPILER": "cl"
+            }
+        },
+        {
+            "name": "windows-msvc-2022-debug",
+            "displayName": "Debug",
+            "inherits": "windows-msvc-2022-base",
+            "binaryDir": "${sourceDir}/build/msvc2022/Debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "windows-msvc-2022-release",
+            "displayName": "Release",
+            "inherits": "windows-msvc-2022-base",
+            "binaryDir": "${sourceDir}/build/msvc2022/Release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "windows-msvc-2022-relwithdebinfo",
+            "displayName": "RelWithDebInfo",
+            "inherits": "windows-msvc-2022-base",
+            "binaryDir": "${sourceDir}/build/msvc2022/RelWithDebInfo",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "windows-msvc-2022-debug",
+            "configurePreset": "windows-msvc-2022-debug",
+            "configuration": "Debug"
+        },
+        {
+            "name": "windows-msvc-2022-release",
+            "configurePreset": "windows-msvc-2022-release",
+            "configuration": "Release"
+        },
+        {
+            "name": "windows-msvc-2022-relwithdebinfo",
+            "configurePreset": "windows-msvc-2022-relwithdebinfo",
+            "configuration": "RelWithDebInfo"
+        }
+    ]
+}

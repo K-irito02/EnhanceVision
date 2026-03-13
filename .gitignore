@@ -1,0 +1,80 @@
+# Build directories
+build/
+cmake-build-*/
+third_party/*/build/
+third_party/ncnn/build/
+tests/*/build/
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile*
+CTestTestfile.cmake
+install_manifest.txt
+*.cmake
+!CMakePresets.json
+
+# Qt generated
+*.autosave
+*.moc
+moc_*.cpp
+qrc_*.cpp
+qmake.stash
+*.qmake.stash
+*.pdb
+*.o
+*.obj
+*.so
+*.dll
+*.dylib
+*.a
+*.lib
+*.exe
+*.out
+*.app
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.ncb
+*.opensdf
+*.sdf
+*.cachefile
+
+# Qt Linguist (compiled translations)
+*.qm
+tsconfig.json
+
+# Qt resource optimization
+*.qmlc
+*.jsc
+*.qsb
+ShaderCache/
+ShaderStackTrace*
+*.rcc
+*.rcc.*
+
+# Qt Creator / Designer cache
+.qt/
+.qmake.files
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
