@@ -183,11 +183,6 @@ bool SessionModel::deleteSession(const QString &sessionId)
         return false;
     }
 
-    if (m_sessions.size() <= 1) {
-        emit errorOccurred(tr("至少需要保留一个会话"));
-        return false;
-    }
-
     bool wasActive = m_sessions[index].isActive;
     QString deletedId = sessionId;
 
@@ -195,10 +190,14 @@ bool SessionModel::deleteSession(const QString &sessionId)
     m_sessions.removeAt(index);
     endRemoveRows();
 
-    // 如果删除的是活动会话，切换到相邻会话
+    // 如果删除的是活动会话，切换到相邻会话（如果还有会话的话）
     if (wasActive && !m_sessions.isEmpty()) {
         int newActiveIndex = qMin(index, m_sessions.size() - 1);
         switchSession(m_sessions[newActiveIndex].id);
+    } else if (m_sessions.isEmpty()) {
+        // 所有会话都被删除了，清空活动会话ID
+        m_activeSessionId.clear();
+        emit activeSessionChanged();
     }
 
     emit countChanged();
@@ -257,9 +256,7 @@ int SessionModel::deleteSelectedSessions()
         }
     }
 
-    // 检查是否会删除所有会话
-    if (toDelete.size() >= m_sessions.size()) {
-        emit errorOccurred(tr("至少需要保留一个会话"));
+    if (toDelete.isEmpty()) {
         return 0;
     }
 

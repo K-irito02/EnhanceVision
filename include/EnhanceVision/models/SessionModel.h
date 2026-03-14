@@ -138,6 +138,12 @@ public:
     QList<Session> sessions() const { return m_sessions; }
 
     /**
+     * @brief 获取会话列表引用（用于修改）
+     * @return 会话列表引用
+     */
+    QList<Session>& sessionsRef() { return m_sessions; }
+
+    /**
      * @brief 获取指定ID的会话
      * @param sessionId 会话ID
      * @return 会话对象

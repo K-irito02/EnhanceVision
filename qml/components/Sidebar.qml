@@ -16,6 +16,11 @@ Rectangle {
     property bool pendingBatchClear: false
     property int selectedCount: 0
     property int totalCount: sessionController ? sessionController.sessionCount : 0
+    property alias isEditing: sessionList.isAnyEditing
+    
+    function cancelEditing() {
+        sessionList.isAnyEditing = false
+    }
     
     Connections {
         target: sessionController
@@ -24,6 +29,9 @@ Rectangle {
         }
         function onSessionCountChanged() {
             root.totalCount = sessionController.sessionCount
+        }
+        function onErrorOccurred(message) {
+            NotificationManager.showError(message)
         }
     }
     

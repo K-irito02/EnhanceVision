@@ -16,6 +16,7 @@ SessionController::SessionController(QObject* parent)
     , m_batchSelectionMode(false)
     , m_sessionCounter(0)
 {
+    connect(m_sessionModel, &SessionModel::errorOccurred, this, &SessionController::errorOccurred);
     createSession();
 }
 
@@ -25,7 +26,7 @@ SessionController::~SessionController()
 
 QString SessionController::activeSessionId() const
 {
-    return m_activeSessionId;
+    return m_sessionModel->activeSessionId();
 }
 
 SessionModel* SessionController::sessionModel() const
@@ -35,7 +36,7 @@ SessionModel* SessionController::sessionModel() const
 
 int SessionController::sessionCount() const
 {
-    return m_sessions.size();
+    return m_sessionModel->rowCount();
 }
 
 bool SessionController::batchSelectionMode() const
@@ -58,16 +59,14 @@ QString SessionController::createSession(const QString& name)
     session.name = name.isEmpty() ? generateDefaultSessionName() : name;
     session.createdAt = QDateTime::currentDateTime();
     session.modifiedAt = QDateTime::currentDateTime();
-    session.isActive = m_sessions.isEmpty();
+    session.isActive = m_sessionModel->rowCount() == 0;
     session.isSelected = false;
 
-    m_sessions.append(session);
+    m_sessionModel->addSession(session);
 
     if (session.isActive) {
         m_activeSessionId = session.id;
     }
-
-    m_sessionModel->addSession(session);
 
     emit sessionCreated(session.id);
     emit sessionCountChanged();
@@ -81,19 +80,11 @@ QString SessionController::createSession(const QString& name)
 
 void SessionController::switchSession(const QString& sessionId)
 {
-    if (m_activeSessionId == sessionId) return;
+    QString currentActiveId = m_sessionModel->activeSessionId();
+    if (currentActiveId == sessionId) return;
 
-    for (auto& session : m_sessions) {
-        if (session.id == m_activeSessionId) {
-            session.isActive = false;
-        }
-        if (session.id == sessionId) {
-            session.isActive = true;
-            m_activeSessionId = sessionId;
-        }
-    }
-
-    m_sessionModel->updateSessions(m_sessions);
+    m_sessionModel->switchSession(sessionId);
+    m_activeSessionId = sessionId;
 
     emit sessionSwitched(sessionId);
     emit activeSessionChanged();
@@ -103,181 +94,91 @@ void SessionController::renameSession(const QString& sessionId, const QString& n
 {
     if (newName.isEmpty()) return;
 
-    for (auto& session : m_sessions) {
-        if (session.id == sessionId) {
-            session.name = newName;
-            session.modifiedAt = QDateTime::currentDateTime();
-            m_sessionModel->updateSession(session);
-            emit sessionRenamed(sessionId, newName);
-            break;
-        }
-    }
+    m_sessionModel->renameSession(sessionId, newName);
+    emit sessionRenamed(sessionId, newName);
 }
 
 void SessionController::deleteSession(const QString& sessionId)
 {
-    int index = -1;
-    for (int i = 0; i < m_sessions.size(); ++i) {
-        if (m_sessions[i].id == sessionId) {
-            index = i;
-            break;
-        }
-    }
-
-    if (index == -1) return;
-
-    bool wasActive = m_sessions[index].isActive;
-    m_sessions.removeAt(index);
-    m_sessionModel->removeSession(sessionId);
-
-    if (m_sessions.isEmpty()) {
-        m_activeSessionId.clear();
-        emit activeSessionChanged();
-    } else if (wasActive) {
-        int newIndex = qMin(index, m_sessions.size() - 1);
-        switchSession(m_sessions[newIndex].id);
-    }
-
+    m_sessionModel->deleteSession(sessionId);
     emit sessionDeleted(sessionId);
     emit sessionCountChanged();
 }
 
 void SessionController::clearSession(const QString& sessionId)
 {
-    for (auto& session : m_sessions) {
-        if (session.id == sessionId) {
-            session.messages.clear();
-            session.modifiedAt = QDateTime::currentDateTime();
-            m_sessionModel->updateSession(session);
-            emit sessionCleared(sessionId);
-            break;
-        }
-    }
+    m_sessionModel->clearSession(sessionId);
 }
 
 void SessionController::selectSession(const QString& sessionId, bool selected)
 {
-    for (auto& session : m_sessions) {
-        if (session.id == sessionId) {
-            session.isSelected = selected;
-            m_sessionModel->updateSession(session);
-            emit selectionChanged();
-            break;
-        }
-    }
+    m_sessionModel->selectSession(sessionId, selected);
+    emit selectionChanged();
 }
 
 void SessionController::selectAllSessions()
 {
-    for (auto& session : m_sessions) {
-        session.isSelected = true;
-    }
-    m_sessionModel->updateSessions(m_sessions);
+    m_sessionModel->selectAll();
     emit selectionChanged();
 }
 
 void SessionController::deselectAllSessions()
 {
-    for (auto& session : m_sessions) {
-        session.isSelected = false;
-    }
-    m_sessionModel->updateSessions(m_sessions);
+    m_sessionModel->clearSelection();
     emit selectionChanged();
 }
 
 void SessionController::deleteSelectedSessions()
 {
-    QStringList toDelete;
-    for (const auto& session : m_sessions) {
-        if (session.isSelected) {
-            toDelete.append(session.id);
-        }
+    int count = m_sessionModel->deleteSelectedSessions();
+    if (count > 0) {
+        emit sessionCountChanged();
+        emit selectionChanged();
     }
-
-    for (const auto& id : toDelete) {
-        deleteSession(id);
-    }
-
     setBatchSelectionMode(false);
-    deselectAllSessions();
 }
 
 void SessionController::clearSelectedSessions()
 {
-    for (auto& session : m_sessions) {
-        if (session.isSelected) {
-            session.messages.clear();
-            session.modifiedAt = QDateTime::currentDateTime();
-            m_sessionModel->updateSession(session);
-            emit sessionCleared(session.id);
-        }
-    }
-    
+    m_sessionModel->clearSelectedSessions();
+    m_sessionModel->clearSelection();
+    emit selectionChanged();
     setBatchSelectionMode(false);
-    deselectAllSessions();
 }
 
 void SessionController::pinSession(const QString& sessionId, bool pinned)
 {
-    for (auto& session : m_sessions) {
-        if (session.id == sessionId) {
-            session.isPinned = pinned;
-            session.modifiedAt = QDateTime::currentDateTime();
-            break;
-        }
-    }
-    
     m_sessionModel->pinSession(sessionId, pinned);
     emit sessionPinned(sessionId, pinned);
 }
 
 void SessionController::moveSession(int fromIndex, int toIndex)
 {
-    if (fromIndex < 0 || fromIndex >= m_sessions.size() ||
-        toIndex < 0 || toIndex >= m_sessions.size() ||
-        fromIndex == toIndex) {
-        return;
-    }
-    
-    m_sessions.move(fromIndex, toIndex);
     m_sessionModel->moveSession(fromIndex, toIndex);
     emit sessionMoved(fromIndex, toIndex);
 }
 
 bool SessionController::isSessionPinned(const QString& sessionId) const
 {
-    for (const auto& session : m_sessions) {
-        if (session.id == sessionId) {
-            return session.isPinned;
-        }
-    }
-    return false;
+    Session session = m_sessionModel->sessionById(sessionId);
+    return session.isPinned;
 }
 
 int SessionController::selectedCount() const
 {
-    int count = 0;
-    for (const auto& session : m_sessions) {
-        if (session.isSelected) {
-            count++;
-        }
-    }
-    return count;
+    return m_sessionModel->selectedCount();
 }
 
 QString SessionController::getSessionName(const QString& sessionId) const
 {
-    for (const auto& session : m_sessions) {
-        if (session.id == sessionId) {
-            return session.name;
-        }
-    }
-    return QString();
+    Session session = m_sessionModel->sessionById(sessionId);
+    return session.name;
 }
 
 Session* SessionController::getSession(const QString& sessionId)
 {
-    for (auto& session : m_sessions) {
+    QList<Session>& sessions = m_sessionModel->sessionsRef();
+    for (auto& session : sessions) {
         if (session.id == sessionId) {
             return &session;
         }
@@ -287,29 +188,12 @@ Session* SessionController::getSession(const QString& sessionId)
 
 QString SessionController::ensureActiveSession()
 {
-    if (m_sessions.isEmpty() || m_activeSessionId.isEmpty()) {
+    if (m_sessionModel->rowCount() == 0 || m_sessionModel->activeSessionId().isEmpty()) {
         QString newId = createSession();
         return newId;
     }
     
-    bool found = false;
-    for (const auto& session : m_sessions) {
-        if (session.id == m_activeSessionId) {
-            found = true;
-            break;
-        }
-    }
-    
-    if (!found) {
-        if (!m_sessions.isEmpty()) {
-            switchSession(m_sessions.first().id);
-        } else {
-            QString newId = createSession();
-            return newId;
-        }
-    }
-    
-    return m_activeSessionId;
+    return m_sessionModel->activeSessionId();
 }
 
 QString SessionController::generateSessionId()

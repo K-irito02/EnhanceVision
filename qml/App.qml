@@ -160,5 +160,18 @@ Rectangle {
         }
     }
 
+    // ========== 全局焦点处理器 - 用于退出会话重命名编辑模式 ==========
+    // 当点击应用任何区域时，强制获取焦点从而让输入框失去焦点
+    MouseArea {
+        anchors.fill: parent
+        z: 1000
+        enabled: sidebar.isEditing
+        
+        onPressed: function(mouse) {
+            sidebar.cancelEditing()
+            mouse.accepted = false
+        }
+    }
+
     Behavior on color { ColorAnimation { duration: Theme.animation.normal } }
 }

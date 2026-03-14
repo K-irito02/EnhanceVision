@@ -64,12 +64,12 @@ signals:
     void sessionCleared(const QString& sessionId);
     void sessionPinned(const QString& sessionId, bool pinned);
     void sessionMoved(int fromIndex, int toIndex);
+    void errorOccurred(const QString& message);
 
 private:
     QString m_activeSessionId;
     SessionModel* m_sessionModel;
     bool m_batchSelectionMode;
-    QList<Session> m_sessions;
     int m_sessionCounter;
 
     QString generateSessionId();
