@@ -14,8 +14,6 @@ SessionModel::SessionModel(QObject *parent)
     : QAbstractListModel(parent)
     , m_sessionCounter(0)
 {
-    // 创建默认会话
-    createSession();
 }
 
 SessionModel::~SessionModel()
@@ -51,6 +49,10 @@ QVariant SessionModel::data(const QModelIndex &index, int role) const
         return session.isSelected;
     case MessageCountRole:
         return session.messages.size();
+    case IsPinnedRole:
+        return session.isPinned;
+    case SortIndexRole:
+        return session.sortIndex;
     default:
         return QVariant();
     }
@@ -66,6 +68,8 @@ QHash<int, QByteArray> SessionModel::roleNames() const
     roles[IsActiveRole] = "isActive";
     roles[IsSelectedRole] = "isSelected";
     roles[MessageCountRole] = "messageCount";
+    roles[IsPinnedRole] = "isPinned";
+    roles[SortIndexRole] = "sortIndex";
     return roles;
 }
 
@@ -80,10 +84,24 @@ QString SessionModel::createSession(const QString &name)
     session.modifiedAt = QDateTime::currentDateTime();
     session.isActive = m_sessions.isEmpty();  // 第一个会话设为活动
     session.isSelected = false;
+    session.isPinned = false;
+    session.sortIndex = m_sessions.size();
 
-    beginInsertRows(QModelIndex(), m_sessions.size(), m_sessions.size());
-    m_sessions.append(session);
+    // 计算新会话的插入位置（置顶会话之后，普通会话的最前面）
+    int insertIndex = 0;
+    for (int i = 0; i < m_sessions.size(); ++i) {
+        if (!m_sessions[i].isPinned) {
+            insertIndex = i;
+            break;
+        }
+        insertIndex = i + 1;
+    }
+
+    beginInsertRows(QModelIndex(), insertIndex, insertIndex);
+    m_sessions.insert(insertIndex, session);
     endInsertRows();
+
+    updateSortIndices();
 
     // 如果是第一个会话，设置为活动会话
     if (m_sessions.size() == 1) {
@@ -201,6 +219,7 @@ void SessionModel::clearSession(const QString &sessionId)
 
     QModelIndex modelIndex = createIndex(index, 0);
     emit dataChanged(modelIndex, modelIndex, {MessageCountRole, ModifiedAtRole});
+    emit sessionCleared(sessionId);
 }
 
 void SessionModel::selectSession(const QString &sessionId, bool selected)
@@ -318,6 +337,135 @@ int SessionModel::findSessionIndex(const QString &sessionId) const
         }
     }
     return -1;
+}
+
+int SessionModel::clearSelectedSessions()
+{
+    int clearedCount = 0;
+    for (int i = 0; i < m_sessions.size(); ++i) {
+        if (m_sessions[i].isSelected) {
+            m_sessions[i].messages.clear();
+            m_sessions[i].modifiedAt = QDateTime::currentDateTime();
+            QModelIndex modelIndex = createIndex(i, 0);
+            emit dataChanged(modelIndex, modelIndex, {MessageCountRole, ModifiedAtRole});
+            emit sessionCleared(m_sessions[i].id);
+            clearedCount++;
+        }
+    }
+    return clearedCount;
+}
+
+void SessionModel::pinSession(const QString &sessionId, bool pinned)
+{
+    int index = findSessionIndex(sessionId);
+    if (index < 0) {
+        emit errorOccurred(tr("会话不存在: %1").arg(sessionId));
+        return;
+    }
+
+    if (m_sessions[index].isPinned == pinned) {
+        return;
+    }
+
+    m_sessions[index].isPinned = pinned;
+    m_sessions[index].modifiedAt = QDateTime::currentDateTime();
+
+    // 重新排序
+    sortSessions();
+
+    emit sessionPinned(sessionId, pinned);
+}
+
+void SessionModel::moveSession(int fromIndex, int toIndex)
+{
+    if (fromIndex < 0 || fromIndex >= m_sessions.size() ||
+        toIndex < 0 || toIndex >= m_sessions.size() ||
+        fromIndex == toIndex) {
+        return;
+    }
+
+    // 检查是否跨越置顶/非置顶边界
+    bool fromPinned = m_sessions[fromIndex].isPinned;
+    bool toPinned = m_sessions[toIndex].isPinned;
+
+    // 不允许非置顶会话移动到置顶区域，反之亦然
+    if (fromPinned != toPinned) {
+        emit errorOccurred(tr("不能跨越置顶区域移动会话"));
+        return;
+    }
+
+    beginMoveRows(QModelIndex(), fromIndex, fromIndex, 
+                  QModelIndex(), toIndex > fromIndex ? toIndex + 1 : toIndex);
+    m_sessions.move(fromIndex, toIndex);
+    endMoveRows();
+
+    updateSortIndices();
+    emit sessionMoved(fromIndex, toIndex);
+}
+
+void SessionModel::selectAll()
+{
+    for (int i = 0; i < m_sessions.size(); ++i) {
+        if (!m_sessions[i].isSelected) {
+            m_sessions[i].isSelected = true;
+            QModelIndex modelIndex = createIndex(i, 0);
+            emit dataChanged(modelIndex, modelIndex, {IsSelectedRole});
+        }
+    }
+}
+
+int SessionModel::selectedCount() const
+{
+    int count = 0;
+    for (const Session &session : m_sessions) {
+        if (session.isSelected) {
+            count++;
+        }
+    }
+    return count;
+}
+
+void SessionModel::sortSessions()
+{
+    beginResetModel();
+    
+    // 分离置顶和非置顶会话
+    QList<Session> pinnedSessions;
+    QList<Session> normalSessions;
+    
+    for (const Session &session : m_sessions) {
+        if (session.isPinned) {
+            pinnedSessions.append(session);
+        } else {
+            normalSessions.append(session);
+        }
+    }
+    
+    // 按sortIndex排序
+    std::sort(pinnedSessions.begin(), pinnedSessions.end(), 
+              [](const Session &a, const Session &b) {
+                  return a.sortIndex < b.sortIndex;
+              });
+    std::sort(normalSessions.begin(), normalSessions.end(), 
+              [](const Session &a, const Session &b) {
+                  return a.sortIndex < b.sortIndex;
+              });
+    
+    // 合并：置顶在前
+    m_sessions.clear();
+    m_sessions.append(pinnedSessions);
+    m_sessions.append(normalSessions);
+    
+    endResetModel();
+    
+    updateSortIndices();
+}
+
+void SessionModel::updateSortIndices()
+{
+    for (int i = 0; i < m_sessions.size(); ++i) {
+        m_sessions[i].sortIndex = i;
+    }
 }
 
 } // namespace EnhanceVision

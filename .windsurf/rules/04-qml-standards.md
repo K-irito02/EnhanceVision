@@ -177,6 +177,59 @@ Item {
 }
 ```
 
+### 单向控制模式（父子组件通信）
+
+当父组件需要单向控制子组件，而子组件不应反向影响父组件时：
+
+```qml
+// ❌ 错误：双向绑定导致子组件修改破坏绑定
+// App.qml
+MainPage {
+    processingMode: root.processingMode
+    onProcessingModeChanged: root.processingMode = processingMode
+}
+ControlPanel {
+    processingMode: root.processingMode
+    onProcessingModeChanged: root.processingMode = processingMode
+}
+
+// ✅ 正确：单向控制 - 子组件使用独立内部状态
+// App.qml
+MainPage {
+    processingMode: root.processingMode
+    onProcessingModeChanged: root.processingMode = processingMode
+}
+ControlPanel {
+    processingMode: root.processingMode  // 只接收，不发信号
+}
+
+// ControlPanel.qml
+Rectangle {
+    id: root
+    property int processingMode: 0      // 外部传入
+    property int displayMode: 0         // 内部显示状态
+    
+    // 监听外部更新
+    onProcessingModeChanged: {
+        displayMode = processingMode
+    }
+    
+    Component.onCompleted: {
+        displayMode = processingMode
+    }
+    
+    // UI 使用 displayMode，按钮点击只修改 displayMode
+    Button {
+        onClicked: displayMode = 0  // 不影响外部 binding
+    }
+}
+```
+
+**关键原则**：
+- 父组件通过属性向子组件传递状态
+- 子组件使用内部属性管理自己的显示状态
+- 子组件通过信号通知父组件（如果需要），但不应直接修改父组件绑定的属性
+
 ## 信号处理规范
 
 ### 信号声明

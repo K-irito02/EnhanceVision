@@ -145,7 +145,7 @@ Rectangle {
             IconButton {
                 iconName: "plus"
                 iconSize: 16
-                tooltip: qsTr("新开会话")
+                tooltip: qsTr("新建会话")
                 onClicked: root.newSession()
             }
             

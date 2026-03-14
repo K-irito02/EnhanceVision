@@ -135,10 +135,14 @@ struct Session {
     QList<Message> messages; ///< 消息列表
     bool isActive;           ///< 是否为当前活动会话
     bool isSelected;         ///< 是否被选中（批量操作模式）
+    bool isPinned;           ///< 是否置顶
+    int sortIndex;           ///< 排序索引（用于拖拽排序）
 
     Session()
         : isActive(false)
         , isSelected(false)
+        , isPinned(false)
+        , sortIndex(0)
     {}
 };
 

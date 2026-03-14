@@ -72,6 +72,4 @@ TextField {
         }
     }
 
-    // ========== 鼠标指针 ==========
-    cursorShape: root.enabled ? Qt.IBeamCursor : Qt.ForbiddenCursor
 }
