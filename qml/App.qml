@@ -20,8 +20,8 @@ Rectangle {
     property bool sidebarExpanded: true
     property bool controlPanelExpanded: true
     property bool controlPanelCollapsed: false
-    property bool browseMode: false
     property int currentPage: 0
+    property int processingMode: 0  // 0: Shader, 1: AI
 
     // ========== 主布局 ==========
     ColumnLayout {
@@ -36,13 +36,15 @@ Rectangle {
 
             onToggleSidebar: root.sidebarExpanded = !root.sidebarExpanded
             onToggleControlPanel: root.controlPanelExpanded = !root.controlPanelExpanded
+            
             onToggleBrowseMode: {
-                root.browseMode = !root.browseMode
-                if (root.browseMode) {
+                var hasExpanded = root.sidebarExpanded || !root.controlPanelCollapsed
+                if (hasExpanded) {
                     root.sidebarExpanded = false
-                    root.controlPanelExpanded = false
+                    root.controlPanelCollapsed = true
                 }
             }
+            
             onNavigateToSettings: root.currentPage = 1
             onNewSession: console.log("New session requested")
         }
@@ -56,7 +58,7 @@ Rectangle {
             // ========== 侧边栏 ==========
             Sidebar {
                 id: sidebar
-                visible: !root.browseMode || root.sidebarExpanded
+                visible: true
                 expanded: root.sidebarExpanded
                 Layout.preferredWidth: sidebarExpanded ? 200 : 0
                 Layout.fillHeight: true
@@ -81,6 +83,11 @@ Rectangle {
                 // 主页面
                 MainPage {
                     id: mainPage
+                    processingMode: root.processingMode
+                    onProcessingModeChanged: root.processingMode = processingMode
+                    onExpandControlPanel: {
+                        root.controlPanelCollapsed = false
+                    }
                 }
 
                 // 设置页面
@@ -93,11 +100,12 @@ Rectangle {
             // ========== 右侧控制面板 ==========
             ControlPanel {
                 id: controlPanel
-                visible: root.currentPage === 0 && (!root.browseMode || root.controlPanelExpanded)
+                visible: root.currentPage === 0
                 collapsed: root.controlPanelCollapsed
-                Layout.preferredWidth: controlPanelExpanded ? (controlPanelCollapsed ? 52 : 280) : 0
+                processingMode: root.processingMode
+                Layout.preferredWidth: controlPanelCollapsed ? 52 : (controlPanelExpanded ? 280 : 0)
                 Layout.fillHeight: true
-                Layout.maximumWidth: controlPanelExpanded ? (controlPanelCollapsed ? 52 : 280) : 0
+                Layout.maximumWidth: controlPanelCollapsed ? 52 : (controlPanelExpanded ? 280 : 0)
                 Layout.minimumWidth: 0
                 Layout.alignment: Qt.AlignRight
 

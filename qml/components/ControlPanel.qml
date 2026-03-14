@@ -17,6 +17,7 @@ Rectangle {
 
     // ========== 属性定义 ==========
     property int processingMode: 0
+    property int displayMode: 0
     property real brightness: 0.0
     property real contrast: 1.0
     property real saturation: 1.0
@@ -27,6 +28,15 @@ Rectangle {
 
     // ========== 信号 ==========
     signal collapseToggleRequested()
+
+    // ========== 属性监听 ==========
+    onProcessingModeChanged: {
+        displayMode = processingMode
+    }
+
+    Component.onCompleted: {
+        displayMode = processingMode
+    }
 
     // ========== 视觉属性 ==========
     color: Theme.colors.card
@@ -75,8 +85,8 @@ Rectangle {
                     Layout.preferredWidth: shaderRow.implicitWidth + 16
                     height: 28
                     radius: Theme.radius.md
-                    color: processingMode === 0 ? Theme.colors.primary : "transparent"
-                    border.width: processingMode === 0 ? 0 : 1
+                    color: displayMode === 0 ? Theme.colors.primary : "transparent"
+                    border.width: displayMode === 0 ? 0 : 1
                     border.color: Theme.colors.border
 
                     Row {
@@ -88,7 +98,7 @@ Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
                             source: Theme.icon("sliders")
                             iconSize: 13
-                            color: processingMode === 0 ? "#FFFFFF" : Theme.colors.foreground
+                            color: displayMode === 0 ? "#FFFFFF" : Theme.colors.foreground
                         }
 
                         Text {
@@ -96,14 +106,14 @@ Rectangle {
                             text: qsTr("Shader")
                             font.pixelSize: 11
                             font.weight: Font.DemiBold
-                            color: processingMode === 0 ? "#FFFFFF" : Theme.colors.foreground
+                            color: displayMode === 0 ? "#FFFFFF" : Theme.colors.foreground
                         }
                     }
 
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: processingMode = 0
+                        onClicked: displayMode = 0
                     }
 
                     Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
@@ -114,8 +124,8 @@ Rectangle {
                     Layout.preferredWidth: aiRow.implicitWidth + 16
                     height: 28
                     radius: Theme.radius.md
-                    color: processingMode === 1 ? Theme.colors.primary : "transparent"
-                    border.width: processingMode === 1 ? 0 : 1
+                    color: displayMode === 1 ? Theme.colors.primary : "transparent"
+                    border.width: displayMode === 1 ? 0 : 1
                     border.color: Theme.colors.border
 
                     Row {
@@ -127,7 +137,7 @@ Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
                             source: Theme.icon("sparkles")
                             iconSize: 13
-                            color: processingMode === 1 ? "#FFFFFF" : Theme.colors.foreground
+                            color: displayMode === 1 ? "#FFFFFF" : Theme.colors.foreground
                         }
 
                         Text {
@@ -135,14 +145,14 @@ Rectangle {
                             text: qsTr("AI")
                             font.pixelSize: 11
                             font.weight: Font.DemiBold
-                            color: processingMode === 1 ? "#FFFFFF" : Theme.colors.foreground
+                            color: displayMode === 1 ? "#FFFFFF" : Theme.colors.foreground
                         }
                     }
 
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: processingMode = 1
+                        onClicked: displayMode = 1
                     }
 
                     Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
@@ -231,7 +241,7 @@ Rectangle {
             StackLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                currentIndex: processingMode
+                currentIndex: displayMode
 
                 // ===== Shader 模式参数 =====
                 ScrollView {
@@ -499,7 +509,7 @@ Rectangle {
         }
 
         var params = {};
-        if (processingMode === 0) {
+        if (displayMode === 0) {
             params.brightness = brightness;
             params.contrast = contrast;
             params.saturation = saturation;
@@ -509,9 +519,9 @@ Rectangle {
             params.modelIndex = aiModelIndex;
         }
 
-        console.log("处理模式:", processingMode, "参数:", params);
+        console.log("处理模式:", displayMode, "参数:", params);
 
-        var messageId = processingController.sendToProcessing(processingMode, params);
+        var messageId = processingController.sendToProcessing(displayMode, params);
         if (messageId) {
             console.log("任务已添加到队列，消息ID:", messageId);
         } else {

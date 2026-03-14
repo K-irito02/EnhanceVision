@@ -153,8 +153,16 @@ Rectangle {
             IconButton {
                 iconName: "panel-left"
                 iconSize: 16
-                tooltip: qsTr("切换侧边栏")
+                tooltip: qsTr("展开/收缩会话栏")
                 onClicked: root.toggleSidebar()
+            }
+            
+            // 分隔线
+            Rectangle {
+                width: 1
+                height: 20
+                color: Theme.colors.border
+                Layout.alignment: Qt.AlignVCenter
             }
         }
         

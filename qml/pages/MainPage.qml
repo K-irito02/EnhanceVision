@@ -21,6 +21,9 @@ Rectangle {
     property bool hasFiles: fileModel.count > 0
     property bool hasMessages: processingModel.count > 0
     
+    // ========== 信号 ==========
+    signal expandControlPanel()
+    
     // ========== 主布局 ==========
     ColumnLayout {
         anchors.fill: parent
@@ -277,7 +280,10 @@ Rectangle {
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: root.processingMode = 0
+                            onClicked: {
+                                root.processingMode = 0
+                                root.expandControlPanel()
+                            }
                         }
                         
                         Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
@@ -316,7 +322,10 @@ Rectangle {
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: root.processingMode = 1
+                            onClicked: {
+                                root.processingMode = 1
+                                root.expandControlPanel()
+                            }
                         }
                         
                         Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
