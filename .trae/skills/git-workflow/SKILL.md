@@ -11,10 +11,10 @@ description: "Manages version control and GitHub submissions following Git Flow 
 
 | 分支 | 命名 | 用途 |
 |------|------|------|
-| `master` | master | 稳定发布 |
-| `develop` | develop | 开发主分支 |
-| `feature/*` | feature/功能名 | 功能开发 |
-| `hotfix/*` | hotfix/描述 | 紧急修复 |
+| `main` | main | 稳定发布分支 |
+| `develop` | develop | 开发主分支（如使用） |
+| `feature/*` | feature/功能名 | 功能开发分支 |
+| `hotfix/*` | hotfix/描述 | 紧急修复分支 |
 
 ## Semantic Commit Guidelines
 
@@ -22,13 +22,27 @@ Format: `<type>(scope): <subject>`
 
 | type | 说明 | scope 示例 |
 |------|------|-----------|
-| `feat` | 新功能 | `frontend`, `bridge`, `core`, `ai` |
-| `fix` | Bug 修复 | `frontend`, `bridge`, `shader` |
+| `feat` | 新功能 | `frontend`, `core`, `ui`, `ai` |
+| `fix` | Bug 修复 | `frontend`, `core`, `shader` |
 | `refactor` | 重构 | `core`, `frontend` |
-| `chore` | 构建/工具 | `cmake`, `vite`, `deps` |
+| `chore` | 构建/工具 | `cmake`, `deps`, `build` |
 | `docs` | 文档 | `readme`, `rules` |
 | `perf` | 性能 | `core`, `frontend` |
-| `test` | 测试 | `core`, `bridge` |
+| `test` | 测试 | `core`, `frontend` |
+| `style` | 样式/UI | `ui`, `theme`, `icons` |
+
+## Scope 说明
+
+| scope | 说明 |
+|-------|------|
+| `frontend` | QML 前端代码（qml/ 目录） |
+| `core` | C++ 核心代码（src/core/） |
+| `ui` | UI 组件、样式、主题 |
+| `theme` | 颜色、主题、图标 |
+| `icons` | 图标资源 |
+| `cmake` | CMake 构建配置 |
+| `deps` | 依赖管理 |
+| `build` | 构建系统 |
 
 ## 必须推送到 GitHub 的项目目录
 
@@ -38,10 +52,10 @@ Format: `<type>(scope): <subject>`
 
 | 目录 | 说明 | 优先级 |
 |------|------|--------|
-| `src/` | C++ 源码（bridge、core、rhi、utils） | **必须** |
+| `src/` | C++ 源码（app、core、models、providers、utils） | **必须** |
 | `include/EnhanceVision/` | C++ 头文件 | **必须** |
-| `frontend/src/` | React 前端源码 | **必须** |
-| `resources/` | Qt 资源（qrc、shaders、models、i18n） | **必须** |
+| `qml/` | QML 源码（组件、控件、页面、样式） | **必须** |
+| `resources/` | Qt 资源（icons、shaders、models、i18n） | **必须** |
 | `tests/` | 单元测试 | **必须** |
 
 ### 构建配置文件
@@ -50,13 +64,6 @@ Format: `<type>(scope): <subject>`
 |------|------|--------|
 | `CMakeLists.txt` | 主构建文件 | **必须** |
 | `CMakePresets.json` | CMake 预设 | **必须** |
-| `cmake/` | CMake 脚本目录 | **必须** |
-| `frontend/package.json` | 前端依赖配置 | **必须** |
-| `frontend/package-lock.json` | 前端依赖锁定 | **必须** |
-| `frontend/vite.config.ts` | Vite 配置 | **必须** |
-| `frontend/tsconfig.json` | TypeScript 配置 | **必须** |
-| `frontend/index.html` | 入口 HTML | **必须** |
-| `frontend/postcss.config.mjs` | PostCSS 配置 | **必须** |
 
 ### 项目文档与配置
 
@@ -86,31 +93,53 @@ Format: `<type>(scope): <subject>`
 |------|------|
 | `build/` | 构建产物 |
 | `logs/` | 日志文件 |
-| `frontend/node_modules/` | 前端依赖 |
-| `frontend/dist/` | 前端构建产物 |
-| `third_party/` | 第三方库（太大） |
+| `third_party/` | 第三方库（通过 add_subdirectory 引入） |
 
 ## Usage Instructions
 
 1. **Check Status**: Always run `git status` before starting.
 2. **Branch Management**: Create a new branch for new features: `git checkout -b feature/your-feature-name`.
 3. **Staging**: Use `git add <files>` to stage specific changes. Avoid `git add .` if unwanted files are present.
-4. **Committing**: Use the semantic format: `git commit -m "feat(bridge): add SessionManager QWebChannel"`.
+4. **Committing**: Use the semantic format: `git commit -m "feat(ui): add control panel collapse functionality"`.
 5. **Pushing**: First push: `git push -u origin feature/your-feature-name`.
-6. **Pull Requests**: Create a PR on GitHub to merge feature branch into `develop`.
+6. **Pull Requests**: Create a PR on GitHub to merge feature branch into `main`.
 
 ## Common Commands
 
 ```bash
 # Initialize a new feature
-git checkout develop
-git pull origin develop
+git checkout main
+git pull origin main
 git checkout -b feature/new-feature
 
-# Commit changes (scope reflects new architecture)
-git add src/bridge/ frontend/src/
-git commit -m "feat(bridge): expose FileManager via QWebChannel"
+# Commit changes
+git add qml/ resources/
+git commit -m "feat(ui): implement dark theme blue icons"
 
 # Push to remote
 git push -u origin feature/new-feature
+```
+
+## Commit Message Template
+
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+### Example
+
+```
+feat(ui): implement dark theme blue icons and control panel collapse
+
+- Add icons-dark directory with blue SVG icons for dark theme
+- Update Theme.icon() to return different icon paths based on theme
+- Simplify ColoredIcon component to directly display icons
+- Fix control panel border to align with window edges
+- Update CMakeLists.txt to include dark theme icons
+
+Closes #123
 ```
