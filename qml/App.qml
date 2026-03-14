@@ -9,7 +9,7 @@ import "./utils"
 /**
  * @brief 应用根组件
  * 
- * 管理整体布局结构，包括标题栏、侧边栏和主内容区域
+ * 管理整体布局结构，包括标题栏、侧边栏、主内容区域和控制面板
  * 参考功能设计文档 0.2 和 UI 设计文档 08-ui-design.md
  */
 Rectangle {
@@ -18,6 +18,9 @@ Rectangle {
 
     // ========== 属性定义 ==========
     property bool sidebarExpanded: true
+    property bool controlPanelExpanded: true
+    property bool controlPanelCollapsed: false
+    property bool browseMode: false
     property int currentPage: 0
 
     // ========== 主布局 ==========
@@ -32,6 +35,14 @@ Rectangle {
             Layout.preferredHeight: 48
 
             onToggleSidebar: root.sidebarExpanded = !root.sidebarExpanded
+            onToggleControlPanel: root.controlPanelExpanded = !root.controlPanelExpanded
+            onToggleBrowseMode: {
+                root.browseMode = !root.browseMode
+                if (root.browseMode) {
+                    root.sidebarExpanded = false
+                    root.controlPanelExpanded = false
+                }
+            }
             onNavigateToSettings: root.currentPage = 1
             onNewSession: console.log("New session requested")
         }
@@ -45,11 +56,12 @@ Rectangle {
             // ========== 侧边栏 ==========
             Sidebar {
                 id: sidebar
+                visible: !root.browseMode || root.sidebarExpanded
                 expanded: root.sidebarExpanded
-                Layout.preferredWidth: sidebarExpanded ? 240 : 64
+                Layout.preferredWidth: sidebarExpanded ? 200 : 0
                 Layout.fillHeight: true
-                Layout.maximumWidth: sidebarExpanded ? 240 : 64
-                Layout.minimumWidth: sidebarExpanded ? 240 : 64
+                Layout.maximumWidth: sidebarExpanded ? 200 : 0
+                Layout.minimumWidth: 0
 
                 Behavior on Layout.preferredWidth {
                     NumberAnimation {
@@ -75,6 +87,29 @@ Rectangle {
                 SettingsPage {
                     id: settingsPage
                     onGoBack: root.currentPage = 0
+                }
+            }
+
+            // ========== 右侧控制面板 ==========
+            ControlPanel {
+                id: controlPanel
+                visible: root.currentPage === 0 && (!root.browseMode || root.controlPanelExpanded)
+                collapsed: root.controlPanelCollapsed
+                Layout.preferredWidth: controlPanelExpanded ? (controlPanelCollapsed ? 52 : 280) : 0
+                Layout.fillHeight: true
+                Layout.maximumWidth: controlPanelExpanded ? (controlPanelCollapsed ? 52 : 280) : 0
+                Layout.minimumWidth: 0
+                Layout.alignment: Qt.AlignRight
+
+                onCollapseToggleRequested: {
+                    root.controlPanelCollapsed = !root.controlPanelCollapsed
+                }
+
+                Behavior on Layout.preferredWidth {
+                    NumberAnimation {
+                        duration: Theme.animation.normal
+                        easing.type: Easing.OutCubic
+                    }
                 }
             }
         }

@@ -65,11 +65,13 @@ QtObject {
     // ========== 图标路径辅助 ==========
     /**
      * @brief 获取图标资源路径
+     * 暗色主题返回蓝色图标，亮色主题返回黑色图标
      * @param name 图标名称（不含后缀）
      * @return 图标 URL
      */
     function icon(name) {
-        return "qrc:/EnhanceVision/resources/icons/" + name + ".svg"
+        var iconPath = isDark ? "icons-dark" : "icons"
+        return "qrc:/qt/qml/EnhanceVision/resources/" + iconPath + "/" + name + ".svg"
     }
 
     // ========== 间距系统 (px) ==========

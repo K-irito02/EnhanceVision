@@ -12,6 +12,9 @@ import "../controls"
 Item {
     id: root
 
+    // ========== 初始状态 ==========
+    visible: false
+
     // ========== 类型定义 ==========
     /**
      * @brief Toast 类型枚举

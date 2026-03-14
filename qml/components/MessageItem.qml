@@ -28,7 +28,7 @@ Rectangle {
     signal editClicked()
     signal saveClicked()
     signal deleteClicked()
-    signal selectedChanged(bool isSelected)
+    signal selectionToggled(bool isSelected)
     
     // ========== 视觉属性 ==========
     color: mouseArea.containsMouse ? Theme.colors.surfaceHover : Theme.colors.card

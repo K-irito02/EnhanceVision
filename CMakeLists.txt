@@ -38,6 +38,7 @@ find_package(Qt6 REQUIRED COMPONENTS
     Network
     ShaderTools
     LinguistTools
+    QuickEffects
 )
 
 # Qt Policy 设置（必须在 find_package(Qt6) 之后）
@@ -181,6 +182,7 @@ qt_add_qml_module(EnhanceVision
         qml/controls/ComboBox.qml
         qml/controls/Button.qml
         qml/controls/TextField.qml
+        qml/controls/ColoredIcon.qml
         qml/shaders/BrightnessContrast.qml
         qml/shaders/SaturationHue.qml
         qml/shaders/SharpenBlur.qml
@@ -236,6 +238,52 @@ qt_add_qml_module(EnhanceVision
         resources/icons/monitor.svg
         resources/icons/cpu.svg
         resources/icons/help-circle.svg
+        # 暗色主题蓝色图标
+        resources/icons-dark/alert-triangle.svg
+        resources/icons-dark/arrow-left.svg
+        resources/icons-dark/check-circle.svg
+        resources/icons-dark/check.svg
+        resources/icons-dark/chevron-left.svg
+        resources/icons-dark/chevron-right.svg
+        resources/icons-dark/copy.svg
+        resources/icons-dark/cpu.svg
+        resources/icons-dark/download.svg
+        resources/icons-dark/eye-off.svg
+        resources/icons-dark/eye.svg
+        resources/icons-dark/file-plus.svg
+        resources/icons-dark/folder.svg
+        resources/icons-dark/globe.svg
+        resources/icons-dark/help-circle.svg
+        resources/icons-dark/home.svg
+        resources/icons-dark/image.svg
+        resources/icons-dark/info.svg
+        resources/icons-dark/layout-grid.svg
+        resources/icons-dark/list.svg
+        resources/icons-dark/loader.svg
+        resources/icons-dark/message-square.svg
+        resources/icons-dark/minus.svg
+        resources/icons-dark/monitor.svg
+        resources/icons-dark/moon.svg
+        resources/icons-dark/panel-left.svg
+        resources/icons-dark/pause.svg
+        resources/icons-dark/pencil.svg
+        resources/icons-dark/play.svg
+        resources/icons-dark/plus.svg
+        resources/icons-dark/refresh.svg
+        resources/icons-dark/rotate-ccw.svg
+        resources/icons-dark/save.svg
+        resources/icons-dark/send.svg
+        resources/icons-dark/settings.svg
+        resources/icons-dark/sliders.svg
+        resources/icons-dark/sparkles.svg
+        resources/icons-dark/square.svg
+        resources/icons-dark/sun.svg
+        resources/icons-dark/trash.svg
+        resources/icons-dark/upload.svg
+        resources/icons-dark/video.svg
+        resources/icons-dark/x-circle.svg
+        resources/icons-dark/x.svg
+        resources/icons-dark/zap.svg
 )
 
 # Shader 资源已包含在 qml.qrc 中，使用 qsb 文件
@@ -254,6 +302,7 @@ target_link_libraries(EnhanceVision PRIVATE
     Qt6::Multimedia
     Qt6::Network
     Qt6::ShaderTools
+    Qt6::QuickEffects
     ncnn
 )
 

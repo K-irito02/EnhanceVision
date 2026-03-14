@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import "../styles"
+import "../controls"
 
 /**
  * @brief 自定义按钮控件
@@ -30,12 +31,12 @@ Button {
 
     // ========== 尺寸计算 ==========
     readonly property var sizeValues: ({
-        sm: { height: 30, padding: 10, fontSize: 12 },
-        md: { height: 36, padding: 16, fontSize: 13 },
-        lg: { height: 44, padding: 24, fontSize: 14 }
+        sm: { height: 28, padding: 10, fontSize: 12, iconSize: 14 },
+        md: { height: 34, padding: 14, fontSize: 13, iconSize: 16 },
+        lg: { height: 42, padding: 20, fontSize: 14, iconSize: 18 }
     })
 
-    implicitWidth: Math.max(buttonRow.implicitWidth + leftPadding + rightPadding, 80)
+    implicitWidth: buttonRow.implicitWidth + sizeValues[size].padding * 2
     implicitHeight: sizeValues[size].height
 
     leftPadding: sizeValues[size].padding
@@ -55,12 +56,12 @@ Button {
                 return Theme.isDark ? Qt.rgba(1,1,1,0.05) : Qt.rgba(0,0,0,0.04)
             }
             if (v === "primary") {
-                if (root.pressed) return Theme.colors.primaryHover
+                if (root.pressed) return Qt.darker(Theme.colors.primary, 1.1)
                 if (root.hovered) return Theme.colors.primaryHover
                 return Theme.colors.primary
             }
             if (v === "secondary") {
-                if (root.pressed) return Theme.colors.secondaryHover
+                if (root.pressed) return Theme.isDark ? Qt.rgba(1,1,1,0.12) : Qt.rgba(0,0,0,0.08)
                 if (root.hovered) return Theme.colors.secondaryHover
                 return Theme.colors.secondary
             }
@@ -75,16 +76,13 @@ Button {
             return "transparent"
         }
 
-        // 边框（secondary 和 ghost 悬浮时）
-        border.width: root.variant === "secondary" ? 1 : 0
+        // 边框
+        border.width: root.variant === "secondary" || root.variant === "ghost" ? 1 : 0
         border.color: {
             if (!root.enabled) return Theme.colors.border
             if (root.hovered) return Theme.colors.borderHover
             return Theme.colors.border
         }
-
-        // 透明度（禁用状态）
-        opacity: root.enabled ? 1.0 : 0.5
 
         // 动画
         Behavior on color {
@@ -95,18 +93,16 @@ Button {
     // ========== 内容 ==========
     contentItem: Row {
         id: buttonRow
-        spacing: 6
+        spacing: root.iconName !== "" ? 6 : 0
         anchors.centerIn: parent
 
-        // 可选图标
-        Image {
+        // 可选图标 - 使用 ColoredIcon
+        ColoredIcon {
             anchors.verticalCenter: parent.verticalCenter
-            width: 16
-            height: 16
             source: root.iconName !== "" ? Theme.icon(root.iconName) : ""
-            sourceSize: Qt.size(16, 16)
+            iconSize: root.sizeValues[root.size].iconSize
+            color: textColor
             visible: root.iconName !== ""
-            smooth: true
         }
 
         // 文本
@@ -116,14 +112,7 @@ Button {
             font.pixelSize: root.sizeValues[root.size].fontSize
             font.weight: Font.DemiBold
             font.letterSpacing: 0.3
-            color: {
-                if (!root.enabled) return Theme.colors.mutedForeground
-                var v = root.variant
-                if (v === "primary") return Theme.colors.primaryForeground
-                if (v === "secondary") return Theme.colors.secondaryForeground
-                if (v === "destructive") return Theme.colors.destructiveForeground
-                return Theme.colors.foreground // ghost
-            }
+            color: root.textColor
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
@@ -132,6 +121,16 @@ Button {
                 ColorAnimation { duration: Theme.animation.fast; easing.type: Easing.OutCubic }
             }
         }
+    }
+
+    // ========== 文本颜色 ==========
+    property color textColor: {
+        if (!root.enabled) return Theme.colors.mutedForeground
+        var v = root.variant
+        if (v === "primary") return Theme.colors.primaryForeground
+        if (v === "secondary") return Theme.colors.secondaryForeground
+        if (v === "destructive") return Theme.colors.destructiveForeground
+        return Theme.colors.foreground // ghost
     }
 
     // ========== 按下效果 ==========

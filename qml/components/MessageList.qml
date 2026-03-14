@@ -32,11 +32,10 @@ Rectangle {
             Layout.fillWidth: true
             spacing: 8
 
-            Image {
-                width: 16; height: 16
+            ColoredIcon {
                 source: Theme.icon("list")
-                sourceSize: Qt.size(16, 16)
-                smooth: true
+                iconSize: 16
+                color: Theme.colors.icon
             }
 
             Text {
@@ -86,29 +85,33 @@ Rectangle {
             clip: true
             spacing: 6
 
-            model: processingModel
+            // 使用 ListModel 作为临时模型，直到 ProcessingModel 实现为 QAbstractListModel
+            model: ListModel {
+                id: tempMessageModel
+                // 临时测试数据
+            }
 
             delegate: MessageItem {
                 width: messageList.width
-                taskId: model.messageId
-                timestamp: model.createdAt
-                mode: model.processingMode
-                status: model.status
-                progress: model.progress
-                queuePosition: model.queuePosition
-                errorMessage: model.errorMessage
+                taskId: model.taskId || ""
+                timestamp: model.timestamp || ""
+                mode: model.mode !== undefined ? model.mode : 0
+                status: model.status !== undefined ? model.status : 0
+                progress: model.progress !== undefined ? model.progress : 0.0
+                queuePosition: model.queuePosition !== undefined ? model.queuePosition : 0
+                errorMessage: model.errorMessage || ""
                 selectable: batchMode
 
-                onCancelClicked: processingController.cancelTask(model.messageId)
-                onEditClicked: console.log("编辑任务:", model.messageId)
-                onSaveClicked: console.log("保存任务:", model.messageId)
-                onDeleteClicked: processingController.deleteTask(model.messageId)
+                onCancelClicked: processingController.cancelTask(model.taskId)
+                onEditClicked: console.log("编辑任务:", model.taskId)
+                onSaveClicked: console.log("保存任务:", model.taskId)
+                onDeleteClicked: processingController.deleteTask(model.taskId)
 
-                onSelectedChanged: function(isSelected) {
+                onSelectionToggled: function(isSelected) {
                     if (isSelected) {
-                        selectedIds = selectedIds.concat([model.messageId])
+                        selectedIds = selectedIds.concat([model.taskId])
                     } else {
-                        selectedIds = selectedIds.filter(function(id) { return id !== model.messageId })
+                        selectedIds = selectedIds.filter(function(id) { return id !== model.taskId })
                     }
                 }
             }
@@ -129,12 +132,11 @@ Rectangle {
                         width: 48; height: 48; radius: 24
                         color: Theme.colors.primarySubtle
 
-                        Image {
+                        ColoredIcon {
                             anchors.centerIn: parent
-                            width: 20; height: 20
                             source: Theme.icon("loader")
-                            sourceSize: Qt.size(20, 20)
-                            smooth: true
+                            iconSize: 20
+                            color: Theme.colors.icon
                         }
                     }
 

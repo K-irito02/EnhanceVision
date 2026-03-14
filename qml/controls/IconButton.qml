@@ -64,6 +64,7 @@ Button {
     background: Rectangle {
         radius: Theme.radius.sm
         color: {
+            if (root.danger && root.hovered) return Theme.colors.destructive
             if (root.pressed) return Theme.isDark ? Qt.rgba(1,1,1,0.12) : Qt.rgba(0,0,0,0.08)
             if (root.hovered) return Theme.isDark ? Qt.rgba(1,1,1,0.08) : Qt.rgba(0,47,167,0.06)
             return "transparent"
@@ -79,17 +80,19 @@ Button {
         implicitWidth: root.btnSize
         implicitHeight: root.btnSize
 
-        // SVG 图标
-        Image {
-            id: svgIcon
+        // SVG 图标 - 使用 ColoredIcon 实现颜色叠加
+        ColoredIcon {
             anchors.centerIn: parent
-            width: root.iconSize
-            height: root.iconSize
             source: root.iconName !== "" ? Theme.icon(root.iconName) : ""
-            sourceSize: Qt.size(root.iconSize, root.iconSize)
-            visible: root.iconName !== ""
-            smooth: true
-            antialiasing: true
+            iconSize: root.iconSize
+            color: {
+                if (root.danger && root.hovered) return "#FFFFFF"
+                return root.hovered ? root.iconHoverColor : root.iconColor
+            }
+
+            Behavior on color {
+                ColorAnimation { duration: Theme.animation.fast }
+            }
         }
 
         // 文本备用图标
@@ -98,7 +101,7 @@ Button {
             text: root.iconText
             visible: root.iconName === "" && root.iconText !== ""
             color: {
-                if (root.danger && root.hovered) return Theme.colors.destructive
+                if (root.danger && root.hovered) return "#FFFFFF"
                 return root.hovered ? root.iconHoverColor : root.iconColor
             }
             font.pixelSize: root.iconSize

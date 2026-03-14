@@ -27,6 +27,8 @@ Rectangle {
     
     // ========== 信号 ==========
     signal toggleSidebar()
+    signal toggleControlPanel()
+    signal toggleBrowseMode()
     signal navigateToSettings()
     signal navigateToHome()
     signal newSession()
@@ -134,7 +136,7 @@ Rectangle {
             }
         }
         
-        // ========== 右侧：功能按钮组 ==========
+        // ========== 左侧：功能按钮组 ==========
         RowLayout {
             spacing: 2
             Layout.alignment: Qt.AlignVCenter
@@ -154,9 +156,28 @@ Rectangle {
                 tooltip: qsTr("切换侧边栏")
                 onClicked: root.toggleSidebar()
             }
+        }
+        
+        // ========== 右侧：功能按钮组 ==========
+        RowLayout {
+            spacing: 2
+            Layout.alignment: Qt.AlignVCenter
             
-            // 间隔
-            Item { width: 4 }
+            // 浏览模式按钮
+            IconButton {
+                iconName: "eye"
+                iconSize: 16
+                tooltip: qsTr("浏览模式")
+                onClicked: root.toggleBrowseMode()
+            }
+            
+            // 快捷键说明按钮
+            IconButton {
+                iconName: "help-circle"
+                iconSize: 16
+                tooltip: qsTr("快捷键说明")
+                onClicked: console.log("Show shortcuts")
+            }
             
             // 主题切换按钮
             IconButton {
@@ -215,7 +236,7 @@ Rectangle {
             IconButton {
                 iconName: "minus"
                 iconSize: 14
-                btnSize: 30
+                btnSize: 32
                 tooltip: qsTr("最小化")
                 onClicked: {
                     if (parentWindow) parentWindow.showMinimized()
@@ -226,47 +247,21 @@ Rectangle {
             IconButton {
                 iconName: (parentWindow && parentWindow.visibility === Window.Maximized) ? "copy" : "square"
                 iconSize: 13
-                btnSize: 30
+                btnSize: 32
                 tooltip: (parentWindow && parentWindow.visibility === Window.Maximized) ? qsTr("还原") : qsTr("最大化")
                 onClicked: toggleMaximize()
             }
             
             // 关闭按钮 - 特殊红色悬浮效果
-            Button {
+            IconButton {
                 id: closeBtn
-                width: 30
-                height: 30
-                flat: true
-                padding: 0
-                
-                ToolTip.text: qsTr("关闭")
-                ToolTip.visible: hovered
-                ToolTip.delay: 600
-                
-                background: Rectangle {
-                    radius: Theme.radius.sm
-                    color: closeBtn.hovered ? "#E81123" : "transparent"
-                    Behavior on color {
-                        ColorAnimation { duration: Theme.animation.fast }
-                    }
-                }
-                
-                contentItem: Image {
-                    source: Theme.icon("x")
-                    width: 14
-                    height: 14
-                    sourceSize: Qt.size(14, 14)
-                    anchors.centerIn: parent
-                    smooth: true
-                }
-                
+                iconName: "x"
+                iconSize: 14
+                btnSize: 32
+                danger: true
+                tooltip: qsTr("关闭")
                 onClicked: {
                     if (parentWindow) parentWindow.close()
-                }
-                
-                scale: pressed ? 0.9 : 1.0
-                Behavior on scale {
-                    NumberAnimation { duration: 80 }
                 }
             }
         }

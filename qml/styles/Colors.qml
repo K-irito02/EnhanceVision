@@ -101,40 +101,40 @@ QtObject {
         readonly property color iconActive: "#002FA7"
     }
 
-    // ========== 暗色主题 (Dark Theme) ==========
+    // ========== 暗色主题 (Dark Theme) - 克莱因蓝深色系 ==========
     readonly property var dark: QtObject {
-        // 基础颜色
-        readonly property color background: "#080C14"
+        // 基础颜色 - 深邃蓝黑
+        readonly property color background: "#050A18"
         readonly property color foreground: "#E8EDF5"
 
-        // 卡片和容器
-        readonly property color card: "#0F1520"
+        // 卡片和容器 - 深蓝灰
+        readonly property color card: "#0A1428"
         readonly property color cardForeground: "#E8EDF5"
-        readonly property color cardBorder: "#1A2744"
+        readonly property color cardBorder: "#152040"
 
         // 弹出层
-        readonly property color popover: "#0F1520"
+        readonly property color popover: "#0A1428"
         readonly property color popoverForeground: "#E8EDF5"
 
-        // 主要强调色 - 亮克莱因蓝系
-        readonly property color primary: "#3B82F6"
+        // 主要强调色 - 克莱因蓝系 (Klein Blue #002FA7)
+        readonly property color primary: "#1E56D0"
         readonly property color primaryForeground: "#FFFFFF"
-        readonly property color primaryHover: "#60A5FA"
-        readonly property color primarySubtle: "#0F1D3A"
-        readonly property color primaryLight: "#93C5FD"
+        readonly property color primaryHover: "#2E6AE6"
+        readonly property color primarySubtle: "#0D1A38"
+        readonly property color primaryLight: "#5B8DEF"
 
         // 次要色 - 深蓝灰系
-        readonly property color secondary: "#1A2744"
+        readonly property color secondary: "#152040"
         readonly property color secondaryForeground: "#C0CDE0"
-        readonly property color secondaryHover: "#243456"
+        readonly property color secondaryHover: "#1A2850"
 
         // 柔和色
-        readonly property color muted: "#1A2744"
+        readonly property color muted: "#152040"
         readonly property color mutedForeground: "#7A8BA8"
 
         // 强调色 - 深宝石蓝
-        readonly property color accent: "#1A2744"
-        readonly property color accentForeground: "#60A5FA"
+        readonly property color accent: "#152040"
+        readonly property color accentForeground: "#5B8DEF"
 
         // 危险色 - 亮红色系
         readonly property color destructive: "#EF4444"
@@ -142,56 +142,56 @@ QtObject {
         readonly property color destructiveSubtle: "#1A0A0A"
 
         // 边框和输入框
-        readonly property color border: "#1A2744"
-        readonly property color borderHover: "#243456"
-        readonly property color input: "#0F1520"
-        readonly property color inputBackground: "#0A1020"
-        readonly property color inputBorder: "#243456"
+        readonly property color border: "#152040"
+        readonly property color borderHover: "#1E3060"
+        readonly property color input: "#0A1428"
+        readonly property color inputBackground: "#080E20"
+        readonly property color inputBorder: "#1E3060"
 
         // 开关
-        readonly property color switchBackground: "#243456"
-        readonly property color switchChecked: "#3B82F6"
+        readonly property color switchBackground: "#1E3060"
+        readonly property color switchChecked: "#1E56D0"
 
         // 焦点环
-        readonly property color ring: "#3B82F6"
-        readonly property color ringOffset: "#080C14"
+        readonly property color ring: "#1E56D0"
+        readonly property color ringOffset: "#050A18"
 
-        // 图表颜色
-        readonly property color chart1: "#60A5FA"
-        readonly property color chart2: "#3B82F6"
-        readonly property color chart3: "#93C5FD"
-        readonly property color chart4: "#1A56DB"
-        readonly property color chart5: "#BFDBFE"
+        // 图表颜色 - 克莱因蓝渐变
+        readonly property color chart1: "#5B8DEF"
+        readonly property color chart2: "#1E56D0"
+        readonly property color chart3: "#7AA2F7"
+        readonly property color chart4: "#002FA7"
+        readonly property color chart5: "#A0C4FF"
 
-        // 侧边栏
-        readonly property color sidebar: "#060A12"
+        // 侧边栏 - 深蓝色系
+        readonly property color sidebar: "#040812"
         readonly property color sidebarForeground: "#C0CDE0"
-        readonly property color sidebarBorder: "#1A2744"
-        readonly property color sidebarPrimary: "#3B82F6"
+        readonly property color sidebarBorder: "#152040"
+        readonly property color sidebarPrimary: "#1E56D0"
         readonly property color sidebarPrimaryForeground: "#FFFFFF"
-        readonly property color sidebarAccent: "#1A2744"
+        readonly property color sidebarAccent: "#152040"
         readonly property color sidebarAccentForeground: "#E8EDF5"
 
         // 克莱因蓝 (Klein Blue) - 品牌色
         readonly property color kleinBlue: "#002FA7"
-        readonly property color kleinBlueLight: "#3B82F6"
-        readonly property color kleinBlueDark: "#001D70"
+        readonly property color kleinBlueLight: "#1E56D0"
+        readonly property color kleinBlueDark: "#001870"
 
         // 补充颜色
         readonly property color success: "#34D399"
         readonly property color successSubtle: "#052E16"
         readonly property color warning: "#FBBF24"
         readonly property color warningSubtle: "#1C1A05"
-        readonly property color surface: "#0F1520"
-        readonly property color surfaceHover: "#1A2744"
+        readonly property color surface: "#0A1428"
+        readonly property color surfaceHover: "#152040"
 
-        // 标题栏
-        readonly property color titleBar: "#0A1020"
-        readonly property color titleBarBorder: "#1A2744"
+        // 标题栏 - 深邃蓝色
+        readonly property color titleBar: "#060C1A"
+        readonly property color titleBarBorder: "#152040"
 
-        // 图标颜色
-        readonly property color icon: "#7A8BA8"
-        readonly property color iconHover: "#60A5FA"
-        readonly property color iconActive: "#3B82F6"
+        // 图标颜色 - 淡蓝色系
+        readonly property color icon: "#7AA2F7"
+        readonly property color iconHover: "#A0C4FF"
+        readonly property color iconActive: "#5B8DEF"
     }
 }

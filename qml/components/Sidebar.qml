@@ -142,13 +142,11 @@ Rectangle {
                         color: sessionItem.isActive ? Qt.rgba(1,1,1,0.2) : Theme.colors.accent
                         Layout.alignment: Qt.AlignVCenter
                         
-                        Image {
+                        ColoredIcon {
                             anchors.centerIn: parent
-                            width: 14
-                            height: 14
                             source: Theme.icon("message-square")
-                            sourceSize: Qt.size(14, 14)
-                            smooth: true
+                            iconSize: 14
+                            color: sessionItem.isActive ? "#FFFFFF" : Theme.colors.icon
                         }
                     }
                     
@@ -222,13 +220,11 @@ Rectangle {
                         radius: 24
                         color: Theme.colors.accent
                         
-                        Image {
+                        ColoredIcon {
                             anchors.centerIn: parent
-                            width: 20
-                            height: 20
                             source: Theme.icon("message-square")
-                            sourceSize: Qt.size(20, 20)
-                            smooth: true
+                            iconSize: 20
+                            color: Theme.colors.icon
                         }
                     }
                     
@@ -251,91 +247,6 @@ Rectangle {
             }
         }
         
-        // ========== 底部：导航快捷链接 ==========
-        Rectangle {
-            Layout.fillWidth: true
-            height: 1
-            color: Theme.colors.sidebarBorder
-        }
-        
-        ColumnLayout {
-            Layout.fillWidth: true
-            spacing: 2
-            
-            // 首页
-            Rectangle {
-                Layout.fillWidth: true
-                height: 36
-                radius: Theme.radius.md
-                color: homeArea.containsMouse ? Theme.colors.sidebarAccent : "transparent"
-                
-                Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
-                
-                MouseArea {
-                    id: homeArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                }
-                
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 10
-                    spacing: 10
-                    
-                    Image {
-                        width: 16; height: 16
-                        source: Theme.icon("home")
-                        sourceSize: Qt.size(16, 16)
-                        smooth: true
-                    }
-                    
-                    Text {
-                        visible: expanded
-                        text: qsTr("首页")
-                        color: Theme.colors.sidebarForeground
-                        font.pixelSize: 13
-                    }
-                }
-            }
-            
-            // 设置
-            Rectangle {
-                Layout.fillWidth: true
-                height: 36
-                radius: Theme.radius.md
-                color: settingsArea.containsMouse ? Theme.colors.sidebarAccent : "transparent"
-                
-                Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
-                
-                MouseArea {
-                    id: settingsArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                }
-                
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 10
-                    spacing: 10
-                    
-                    Image {
-                        width: 16; height: 16
-                        source: Theme.icon("settings")
-                        sourceSize: Qt.size(16, 16)
-                        smooth: true
-                    }
-                    
-                    Text {
-                        visible: expanded
-                        text: qsTr("设置")
-                        color: Theme.colors.sidebarForeground
-                        font.pixelSize: 13
-                    }
-                }
-            }
-        }
     }
     
     // ========== 颜色过渡动画 ==========
