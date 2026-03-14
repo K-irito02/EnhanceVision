@@ -4,34 +4,82 @@ import QtQuick.Layouts
 import "../styles"
 import "../controls"
 
-/**
- * @brief 侧边栏组件
- * 
- * 包含会话管理功能，参考功能设计文档 0.2 节 3.2 会话管理模块
- */
 Rectangle {
     id: root
     
-    // ========== 属性定义 ==========
-    /**
-     * @brief 当前活动会话 ID
-     */
-    property string activeSessionId: ""
-    
-    /**
-     * @brief 会话列表数据模型
-     */
-    property var sessionModel: null
-    
-    /**
-     * @brief 是否展开侧边栏
-     */
+    property string activeSessionId: sessionController ? sessionController.activeSessionId : ""
     property bool expanded: true
+    property bool batchMode: false
+    property string pendingDeleteSessionId: ""
+    property string pendingClearSessionId: ""
+    property bool pendingBatchDelete: false
+    property bool pendingBatchClear: false
+    property int selectedCount: 0
+    property int totalCount: sessionController ? sessionController.sessionCount : 0
     
-    // ========== 视觉属性 ==========
+    Connections {
+        target: sessionController
+        function onSelectionChanged() {
+            root.selectedCount = sessionController.selectedCount()
+        }
+        function onSessionCountChanged() {
+            root.totalCount = sessionController.sessionCount
+        }
+    }
+    
+    Component.onCompleted: {
+        if (sessionController) {
+            root.selectedCount = sessionController.selectedCount()
+            root.totalCount = sessionController.sessionCount
+        }
+    }
+    
+    function selectAll() {
+        if (sessionController) sessionController.selectAllSessions()
+    }
+    
+    function deselectAll() {
+        if (sessionController) sessionController.deselectAllSessions()
+    }
+    
+    function deleteSelected() {
+        root.pendingBatchDelete = true
+        NotificationManager.showConfirmDialog(
+            qsTr("批量删除会话"),
+            qsTr("确定要删除选中的 %1 个会话吗？此操作不可恢复。").arg(root.selectedCount),
+            function() {
+                if (sessionController) sessionController.deleteSelectedSessions()
+                root.pendingBatchDelete = false
+                root.batchMode = false
+            },
+            function() {
+                root.pendingBatchDelete = false
+            },
+            qsTr("删除"),
+            qsTr("取消")
+        )
+    }
+    
+    function clearSelected() {
+        root.pendingBatchClear = true
+        NotificationManager.showConfirmDialog(
+            qsTr("批量清空会话"),
+            qsTr("确定要清空选中的 %1 个会话的消息内容吗？此操作不可恢复。").arg(root.selectedCount),
+            function() {
+                if (sessionController) sessionController.clearSelectedSessions()
+                root.pendingBatchClear = false
+                root.batchMode = false
+            },
+            function() {
+                root.pendingBatchClear = false
+            },
+            qsTr("清空"),
+            qsTr("取消")
+        )
+    }
+    
     color: Theme.colors.sidebar
     
-    // 右侧分隔线
     Rectangle {
         anchors.top: parent.top
         anchors.bottom: parent.bottom
@@ -40,216 +88,305 @@ Rectangle {
         color: Theme.colors.sidebarBorder
     }
     
-    // ========== 内部布局 ==========
     ColumnLayout {
         anchors.fill: parent
-        anchors.leftMargin: expanded ? 12 : 8
-        anchors.rightMargin: expanded ? 12 : 8
-        anchors.topMargin: 12
-        anchors.bottomMargin: 12
-        spacing: 8
+        anchors.margins: 10
+        spacing: 10
         
-        // ========== 顶部：标题和新建按钮 ==========
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: 6
             
-            // 标题（仅展开时显示）
-            Text {
-                visible: expanded
-                text: qsTr("会话")
-                color: Theme.colors.sidebarForeground
-                font.pixelSize: 11
-                font.weight: Font.DemiBold
-                font.letterSpacing: 1.0
-                opacity: 0.6
-                Layout.alignment: Qt.AlignVCenter
-            }
-            
-            Item { Layout.fillWidth: true }
-            
-            // 新建会话按钮
-            IconButton {
-                iconName: "plus"
-                iconSize: 14
-                btnSize: 28
-                tooltip: qsTr("新开会话")
-                Layout.alignment: Qt.AlignVCenter
-                onClicked: {
-                    console.log("创建新会话")
-                }
-            }
-        }
-        
-        // ========== 会话列表 ==========
-        ListView {
-            id: sessionList
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            clip: true
-            spacing: 2
-            
-            // 临时会话数据（实际应该使用 C++ 模型）
-            model: ListModel {
-                ListElement { sessionId: "session1"; name: "未命名会话 1"; modifiedAt: "10:30"; fileCount: 3 }
-                ListElement { sessionId: "session2"; name: "未命名会话 2"; modifiedAt: "09:15"; fileCount: 1 }
-                ListElement { sessionId: "session3"; name: "风景照片处理"; modifiedAt: "昨天"; fileCount: 5 }
-            }
-            
-            // 会话项委托
-            delegate: Rectangle {
-                id: sessionItem
-                width: sessionList.width
-                height: expanded ? 52 : 40
+            Rectangle {
+                id: batchBtn
+                width: 32
+                height: 32
                 radius: Theme.radius.md
+                color: root.batchMode ? Theme.colors.primarySubtle : (batchMouse.containsMouse ? Theme.colors.sidebarAccent : "transparent")
+                border.width: 1
+                border.color: root.batchMode ? Theme.colors.primary : Theme.colors.border
                 
-                property bool isActive: model.sessionId === root.activeSessionId
-                property bool isHovered: mouseArea.containsMouse
-                
-                color: {
-                    if (isActive) return Theme.colors.primary
-                    if (isHovered) return Theme.colors.sidebarAccent
-                    return "transparent"
+                ColoredIcon {
+                    anchors.centerIn: parent
+                    source: Theme.icon("list-select")
+                    iconSize: 16
+                    color: root.batchMode ? Theme.colors.primary : Theme.colors.mutedForeground
                 }
                 
-                Behavior on color {
-                    ColorAnimation { duration: Theme.animation.fast; easing.type: Easing.OutCubic }
-                }
-                
-                // 鼠标区域
                 MouseArea {
-                    id: mouseArea
+                    id: batchMouse
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        root.activeSessionId = model.sessionId
-                        console.log("切换到会话:", model.name)
+                        root.batchMode = !root.batchMode
+                        if (!root.batchMode && sessionController) {
+                            sessionController.deselectAllSessions()
+                        }
                     }
                 }
                 
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 10
-                    anchors.rightMargin: 8
-                    spacing: 10
-                    
-                    // 会话图标
-                    Rectangle {
-                        width: expanded ? 32 : 28
-                        height: expanded ? 32 : 28
-                        radius: Theme.radius.sm
-                        color: sessionItem.isActive ? Qt.rgba(1,1,1,0.2) : Theme.colors.accent
-                        Layout.alignment: Qt.AlignVCenter
-                        
-                        ColoredIcon {
-                            anchors.centerIn: parent
-                            source: Theme.icon("message-square")
-                            iconSize: 14
-                            color: sessionItem.isActive ? "#FFFFFF" : Theme.colors.icon
-                        }
-                    }
-                    
-                    // 会话信息（仅展开时显示）
-                    ColumnLayout {
-                        visible: expanded
-                        Layout.fillWidth: true
-                        spacing: 2
-                        
-                        Text {
-                            text: model.name
-                            color: sessionItem.isActive ? "#FFFFFF" : Theme.colors.sidebarForeground
-                            font.pixelSize: 13
-                            font.weight: sessionItem.isActive ? Font.DemiBold : Font.Normal
-                            elide: Text.ElideRight
-                            Layout.fillWidth: true
-                        }
-                        
-                        RowLayout {
-                            spacing: 6
-                            Text {
-                                text: model.modifiedAt
-                                color: sessionItem.isActive ? Qt.rgba(1,1,1,0.7) : Theme.colors.mutedForeground
-                                font.pixelSize: 11
-                            }
-                            Rectangle {
-                                width: 3
-                                height: 3
-                                radius: 1.5
-                                color: sessionItem.isActive ? Qt.rgba(1,1,1,0.4) : Theme.colors.mutedForeground
-                                opacity: 0.5
-                            }
-                            Text {
-                                text: model.fileCount + (Theme.language === "zh_CN" ? " 个文件" : " files")
-                                color: sessionItem.isActive ? Qt.rgba(1,1,1,0.7) : Theme.colors.mutedForeground
-                                font.pixelSize: 11
-                            }
-                        }
-                    }
-                    
-                    // 删除按钮（仅展开且悬停时显示）
-                    IconButton {
-                        visible: expanded && sessionItem.isHovered && !sessionItem.isActive
-                        iconName: "x"
-                        iconSize: 12
-                        btnSize: 24
-                        danger: true
-                        tooltip: qsTr("删除会话")
-                        Layout.alignment: Qt.AlignVCenter
-                        onClicked: {
-                            console.log("删除会话:", model.name)
-                        }
-                    }
+                ToolTip {
+                    visible: batchMouse.containsMouse
+                    text: root.batchMode ? qsTr("取消批量") : qsTr("批量操作")
+                    delay: 500
                 }
             }
             
-            // 空状态提示
-            Item {
-                visible: sessionList.count === 0
-                anchors.fill: parent
+            Rectangle {
+                visible: !root.batchMode && root.expanded
+                implicitWidth: countText.implicitWidth + 12
+                height: 20
+                radius: Theme.radius.full
+                color: Theme.colors.sidebarAccent
                 
-                ColumnLayout {
+                Text {
+                    id: countText
                     anchors.centerIn: parent
-                    spacing: 12
-                    
-                    // 空状态图标
-                    Rectangle {
-                        Layout.alignment: Qt.AlignHCenter
-                        width: 48
-                        height: 48
-                        radius: 24
-                        color: Theme.colors.accent
-                        
-                        ColoredIcon {
-                            anchors.centerIn: parent
-                            source: Theme.icon("message-square")
-                            iconSize: 20
-                            color: Theme.colors.icon
+                    text: root.totalCount.toString()
+                    font.pixelSize: 11
+                    font.weight: Font.Medium
+                    color: Theme.colors.mutedForeground
+                }
+            }
+            
+            Item { Layout.fillWidth: true }
+            
+            Rectangle {
+                id: newBtn
+                width: 32
+                height: 32
+                radius: Theme.radius.md
+                color: newMouse.containsMouse ? Theme.colors.sidebarAccent : "transparent"
+                border.width: 1
+                border.color: Theme.colors.border
+                
+                ColoredIcon {
+                    anchors.centerIn: parent
+                    source: Theme.icon("plus")
+                    iconSize: 16
+                    color: "#FFFFFF"
+                }
+                
+                MouseArea {
+                    id: newMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (sessionController) {
+                            var newId = sessionController.createSession()
+                            sessionController.switchSession(newId)
                         }
                     }
-                    
-                    Text {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: qsTr("暂无会话")
-                        color: Theme.colors.mutedForeground
-                        font.pixelSize: 13
-                    }
-                    
-                    Text {
-                        visible: expanded
-                        Layout.alignment: Qt.AlignHCenter
-                        text: qsTr("点击 + 创建新会话")
-                        color: Theme.colors.mutedForeground
-                        font.pixelSize: 11
-                        opacity: 0.7
-                    }
+                }
+                
+                ToolTip {
+                    visible: newMouse.containsMouse
+                    text: qsTr("新建会话")
+                    delay: 500
                 }
             }
         }
         
+        RowLayout {
+            visible: root.batchMode
+            Layout.fillWidth: true
+            spacing: 6
+            
+            Rectangle {
+                width: 28
+                height: 28
+                radius: Theme.radius.sm
+                color: selectAllMouse.containsMouse ? Theme.colors.sidebarAccent : "transparent"
+                border.width: 1
+                border.color: Theme.colors.border
+                
+                ColoredIcon {
+                    anchors.centerIn: parent
+                    source: Theme.icon(root.selectedCount === root.totalCount && root.totalCount > 0 ? "check-square" : "square")
+                    iconSize: 14
+                    color: Theme.colors.icon
+                }
+                
+                MouseArea {
+                    id: selectAllMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (root.selectedCount === root.totalCount && root.totalCount > 0) {
+                            root.deselectAll()
+                        } else {
+                            root.selectAll()
+                        }
+                    }
+                }
+                
+                ToolTip {
+                    visible: selectAllMouse.containsMouse
+                    text: root.selectedCount === root.totalCount && root.totalCount > 0 ? qsTr("取消全选") : qsTr("全选")
+                    delay: 500
+                }
+            }
+            
+            Rectangle {
+                implicitWidth: selectedCountText.implicitWidth + 10
+                height: 28
+                radius: Theme.radius.sm
+                color: Theme.colors.primarySubtle
+                border.width: 0
+                
+                Text {
+                    id: selectedCountText
+                    anchors.centerIn: parent
+                    text: qsTr("%1/%2").arg(root.selectedCount).arg(root.totalCount)
+                    font.pixelSize: 11
+                    font.weight: Font.Medium
+                    color: Theme.colors.primary
+                }
+            }
+            
+            Item { Layout.fillWidth: true }
+            
+            Rectangle {
+                width: 28
+                height: 28
+                radius: Theme.radius.sm
+                color: clearMouse.containsMouse && root.selectedCount > 0 ? 
+                       Qt.rgba(245, 158, 11, 0.15) : "transparent"
+                border.width: 1
+                border.color: root.selectedCount > 0 ? 
+                              (clearMouse.containsMouse ? "#F59E0B" : Theme.colors.border) : 
+                              Theme.colors.border
+                opacity: root.selectedCount > 0 ? 1.0 : 0.4
+                
+                ColoredIcon {
+                    anchors.centerIn: parent
+                    source: Theme.icon("eraser")
+                    iconSize: 14
+                    color: root.selectedCount > 0 ? "#F59E0B" : Theme.colors.mutedForeground
+                }
+                
+                MouseArea {
+                    id: clearMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: root.selectedCount > 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    enabled: root.selectedCount > 0
+                    onClicked: root.clearSelected()
+                }
+                
+                ToolTip {
+                    visible: clearMouse.containsMouse && root.selectedCount > 0
+                    text: qsTr("清空选中会话")
+                    delay: 500
+                }
+            }
+            
+            Rectangle {
+                width: 28
+                height: 28
+                radius: Theme.radius.sm
+                color: deleteMouse.containsMouse && root.selectedCount > 0 ? 
+                       Theme.colors.destructiveSubtle : "transparent"
+                border.width: 1
+                border.color: root.selectedCount > 0 ? 
+                              (deleteMouse.containsMouse ? Theme.colors.destructive : Theme.colors.border) : 
+                              Theme.colors.border
+                opacity: root.selectedCount > 0 ? 1.0 : 0.4
+                
+                ColoredIcon {
+                    anchors.centerIn: parent
+                    source: Theme.icon("trash-2")
+                    iconSize: 14
+                    color: root.selectedCount > 0 ? Theme.colors.destructive : Theme.colors.mutedForeground
+                }
+                
+                MouseArea {
+                    id: deleteMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: root.selectedCount > 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    enabled: root.selectedCount > 0
+                    onClicked: root.deleteSelected()
+                }
+                
+                ToolTip {
+                    visible: deleteMouse.containsMouse && root.selectedCount > 0
+                    text: qsTr("删除选中会话")
+                    delay: 500
+                }
+            }
+        }
+        
+        SessionList {
+            id: sessionList
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            expanded: root.expanded
+            batchMode: root.batchMode
+            activeSessionId: root.activeSessionId
+            sessionModel: sessionController ? sessionController.sessionModel : null
+            
+            onSessionClicked: function(sessionId) {
+                if (sessionController) sessionController.switchSession(sessionId)
+            }
+            
+            onRenameRequested: function(sessionId, newName) {
+                if (sessionController) sessionController.renameSession(sessionId, newName)
+            }
+            
+            onPinRequested: function(sessionId, pinned) {
+                if (sessionController) sessionController.pinSession(sessionId, pinned)
+            }
+            
+            onClearRequested: function(sessionId) {
+                root.pendingClearSessionId = sessionId
+                var sessionName = sessionController ? sessionController.getSessionName(sessionId) : ""
+                NotificationManager.showConfirmDialog(
+                    qsTr("清空会话"),
+                    qsTr("确定要清空会话「%1」的所有消息吗？此操作不可恢复。").arg(sessionName),
+                    function() {
+                        if (sessionController) sessionController.clearSession(root.pendingClearSessionId)
+                        root.pendingClearSessionId = ""
+                    },
+                    function() {
+                        root.pendingClearSessionId = ""
+                    },
+                    qsTr("清空"),
+                    qsTr("取消")
+                )
+            }
+            
+            onDeleteRequested: function(sessionId) {
+                root.pendingDeleteSessionId = sessionId
+                var sessionName = sessionController ? sessionController.getSessionName(sessionId) : ""
+                NotificationManager.showConfirmDialog(
+                    qsTr("删除会话"),
+                    qsTr("确定要删除会话「%1」吗？此操作不可恢复。").arg(sessionName),
+                    function() {
+                        if (sessionController) sessionController.deleteSession(root.pendingDeleteSessionId)
+                        root.pendingDeleteSessionId = ""
+                    },
+                    function() {
+                        root.pendingDeleteSessionId = ""
+                    },
+                    qsTr("删除"),
+                    qsTr("取消")
+                )
+            }
+            
+            onSelectionChanged: function(sessionId, selected) {
+                if (sessionController) sessionController.selectSession(sessionId, selected)
+            }
+            
+            onMoveRequested: function(fromIndex, toIndex) {
+                if (sessionController) sessionController.moveSession(fromIndex, toIndex)
+            }
+        }
     }
     
-    // ========== 颜色过渡动画 ==========
     Behavior on color {
         ColorAnimation { duration: Theme.animation.normal; easing.type: Easing.OutCubic }
     }

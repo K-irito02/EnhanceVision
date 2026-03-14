@@ -1,11 +1,7 @@
 import QtQuick
+import QtQuick.Effects
 import "../styles"
 
-/**
- * @brief 图标组件
- * 直接显示 SVG 图标，颜色由图标文件本身决定
- * 暗色主题使用蓝色图标，亮色主题使用黑色图标
- */
 Item {
     id: root
     
@@ -29,5 +25,10 @@ Item {
         smooth: true
         antialiasing: true
         visible: root.source !== ""
+        layer.enabled: true
+        layer.effect: MultiEffect {
+            colorizationColor: root.color
+            colorization: 1.0
+        }
     }
 }

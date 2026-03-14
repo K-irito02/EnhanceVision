@@ -16,7 +16,6 @@ SessionController::SessionController(QObject* parent)
     , m_batchSelectionMode(false)
     , m_sessionCounter(0)
 {
-    // 创建默认会话
     createSession();
 }
 
@@ -117,11 +116,6 @@ void SessionController::renameSession(const QString& sessionId, const QString& n
 
 void SessionController::deleteSession(const QString& sessionId)
 {
-    if (m_sessions.size() <= 1) {
-        qWarning() << "Cannot delete the last session";
-        return;
-    }
-
     int index = -1;
     for (int i = 0; i < m_sessions.size(); ++i) {
         if (m_sessions[i].id == sessionId) {
@@ -136,8 +130,10 @@ void SessionController::deleteSession(const QString& sessionId)
     m_sessions.removeAt(index);
     m_sessionModel->removeSession(sessionId);
 
-    if (wasActive && !m_sessions.isEmpty()) {
-        // 切换到相邻会话
+    if (m_sessions.isEmpty()) {
+        m_activeSessionId.clear();
+        emit activeSessionChanged();
+    } else if (wasActive) {
         int newIndex = qMin(index, m_sessions.size() - 1);
         switchSession(m_sessions[newIndex].id);
     }
@@ -165,6 +161,7 @@ void SessionController::selectSession(const QString& sessionId, bool selected)
         if (session.id == sessionId) {
             session.isSelected = selected;
             m_sessionModel->updateSession(session);
+            emit selectionChanged();
             break;
         }
     }
@@ -176,6 +173,7 @@ void SessionController::selectAllSessions()
         session.isSelected = true;
     }
     m_sessionModel->updateSessions(m_sessions);
+    emit selectionChanged();
 }
 
 void SessionController::deselectAllSessions()
@@ -184,6 +182,7 @@ void SessionController::deselectAllSessions()
         session.isSelected = false;
     }
     m_sessionModel->updateSessions(m_sessions);
+    emit selectionChanged();
 }
 
 void SessionController::deleteSelectedSessions()
@@ -195,17 +194,75 @@ void SessionController::deleteSelectedSessions()
         }
     }
 
-    // 确保至少保留一个会话
-    if (toDelete.size() >= m_sessions.size()) {
-        toDelete.removeFirst();
-    }
-
     for (const auto& id : toDelete) {
         deleteSession(id);
     }
 
     setBatchSelectionMode(false);
     deselectAllSessions();
+}
+
+void SessionController::clearSelectedSessions()
+{
+    for (auto& session : m_sessions) {
+        if (session.isSelected) {
+            session.messages.clear();
+            session.modifiedAt = QDateTime::currentDateTime();
+            m_sessionModel->updateSession(session);
+            emit sessionCleared(session.id);
+        }
+    }
+    
+    setBatchSelectionMode(false);
+    deselectAllSessions();
+}
+
+void SessionController::pinSession(const QString& sessionId, bool pinned)
+{
+    for (auto& session : m_sessions) {
+        if (session.id == sessionId) {
+            session.isPinned = pinned;
+            session.modifiedAt = QDateTime::currentDateTime();
+            break;
+        }
+    }
+    
+    m_sessionModel->pinSession(sessionId, pinned);
+    emit sessionPinned(sessionId, pinned);
+}
+
+void SessionController::moveSession(int fromIndex, int toIndex)
+{
+    if (fromIndex < 0 || fromIndex >= m_sessions.size() ||
+        toIndex < 0 || toIndex >= m_sessions.size() ||
+        fromIndex == toIndex) {
+        return;
+    }
+    
+    m_sessions.move(fromIndex, toIndex);
+    m_sessionModel->moveSession(fromIndex, toIndex);
+    emit sessionMoved(fromIndex, toIndex);
+}
+
+bool SessionController::isSessionPinned(const QString& sessionId) const
+{
+    for (const auto& session : m_sessions) {
+        if (session.id == sessionId) {
+            return session.isPinned;
+        }
+    }
+    return false;
+}
+
+int SessionController::selectedCount() const
+{
+    int count = 0;
+    for (const auto& session : m_sessions) {
+        if (session.isSelected) {
+            count++;
+        }
+    }
+    return count;
 }
 
 QString SessionController::getSessionName(const QString& sessionId) const
@@ -226,6 +283,33 @@ Session* SessionController::getSession(const QString& sessionId)
         }
     }
     return nullptr;
+}
+
+QString SessionController::ensureActiveSession()
+{
+    if (m_sessions.isEmpty() || m_activeSessionId.isEmpty()) {
+        QString newId = createSession();
+        return newId;
+    }
+    
+    bool found = false;
+    for (const auto& session : m_sessions) {
+        if (session.id == m_activeSessionId) {
+            found = true;
+            break;
+        }
+    }
+    
+    if (!found) {
+        if (!m_sessions.isEmpty()) {
+            switchSession(m_sessions.first().id);
+        } else {
+            QString newId = createSession();
+            return newId;
+        }
+    }
+    
+    return m_activeSessionId;
 }
 
 QString SessionController::generateSessionId()

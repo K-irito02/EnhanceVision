@@ -16,6 +16,8 @@
         <file>../qml/components/PreviewPane.qml</file>
         <file>../qml/components/Sidebar.qml</file>
         <file>../qml/components/TitleBar.qml</file>
+        <file>../qml/components/SessionList.qml</file>
+        <file>../qml/components/SessionBatchBar.qml</file>
         
         <!-- 自定义控件 -->
         <file>../qml/controls/Button.qml</file>
@@ -85,6 +87,11 @@
         <file>icons/monitor.svg</file>
         <file>icons/cpu.svg</file>
         <file>icons/help-circle.svg</file>
+        <file>icons/pin.svg</file>
+        <file>icons/more-vertical.svg</file>
+        <file>icons/edit.svg</file>
+        <file>icons/trash-2.svg</file>
+        <file>icons/check-square.svg</file>
     </qresource>
     
     <qresource prefix="/shaders">

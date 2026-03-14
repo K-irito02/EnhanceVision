@@ -172,6 +172,8 @@ qt_add_qml_module(EnhanceVision
         qml/components/PreviewPane.qml
         qml/components/ControlPanel.qml
         qml/components/MediaViewer.qml
+        qml/components/SessionList.qml
+        qml/components/SessionBatchBar.qml
         qml/components/Card.qml
         qml/components/MessageItem.qml
         qml/components/MessageList.qml
@@ -238,10 +240,18 @@ qt_add_qml_module(EnhanceVision
         resources/icons/monitor.svg
         resources/icons/cpu.svg
         resources/icons/help-circle.svg
+        resources/icons/eraser.svg
+        resources/icons/trash-2.svg
+        resources/icons/pin.svg
+        resources/icons/edit.svg
+        resources/icons/more-vertical.svg
+        resources/icons/check-square.svg
+        resources/icons/list-select.svg
         # 暗色主题蓝色图标
         resources/icons-dark/alert-triangle.svg
         resources/icons-dark/arrow-left.svg
         resources/icons-dark/check-circle.svg
+        resources/icons-dark/check-square.svg
         resources/icons-dark/check.svg
         resources/icons-dark/chevron-left.svg
         resources/icons-dark/chevron-right.svg
@@ -279,7 +289,13 @@ qt_add_qml_module(EnhanceVision
         resources/icons-dark/square.svg
         resources/icons-dark/sun.svg
         resources/icons-dark/trash.svg
+        resources/icons-dark/trash-2.svg
+        resources/icons-dark/pin.svg
+        resources/icons-dark/edit.svg
+        resources/icons-dark/more-vertical.svg
         resources/icons-dark/upload.svg
+        resources/icons-dark/eraser.svg
+        resources/icons-dark/list-select.svg
         resources/icons-dark/video.svg
         resources/icons-dark/x-circle.svg
         resources/icons-dark/x.svg

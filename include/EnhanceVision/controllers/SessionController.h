@@ -15,9 +15,6 @@
 
 namespace EnhanceVision {
 
-/**
- * @brief 会话控制器
- */
 class SessionController : public QObject
 {
     Q_OBJECT
@@ -30,14 +27,12 @@ public:
     explicit SessionController(QObject* parent = nullptr);
     ~SessionController() override;
 
-    // 属性访问器
     QString activeSessionId() const;
     SessionModel* sessionModel() const;
     int sessionCount() const;
     bool batchSelectionMode() const;
     void setBatchSelectionMode(bool mode);
 
-    // Q_INVOKABLE 方法
     Q_INVOKABLE QString createSession(const QString& name = QString());
     Q_INVOKABLE void switchSession(const QString& sessionId);
     Q_INVOKABLE void renameSession(const QString& sessionId, const QString& newName);
@@ -47,18 +42,28 @@ public:
     Q_INVOKABLE void selectAllSessions();
     Q_INVOKABLE void deselectAllSessions();
     Q_INVOKABLE void deleteSelectedSessions();
+    Q_INVOKABLE void clearSelectedSessions();
+    Q_INVOKABLE void pinSession(const QString& sessionId, bool pinned);
+    Q_INVOKABLE void moveSession(int fromIndex, int toIndex);
+    Q_INVOKABLE bool isSessionPinned(const QString& sessionId) const;
+    Q_INVOKABLE int selectedCount() const;
     Q_INVOKABLE QString getSessionName(const QString& sessionId) const;
     Q_INVOKABLE Session* getSession(const QString& sessionId);
+    
+    Q_INVOKABLE QString ensureActiveSession();
 
 signals:
     void activeSessionChanged();
     void sessionCountChanged();
     void batchSelectionModeChanged();
+    void selectionChanged();
     void sessionCreated(const QString& sessionId);
     void sessionSwitched(const QString& sessionId);
     void sessionRenamed(const QString& sessionId, const QString& newName);
     void sessionDeleted(const QString& sessionId);
     void sessionCleared(const QString& sessionId);
+    void sessionPinned(const QString& sessionId, bool pinned);
+    void sessionMoved(int fromIndex, int toIndex);
 
 private:
     QString m_activeSessionId;

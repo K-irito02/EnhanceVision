@@ -1,3 +1,4 @@
 singleton Theme 1.0 Theme.qml
 singleton Colors 1.0 Colors.qml
 singleton Typography 1.0 Typography.qml
+singleton NotificationManager 1.0 ../utils/NotificationManager.qml
