@@ -4,66 +4,31 @@ import QtQuick.Layouts
 import "../styles"
 import "../controls"
 
-/**
- * @brief 对话框组件
- * 用于显示确认对话框、错误对话框等
- * 参考功能设计文档 6.1 和 6.2 节
- */
 Item {
     id: root
 
-    // ========== 初始状态 ==========
     visible: false
+    z: 9999
 
-    // ========== 类型定义 ==========
-    /**
-     * @brief 对话框类型枚举
-     */
     enum DialogType {
-        Info,       // 信息
-        Success,    // 成功
-        Warning,    // 警告
-        Error,      // 错误
-        Confirm     // 确认
+        Info,
+        Success,
+        Warning,
+        Error,
+        Confirm
     }
 
-    // ========== 属性定义 ==========
-    /**
-     * @brief 对话框标题
-     */
     property string title: ""
-
-    /**
-     * @brief 对话框消息
-     */
     property string message: ""
-
-    /**
-     * @brief 对话框类型
-     */
     property int type: Dialog.DialogType.Info
-
-    /**
-     * @brief 主按钮文本
-     */
     property string primaryButtonText: qsTr("确定")
-
-    /**
-     * @brief 次要按钮文本
-     */
     property string secondaryButtonText: qsTr("取消")
-
-    /**
-     * @brief 是否显示次要按钮
-     */
     property bool showSecondaryButton: true
 
-    // ========== 信号定义 ==========
     signal primaryButtonClicked()
     signal secondaryButtonClicked()
     signal closed()
 
-    // ========== 内部属性 ==========
     readonly property string dialogIconName: {
         switch (type) {
             case Dialog.DialogType.Success: return "check-circle"
@@ -92,13 +57,23 @@ Item {
         }
     }
 
-    // ========== 显示/隐藏方法 ==========
-    function show(dialogTitle, dialogMessage, dialogType) {
+    property point dialogPos: Qt.point(0, 0)
+    property bool isDragging: false
+
+    function showDialog(dialogTitle, dialogMessage, dialogType, primaryBtnText) {
         title = dialogTitle || ""
         message = dialogMessage || ""
         type = dialogType !== undefined ? dialogType : Dialog.DialogType.Info
+        if (primaryBtnText) primaryButtonText = primaryBtnText
+        
+        dialogPos = Qt.point(
+            (parent.width - dialogRect.width) / 2,
+            (parent.height - dialogRect.height) / 2
+        )
+        
         visible = true
         opacity = 0
+        dialogRect.scale = 0.92
         showAnimation.start()
     }
 
@@ -106,7 +81,6 @@ Item {
         hideAnimation.start()
     }
 
-    // ========== 动画 ==========
     ParallelAnimation {
         id: showAnimation
         NumberAnimation { target: root; property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.OutCubic }
@@ -120,23 +94,20 @@ Item {
         onFinished: { visible = false; closed() }
     }
 
-    // ========== 背景遮罩 ==========
     Rectangle {
         anchors.fill: parent
-        color: Qt.rgba(0, 0, 0, Theme.isDark ? 0.6 : 0.4)
-
+        color: Qt.rgba(0, 0, 0, Theme.isDark ? 0.7 : 0.5)
+        
         MouseArea {
             anchors.fill: parent
-            onClicked: {
-                if (type !== Dialog.DialogType.Confirm) root.hide()
-            }
+            onClicked: root.hide()
         }
     }
 
-    // ========== 对话框内容 ==========
     Rectangle {
         id: dialogRect
-        anchors.centerIn: parent
+        x: dialogPos.x
+        y: dialogPos.y
         width: Math.min(440, parent.width - 48)
         implicitHeight: contentColumn.implicitHeight + 48
         radius: Theme.radius.xxl
@@ -152,12 +123,11 @@ Item {
             anchors.margins: 24
             spacing: 16
 
-            // 图标和标题区域
             RowLayout {
+                id: titleRow
                 Layout.fillWidth: true
                 spacing: 14
 
-                // 图标
                 Rectangle {
                     width: 44; height: 44
                     radius: Theme.radius.xl
@@ -172,7 +142,6 @@ Item {
                     }
                 }
 
-                // 标题
                 Text {
                     Layout.fillWidth: true
                     text: title
@@ -182,7 +151,6 @@ Item {
                     elide: Text.ElideRight
                 }
 
-                // 关闭按钮
                 IconButton {
                     iconName: "x"
                     iconSize: 14
@@ -190,8 +158,36 @@ Item {
                     onClicked: root.hide()
                 }
             }
+            
+            MouseArea {
+                Layout.fillWidth: true
+                Layout.preferredHeight: titleRow.height
+                cursorShape: Qt.SizeAllCursor
+                
+                property point lastMousePos: Qt.point(0, 0)
+                
+                onPressed: function(mouse) {
+                    lastMousePos = Qt.point(mouse.x, mouse.y)
+                    isDragging = true
+                }
+                
+                onReleased: {
+                    isDragging = false
+                }
+                
+                onPositionChanged: function(mouse) {
+                    if (isDragging) {
+                        var newX = dialogPos.x + mouse.x - lastMousePos.x
+                        var newY = dialogPos.y + mouse.y - lastMousePos.y
+                        
+                        newX = Math.max(0, Math.min(newX, root.parent.width - dialogRect.width))
+                        newY = Math.max(0, Math.min(newY, root.parent.height - dialogRect.height))
+                        
+                        dialogPos = Qt.point(newX, newY)
+                    }
+                }
+            }
 
-            // 消息内容
             Text {
                 Layout.fillWidth: true
                 text: message
@@ -202,17 +198,14 @@ Item {
                 leftPadding: 58
             }
 
-            // 间距
             Item { height: 4 }
 
-            // 按钮区域
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 10
 
                 Item { Layout.fillWidth: true }
 
-                // 次要按钮
                 Button {
                     visible: showSecondaryButton
                     variant: "secondary"
@@ -221,7 +214,6 @@ Item {
                     onClicked: { root.secondaryButtonClicked(); root.hide() }
                 }
 
-                // 主按钮
                 Button {
                     variant: type === Dialog.DialogType.Error ? "destructive" : "primary"
                     text: primaryButtonText

@@ -29,7 +29,9 @@ public:
         ModifiedAtRole,
         IsActiveRole,
         IsSelectedRole,
-        MessageCountRole
+        MessageCountRole,
+        IsPinnedRole,
+        SortIndexRole
     };
 
     explicit SessionModel(QObject *parent = nullptr);
@@ -91,6 +93,37 @@ public:
      * @return 删除的会话数量
      */
     Q_INVOKABLE int deleteSelectedSessions();
+
+    /**
+     * @brief 批量清空选中的会话
+     * @return 清空的会话数量
+     */
+    Q_INVOKABLE int clearSelectedSessions();
+
+    /**
+     * @brief 置顶/取消置顶会话
+     * @param sessionId 会话ID
+     * @param pinned 是否置顶
+     */
+    Q_INVOKABLE void pinSession(const QString &sessionId, bool pinned);
+
+    /**
+     * @brief 移动会话位置（拖拽排序）
+     * @param fromIndex 源索引
+     * @param toIndex 目标索引
+     */
+    Q_INVOKABLE void moveSession(int fromIndex, int toIndex);
+
+    /**
+     * @brief 全选会话
+     */
+    Q_INVOKABLE void selectAll();
+
+    /**
+     * @brief 获取选中的会话数量
+     * @return 选中数量
+     */
+    Q_INVOKABLE int selectedCount() const;
 
     /**
      * @brief 获取当前活动会话ID
@@ -166,6 +199,26 @@ signals:
     void sessionRenamed(const QString &sessionId, const QString &newName);
 
     /**
+     * @brief 会话置顶状态变化信号
+     * @param sessionId 会话ID
+     * @param pinned 是否置顶
+     */
+    void sessionPinned(const QString &sessionId, bool pinned);
+
+    /**
+     * @brief 会话清空信号
+     * @param sessionId 会话ID
+     */
+    void sessionCleared(const QString &sessionId);
+
+    /**
+     * @brief 会话位置变化信号
+     * @param fromIndex 源索引
+     * @param toIndex 目标索引
+     */
+    void sessionMoved(int fromIndex, int toIndex);
+
+    /**
      * @brief 错误信号
      * @param message 错误信息
      */
@@ -190,6 +243,16 @@ private:
      * @return 索引，-1表示未找到
      */
     int findSessionIndex(const QString &sessionId) const;
+
+    /**
+     * @brief 重新排序会话列表（置顶在前）
+     */
+    void sortSessions();
+
+    /**
+     * @brief 更新排序索引
+     */
+    void updateSortIndices();
 
     QList<Session> m_sessions;       ///< 会话列表
     QString m_activeSessionId;        ///< 当前活动会话ID

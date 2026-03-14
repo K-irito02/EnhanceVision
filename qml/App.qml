@@ -46,7 +46,12 @@ Rectangle {
             }
             
             onNavigateToSettings: root.currentPage = 1
-            onNewSession: console.log("New session requested")
+            onNewSession: {
+                if (sessionController) {
+                    var newId = sessionController.createSession()
+                    sessionController.switchSession(newId)
+                }
+            }
         }
 
         // ========== 主内容区域 ==========
@@ -144,6 +149,14 @@ Rectangle {
 
         Component.onCompleted: {
             NotificationManager.dialogComponent = dialog
+        }
+        
+        onPrimaryButtonClicked: {
+            NotificationManager.handleConfirm()
+        }
+        
+        onSecondaryButtonClicked: {
+            NotificationManager.handleCancel()
         }
     }
 

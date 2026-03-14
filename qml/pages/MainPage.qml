@@ -392,6 +392,9 @@ Rectangle {
         ]
         
         onAccepted: {
+            if (sessionController) {
+                sessionController.ensureActiveSession()
+            }
             fileController.addFiles(fileDialog.selectedFiles)
         }
     }
