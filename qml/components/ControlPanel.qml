@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../styles"
 import "../controls"
+import "./" as Components
 import EnhanceVision.Controllers
 import EnhanceVision.Models
 
@@ -18,11 +19,23 @@ Rectangle {
     // ========== 属性定义 ==========
     property int processingMode: 0
     property int displayMode: 0
+
+    // Shader 参数
     property real brightness: 0.0
     property real contrast: 1.0
     property real saturation: 1.0
+    property real hue: 0.0
     property real sharpness: 0.0
+    property real blur: 0.0
     property real denoise: 0.0
+    property real exposure: 0.0
+    property real gamma: 1.0
+    property real temperature: 0.0
+    property real tint: 0.0
+    property real vignette: 0.0
+    property real highlights: 0.0
+    property real shadows: 0.0
+
     property int aiModelIndex: 0
     property bool collapsed: false
 
@@ -38,8 +51,22 @@ Rectangle {
         displayMode = processingMode
     }
 
+    // ========== 属性定义 ==========
+    property bool isAnyEditing: false
+
     // ========== 视觉属性 ==========
     color: Theme.colors.card
+
+    // 全局点击处理器 - 用于退出编辑模式
+    MouseArea {
+        id: globalClickHandler
+        anchors.fill: parent
+        enabled: root.isAnyEditing
+        z: 999
+        onClicked: {
+            root.isAnyEditing = false
+        }
+    }
 
     // 左侧分隔线
     Rectangle {
@@ -215,13 +242,7 @@ Rectangle {
                 iconSize: 16
                 btnSize: 36
                 tooltip: qsTr("重置参数")
-                onClicked: {
-                    root.brightness = 0.0;
-                    root.contrast = 1.0;
-                    root.saturation = 1.0;
-                    root.sharpness = 0.0;
-                    root.denoise = 0.0;
-                }
+                onClicked: resetAllParams()
             }
 
             Item { Layout.fillHeight: true }
@@ -239,90 +260,42 @@ Rectangle {
 
             // ========== 参数区域 ==========
             StackLayout {
+                id: paramsStack
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 currentIndex: displayMode
 
                 // ===== Shader 模式参数 =====
                 ScrollView {
+                    id: shaderScrollView
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     clip: true
+                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                     ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
-                    ColumnLayout {
-                        spacing: 8
-                        width: parent.width
+                    Components.ShaderParamsPanel {
+                        id: shaderParams
+                        width: shaderScrollView.availableWidth - 4
 
-                        // 亮度
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 3
-                            RowLayout {
-                                Text { text: qsTr("亮度"); color: Theme.colors.foreground; font.pixelSize: 11; font.weight: Font.Medium }
-                                Item { Layout.fillWidth: true }
-                                Text { text: brightnessSlider.value.toFixed(2); color: Theme.colors.mutedForeground; font.pixelSize: 10; font.family: "Consolas" }
-                            }
-                            Slider { id: brightnessSlider; Layout.fillWidth: true; from: -1.0; to: 1.0; value: root.brightness; onValueChanged: root.brightness = value }
+                        brightness: root.brightness
+                        contrast: root.contrast
+                        saturation: root.saturation
+                        hue: root.hue
+                        sharpness: root.sharpness
+                        blur: root.blur
+                        denoise: root.denoise
+                        exposure: root.exposure
+                        gamma: root.gamma
+                        temperature: root.temperature
+                        tint: root.tint
+                        vignette: root.vignette
+                        highlights: root.highlights
+                        shadows: root.shadows
+
+                        onParamChanged: function(name, value) {
+                            root[name] = value
                         }
-
-                        // 对比度
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 3
-                            RowLayout {
-                                Text { text: qsTr("对比度"); color: Theme.colors.foreground; font.pixelSize: 11; font.weight: Font.Medium }
-                                Item { Layout.fillWidth: true }
-                                Text { text: contrastSlider.value.toFixed(2); color: Theme.colors.mutedForeground; font.pixelSize: 10; font.family: "Consolas" }
-                            }
-                            Slider { id: contrastSlider; Layout.fillWidth: true; from: 0.0; to: 2.0; value: root.contrast; onValueChanged: root.contrast = value }
-                        }
-
-                        // 饱和度
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 3
-                            RowLayout {
-                                Text { text: qsTr("饱和度"); color: Theme.colors.foreground; font.pixelSize: 11; font.weight: Font.Medium }
-                                Item { Layout.fillWidth: true }
-                                Text { text: saturationSlider.value.toFixed(2); color: Theme.colors.mutedForeground; font.pixelSize: 10; font.family: "Consolas" }
-                            }
-                            Slider { id: saturationSlider; Layout.fillWidth: true; from: 0.0; to: 2.0; value: root.saturation; onValueChanged: root.saturation = value }
-                        }
-
-                        // 锐度
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 3
-                            RowLayout {
-                                Text { text: qsTr("锐度"); color: Theme.colors.foreground; font.pixelSize: 11; font.weight: Font.Medium }
-                                Item { Layout.fillWidth: true }
-                                Text { text: sharpnessSlider.value.toFixed(2); color: Theme.colors.mutedForeground; font.pixelSize: 10; font.family: "Consolas" }
-                            }
-                            Slider { id: sharpnessSlider; Layout.fillWidth: true; from: 0.0; to: 2.0; value: root.sharpness; onValueChanged: root.sharpness = value }
-                        }
-
-                        // 降噪
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 3
-                            RowLayout {
-                                Text { text: qsTr("降噪"); color: Theme.colors.foreground; font.pixelSize: 11; font.weight: Font.Medium }
-                                Item { Layout.fillWidth: true }
-                                Text { text: denoiseSlider.value.toFixed(2); color: Theme.colors.mutedForeground; font.pixelSize: 10; font.family: "Consolas" }
-                            }
-                            Slider { id: denoiseSlider; Layout.fillWidth: true; from: 0.0; to: 1.0; value: root.denoise; onValueChanged: root.denoise = value }
-                        }
-
-                        // 预设
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 6
-                            Text { text: qsTr("预设"); color: Theme.colors.foreground; font.pixelSize: 11; font.weight: Font.Medium }
-                            ComboBox { Layout.fillWidth: true; model: [qsTr("自定义"), qsTr("鲜艳"), qsTr("柔和"), qsTr("黑白")] }
-                        }
-
-                        Item { Layout.fillHeight: true }
                     }
                 }
 
@@ -399,103 +372,6 @@ Rectangle {
                     Item { Layout.fillHeight: true }
                 }
             }
-
-            // ========== 分隔线 ==========
-            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.colors.border }
-
-            // ========== 队列管理区域 ==========
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 6
-
-                // 状态指示灯
-                Rectangle {
-                    width: 6; height: 6; radius: 3
-                    color: processingController.queueStatus === ProcessingController.Running ? Theme.colors.success : Theme.colors.warning
-                }
-
-                Text {
-                    text: processingController.queueStatus === ProcessingController.Running ? qsTr("运行中") : qsTr("已暂停")
-                    color: Theme.colors.foreground
-                    font.pixelSize: 11
-                    font.weight: Font.Medium
-                }
-
-                Text {
-                    text: qsTr("排队: %1").arg(processingController.queueSize)
-                    color: Theme.colors.mutedForeground
-                    font.pixelSize: 11
-                }
-
-                Item { Layout.fillWidth: true }
-
-                // 暂停/恢复按钮
-                Button {
-                    text: processingController.queueStatus === ProcessingController.Running ? qsTr("暂停") : qsTr("恢复")
-                    variant: "secondary"
-                    size: "sm"
-                    onClicked: {
-                        if (processingController.queueStatus === ProcessingController.Running) {
-                            processingController.pauseQueue();
-                        } else {
-                            processingController.resumeQueue();
-                        }
-                    }
-                }
-
-                // 取消按钮
-                Button {
-                    text: qsTr("取消")
-                    variant: "ghost"
-                    size: "sm"
-                    onClicked: processingController.cancelAllTasks()
-                }
-            }
-
-            // ========== 分隔线 ==========
-            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.colors.border }
-
-            // ========== 操作按钮 ==========
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 6
-
-                // 重置按钮
-                Button {
-                    text: qsTr("重置")
-                    iconName: "rotate-ccw"
-                    variant: "ghost"
-                    size: "sm"
-                    onClicked: {
-                        root.brightness = 0.0;
-                        root.contrast = 1.0;
-                        root.saturation = 1.0;
-                        root.sharpness = 0.0;
-                        root.denoise = 0.0;
-                    }
-                }
-
-                Item { Layout.fillWidth: true }
-
-                // 导出按钮
-                Button {
-                    text: qsTr("导出")
-                    iconName: "save"
-                    variant: "secondary"
-                    size: "sm"
-                }
-
-                // 处理按钮
-                Button {
-                    id: sendButton
-                    text: qsTr("处理")
-                    iconName: "send"
-                    variant: "primary"
-                    size: "sm"
-                    enabled: fileModel.count > 0
-                    onClicked: sendToProcessing()
-                }
-            }
         }
     }
 
@@ -513,8 +389,17 @@ Rectangle {
             params.brightness = brightness;
             params.contrast = contrast;
             params.saturation = saturation;
+            params.hue = hue;
             params.sharpness = sharpness;
+            params.blur = blur;
             params.denoise = denoise;
+            params.exposure = exposure;
+            params.gamma = gamma;
+            params.temperature = temperature;
+            params.tint = tint;
+            params.vignette = vignette;
+            params.highlights = highlights;
+            params.shadows = shadows;
         } else {
             params.modelIndex = aiModelIndex;
         }
@@ -527,6 +412,23 @@ Rectangle {
         } else {
             console.warn("添加任务失败");
         }
+    }
+
+    function resetAllParams() {
+        brightness = 0.0
+        contrast = 1.0
+        saturation = 1.0
+        hue = 0.0
+        sharpness = 0.0
+        blur = 0.0
+        denoise = 0.0
+        exposure = 0.0
+        gamma = 1.0
+        temperature = 0.0
+        tint = 0.0
+        vignette = 0.0
+        highlights = 0.0
+        shadows = 0.0
     }
 
     Behavior on color { ColorAnimation { duration: Theme.animation.normal } }

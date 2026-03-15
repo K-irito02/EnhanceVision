@@ -66,12 +66,11 @@ ComboBox {
         padding: 4
 
         background: Rectangle {
-            color: Theme.colors.popover
+            color: Theme.colors.card
             border.width: 1
             border.color: Theme.colors.border
             radius: Theme.radius.md
 
-            // 阴影效果
             layer.enabled: true
             layer.effect: Item {
                 Rectangle {

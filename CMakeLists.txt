@@ -181,15 +181,27 @@ qt_add_qml_module(EnhanceVision
         qml/components/MessageList.qml
         qml/components/Toast.qml
         qml/components/Dialog.qml
+        qml/components/ControlPanel.qml
+        qml/components/ShaderParamsPanel.qml
         qml/controls/IconButton.qml
         qml/controls/Slider.qml
         qml/controls/ComboBox.qml
         qml/controls/Button.qml
         qml/controls/TextField.qml
         qml/controls/ColoredIcon.qml
+        qml/controls/ParamSlider.qml
+        qml/controls/ParamGroup.qml
         qml/shaders/BrightnessContrast.qml
         qml/shaders/SaturationHue.qml
         qml/shaders/SharpenBlur.qml
+        qml/shaders/Hue.qml
+        qml/shaders/Exposure.qml
+        qml/shaders/Gamma.qml
+        qml/shaders/Temperature.qml
+        qml/shaders/Tint.qml
+        qml/shaders/Vignette.qml
+        qml/shaders/Highlights.qml
+        qml/shaders/Shadows.qml
         qml/styles/Theme.qml
         qml/styles/Colors.qml
         qml/styles/Typography.qml
@@ -237,6 +249,7 @@ qt_add_qml_module(EnhanceVision
         resources/icons/list.svg
         resources/icons/sparkles.svg
         resources/icons/file-plus.svg
+        resources/icons/folder-plus.svg
         resources/icons/loader.svg
         resources/icons/layout-grid.svg
         resources/icons/monitor.svg
@@ -258,6 +271,11 @@ qt_add_qml_module(EnhanceVision
         resources/icons/skip-forward.svg
         resources/icons/skip-back.svg
         resources/icons/grid.svg
+        # ParamGroup 图标
+        resources/icons/adjust-basic.svg
+        resources/icons/detail-enhance.svg
+        resources/icons/light-shadow.svg
+        resources/icons/color-palette.svg
         # 暗色主题蓝色图标
         resources/icons-dark/alert-triangle.svg
         resources/icons-dark/arrow-left.svg
@@ -272,6 +290,7 @@ qt_add_qml_module(EnhanceVision
         resources/icons-dark/eye-off.svg
         resources/icons-dark/eye.svg
         resources/icons-dark/file-plus.svg
+        resources/icons-dark/folder-plus.svg
         resources/icons-dark/folder.svg
         resources/icons-dark/globe.svg
         resources/icons-dark/help-circle.svg
@@ -320,6 +339,11 @@ qt_add_qml_module(EnhanceVision
         resources/icons-dark/skip-forward.svg
         resources/icons-dark/skip-back.svg
         resources/icons-dark/grid.svg
+        # ParamGroup 暗色图标
+        resources/icons-dark/adjust-basic.svg
+        resources/icons-dark/detail-enhance.svg
+        resources/icons-dark/light-shadow.svg
+        resources/icons-dark/color-palette.svg
 )
 
 # Shader 资源已包含在 qml.qrc 中，使用 qsb 文件

@@ -18,6 +18,7 @@
         <file>../qml/components/TitleBar.qml</file>
         <file>../qml/components/SessionList.qml</file>
         <file>../qml/components/SessionBatchBar.qml</file>
+        <file>../qml/components/ShaderParamsPanel.qml</file>
         
         <!-- 自定义控件 -->
         <file>../qml/controls/Button.qml</file>
@@ -25,11 +26,20 @@
         <file>../qml/controls/IconButton.qml</file>
         <file>../qml/controls/Slider.qml</file>
         <file>../qml/controls/TextField.qml</file>
+        <file>../qml/controls/ParamSlider.qml</file>
         
         <!-- Shader 效果组件 -->
         <file>../qml/shaders/BrightnessContrast.qml</file>
         <file>../qml/shaders/SaturationHue.qml</file>
         <file>../qml/shaders/SharpenBlur.qml</file>
+        <file>../qml/shaders/Hue.qml</file>
+        <file>../qml/shaders/Exposure.qml</file>
+        <file>../qml/shaders/Gamma.qml</file>
+        <file>../qml/shaders/Temperature.qml</file>
+        <file>../qml/shaders/Tint.qml</file>
+        <file>../qml/shaders/Vignette.qml</file>
+        <file>../qml/shaders/Highlights.qml</file>
+        <file>../qml/shaders/Shadows.qml</file>
         
         <!-- 样式定义 -->
         <file>../qml/styles/Theme.qml</file>
@@ -102,6 +112,14 @@
         <file>shaders/saturation.frag</file>
         <file>shaders/sharpen.frag</file>
         <file>shaders/blur.frag</file>
+        <file>shaders/hue.frag</file>
+        <file>shaders/exposure.frag</file>
+        <file>shaders/gamma.frag</file>
+        <file>shaders/temperature.frag</file>
+        <file>shaders/tint.frag</file>
+        <file>shaders/vignette.frag</file>
+        <file>shaders/highlights.frag</file>
+        <file>shaders/shadows.frag</file>
     </qresource>
     
     <qresource prefix="/i18n">

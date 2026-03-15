@@ -16,12 +16,33 @@ Rectangle {
     id: root
     color: Theme.colors.background
 
-    // ========== 属性定义 ==========
     property bool sidebarExpanded: true
     property bool controlPanelExpanded: true
     property bool controlPanelCollapsed: false
     property int currentPage: 0
-    property int processingMode: 0  // 0: Shader, 1: AI
+    property int processingMode: 0
+
+    function clearAllFocus() {
+        root.forceActiveFocus()
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+        onPressed: function(mouse) {
+            root.forceActiveFocus()
+            mouse.accepted = false
+        }
+        onClicked: function(mouse) {
+            mouse.accepted = false
+        }
+        onReleased: function(mouse) {
+            mouse.accepted = false
+        }
+        z: -1000
+        propagateComposedEvents: true
+        enabled: true
+    }
 
     // ========== 主布局 ==========
     ColumnLayout {
