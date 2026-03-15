@@ -172,6 +172,8 @@ qt_add_qml_module(EnhanceVision
         qml/components/PreviewPane.qml
         qml/components/ControlPanel.qml
         qml/components/MediaViewer.qml
+        qml/components/MediaThumbnailStrip.qml
+        qml/components/MediaViewerWindow.qml
         qml/components/SessionList.qml
         qml/components/SessionBatchBar.qml
         qml/components/Card.qml
@@ -247,6 +249,15 @@ qt_add_qml_module(EnhanceVision
         resources/icons/more-vertical.svg
         resources/icons/check-square.svg
         resources/icons/list-select.svg
+        resources/icons/chevron-down.svg
+        resources/icons/chevron-up.svg
+        resources/icons/maximize.svg
+        resources/icons/minimize-2.svg
+        resources/icons/volume-2.svg
+        resources/icons/volume-x.svg
+        resources/icons/skip-forward.svg
+        resources/icons/skip-back.svg
+        resources/icons/grid.svg
         # 暗色主题蓝色图标
         resources/icons-dark/alert-triangle.svg
         resources/icons-dark/arrow-left.svg
@@ -300,6 +311,15 @@ qt_add_qml_module(EnhanceVision
         resources/icons-dark/x-circle.svg
         resources/icons-dark/x.svg
         resources/icons-dark/zap.svg
+        resources/icons-dark/chevron-down.svg
+        resources/icons-dark/chevron-up.svg
+        resources/icons-dark/maximize.svg
+        resources/icons-dark/minimize-2.svg
+        resources/icons-dark/volume-2.svg
+        resources/icons-dark/volume-x.svg
+        resources/icons-dark/skip-forward.svg
+        resources/icons-dark/skip-back.svg
+        resources/icons-dark/grid.svg
 )
 
 # Shader 资源已包含在 qml.qrc 中，使用 qsb 文件

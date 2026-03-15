@@ -7,6 +7,8 @@
 #include "EnhanceVision/controllers/ProcessingController.h"
 #include "EnhanceVision/controllers/SettingsController.h"
 #include "EnhanceVision/controllers/FileController.h"
+#include "EnhanceVision/controllers/SessionController.h"
+#include "EnhanceVision/models/MessageModel.h"
 #include <QUuid>
 #include <QDebug>
 #include <QTimer>
@@ -22,6 +24,8 @@ ProcessingController::ProcessingController(QObject* parent)
     , m_currentProcessingCount(0)
     , m_taskCounter(0)
     , m_fileController(nullptr)
+    , m_messageModel(nullptr)
+    , m_sessionController(nullptr)
 {
     // 从设置中获取最大并发数
     m_maxConcurrentTasks = SettingsController::instance()->maxConcurrentTasks();
@@ -84,23 +88,76 @@ void ProcessingController::resumeQueue()
     }
 }
 
+void ProcessingController::setMessageModel(MessageModel* messageModel)
+{
+    m_messageModel = messageModel;
+}
+
+void ProcessingController::setSessionController(SessionController* sessionController)
+{
+    m_sessionController = sessionController;
+}
+
 void ProcessingController::cancelTask(const QString& taskId)
 {
+    // 支持按 taskId 或 messageId 取消
+    // 先检查是否是 messageId（QML 传的是 message.id）
+    bool isMessageId = false;
+    for (const auto& task : m_tasks) {
+        if (task.messageId == taskId) {
+            isMessageId = true;
+            break;
+        }
+    }
+
+    if (isMessageId) {
+        // 取消该消息下的所有任务
+        for (int i = m_tasks.size() - 1; i >= 0; --i) {
+            if (m_tasks[i].messageId == taskId) {
+                if (m_tasks[i].status == ProcessingStatus::Pending) {
+                    m_tasks[i].status = ProcessingStatus::Cancelled;
+                    emit taskCancelled(m_tasks[i].taskId);
+                    m_tasks.removeAt(i);
+                } else if (m_tasks[i].status == ProcessingStatus::Processing) {
+                    m_tasks[i].status = ProcessingStatus::Cancelled;
+                    m_currentProcessingCount--;
+                    emit currentProcessingCountChanged();
+                    emit taskCancelled(m_tasks[i].taskId);
+                }
+            }
+        }
+        updateQueuePositions();
+        m_processingModel->updateTasks(m_tasks);
+        emit queueSizeChanged();
+
+        // 更新消息状态为已取消
+        if (m_messageModel) {
+            m_messageModel->updateStatus(taskId, static_cast<int>(ProcessingStatus::Cancelled));
+        }
+        processNextTask();
+        return;
+    }
+
+    // 按 taskId 取消单个任务
     for (int i = 0; i < m_tasks.size(); ++i) {
         if (m_tasks[i].taskId == taskId) {
+            QString messageId = m_tasks[i].messageId;
             if (m_tasks[i].status == ProcessingStatus::Pending) {
-                // 待处理任务直接移除
                 m_tasks[i].status = ProcessingStatus::Cancelled;
                 m_tasks.removeAt(i);
                 updateQueuePositions();
                 emit taskCancelled(taskId);
                 emit queueSizeChanged();
             } else if (m_tasks[i].status == ProcessingStatus::Processing) {
-                // 处理中的任务发送取消信号
                 m_tasks[i].status = ProcessingStatus::Cancelled;
+                m_currentProcessingCount--;
+                emit currentProcessingCountChanged();
                 emit taskCancelled(taskId);
             }
             m_processingModel->updateTasks(m_tasks);
+            syncMessageProgress(messageId);
+            syncMessageStatus(messageId);
+            processNextTask();
             break;
         }
     }
@@ -148,6 +205,7 @@ QString ProcessingController::addTask(const Message& message)
 
         m_tasks.append(task);
         m_processingModel->addTask(task);
+        m_taskToMessage[task.taskId] = message.id;
 
         emit taskAdded(task.taskId);
     }
@@ -293,6 +351,9 @@ void ProcessingController::updateTaskProgress(const QString& taskId, int progres
             task.progress = progress;
             emit taskProgress(taskId, progress);
             m_processingModel->updateTasks(m_tasks);
+
+            // 同步更新所属消息的整体进度
+            syncMessageProgress(task.messageId);
             break;
         }
     }
@@ -302,18 +363,30 @@ void ProcessingController::completeTask(const QString& taskId, const QString& re
 {
     for (int i = 0; i < m_tasks.size(); ++i) {
         if (m_tasks[i].taskId == taskId) {
+            QString messageId = m_tasks[i].messageId;
+            QString fileId = m_tasks[i].fileId;
+
             if (m_tasks[i].status == ProcessingStatus::Cancelled) {
-                // 任务已被取消
                 emit taskCancelled(taskId);
             } else {
                 m_tasks[i].status = ProcessingStatus::Completed;
                 m_tasks[i].progress = 100;
                 emit taskCompleted(taskId, resultPath);
+
+                // 更新消息中对应文件的状态和结果路径
+                if (m_messageModel) {
+                    m_messageModel->updateFileStatus(messageId, fileId,
+                        static_cast<int>(ProcessingStatus::Completed), resultPath);
+                }
             }
 
             m_currentProcessingCount--;
             emit currentProcessingCountChanged();
             m_processingModel->updateTasks(m_tasks);
+
+            // 同步消息整体进度和状态
+            syncMessageProgress(messageId);
+            syncMessageStatus(messageId);
 
             // 继续处理下一个任务
             processNextTask();
@@ -326,11 +399,25 @@ void ProcessingController::failTask(const QString& taskId, const QString& error)
 {
     for (auto& task : m_tasks) {
         if (task.taskId == taskId) {
+            QString messageId = task.messageId;
+            QString fileId = task.fileId;
+
             task.status = ProcessingStatus::Failed;
             emit taskFailed(taskId, error);
             m_currentProcessingCount--;
             emit currentProcessingCountChanged();
             m_processingModel->updateTasks(m_tasks);
+
+            // 更新消息中对应文件的状态
+            if (m_messageModel) {
+                m_messageModel->updateFileStatus(messageId, fileId,
+                    static_cast<int>(ProcessingStatus::Failed), QString());
+                m_messageModel->updateErrorMessage(messageId, error);
+            }
+
+            // 同步消息整体进度和状态
+            syncMessageProgress(messageId);
+            syncMessageStatus(messageId);
 
             // 继续处理下一个任务
             processNextTask();
@@ -364,6 +451,8 @@ QString ProcessingController::sendToProcessing(int mode, const QVariantMap& para
     message.mode = (mode == 0) ? ProcessingMode::Shader : ProcessingMode::AIInference;
     message.mediaFiles = files;
     message.parameters = params;
+    message.status = ProcessingStatus::Pending;
+    message.progress = 0;
 
     // 设置 Shader 参数
     if (mode == 0) {
@@ -374,8 +463,104 @@ QString ProcessingController::sendToProcessing(int mode, const QVariantMap& para
         message.shaderParams.denoise = params.value("denoise", 0.0f).toFloat();
     }
 
-    qDebug() << "Sending message to processing queue:" << message.id;
+    // 将消息添加到 MessageModel（QML 会自动更新显示）
+    if (m_messageModel) {
+        m_messageModel->addMessage(message);
+    }
+    
+    // 同步消息到当前活动的 Session
+    if (m_sessionController && m_messageModel) {
+        m_sessionController->syncCurrentMessagesToSession();
+    }
+
+    // 清空文件列表（文件已转入消息）
+    m_fileController->clearFiles();
+
+    qDebug() << "Sending message to processing queue:" << message.id
+             << "with" << files.size() << "files";
     return addTask(message);
+}
+
+void ProcessingController::syncMessageProgress(const QString& messageId)
+{
+    if (!m_messageModel) return;
+
+    // 计算该消息下所有任务的加权平均进度
+    int totalTasks = 0;
+    int totalProgress = 0;
+
+    for (const auto& task : m_tasks) {
+        if (task.messageId == messageId) {
+            totalTasks++;
+            if (task.status == ProcessingStatus::Completed) {
+                totalProgress += 100;
+            } else if (task.status == ProcessingStatus::Failed ||
+                       task.status == ProcessingStatus::Cancelled) {
+                totalProgress += 100; // 视为已结束
+            } else {
+                totalProgress += task.progress;
+            }
+        }
+    }
+
+    int overallProgress = (totalTasks > 0) ? (totalProgress / totalTasks) : 0;
+    m_messageModel->updateProgress(messageId, overallProgress);
+}
+
+void ProcessingController::syncMessageStatus(const QString& messageId)
+{
+    if (!m_messageModel) return;
+
+    int totalTasks = 0;
+    int completedTasks = 0;
+    int failedTasks = 0;
+    int cancelledTasks = 0;
+    int processingTasks = 0;
+
+    for (const auto& task : m_tasks) {
+        if (task.messageId == messageId) {
+            totalTasks++;
+            switch (task.status) {
+            case ProcessingStatus::Completed: completedTasks++; break;
+            case ProcessingStatus::Failed:    failedTasks++;    break;
+            case ProcessingStatus::Cancelled: cancelledTasks++; break;
+            case ProcessingStatus::Processing: processingTasks++; break;
+            default: break;
+            }
+        }
+    }
+
+    if (totalTasks == 0) return;
+
+    int finishedTasks = completedTasks + failedTasks + cancelledTasks;
+
+    ProcessingStatus newStatus;
+    if (finishedTasks == totalTasks) {
+        // 所有任务结束
+        if (failedTasks > 0 && completedTasks == 0) {
+            newStatus = ProcessingStatus::Failed;
+        } else if (cancelledTasks == totalTasks) {
+            newStatus = ProcessingStatus::Cancelled;
+        } else {
+            newStatus = ProcessingStatus::Completed;
+        }
+    } else if (processingTasks > 0 || completedTasks > 0) {
+        newStatus = ProcessingStatus::Processing;
+    } else {
+        newStatus = ProcessingStatus::Pending;
+    }
+
+    m_messageModel->updateStatus(messageId, static_cast<int>(newStatus));
+
+    // 更新队列位置
+    int queuePos = 0;
+    for (const auto& task : m_tasks) {
+        if (task.messageId == messageId && task.status == ProcessingStatus::Pending) {
+            queuePos = task.position + 1;
+            break;
+        }
+    }
+    m_messageModel->updateQueuePosition(messageId, queuePos);
 }
 
 } // namespace EnhanceVision

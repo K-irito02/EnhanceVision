@@ -6,6 +6,8 @@
 
 #include "EnhanceVision/providers/ThumbnailProvider.h"
 #include "EnhanceVision/utils/ImageUtils.h"
+#include <QUrl>
+#include <QFileInfo>
 
 namespace EnhanceVision {
 
@@ -52,23 +54,59 @@ ThumbnailProvider::~ThumbnailProvider()
 
 QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize)
 {
-    QMutexLocker locker(&m_mutex);
-    
-    if (!m_thumbnails.contains(id)) {
-        return QImage();
+    // 先检查缓存
+    {
+        QMutexLocker locker(&m_mutex);
+        if (m_thumbnails.contains(id)) {
+            QImage thumbnail = m_thumbnails.value(id);
+            if (size) {
+                *size = thumbnail.size();
+            }
+            if (!requestedSize.isEmpty() && requestedSize != thumbnail.size()) {
+                return ImageUtils::scaleImage(thumbnail, requestedSize, true);
+            }
+            return thumbnail;
+        }
     }
-    
-    QImage thumbnail = m_thumbnails.value(id);
-    
+
+    // 缓存未命中：id 可能是文件路径，尝试同步生成缩略图
+    // 将 URL 编码的路径还原（QML 传入的 id 可能带有 URL 前缀）
+    QString filePath = id;
+    if (filePath.startsWith("file:///")) {
+        filePath = QUrl(filePath).toLocalFile();
+    }
+    // Windows 路径修正：去掉开头的 /（如 /E:/path -> E:/path）
+    #ifdef Q_OS_WIN
+    if (filePath.startsWith('/') && filePath.length() > 2 && filePath.at(2) == ':') {
+        filePath = filePath.mid(1);
+    }
+    #endif
+
+    QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(256, 256);
+    QImage thumbnail;
+
+    if (ImageUtils::isImageFile(filePath)) {
+        thumbnail = ImageUtils::generateThumbnail(filePath, targetSize);
+    } else if (ImageUtils::isVideoFile(filePath)) {
+        thumbnail = ImageUtils::generateVideoThumbnail(filePath, targetSize);
+    }
+
+    if (!thumbnail.isNull()) {
+        // 缓存生成的缩略图
+        QMutexLocker locker(&m_mutex);
+        m_thumbnails[id] = thumbnail;
+
+        if (size) {
+            *size = thumbnail.size();
+        }
+        return thumbnail;
+    }
+
+    // 无法生成缩略图
     if (size) {
-        *size = thumbnail.size();
+        *size = QSize(0, 0);
     }
-    
-    if (!requestedSize.isEmpty() && requestedSize != thumbnail.size()) {
-        return ImageUtils::scaleImage(thumbnail, requestedSize, true);
-    }
-    
-    return thumbnail;
+    return QImage();
 }
 
 void ThumbnailProvider::setThumbnail(const QString &id, const QImage &thumbnail)

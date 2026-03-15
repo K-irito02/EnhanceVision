@@ -55,12 +55,41 @@ public:
     Q_INVOKABLE bool isFileSupported(const QString& filePath) const;
     Q_INVOKABLE QString getFileDialogFilter() const;
 
+    /**
+     * @brief 保存文件到指定目录
+     * @param filePath 源文件路径
+     * @param targetDir 目标目录（空则使用默认保存路径）
+     * @return 目标文件路径，失败返回空
+     */
+    Q_INVOKABLE QString saveFileTo(const QString& filePath, const QString& targetDir = QString());
+
+    /**
+     * @brief 下载/保存消息中所有已完成的文件
+     * @param resultPaths 已完成文件的结果路径列表
+     * @param targetDir 目标目录（空则使用默认保存路径）
+     * @return 成功保存的文件数
+     */
+    Q_INVOKABLE int downloadCompletedFiles(const QStringList& resultPaths, const QString& targetDir = QString());
+
+    /**
+     * @brief 在系统文件管理器中打开文件所在位置
+     * @param filePath 文件路径
+     */
+    Q_INVOKABLE void openFileLocation(const QString& filePath);
+
+    /**
+     * @brief 获取默认保存路径
+     * @return 默认路径
+     */
+    Q_INVOKABLE QString getDefaultSavePath() const;
+
 signals:
     void fileCountChanged();
     void filesAdded(const QStringList& fileIds);
     void fileRemoved(const QString& fileId);
     void filesCleared();
     void fileSelected(const QString& fileId, bool selected);
+    void fileSaved(const QString& savedPath);
     void errorOccurred(const QString& error);
 
 private:

@@ -465,4 +465,15 @@ void SessionModel::updateSortIndices()
     }
 }
 
+void SessionModel::notifySessionDataChanged(const QString &sessionId)
+{
+    int index = findSessionIndex(sessionId);
+    if (index < 0) {
+        return;
+    }
+    
+    QModelIndex modelIndex = createIndex(index, 0);
+    emit dataChanged(modelIndex, modelIndex, {MessageCountRole, ModifiedAtRole});
+}
+
 } // namespace EnhanceVision

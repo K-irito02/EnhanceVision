@@ -15,6 +15,8 @@
 
 namespace EnhanceVision {
 
+class MessageModel;
+
 class SessionController : public QObject
 {
     Q_OBJECT
@@ -22,6 +24,7 @@ class SessionController : public QObject
     Q_PROPERTY(SessionModel* sessionModel READ sessionModel CONSTANT)
     Q_PROPERTY(int sessionCount READ sessionCount NOTIFY sessionCountChanged)
     Q_PROPERTY(bool batchSelectionMode READ batchSelectionMode WRITE setBatchSelectionMode NOTIFY batchSelectionModeChanged)
+    Q_PROPERTY(bool autoSaveEnabled READ autoSaveEnabled WRITE setAutoSaveEnabled NOTIFY autoSaveEnabledChanged)
 
 public:
     explicit SessionController(QObject* parent = nullptr);
@@ -33,7 +36,26 @@ public:
     bool batchSelectionMode() const;
     void setBatchSelectionMode(bool mode);
 
+    /**
+     * @brief 设置消息模型引用
+     * @param model 消息模型指针
+     */
+    void setMessageModel(MessageModel* model);
+
+    /**
+     * @brief 创建新会话（不自动选中）
+     * @param name 会话名称（可选）
+     * @return 新会话ID
+     */
     Q_INVOKABLE QString createSession(const QString& name = QString());
+
+    /**
+     * @brief 创建新会话并锁定选中
+     * @param name 会话名称（可选）
+     * @return 新会话ID
+     */
+    Q_INVOKABLE QString createAndSelectSession(const QString& name = QString());
+
     Q_INVOKABLE void switchSession(const QString& sessionId);
     Q_INVOKABLE void renameSession(const QString& sessionId, const QString& newName);
     Q_INVOKABLE void deleteSession(const QString& sessionId);
@@ -50,9 +72,27 @@ public:
     Q_INVOKABLE QString getSessionName(const QString& sessionId) const;
     Q_INVOKABLE Session* getSession(const QString& sessionId);
     
+    /**
+     * @brief 确保有活动会话（用于发送消息时）
+     * 如果已有活动会话则复用，否则创建新会话并锁定选中
+     * @return 活动会话ID
+     */
     Q_INVOKABLE QString ensureActiveSession();
+    
+    /**
+     * @brief 同步当前消息模型到活动会话
+     * 用于在消息添加后同步到 Session
+     */
+    void syncCurrentMessagesToSession();
+    
+    bool autoSaveEnabled() const;
+    void setAutoSaveEnabled(bool enabled);
+    
+    Q_INVOKABLE void saveSessions();
+    Q_INVOKABLE void loadSessions();
 
 signals:
+    void autoSaveEnabledChanged();
     void activeSessionChanged();
     void sessionCountChanged();
     void batchSelectionModeChanged();
@@ -69,11 +109,24 @@ signals:
 private:
     QString m_activeSessionId;
     SessionModel* m_sessionModel;
+    MessageModel* m_messageModel;
     bool m_batchSelectionMode;
     int m_sessionCounter;
+    bool m_autoSaveEnabled;
 
     QString generateSessionId();
     QString generateDefaultSessionName();
+    
+    /**
+     * @brief 保存当前会话的消息到Session
+     */
+    void saveCurrentSessionMessages();
+    
+    /**
+     * @brief 从Session加载消息到MessageModel
+     * @param sessionId 会话ID
+     */
+    void loadSessionMessages(const QString& sessionId);
 };
 
 } // namespace EnhanceVision

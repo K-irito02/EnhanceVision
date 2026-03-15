@@ -5,6 +5,7 @@
  */
 
 #include "EnhanceVision/models/FileModel.h"
+#include "EnhanceVision/providers/ThumbnailProvider.h"
 #include "EnhanceVision/utils/ImageUtils.h"
 #include <QUuid>
 #include <QFileInfo>
@@ -52,7 +53,9 @@ QVariant FileModel::data(const QModelIndex &index, int role) const
     case MediaTypeRole:
         return static_cast<int>(file.type);
     case ThumbnailRole:
-        return file.thumbnail;
+        // 返回 ThumbnailProvider URL，QML Image.source 可直接使用
+        return file.filePath.isEmpty() ? QString()
+            : QStringLiteral("image://thumbnail/") + file.filePath;
     case DurationRole:
         return QVariant::fromValue(file.duration);
     case ResolutionRole:
@@ -125,6 +128,13 @@ bool FileModel::addFile(const QString &filePath)
         }
     } else {
         mediaFile.thumbnail = ImageUtils::generateVideoThumbnail(filePath, thumbnailSize);
+    }
+
+    // 缓存到 ThumbnailProvider（QML 通过 image://thumbnail/ 获取）
+    if (!mediaFile.thumbnail.isNull()) {
+        if (auto* provider = ThumbnailProvider::instance()) {
+            provider->setThumbnail(mediaFile.filePath, mediaFile.thumbnail);
+        }
     }
 
     // 添加到列表

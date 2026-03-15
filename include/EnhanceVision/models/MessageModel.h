@@ -110,10 +110,85 @@ public:
     Q_INVOKABLE void clear();
 
     /**
+     * @brief 将当前消息同步到会话
+     * @param session 目标会话
+     */
+    void syncToSession(Session& session);
+
+    /**
+     * @brief 从会话加载消息
+     * @param session 源会话
+     */
+    void loadFromSession(const Session& session);
+
+    /**
+     * @brief 更新消息中某个文件的处理状态
+     * @param messageId 消息ID
+     * @param fileId 文件ID
+     * @param status 新状态
+     * @param resultPath 处理结果路径
+     */
+    Q_INVOKABLE void updateFileStatus(const QString &messageId, const QString &fileId,
+                                       int status, const QString &resultPath = QString());
+
+    /**
+     * @brief 更新消息队列位置
+     * @param messageId 消息ID
+     * @param position 队列位置
+     */
+    Q_INVOKABLE void updateQueuePosition(const QString &messageId, int position);
+
+    /**
+     * @brief 获取消息中已完成的文件数量
+     * @param messageId 消息ID
+     * @return 已完成文件数
+     */
+    Q_INVOKABLE int getCompletedFileCount(const QString &messageId) const;
+
+    /**
+     * @brief 获取消息中的总文件数量
+     * @param messageId 消息ID
+     * @return 总文件数
+     */
+    Q_INVOKABLE int getTotalFileCount(const QString &messageId) const;
+
+    /**
+     * @brief 获取消息中已完成文件的列表（供QML使用）
+     * @param messageId 消息ID
+     * @return 已完成文件的 QVariantList
+     */
+    Q_INVOKABLE QVariantList getCompletedFiles(const QString &messageId) const;
+
+    /**
+     * @brief 获取消息的所有媒体文件列表（供QML使用）
+     * @param messageId 消息ID
+     * @return 媒体文件的 QVariantList
+     */
+    Q_INVOKABLE QVariantList getMediaFiles(const QString &messageId) const;
+
+    /**
      * @brief 获取消息列表
      * @return 消息列表
      */
     QList<Message> messages() const { return m_messages; }
+    
+    /**
+     * @brief 设置消息列表（用于会话切换时加载）
+     * @param messages 消息列表
+     */
+    void setMessages(const QList<Message>& messages);
+    
+    /**
+     * @brief 获取当前会话ID
+     * @return 会话ID
+     */
+    QString currentSessionId() const { return m_currentSessionId; }
+    
+    /**
+     * @brief 设置当前会话ID
+     * @param sessionId 会话ID
+     */
+    void setCurrentSessionId(const QString& sessionId);
 
     /**
      * @brief 获取指定ID的消息
@@ -189,6 +264,7 @@ private:
     QString getModeText(ProcessingMode mode) const;
 
     QList<Message> m_messages;  ///< 消息列表
+    QString m_currentSessionId; ///< 当前会话ID
 };
 
 } // namespace EnhanceVision

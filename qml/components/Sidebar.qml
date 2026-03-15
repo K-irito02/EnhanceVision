@@ -183,8 +183,7 @@ Rectangle {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         if (sessionController) {
-                            var newId = sessionController.createSession()
-                            sessionController.switchSession(newId)
+                            sessionController.createAndSelectSession()
                         }
                     }
                 }

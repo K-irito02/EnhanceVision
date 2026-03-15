@@ -6,6 +6,7 @@
 
 #include "EnhanceVision/app/Application.h"
 #include "EnhanceVision/models/FileModel.h"
+#include "EnhanceVision/models/MessageModel.h"
 #include "EnhanceVision/models/SessionModel.h"
 #include "EnhanceVision/models/ProcessingModel.h"
 #include "EnhanceVision/controllers/SettingsController.h"
@@ -23,6 +24,7 @@ Application::Application(QObject *parent)
     : QObject(parent)
     , m_mainWidget(new QQuickWidget)
     , m_fileModel(std::make_unique<FileModel>(this))
+    , m_messageModel(std::make_unique<MessageModel>(this))
     , m_sessionModel(std::make_unique<SessionModel>(this))
     , m_processingModel(std::make_unique<ProcessingModel>(this))
     , m_fileController(std::make_unique<FileController>(this))
@@ -78,6 +80,8 @@ void Application::registerQmlTypes()
     // 注册数据模型类型
     qmlRegisterUncreatableType<FileModel>("EnhanceVision.Models", 1, 0, "FileModel",
                                            "FileModel should be accessed via context property");
+    qmlRegisterUncreatableType<MessageModel>("EnhanceVision.Models", 1, 0, "MessageModel",
+                                              "MessageModel should be accessed via context property");
     qmlRegisterUncreatableType<SessionModel>("EnhanceVision.Models", 1, 0, "SessionModel",
                                               "SessionModel should be accessed via context property");
     qmlRegisterUncreatableType<ProcessingModel>("EnhanceVision.Models", 1, 0, "ProcessingModel",
@@ -105,9 +109,15 @@ void Application::setupQmlContext()
     // 设置控制器之间的连接
     m_fileController->setFileModel(m_fileModel.get());
     m_processingController->setFileController(m_fileController.get());
+    m_processingController->setMessageModel(m_messageModel.get());
+    m_processingController->setSessionController(m_sessionController.get());
+    
+    // 连接 SessionController 和 MessageModel（用于会话切换时同步消息）
+    m_sessionController->setMessageModel(m_messageModel.get());
 
     // 将数据模型设置为上下文属性，供 QML 访问
     context->setContextProperty("fileModel", m_fileModel.get());
+    context->setContextProperty("messageModel", m_messageModel.get());
     context->setContextProperty("sessionModel", m_sessionModel.get());
     context->setContextProperty("processingModel", m_processingModel.get());
 

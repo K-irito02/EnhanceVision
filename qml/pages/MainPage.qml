@@ -9,7 +9,10 @@ import "../controls"
 /**
  * @brief 主页面组件
  * 
- * 主应用页面，包含消息展示区、底部文件预览和操作按钮
+ * 主应用页面，三层布局（从上到下）：
+ * (3) 已发送消息展示区 - 占满剩余空间
+ * (2) 上传多媒体文件预览区 - 水平缩略图条
+ * (1) 底部功能按钮区 - 模式选择、上传、发送
  * 参考功能设计文档 0.2 和 UI 设计文档 08-ui-design.md
  */
 Rectangle {
@@ -18,18 +21,64 @@ Rectangle {
     
     // ========== 属性定义 ==========
     property int processingMode: 0  // 0: Shader, 1: AI
-    property bool hasFiles: fileModel.count > 0
-    property bool hasMessages: processingModel.count > 0
+    property bool hasFiles: typeof fileModel !== "undefined" ? fileModel.count > 0 : pendingFilesModel.count > 0
+    property bool hasMessages: typeof messageModel !== "undefined" ? messageModel.count > 0 : true
     
     // ========== 信号 ==========
     signal expandControlPanel()
+    
+    // ========== 拖放区域（全页面） ==========
+    DropArea {
+        id: pageDropArea
+        anchors.fill: parent
+        
+        onDropped: function(drop) {
+            if (drop.hasUrls) {
+                if (typeof fileController !== "undefined")
+                    fileController.addFiles(drop.urls)
+                else
+                    _addDemoFiles(drop.urls)
+            }
+        }
+        
+        // 拖拽高亮覆盖层
+        Rectangle {
+            anchors.fill: parent
+            color: Theme.colors.primarySubtle
+            opacity: pageDropArea.containsDrag ? 0.3 : 0
+            z: 500
+            visible: opacity > 0
+            
+            Behavior on opacity { NumberAnimation { duration: 150 } }
+            
+            ColumnLayout {
+                anchors.centerIn: parent
+                spacing: 12
+                visible: pageDropArea.containsDrag
+                
+                ColoredIcon {
+                    Layout.alignment: Qt.AlignHCenter
+                    source: Theme.icon("upload")
+                    iconSize: 48
+                    color: Theme.colors.primary
+                }
+                Text {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: qsTr("释放以添加文件")
+                    color: Theme.colors.primary
+                    font.pixelSize: 16
+                    font.weight: Font.DemiBold
+                }
+            }
+        }
+    }
     
     // ========== 主布局 ==========
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
         
-        // ========== 中间消息展示区 ==========
+        // ========== (3) 消息展示区 ==========
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -117,7 +166,7 @@ Rectangle {
                 // 快捷键提示
                 Text {
                     Layout.alignment: Qt.AlignHCenter
-                    text: qsTr("Ctrl+O 添加文件，Ctrl+N 新会话")
+                    text: qsTr("Ctrl+O 添加文件，Ctrl+N 新会话，支持拖放文件")
                     color: Theme.colors.mutedForeground
                     font.pixelSize: 12
                     opacity: 0.7
@@ -132,13 +181,18 @@ Rectangle {
             }
         }
         
-        // ========== 底部待处理文件预览区 ==========
+        // ========== (2) 底部待处理文件预览区 ==========
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: root.hasFiles ? 100 : 0
             visible: root.hasFiles
             color: Theme.colors.card
             
+            Behavior on Layout.preferredHeight {
+                NumberAnimation { duration: Theme.animation.normal; easing.type: Easing.OutCubic }
+            }
+            
+            // 顶部分隔线
             Rectangle {
                 anchors.top: parent.top
                 anchors.left: parent.left
@@ -147,83 +201,34 @@ Rectangle {
                 color: Theme.colors.border
             }
             
-            // 文件缩略图列表
-            ListView {
-                id: pendingFileList
+            // 使用 MediaThumbnailStrip 展示待处理文件
+            MediaThumbnailStrip {
+                id: pendingStrip
                 anchors.fill: parent
                 anchors.margins: 10
-                orientation: ListView.Horizontal
-                spacing: 8
-                clip: true
-                model: fileModel
+                mediaModel: typeof fileModel !== "undefined" ? fileModel : pendingFilesModel
+                thumbSize: 80
+                thumbSpacing: 8
+                expandable: false
+                onlyCompleted: false
+                messageMode: false
                 
-                delegate: Rectangle {
-                    width: 80
-                    height: 80
-                    radius: Theme.radius.md
-                    color: fileMouse.containsMouse ? Theme.colors.surfaceHover : Theme.colors.surface
-                    border.width: 1
-                    border.color: fileMouse.containsMouse ? Theme.colors.primary : Theme.colors.border
-                    
-                    MouseArea {
-                        id: fileMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                    }
-                    
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 6
-                        spacing: 4
-                        
-                        // 缩略图
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            radius: Theme.radius.sm
-                            color: Theme.colors.muted
-                            clip: true
-                            
-                            ColoredIcon {
-                                anchors.centerIn: parent
-                                source: model.mediaType === 0 ? Theme.icon("image") : Theme.icon("video")
-                                iconSize: 20
-                                color: Theme.colors.mutedForeground
-                            }
-                        }
-                        
-                        // 文件名
-                        Text {
-                            Layout.fillWidth: true
-                            text: model.fileName
-                            color: Theme.colors.foreground
-                            font.pixelSize: 9
-                            elide: Text.ElideMiddle
-                            horizontalAlignment: Text.AlignHCenter
-                        }
-                    }
-                    
-                    // 删除按钮
-                    IconButton {
-                        anchors.top: parent.top
-                        anchors.right: parent.right
-                        anchors.margins: -4
-                        visible: fileMouse.containsMouse
-                        iconName: "x"
-                        iconSize: 10
-                        btnSize: 18
-                        danger: true
-                        onClicked: fileController.removeFileAt(index)
-                    }
-                    
-                    Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
-                    Behavior on border.color { ColorAnimation { duration: Theme.animation.fast } }
+                onViewFile: function(index) {
+                    _openPendingFileViewer(index)
+                }
+                onSaveFile: function(index) {
+                    console.log("保存待处理文件:", index)
+                }
+                onDeleteFile: function(index) {
+                    if (typeof fileController !== "undefined")
+                        fileController.removeFileAt(index)
+                    else
+                        pendingFilesModel.remove(index)
                 }
             }
         }
         
-        // ========== 底部操作栏 ==========
+        // ========== (1) 底部操作栏 ==========
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 56
@@ -367,7 +372,7 @@ Rectangle {
                             cursorShape: root.hasFiles ? Qt.PointingHandCursor : Qt.ArrowCursor
                             onClicked: {
                                 if (root.hasFiles) {
-                                    console.log("发送处理任务")
+                                    _sendForProcessing()
                                 }
                             }
                         }
@@ -377,6 +382,17 @@ Rectangle {
                 }
             }
         }
+    }
+    
+    // ========== 待处理文件查看器 ==========
+    MediaViewerWindow {
+        id: pendingViewerWindow
+        messageMode: false
+    }
+    
+    // ========== 临时待处理文件模型（无 C++ fileModel 时使用） ==========
+    ListModel {
+        id: pendingFilesModel
     }
     
     // ========== 文件选择对话框 ==========
@@ -392,10 +408,63 @@ Rectangle {
         ]
         
         onAccepted: {
-            if (sessionController) {
-                sessionController.ensureActiveSession()
+            if (typeof fileController !== "undefined") {
+                fileController.addFiles(fileDialog.selectedFiles)
+            } else {
+                _addDemoFiles(fileDialog.selectedFiles)
             }
-            fileController.addFiles(fileDialog.selectedFiles)
+        }
+    }
+    
+    // ========== 快捷键 ==========
+    Shortcut {
+        sequence: "Ctrl+O"
+        onActivated: fileDialog.open()
+    }
+    
+    // ========== 内部方法 ==========
+    function _sendForProcessing() {
+        console.log("发送处理任务，模式:", root.processingMode === 0 ? "Shader" : "AI")
+        if (typeof sessionController !== "undefined") {
+            sessionController.ensureActiveSession()
+        }
+        if (typeof processingController !== "undefined") {
+            processingController.sendToProcessing(root.processingMode, {})
+        }
+    }
+    
+    function _openPendingFileViewer(index) {
+        var model = typeof fileModel !== "undefined" ? fileModel : pendingFilesModel
+        var files = []
+        for (var i = 0; i < model.count; i++) {
+            var item = model.get ? model.get(i) : null
+            if (item) {
+                files.push({
+                    "filePath": item.filePath || "",
+                    "fileName": item.fileName || ("file_" + (i+1)),
+                    "mediaType": item.mediaType !== undefined ? item.mediaType : 0,
+                    "thumbnail": item.thumbnail || "",
+                    "resultPath": ""
+                })
+            }
+        }
+        pendingViewerWindow.mediaFiles = files
+        pendingViewerWindow.openAt(index)
+    }
+    
+    function _addDemoFiles(urls) {
+        for (var i = 0; i < urls.length; i++) {
+            var path = urls[i].toString()
+            var name = path.split("/").pop()
+            var isVideo = /\.(mp4|avi|mkv|mov|flv)$/i.test(name)
+            pendingFilesModel.append({
+                "filePath": path,
+                "fileName": name,
+                "mediaType": isVideo ? 1 : 0,
+                "thumbnail": path,
+                "status": 0,
+                "resultPath": ""
+            })
         }
     }
     

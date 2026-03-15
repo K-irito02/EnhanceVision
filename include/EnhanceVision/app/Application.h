@@ -14,6 +14,7 @@
 namespace EnhanceVision {
 
 class FileModel;
+class MessageModel;
 class SessionModel;
 class ProcessingModel;
 class SettingsController;
@@ -52,6 +53,7 @@ private:
 
     QQuickWidget *m_mainWidget;
     std::unique_ptr<FileModel> m_fileModel;
+    std::unique_ptr<MessageModel> m_messageModel;
     std::unique_ptr<SessionModel> m_sessionModel;
     std::unique_ptr<ProcessingModel> m_processingModel;
     std::unique_ptr<FileController> m_fileController;

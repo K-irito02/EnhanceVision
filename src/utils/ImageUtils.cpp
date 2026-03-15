@@ -8,6 +8,13 @@
 #include <QFileInfo>
 #include <QImageReader>
 
+extern "C" {
+#include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libswscale/swscale.h>
+#include <libavutil/imgutils.h>
+}
+
 namespace EnhanceVision {
 
 ImageUtils::ImageUtils(QObject *parent)
@@ -30,11 +37,142 @@ QImage ImageUtils::generateThumbnail(const QString &imagePath, const QSize &size
 
 QImage ImageUtils::generateVideoThumbnail(const QString &videoPath, const QSize &size)
 {
-    Q_UNUSED(videoPath);
-    Q_UNUSED(size);
-    // TODO: 使用 FFmpeg 从视频提取缩略图
-    // 暂时返回空图像，后续完善
-    return QImage();
+    AVFormatContext* formatCtx = nullptr;
+    AVCodecContext* codecCtx = nullptr;
+    AVFrame* frame = nullptr;
+    AVFrame* frameRGB = nullptr;
+    uint8_t* buffer = nullptr;
+    struct SwsContext* swsCtx = nullptr;
+    
+    QByteArray pathBytes = videoPath.toUtf8();
+    
+    if (avformat_open_input(&formatCtx, pathBytes.constData(), nullptr, nullptr) != 0) {
+        return QImage();
+    }
+    
+    if (avformat_find_stream_info(formatCtx, nullptr) < 0) {
+        avformat_close_input(&formatCtx);
+        return QImage();
+    }
+    
+    int videoStreamIdx = -1;
+    for (unsigned int i = 0; i < formatCtx->nb_streams; i++) {
+        if (formatCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            videoStreamIdx = i;
+            break;
+        }
+    }
+    
+    if (videoStreamIdx == -1) {
+        avformat_close_input(&formatCtx);
+        return QImage();
+    }
+    
+    AVCodecParameters* codecPar = formatCtx->streams[videoStreamIdx]->codecpar;
+    const AVCodec* codec = avcodec_find_decoder(codecPar->codec_id);
+    if (!codec) {
+        avformat_close_input(&formatCtx);
+        return QImage();
+    }
+    
+    codecCtx = avcodec_alloc_context3(codec);
+    if (!codecCtx) {
+        avformat_close_input(&formatCtx);
+        return QImage();
+    }
+    
+    if (avcodec_parameters_to_context(codecCtx, codecPar) < 0) {
+        avcodec_free_context(&codecCtx);
+        avformat_close_input(&formatCtx);
+        return QImage();
+    }
+    
+    if (avcodec_open2(codecCtx, codec, nullptr) < 0) {
+        avcodec_free_context(&codecCtx);
+        avformat_close_input(&formatCtx);
+        return QImage();
+    }
+    
+    frame = av_frame_alloc();
+    frameRGB = av_frame_alloc();
+    if (!frame || !frameRGB) {
+        if (frame) av_frame_free(&frame);
+        if (frameRGB) av_frame_free(&frameRGB);
+        avcodec_free_context(&codecCtx);
+        avformat_close_input(&formatCtx);
+        return QImage();
+    }
+    
+    int targetWidth = size.width() > 0 ? size.width() : 256;
+    int targetHeight = size.height() > 0 ? size.height() : 256;
+    
+    int numBytes = av_image_get_buffer_size(AV_PIX_FMT_RGB24, targetWidth, targetHeight, 1);
+    buffer = static_cast<uint8_t*>(av_malloc(numBytes * sizeof(uint8_t)));
+    if (!buffer) {
+        av_frame_free(&frame);
+        av_frame_free(&frameRGB);
+        avcodec_free_context(&codecCtx);
+        avformat_close_input(&formatCtx);
+        return QImage();
+    }
+    
+    av_image_fill_arrays(frameRGB->data, frameRGB->linesize, buffer, 
+                         AV_PIX_FMT_RGB24, targetWidth, targetHeight, 1);
+    
+    swsCtx = sws_getContext(
+        codecCtx->width, codecCtx->height, codecCtx->pix_fmt,
+        targetWidth, targetHeight, AV_PIX_FMT_RGB24,
+        SWS_BILINEAR, nullptr, nullptr, nullptr
+    );
+    
+    if (!swsCtx) {
+        av_free(buffer);
+        av_frame_free(&frame);
+        av_frame_free(&frameRGB);
+        avcodec_free_context(&codecCtx);
+        avformat_close_input(&formatCtx);
+        return QImage();
+    }
+    
+    AVPacket* packet = av_packet_alloc();
+    bool frameFound = false;
+    
+    while (av_read_frame(formatCtx, packet) >= 0) {
+        if (packet->stream_index == videoStreamIdx) {
+            int ret = avcodec_send_packet(codecCtx, packet);
+            if (ret >= 0) {
+                ret = avcodec_receive_frame(codecCtx, frame);
+                if (ret == 0) {
+                    frameFound = true;
+                    break;
+                }
+            }
+        }
+        av_packet_unref(packet);
+    }
+    
+    av_packet_free(&packet);
+    
+    QImage result;
+    
+    if (frameFound) {
+        sws_scale(swsCtx, frame->data, frame->linesize, 0, codecCtx->height,
+                  frameRGB->data, frameRGB->linesize);
+        
+        result = QImage(targetWidth, targetHeight, QImage::Format_RGB888);
+        for (int y = 0; y < targetHeight; y++) {
+            memcpy(result.scanLine(y), frameRGB->data[0] + y * frameRGB->linesize[0], targetWidth * 3);
+        }
+    }
+    
+    sws_freeContext(swsCtx);
+    av_free(buffer);
+    av_frame_free(&frame);
+    av_frame_free(&frameRGB);
+    avcodec_free_context(&codecCtx);
+    avformat_close_input(&formatCtx);
+    
+    return result;
 }
 
 QImage ImageUtils::scaleImage(const QImage &image, const QSize &size, bool keepAspectRatio)

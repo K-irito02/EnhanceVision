@@ -12,10 +12,13 @@
 #include <QQueue>
 #include <QThreadPool>
 #include <QUuid>
+#include <QHash>
 #include "EnhanceVision/models/DataTypes.h"
 #include "EnhanceVision/models/ProcessingModel.h"
 
 namespace EnhanceVision {
+
+class MessageModel;
 
 // QueueStatus 已在 DataTypes.h 中定义
 // QueueTask 定义在 DataTypes.h 中
@@ -36,8 +39,10 @@ public:
     explicit ProcessingController(QObject* parent = nullptr);
     ~ProcessingController() override;
 
-    // 设置 FileController
+    // 设置关联控制器/模型
     void setFileController(class FileController* fileController);
+    void setMessageModel(MessageModel* messageModel);
+    void setSessionController(class SessionController* sessionController);
 
     // 属性访问器
     ProcessingModel* processingModel() const;
@@ -84,8 +89,13 @@ private:
     int m_maxConcurrentTasks;
     int m_taskCounter;
     class FileController* m_fileController;
+    MessageModel* m_messageModel;
+    class SessionController* m_sessionController;
+    QHash<QString, QString> m_taskToMessage;  ///< taskId -> messageId 映射
 
     QString generateTaskId();
+    void syncMessageProgress(const QString& messageId);
+    void syncMessageStatus(const QString& messageId);
     void updateQueuePositions();
     void startTask(QueueTask& task);
     void updateTaskProgress(const QString& taskId, int progress);

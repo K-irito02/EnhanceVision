@@ -133,6 +133,7 @@ struct Session {
     QDateTime createdAt;     ///< 创建时间
     QDateTime modifiedAt;    ///< 最后修改时间
     QList<Message> messages; ///< 消息列表
+    QList<MediaFile> pendingFiles; ///< 待处理文件列表
     bool isActive;           ///< 是否为当前活动会话
     bool isSelected;         ///< 是否被选中（批量操作模式）
     bool isPinned;           ///< 是否置顶

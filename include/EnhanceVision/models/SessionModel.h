@@ -173,6 +173,12 @@ public:
      * @param sessionId 会话ID
      */
     void removeSession(const QString &sessionId);
+    
+    /**
+     * @brief 通知会话数据变化（用于更新 messageCount 等）
+     * @param sessionId 会话ID
+     */
+    void notifySessionDataChanged(const QString &sessionId);
 
 signals:
     /**

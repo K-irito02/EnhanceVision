@@ -5,10 +5,12 @@
  */
 
 #include "EnhanceVision/controllers/FileController.h"
+#include "EnhanceVision/controllers/SettingsController.h"
 #include "EnhanceVision/utils/FileUtils.h"
 #include "EnhanceVision/utils/ImageUtils.h"
 #include <QUuid>
 #include <QFileInfo>
+#include <QDir>
 #include <QImage>
 #include <QDebug>
 
@@ -211,6 +213,51 @@ QString FileController::getFileDialogFilter() const
     return filters.join(";;");
 }
 
+QString FileController::saveFileTo(const QString& filePath, const QString& targetDir)
+{
+    QString dir = targetDir;
+    if (dir.isEmpty()) {
+        dir = getDefaultSavePath();
+    }
 
+    QString savedPath = FileUtils::copyFileTo(filePath, dir);
+    if (savedPath.isEmpty()) {
+        emit errorOccurred(tr("保存文件失败: %1").arg(filePath));
+    } else {
+        emit fileSaved(savedPath);
+    }
+    return savedPath;
+}
+
+int FileController::downloadCompletedFiles(const QStringList& resultPaths, const QString& targetDir)
+{
+    QString dir = targetDir;
+    if (dir.isEmpty()) {
+        dir = getDefaultSavePath();
+    }
+
+    int count = FileUtils::copyFilesTo(resultPaths, dir);
+    if (count > 0) {
+        // 打开保存目录
+        FileUtils::openInExplorer(QDir(dir).filePath("."));
+    }
+    return count;
+}
+
+void FileController::openFileLocation(const QString& filePath)
+{
+    FileUtils::openInExplorer(filePath);
+}
+
+QString FileController::getDefaultSavePath() const
+{
+    // 优先使用设置中的路径
+    QString settingsPath = SettingsController::instance()->defaultSavePath();
+    if (!settingsPath.isEmpty()) {
+        FileUtils::ensureDirectory(settingsPath);
+        return settingsPath;
+    }
+    return FileUtils::getDefaultSavePath();
+}
 
 } // namespace EnhanceVision

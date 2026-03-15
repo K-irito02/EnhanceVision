@@ -40,9 +40,23 @@ QVariant MessageModel::data(const QModelIndex &index, int role) const
         return message.timestamp;
     case ModeRole:
         return static_cast<int>(message.mode);
-    case MediaFilesRole:
-        // 转换为QVariantList
-        return QVariant(); // 暂时返回空，后续实现媒体文件列表的QVariant转换
+    case MediaFilesRole: {
+        QVariantList filesList;
+        for (const MediaFile &file : message.mediaFiles) {
+            QVariantMap fileMap;
+            fileMap["id"] = file.id;
+            fileMap["filePath"] = file.filePath;
+            fileMap["fileName"] = file.fileName;
+            fileMap["fileSize"] = file.fileSize;
+            fileMap["mediaType"] = static_cast<int>(file.type);
+            fileMap["thumbnail"] = ""; // 缩略图通过 ThumbnailProvider 加载
+            fileMap["status"] = static_cast<int>(file.status);
+            fileMap["resultPath"] = file.resultPath;
+            fileMap["duration"] = file.duration;
+            filesList.append(fileMap);
+        }
+        return filesList;
+    }
     case ParametersRole:
         return message.parameters;
     case ShaderParamsRole:
@@ -113,7 +127,22 @@ QString MessageModel::addMessage(int mode, const QVariantList &mediaFiles, const
     Message message;
     message.mode = static_cast<ProcessingMode>(mode);
     message.parameters = parameters;
-    // 暂时不处理mediaFiles，后续实现
+
+    // 将 QVariantList 转换为 QList<MediaFile>
+    for (const QVariant &item : mediaFiles) {
+        QVariantMap fileMap = item.toMap();
+        MediaFile file;
+        file.id = fileMap.value("id").toString();
+        file.filePath = fileMap.value("filePath").toString();
+        file.fileName = fileMap.value("fileName").toString();
+        file.fileSize = fileMap.value("fileSize").toLongLong();
+        file.type = static_cast<MediaType>(fileMap.value("mediaType", 0).toInt());
+        file.status = static_cast<ProcessingStatus>(fileMap.value("status", 0).toInt());
+        file.resultPath = fileMap.value("resultPath").toString();
+        file.duration = fileMap.value("duration").toLongLong();
+        message.mediaFiles.append(file);
+    }
+
     return addMessage(message);
 }
 
@@ -231,6 +260,27 @@ void MessageModel::clear()
     emit countChanged();
 }
 
+void MessageModel::setCurrentSessionId(const QString& sessionId)
+{
+    if (m_currentSessionId != sessionId) {
+        m_currentSessionId = sessionId;
+    }
+}
+
+void MessageModel::syncToSession(Session& session)
+{
+    session.messages = m_messages;
+}
+
+void MessageModel::loadFromSession(const Session& session)
+{
+    beginResetModel();
+    m_messages = session.messages;
+    m_currentSessionId = session.id;
+    endResetModel();
+    emit countChanged();
+}
+
 Message MessageModel::messageById(const QString &messageId) const
 {
     int index = findMessageIndex(messageId);
@@ -303,6 +353,103 @@ QString MessageModel::getModeText(ProcessingMode mode) const
     default:
         return tr("未知");
     }
+}
+
+void MessageModel::updateFileStatus(const QString &messageId, const QString &fileId,
+                                     int status, const QString &resultPath)
+{
+    int idx = findMessageIndex(messageId);
+    if (idx < 0) return;
+
+    Message &message = m_messages[idx];
+    for (int i = 0; i < message.mediaFiles.size(); ++i) {
+        if (message.mediaFiles[i].id == fileId) {
+            message.mediaFiles[i].status = static_cast<ProcessingStatus>(status);
+            if (!resultPath.isEmpty()) {
+                message.mediaFiles[i].resultPath = resultPath;
+            }
+            QModelIndex modelIndex = createIndex(idx, 0);
+            emit dataChanged(modelIndex, modelIndex, {MediaFilesRole});
+            return;
+        }
+    }
+}
+
+void MessageModel::updateQueuePosition(const QString &messageId, int position)
+{
+    int idx = findMessageIndex(messageId);
+    if (idx < 0) return;
+
+    if (m_messages[idx].queuePosition != position) {
+        m_messages[idx].queuePosition = position;
+        QModelIndex modelIndex = createIndex(idx, 0);
+        emit dataChanged(modelIndex, modelIndex, {QueuePositionRole});
+    }
+}
+
+int MessageModel::getCompletedFileCount(const QString &messageId) const
+{
+    int idx = findMessageIndex(messageId);
+    if (idx < 0) return 0;
+
+    int count = 0;
+    for (const MediaFile &file : m_messages.at(idx).mediaFiles) {
+        if (file.status == ProcessingStatus::Completed) {
+            count++;
+        }
+    }
+    return count;
+}
+
+int MessageModel::getTotalFileCount(const QString &messageId) const
+{
+    int idx = findMessageIndex(messageId);
+    if (idx < 0) return 0;
+    return m_messages.at(idx).mediaFiles.size();
+}
+
+QVariantList MessageModel::getCompletedFiles(const QString &messageId) const
+{
+    QVariantList result;
+    int idx = findMessageIndex(messageId);
+    if (idx < 0) return result;
+
+    for (const MediaFile &file : m_messages.at(idx).mediaFiles) {
+        if (file.status == ProcessingStatus::Completed) {
+            QVariantMap fileMap;
+            fileMap["id"] = file.id;
+            fileMap["filePath"] = file.filePath;
+            fileMap["fileName"] = file.fileName;
+            fileMap["fileSize"] = file.fileSize;
+            fileMap["mediaType"] = static_cast<int>(file.type);
+            fileMap["status"] = static_cast<int>(file.status);
+            fileMap["resultPath"] = file.resultPath;
+            fileMap["duration"] = file.duration;
+            result.append(fileMap);
+        }
+    }
+    return result;
+}
+
+QVariantList MessageModel::getMediaFiles(const QString &messageId) const
+{
+    QVariantList result;
+    int idx = findMessageIndex(messageId);
+    if (idx < 0) return result;
+
+    for (const MediaFile &file : m_messages.at(idx).mediaFiles) {
+        QVariantMap fileMap;
+        fileMap["id"] = file.id;
+        fileMap["filePath"] = file.filePath;
+        fileMap["fileName"] = file.fileName;
+        fileMap["fileSize"] = file.fileSize;
+        fileMap["mediaType"] = static_cast<int>(file.type);
+        fileMap["status"] = static_cast<int>(file.status);
+        fileMap["resultPath"] = file.resultPath;
+        fileMap["duration"] = file.duration;
+        result.append(fileMap);
+    }
+    return result;
 }
 
 } // namespace EnhanceVision
