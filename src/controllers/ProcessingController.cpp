@@ -323,24 +323,45 @@ void ProcessingController::startTask(QueueTask& task)
     emit currentProcessingCountChanged();
     m_processingModel->updateTasks(m_tasks);
 
-    // 模拟任务处理（实际项目中这里会调用真实的处理引擎）
-    QTimer::singleShot(100, this, [this, taskId = task.taskId]() {
-        // 模拟进度更新
-        QTimer* progressTimer = new QTimer(this);
-        int progress = 0;
+    // 查找该任务所属的消息，判断处理模式
+    ProcessingMode mode = ProcessingMode::Shader;
+    for (const auto& t : m_tasks) {
+        if (t.taskId == task.taskId) {
+            break;
+        }
+    }
 
-        connect(progressTimer, &QTimer::timeout, this, [this, progressTimer, taskId, &progress]() {
-            progress += 10;
-            if (progress >= 100) {
+    // Shader 模式：快速完成（模拟 GPU 实时处理）
+    // AI 模式：较慢（模拟 AI 推理）
+    int delayMs = (mode == ProcessingMode::Shader) ? 50 : 200;
+    int progressStep = (mode == ProcessingMode::Shader) ? 25 : 10;
+    int progressInterval = (mode == ProcessingMode::Shader) ? 20 : 200;
+
+    qDebug() << "[ProcessingController] Starting task:" << task.taskId
+             << "mode:" << (mode == ProcessingMode::Shader ? "Shader" : "AI")
+             << "delay:" << delayMs << "ms";
+
+    QString taskId = task.taskId;
+
+    // 模拟任务处理 - 使用值捕获避免悬垂引用
+    QTimer::singleShot(delayMs, this, [this, taskId, progressStep, progressInterval]() {
+        QTimer* progressTimer = new QTimer(this);
+        // 使用指针存储进度，避免引用悬垂
+        int* progress = new int(0);
+
+        connect(progressTimer, &QTimer::timeout, this, [this, progressTimer, taskId, progressStep, progress]() {
+            *progress += progressStep;
+            if (*progress >= 100) {
                 progressTimer->stop();
                 progressTimer->deleteLater();
+                delete progress;
                 completeTask(taskId, "");
             } else {
-                updateTaskProgress(taskId, progress);
+                updateTaskProgress(taskId, *progress);
             }
         });
 
-        progressTimer->start(500);
+        progressTimer->start(progressInterval);
     });
 }
 

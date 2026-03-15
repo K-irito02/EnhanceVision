@@ -8,6 +8,7 @@
 #include "EnhanceVision/utils/ImageUtils.h"
 #include <QUrl>
 #include <QFileInfo>
+#include <QDir>
 
 namespace EnhanceVision {
 
@@ -52,6 +53,33 @@ ThumbnailProvider::~ThumbnailProvider()
     m_threadPool->waitForDone();
 }
 
+QString ThumbnailProvider::normalizeFilePath(const QString &path)
+{
+    QString filePath = path;
+    
+    // 1. 处理 URL 编码的路径
+    if (filePath.startsWith("file:///")) {
+        filePath = QUrl(filePath).toLocalFile();
+    }
+    
+    // 2. URL 解码（处理 %5C -> \ 等编码）
+    if (filePath.contains('%')) {
+        filePath = QUrl::fromPercentEncoding(filePath.toUtf8());
+    }
+    
+    // 3. Windows 路径修正：去掉开头的 /（如 /E:/path -> E:/path）
+    #ifdef Q_OS_WIN
+    if (filePath.startsWith('/') && filePath.length() > 2 && filePath.at(2) == ':') {
+        filePath = filePath.mid(1);
+    }
+    #endif
+    
+    // 4. 统一路径分隔符为系统原生格式
+    filePath = QDir::toNativeSeparators(filePath);
+    
+    return filePath;
+}
+
 QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize)
 {
     // 先检查缓存
@@ -70,20 +98,18 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     }
 
     // 缓存未命中：id 可能是文件路径，尝试同步生成缩略图
-    // 将 URL 编码的路径还原（QML 传入的 id 可能带有 URL 前缀）
-    QString filePath = id;
-    if (filePath.startsWith("file:///")) {
-        filePath = QUrl(filePath).toLocalFile();
-    }
-    // Windows 路径修正：去掉开头的 /（如 /E:/path -> E:/path）
-    #ifdef Q_OS_WIN
-    if (filePath.startsWith('/') && filePath.length() > 2 && filePath.at(2) == ':') {
-        filePath = filePath.mid(1);
-    }
-    #endif
-
+    QString filePath = normalizeFilePath(id);
     QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(256, 256);
     QImage thumbnail;
+
+    // 检查文件是否存在
+    QFileInfo fileInfo(filePath);
+    if (!fileInfo.exists()) {
+        if (size) {
+            *size = QSize(0, 0);
+        }
+        return QImage();
+    }
 
     if (ImageUtils::isImageFile(filePath)) {
         thumbnail = ImageUtils::generateThumbnail(filePath, targetSize);

@@ -1,6 +1,6 @@
 ---
 name: "qt-debug-troubleshoot"
-description: "用于在 Qt、多线程、网络编程与音视频处理场景下进行代码审查、定位报错并修复问题的技能。"
+description: "Qt debugging and troubleshooting for multi-threading, network programming and audio/video processing scenarios."
 ---
 
 # Qt Debug & Troubleshooting Skill

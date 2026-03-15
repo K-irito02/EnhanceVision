@@ -1,7 +1,8 @@
 ---
+name: "performance"
 alwaysApply: false
 globs: ['**/*.qml', '**/*.cpp', '**/*.h']
-description: '性能优化规则 - 涉及 QML 渲染、内存管理、线程优化时参考'
+description: 'Performance optimization rules - Reference for QML rendering, memory management, threading optimization'
 trigger: glob
 ---
 # 性能优化规则

@@ -1,6 +1,6 @@
 ---
 name: "qt-build-and-fix"
-description: "自动化 EnhanceVision 项目构建、运行和修复。当用户要求构建项目、运行测试、检查代码质量或解决编译问题时调用此技能。"
+description: "Automated EnhanceVision project build, run and fix. Use when user asks to build project, run tests, check code quality or solve compilation issues."
 ---
 
 # Qt Build and Fix Skill

@@ -49,6 +49,13 @@ public:
     ~ThumbnailProvider() override;
 
     /**
+     * @brief 规范化文件路径
+     * @param path 原始路径
+     * @return 规范化后的路径
+     */
+    static QString normalizeFilePath(const QString &path);
+
+    /**
      * @brief 请求图像
      * @param id 图像 ID
      * @param size 原始图像大小

@@ -1,7 +1,8 @@
 ---
+name: "ui-design"
 alwaysApply: false
 globs: ['**/qml/styles/**', '**/Theme.qml', '**/Colors.qml']
-description: 'UI设计规范 - 涉及主题、颜色、字体、间距、组件样式时参考'
+description: 'UI design standards - Reference for themes, colors, fonts, spacing, component styling'
 trigger: glob
 ---
 # UI 设计规范

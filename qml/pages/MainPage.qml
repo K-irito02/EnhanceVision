@@ -453,15 +453,24 @@ Rectangle {
     }
     
     function _addDemoFiles(urls) {
+        console.log("[MainPage] Adding demo files, count:", urls.length)
         for (var i = 0; i < urls.length; i++) {
-            var path = urls[i].toString()
-            var name = path.split("/").pop()
+            var url = urls[i]
+            var path = url.toString()
+            console.log("[MainPage] Adding file:", i, "raw path:", path)
+            
+            // 转换 URL 为本地文件路径
+            var localPath = url.toLocalFile ? url.toLocalFile() : path
+            var name = localPath.split(/[/\\]/).pop()
             var isVideo = /\.(mp4|avi|mkv|mov|flv)$/i.test(name)
+            
+            console.log("[MainPage] File details - localPath:", localPath, "name:", name, "isVideo:", isVideo)
+            
             pendingFilesModel.append({
-                "filePath": path,
+                "filePath": localPath,
                 "fileName": name,
                 "mediaType": isVideo ? 1 : 0,
-                "thumbnail": path,
+                "thumbnail": "",  // 留空让 MediaThumbnailStrip 通过 provider 加载
                 "status": 0,
                 "resultPath": ""
             })

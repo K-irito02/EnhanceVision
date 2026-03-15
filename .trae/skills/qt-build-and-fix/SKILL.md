@@ -100,6 +100,18 @@ Select-String -Path "logs\build_output.log" -Pattern "warning C\d+" | Select-Obj
 Start-Process -FilePath "build\msvc2022\Release\Release\EnhanceVision.exe"
 ```
 
+### 8. 查看运行时日志
+
+程序运行后，所有控制台输出会写入日志文件：
+
+```powershell
+# 查看运行时日志
+Get-Content -Path "logs\runtime_output.log" -Tail 100
+
+# 实时监控日志
+Get-Content -Path "logs\runtime_output.log" -Wait
+```
+
 ## 构建优化
 
 项目已集成以下构建优化措施：
@@ -160,10 +172,43 @@ NCNN 首次构建后会缓存，后续构建会复用。
 
 ## 日志文件
 
-| 文件 | 内容 |
-|------|------|
-| `cmake_configure.log` | CMake 配置输出 |
-| `build_output.log` | 编译输出 |
+| 文件 | 内容 | 写入方式 |
+|------|------|---------|
+| `cmake_configure.log` | CMake 配置输出 | 覆盖 |
+| `build_output.log` | 编译输出 | 覆盖 |
+| `runtime_output.log` | 程序运行时日志（qDebug/qWarning 等） | 覆盖 |
+
+## 日志系统说明
+
+### 运行时日志
+
+程序启动时会自动创建 `logs/runtime_output.log` 文件，所有 `qDebug()`、`qWarning()`、`qCritical()` 输出都会写入该文件。
+
+日志格式：
+```
+[2026-03-15 10:30:45.123] [DEBUG] 消息内容
+[2026-03-15 10:30:45.124] [WARN] 警告内容
+[2026-03-15 10:30:45.125] [CRIT] 错误内容
+```
+
+### 日志文件位置
+
+所有日志文件位于项目根目录的 `logs/` 文件夹中：
+
+```
+EnhanceVision/
+├── logs/
+│   ├── cmake_configure.log    # CMake 配置日志
+│   ├── build_output.log       # 编译输出日志
+│   └── runtime_output.log     # 运行时日志
+```
+
+### 清理日志
+
+```powershell
+# 清空所有日志文件
+Remove-Item -Path "logs\*" -Recurse -Force -ErrorAction SilentlyContinue
+```
 
 ## 第三方库配置
 
@@ -183,3 +228,4 @@ NCNN 首次构建后会缓存，后续构建会复用。
 - QML 文件：需要在 CMakeLists.txt 的 `qt_add_qml_module` 中注册
 - 头文件：需要在 CMakeLists.txt 中添加到目标以支持 MOC
 - **增量构建**：不要每次都删除 build 目录，仅在遇到问题时清理
+- **运行时日志**：每次程序启动会覆盖 `runtime_output.log`

@@ -1,7 +1,8 @@
 ---
+name: "architecture"
 alwaysApply: false
 globs: ['**/src/**/*.h', '**/src/**/*.hpp', '**/src/**/*.cpp', '**/qml/**/*.qml']
-description: '架构设计 - 涉及 QML+C++ 分层架构、数据绑定、信号槽、模型设计时参考'
+description: 'Architecture design - Reference for QML+C++ layered architecture, data binding, signals, models'
 trigger: glob
 ---
 # 架构设计

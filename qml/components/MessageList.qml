@@ -61,15 +61,16 @@ Item {
                 return c
             }
 
-            Component.onCompleted: {
-                _buildMediaForDelegate()
+            Component.onCompleted: _buildMediaForDelegate()
+
+            Connections {
+                target: model
+                function onMediaFilesChanged() { msgDelegate._buildMediaForDelegate() }
             }
 
-            // 当 C++ 端 mediaFiles 角色数据变化时重新构建
             function _buildMediaForDelegate() {
                 _cachedMedia.clear()
                 if (root._hasRealModel && model.mediaFiles) {
-                    // 真实数据：从 C++ MessageModel.MediaFilesRole 获取 QVariantList
                     var files = model.mediaFiles
                     for (var i = 0; i < files.length; i++) {
                         var f = files[i]
@@ -83,7 +84,6 @@ Item {
                         })
                     }
                 } else {
-                    // Demo 模式
                     root._buildDemoMedia(_cachedMedia, model.status)
                 }
             }

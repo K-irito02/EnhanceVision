@@ -1,7 +1,8 @@
 ---
+name: "qml-standards"
 alwaysApply: false
 globs: ['**/*.qml', '**/*.js']
-description: 'QML代码规范 - 编写或审查 QML/JavaScript 代码时参考'
+description: 'QML coding standards - Reference when writing or reviewing QML/JavaScript code'
 trigger: glob
 ---
 # QML 代码规范

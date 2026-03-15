@@ -71,44 +71,20 @@ Item {
     // 监听 C++ QAbstractListModel 的数据变化
     Connections {
         target: mediaModel
-        enabled: mediaModel && typeof mediaModel.dataChanged !== "undefined"
-        
-        function onDataChanged(topLeft, topLeftRight) {
-            _rebuildFiltered()
-        }
+        function onDataChanged(topLeft, bottomRight, roles) { _rebuildFiltered() }
+        function onRowsInserted(parent, first, last) { _rebuildFiltered() }
+        function onModelReset() { _rebuildFiltered() }
     }
 
     function _rebuildFiltered() {
         filteredModel.clear()
         if (!mediaModel) return
         
-        // 检查是否是 QAbstractListModel（有 data 方法）
-        if (typeof mediaModel.data === "function" && typeof mediaModel.index === "function") {
-            // C++ QAbstractListModel
-            for (var i = 0; i < mediaModel.rowCount(); i++) {
-                var idx = mediaModel.index(i, 0)  // 修复：添加 column 参数
-                // 逐个获取角色值（FileModel 角色定义）
-                var filePath = mediaModel.data(idx, 258)    // FilePathRole = 258
-                var fileName = mediaModel.data(idx, 259)    // FileNameRole = 259
-                var mediaType = mediaModel.data(idx, 262)   // MediaTypeRole = 262
-                var thumbnail = mediaModel.data(idx, 263)   // ThumbnailRole = 263
-                var status = mediaModel.data(idx, 266)      // StatusRole = 266
-                var resultPath = mediaModel.data(idx, 267)  // ResultPathRole = 267
-                
-                if (!onlyCompleted || status === 2) {
-                    filteredModel.append({
-                        "origIndex": i,
-                        "filePath": filePath || "",
-                        "fileName": fileName || "",
-                        "mediaType": mediaType !== undefined ? mediaType : 0,
-                        "thumbnail": thumbnail || "",
-                        "status": status !== undefined ? status : 0,
-                        "resultPath": resultPath || ""
-                    })
-                }
-            }
-        } else {
-            // QML ListModel
+        // 检查是否是 QML ListModel（有 get 方法和 count 属性）
+        var isQmlListModel = (typeof mediaModel.get === "function") && (mediaModel.count !== undefined)
+        var isCppModel = (typeof mediaModel.rowCount === "function") && (typeof mediaModel.data === "function")
+        
+        if (isQmlListModel) {
             for (var i = 0; i < mediaModel.count; i++) {
                 var item = mediaModel.get(i)
                 if (!onlyCompleted || item.status === 2) {
@@ -123,10 +99,31 @@ Item {
                     })
                 }
             }
+        } else if (isCppModel) {
+            for (var i = 0; i < mediaModel.rowCount(); i++) {
+                var idx = mediaModel.index(i, 0)
+                var filePath = mediaModel.data(idx, 258)
+                var fileName = mediaModel.data(idx, 259)
+                var mediaType = mediaModel.data(idx, 262)
+                var thumbnail = mediaModel.data(idx, 263)
+                var status = mediaModel.data(idx, 266)
+                var resultPath = mediaModel.data(idx, 267)
+                
+                if (!onlyCompleted || status === 2) {
+                    filteredModel.append({
+                        "origIndex": i,
+                        "filePath": filePath || "",
+                        "fileName": fileName || "",
+                        "mediaType": mediaType !== undefined ? mediaType : 0,
+                        "thumbnail": thumbnail || "",
+                        "status": status !== undefined ? status : 0,
+                        "resultPath": resultPath || ""
+                    })
+                }
+            }
         }
     }
 
-    // ========== 主布局 ==========
     ColumnLayout {
         id: contentCol
         anchors.left: parent.left
@@ -147,27 +144,16 @@ Item {
                 spacing: root.thumbSpacing
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
-                flickDeceleration: 1500
-                maximumFlickVelocity: 2000
 
-                // 限制显示数量（收缩模式）
-                model: {
-                    if (root.expandable && !root.expanded) {
-                        // 创建一个截断视图
-                        return Math.min(filteredModel.count, root.collapsedMaxVisible)
-                    }
-                    return filteredModel.count
-                }
+                model: root.expandable && !root.expanded ? Math.min(filteredModel.count, root.collapsedMaxVisible) : filteredModel.count
 
                 delegate: Item {
                     id: thumbDelegate
                     width: root.thumbSize
                     height: root.thumbSize
-
                     required property int index
                     property var itemData: index < filteredModel.count ? filteredModel.get(index) : null
 
-                    // 缩略图容器
                     Rectangle {
                         id: thumbRect
                         anchors.fill: parent
@@ -177,7 +163,6 @@ Item {
                         border.color: thumbMouse.containsMouse ? Theme.colors.primary : Theme.colors.border
                         clip: true
 
-                        // 缩略图图片
                         Image {
                             id: thumbImage
                             anchors.fill: parent
@@ -186,7 +171,6 @@ Item {
                                 if (!thumbDelegate.itemData) return ""
                                 var path = thumbDelegate.itemData.thumbnail
                                 if (path && path !== "") return path
-                                // 如果有 filePath，通过 ThumbnailProvider 加载
                                 var fp = thumbDelegate.itemData.filePath
                                 if (fp && fp !== "") return "image://thumbnail/" + fp
                                 return ""
@@ -198,19 +182,15 @@ Item {
                             visible: status === Image.Ready
                         }
 
-                        // 占位图标（图片未加载时）
                         ColoredIcon {
                             anchors.centerIn: parent
-                            source: {
-                                if (!thumbDelegate.itemData) return Theme.icon("image")
-                                return thumbDelegate.itemData.mediaType === 1 ? Theme.icon("video") : Theme.icon("image")
-                            }
+                            source: !thumbDelegate.itemData ? Theme.icon("image") : 
+                                    (thumbDelegate.itemData.mediaType === 1 ? Theme.icon("video") : Theme.icon("image"))
                             iconSize: 24
                             color: Theme.colors.mutedForeground
                             visible: thumbImage.status !== Image.Ready
                         }
 
-                        // 视频标识角标
                         Rectangle {
                             visible: thumbDelegate.itemData && thumbDelegate.itemData.mediaType === 1
                             anchors.bottom: parent.bottom
@@ -219,7 +199,6 @@ Item {
                             width: 20; height: 16
                             radius: 3
                             color: Qt.rgba(0, 0, 0, 0.65)
-
                             ColoredIcon {
                                 anchors.centerIn: parent
                                 source: Theme.icon("play")
@@ -228,21 +207,17 @@ Item {
                             }
                         }
 
-                        // 处理状态指示（未完成的文件，半透明遮罩）
                         Rectangle {
                             anchors.fill: parent
                             radius: parent.radius
                             color: Qt.rgba(0, 0, 0, 0.5)
                             visible: thumbDelegate.itemData && thumbDelegate.itemData.status !== 2 && root.messageMode
-
                             ColoredIcon {
                                 anchors.centerIn: parent
-                                source: thumbDelegate.itemData && thumbDelegate.itemData.status === 1
-                                        ? Theme.icon("loader") : Theme.icon("loader")
+                                source: Theme.icon("loader")
                                 iconSize: 20
                                 color: "#FFFFFF"
                                 opacity: 0.8
-
                                 RotationAnimation on rotation {
                                     from: 0; to: 360
                                     duration: 1500
@@ -256,14 +231,12 @@ Item {
                         Behavior on border.color { ColorAnimation { duration: Theme.animation.fast } }
                     }
 
-                    // 鼠标交互区域
                     MouseArea {
                         id: thumbMouse
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         acceptedButtons: Qt.LeftButton | Qt.RightButton
-
                         onClicked: function(mouse) {
                             if (mouse.button === Qt.RightButton) {
                                 contextMenu.targetIndex = thumbDelegate.index
@@ -274,7 +247,6 @@ Item {
                         }
                     }
 
-                    // 悬停删除按钮
                     Rectangle {
                         id: deleteBtn
                         anchors.top: parent.top
@@ -285,7 +257,6 @@ Item {
                         color: deleteBtnMouse.containsMouse ? Theme.colors.destructive : Qt.rgba(0, 0, 0, 0.6)
                         visible: thumbMouse.containsMouse
                         z: 10
-
                         Text {
                             anchors.centerIn: parent
                             text: "\u00D7"
@@ -293,7 +264,6 @@ Item {
                             font.pixelSize: 12
                             font.weight: Font.Bold
                         }
-
                         MouseArea {
                             id: deleteBtnMouse
                             anchors.fill: parent
@@ -301,28 +271,23 @@ Item {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: root.deleteFile(thumbDelegate.itemData ? thumbDelegate.itemData.origIndex : thumbDelegate.index)
                         }
-
                         Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
                     }
                 }
 
-                // 垂直滚轮 -> 水平滚动
                 MouseArea {
                     anchors.fill: parent
                     z: -1
                     acceptedButtons: Qt.NoButton
                     onWheel: function(wheel) {
                         var delta = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.angleDelta.x
-                        var step = delta * 0.5
-                        var newX = thumbListView.contentX - step
-                        var maxX = Math.max(0, thumbListView.contentWidth - thumbListView.width)
-                        thumbListView.contentX = Math.max(0, Math.min(newX, maxX))
+                        thumbListView.contentX = Math.max(0, Math.min(thumbListView.contentX - delta * 0.5, 
+                            Math.max(0, thumbListView.contentWidth - thumbListView.width)))
                         wheel.accepted = true
                     }
                 }
             }
 
-            // 空状态
             Text {
                 anchors.centerIn: parent
                 visible: filteredModel.count === 0
@@ -332,173 +297,61 @@ Item {
             }
         }
 
-        // ========== 展开/收缩按钮 ==========
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 28
             visible: root.expandable && filteredModel.count > root.collapsedMaxVisible
             color: "transparent"
-
             Row {
                 anchors.centerIn: parent
                 spacing: 6
-
-                // 展开/收缩图标（6点网格图标）
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "\u2237"
-                    color: Theme.colors.primary
-                    font.pixelSize: 14
-                    font.weight: Font.Bold
-                }
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: root.expanded
-                          ? qsTr("收缩文件列表")
-                          : qsTr("展开查看全部 %1 个文件（可拖拽或滚轮滑动）").arg(filteredModel.count)
-                    color: Theme.colors.primary
-                    font.pixelSize: 12
-                    font.weight: Font.Medium
-                }
-
-                ColoredIcon {
-                    anchors.verticalCenter: parent.verticalCenter
-                    source: root.expanded ? Theme.icon("chevron-up") : Theme.icon("chevron-down")
-                    iconSize: 14
-                    color: Theme.colors.primary
-                }
+                Text { anchors.verticalCenter: parent.verticalCenter; text: "\u2237"; color: Theme.colors.primary; font.pixelSize: 14; font.weight: Font.Bold }
+                Text { anchors.verticalCenter: parent.verticalCenter; text: root.expanded ? qsTr("收缩文件列表") : qsTr("展开查看全部 %1 个文件").arg(filteredModel.count); color: Theme.colors.primary; font.pixelSize: 12; font.weight: Font.Medium }
+                ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: root.expanded ? Theme.icon("chevron-up") : Theme.icon("chevron-down"); iconSize: 14; color: Theme.colors.primary }
             }
-
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.expanded = !root.expanded
-            }
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.expanded = !root.expanded }
         }
     }
 
-    // ========== 右键上下文菜单 ==========
     Menu {
         id: contextMenu
         property int targetIndex: -1
-
         width: 140
-
-        background: Rectangle {
-            color: Theme.colors.popover
-            border.width: 1
-            border.color: Theme.colors.border
-            radius: Theme.radius.md
-        }
+        background: Rectangle { color: Theme.colors.popover; border.width: 1; border.color: Theme.colors.border; radius: Theme.radius.md }
 
         MenuItem {
             text: qsTr("放大查看")
-            icon.source: Theme.icon("eye")
-            onTriggered: {
-                if (contextMenu.targetIndex >= 0) {
-                    var item = filteredModel.get(contextMenu.targetIndex)
-                    root.viewFile(item ? item.origIndex : contextMenu.targetIndex)
-                }
-            }
-
-            background: Rectangle {
-                color: parent.highlighted ? Theme.colors.surfaceHover : "transparent"
-                radius: Theme.radius.sm
-            }
-
+            background: Rectangle { color: parent.highlighted ? Theme.colors.surfaceHover : "transparent"; radius: Theme.radius.sm }
             contentItem: Row {
-                spacing: 8
-                leftPadding: 8
-
-                ColoredIcon {
-                    anchors.verticalCenter: parent.verticalCenter
-                    source: Theme.icon("eye")
-                    iconSize: 14
-                    color: Theme.colors.foreground
-                }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("放大查看")
-                    color: Theme.colors.foreground
-                    font.pixelSize: 13
-                }
+                spacing: 8; leftPadding: 8
+                ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("eye"); iconSize: 14; color: Theme.colors.foreground }
+                Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("放大查看"); color: Theme.colors.foreground; font.pixelSize: 13 }
             }
+            onTriggered: { if (contextMenu.targetIndex >= 0) { var item = filteredModel.get(contextMenu.targetIndex); root.viewFile(item ? item.origIndex : contextMenu.targetIndex) } }
         }
 
         MenuItem {
             text: qsTr("保存")
-
-            background: Rectangle {
-                color: parent.highlighted ? Theme.colors.surfaceHover : "transparent"
-                radius: Theme.radius.sm
-            }
-
+            background: Rectangle { color: parent.highlighted ? Theme.colors.surfaceHover : "transparent"; radius: Theme.radius.sm }
             contentItem: Row {
-                spacing: 8
-                leftPadding: 8
-
-                ColoredIcon {
-                    anchors.verticalCenter: parent.verticalCenter
-                    source: Theme.icon("save")
-                    iconSize: 14
-                    color: Theme.colors.foreground
-                }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("保存")
-                    color: Theme.colors.foreground
-                    font.pixelSize: 13
-                }
+                spacing: 8; leftPadding: 8
+                ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("save"); iconSize: 14; color: Theme.colors.foreground }
+                Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("保存"); color: Theme.colors.foreground; font.pixelSize: 13 }
             }
-
-            onTriggered: {
-                if (contextMenu.targetIndex >= 0) {
-                    var item = filteredModel.get(contextMenu.targetIndex)
-                    root.saveFile(item ? item.origIndex : contextMenu.targetIndex)
-                }
-            }
+            onTriggered: { if (contextMenu.targetIndex >= 0) { var item = filteredModel.get(contextMenu.targetIndex); root.saveFile(item ? item.origIndex : contextMenu.targetIndex) } }
         }
 
-        MenuSeparator {
-            contentItem: Rectangle {
-                implicitHeight: 1
-                color: Theme.colors.border
-            }
-        }
+        MenuSeparator { contentItem: Rectangle { implicitHeight: 1; color: Theme.colors.border } }
 
         MenuItem {
             text: qsTr("删除")
-
-            background: Rectangle {
-                color: parent.highlighted ? Theme.colors.destructiveSubtle : "transparent"
-                radius: Theme.radius.sm
-            }
-
+            background: Rectangle { color: parent.highlighted ? Theme.colors.destructiveSubtle : "transparent"; radius: Theme.radius.sm }
             contentItem: Row {
-                spacing: 8
-                leftPadding: 8
-
-                ColoredIcon {
-                    anchors.verticalCenter: parent.verticalCenter
-                    source: Theme.icon("trash")
-                    iconSize: 14
-                    color: Theme.colors.destructive
-                }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("删除")
-                    color: Theme.colors.destructive
-                    font.pixelSize: 13
-                }
+                spacing: 8; leftPadding: 8
+                ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("trash"); iconSize: 14; color: Theme.colors.destructive }
+                Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("删除"); color: Theme.colors.destructive; font.pixelSize: 13 }
             }
-
-            onTriggered: {
-                if (contextMenu.targetIndex >= 0) {
-                    var item = filteredModel.get(contextMenu.targetIndex)
-                    root.deleteFile(item ? item.origIndex : contextMenu.targetIndex)
-                }
-            }
+            onTriggered: { if (contextMenu.targetIndex >= 0) { var item = filteredModel.get(contextMenu.targetIndex); root.deleteFile(item ? item.origIndex : contextMenu.targetIndex) } }
         }
     }
 }

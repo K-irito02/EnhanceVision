@@ -1,7 +1,8 @@
 ---
+name: "build-system"
 alwaysApply: false
 globs: ['**/CMakeLists.txt', '**/CMakePresets.json', '**/*.qrc']
-description: '构建系统 - 涉及 CMake 配置、QML 资源、第三方库管理时参考'
+description: 'Build system - Reference for CMake configuration, QML resources, third-party library management'
 trigger: glob
 ---
 # 构建系统

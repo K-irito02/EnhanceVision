@@ -1,7 +1,8 @@
 ---
+name: "shader-standards"
 alwaysApply: false
 globs: ['**/*.vert', '**/*.frag', '**/*.qsb', '**/shaders/**']
-description: 'GLSL Shader 规范 - 涉及 Shader 开发、编译、使用时参考'
+description: 'GLSL Shader standards - Reference for shader development, compilation, and usage'
 trigger: glob
 ---
 # GLSL Shader 规范
