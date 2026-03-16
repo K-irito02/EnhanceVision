@@ -804,12 +804,21 @@ ColumnLayout {
         id: deleteCategoryDialog
         title: qsTr("删除类别")
         width: 380
-        height: deleteCategoryContent.implicitHeight + 100
+        height: deleteCategoryContent.implicitHeight + 40 + 32
         color: "transparent"
-        flags: Qt.Window | Qt.FramelessWindowHint
-        modality: Qt.ApplicationModal
+        flags: Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
+        modality: Qt.NonModal
         transientParent: null
         property int categoryIndex: -1
+
+        function updateExcludeRegions() {
+            deleteCategoryHelper.clearExcludeRegions()
+            var closeBtn = deleteCategoryTitleBar.closeButton
+            if (closeBtn && closeBtn.width > 0) {
+                var posInWindow = closeBtn.mapToItem(deleteCategoryBg, 0, 0)
+                deleteCategoryHelper.addExcludeRegion(posInWindow.x, posInWindow.y, closeBtn.width, closeBtn.height)
+            }
+        }
 
         SubWindowHelper {
             id: deleteCategoryHelper
@@ -818,6 +827,9 @@ ColumnLayout {
             }
         }
 
+        onWidthChanged: Qt.callLater(updateExcludeRegions)
+        onHeightChanged: Qt.callLater(updateExcludeRegions)
+
         onVisibleChanged: {
             if (visible) {
                 var mainWindow = root.Window.window
@@ -825,6 +837,11 @@ ColumnLayout {
                     x = mainWindow.x + (mainWindow.width - width) / 2
                     y = mainWindow.y + (mainWindow.height - height) / 2
                 }
+                requestActivate()
+                Qt.callLater(updateExcludeRegions)
+                Qt.callLater(updateExcludeRegions)
+                Qt.callLater(updateExcludeRegions)
+                Qt.callLater(updateExcludeRegions)
                 Qt.callLater(function() {
                     if (presetsInfoText) {
                         presetsInfoText.updateText()
@@ -834,6 +851,7 @@ ColumnLayout {
         }
 
         Rectangle {
+            id: deleteCategoryBg
             anchors.fill: parent
             color: Theme.colors.card
             border.width: 1
@@ -846,8 +864,8 @@ ColumnLayout {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 titleText: qsTr("删除类别")
-                windowRef: deleteCategoryHelper
-                onCloseClicked: deleteCategoryDialog.hide()
+                windowRef: deleteCategoryDialog
+                onCloseClicked: deleteCategoryDialog.close()
             }
 
             ColumnLayout {
@@ -855,8 +873,12 @@ ColumnLayout {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: deleteCategoryTitleBar.bottom
-                anchors.margins: 24
-                spacing: 16
+                anchors.bottom: parent.bottom
+                anchors.leftMargin: 20
+                anchors.rightMargin: 20
+                anchors.topMargin: 16
+                anchors.bottomMargin: 16
+                spacing: 10
 
                 Text {
                     Layout.fillWidth: true
@@ -929,7 +951,7 @@ ColumnLayout {
                     Button {
                         text: qsTr("取消")
                         variant: "ghost"
-                        onClicked: deleteCategoryDialog.hide()
+                        onClicked: deleteCategoryDialog.close()
                     }
 
                     Button {
@@ -1001,11 +1023,20 @@ ColumnLayout {
         id: addCategoryDialog
         title: qsTr("新建类别")
         width: 320
-        height: addCategoryContent.implicitHeight + 100
+        height: addCategoryContent.implicitHeight + 40 + 32
         color: "transparent"
         flags: Qt.Window | Qt.FramelessWindowHint
         modality: Qt.ApplicationModal
         transientParent: null
+
+        function updateExcludeRegions() {
+            addCategoryHelper.clearExcludeRegions()
+            var closeBtn = addCategoryTitleBar.closeButton
+            if (closeBtn && closeBtn.width > 0) {
+                var posInWindow = closeBtn.mapToItem(addCategoryBg, 0, 0)
+                addCategoryHelper.addExcludeRegion(posInWindow.x, posInWindow.y, closeBtn.width, closeBtn.height)
+            }
+        }
 
         SubWindowHelper {
             id: addCategoryHelper
@@ -1013,6 +1044,9 @@ ColumnLayout {
                 addCategoryHelper.setWindow(addCategoryDialog)
             }
         }
+
+        onWidthChanged: Qt.callLater(updateExcludeRegions)
+        onHeightChanged: Qt.callLater(updateExcludeRegions)
 
         onVisibleChanged: {
             if (visible) {
@@ -1022,10 +1056,15 @@ ColumnLayout {
                     y = mainWindow.y + (mainWindow.height - height) / 2
                 }
                 newCategoryInput.forceActiveFocus()
+                Qt.callLater(updateExcludeRegions)
+                Qt.callLater(updateExcludeRegions)
+                Qt.callLater(updateExcludeRegions)
+                Qt.callLater(updateExcludeRegions)
             }
         }
 
         Rectangle {
+            id: addCategoryBg
             anchors.fill: parent
             color: Theme.colors.card
             border.width: 1
@@ -1038,8 +1077,8 @@ ColumnLayout {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 titleText: qsTr("新建类别")
-                windowRef: addCategoryHelper
-                onCloseClicked: addCategoryDialog.hide()
+                windowRef: addCategoryDialog
+                onCloseClicked: addCategoryDialog.close()
             }
 
             ColumnLayout {
@@ -1047,8 +1086,12 @@ ColumnLayout {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: addCategoryTitleBar.bottom
-                anchors.margins: 20
-                spacing: 14
+                anchors.bottom: parent.bottom
+                anchors.leftMargin: 20
+                anchors.rightMargin: 20
+                anchors.topMargin: 16
+                anchors.bottomMargin: 16
+                spacing: 12
 
                 Text {
                     text: qsTr("类别名称")
@@ -1073,7 +1116,7 @@ ColumnLayout {
                     Button {
                         text: qsTr("取消")
                         variant: "ghost"
-                        onClicked: addCategoryDialog.hide()
+                        onClicked: addCategoryDialog.close()
                     }
 
                     Button {
@@ -1084,7 +1127,7 @@ ColumnLayout {
                                 categories.push({ name: newCategoryInput.text.trim() })
                                 root.customCategories = categories
                                 newCategoryInput.text = ""
-                                addCategoryDialog.hide()
+                                addCategoryDialog.close()
                             }
                         }
                     }
@@ -1097,12 +1140,21 @@ ColumnLayout {
         id: renameCategoryDialog
         title: qsTr("重命名类别")
         width: 320
-        height: renameCategoryContent.implicitHeight + 100
+        height: renameCategoryContent.implicitHeight + 40 + 32
         color: "transparent"
         flags: Qt.Window | Qt.FramelessWindowHint
         modality: Qt.ApplicationModal
         transientParent: null
         property int categoryIndex: -1
+
+        function updateExcludeRegions() {
+            renameCategoryHelper.clearExcludeRegions()
+            var closeBtn = renameCategoryTitleBar.closeButton
+            if (closeBtn && closeBtn.width > 0) {
+                var posInWindow = closeBtn.mapToItem(renameCategoryBg, 0, 0)
+                renameCategoryHelper.addExcludeRegion(posInWindow.x, posInWindow.y, closeBtn.width, closeBtn.height)
+            }
+        }
 
         SubWindowHelper {
             id: renameCategoryHelper
@@ -1110,6 +1162,9 @@ ColumnLayout {
                 renameCategoryHelper.setWindow(renameCategoryDialog)
             }
         }
+
+        onWidthChanged: Qt.callLater(updateExcludeRegions)
+        onHeightChanged: Qt.callLater(updateExcludeRegions)
 
         onVisibleChanged: {
             if (visible) {
@@ -1122,10 +1177,15 @@ ColumnLayout {
                     renameCategoryInput.text = root.customCategories[categoryIndex].name
                 }
                 renameCategoryInput.forceActiveFocus()
+                Qt.callLater(updateExcludeRegions)
+                Qt.callLater(updateExcludeRegions)
+                Qt.callLater(updateExcludeRegions)
+                Qt.callLater(updateExcludeRegions)
             }
         }
 
         Rectangle {
+            id: renameCategoryBg
             anchors.fill: parent
             color: Theme.colors.card
             border.width: 1
@@ -1138,8 +1198,8 @@ ColumnLayout {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 titleText: qsTr("重命名类别")
-                windowRef: renameCategoryHelper
-                onCloseClicked: renameCategoryDialog.hide()
+                windowRef: renameCategoryDialog
+                onCloseClicked: renameCategoryDialog.close()
             }
 
             ColumnLayout {
@@ -1147,8 +1207,12 @@ ColumnLayout {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: renameCategoryTitleBar.bottom
-                anchors.margins: 20
-                spacing: 14
+                anchors.bottom: parent.bottom
+                anchors.leftMargin: 20
+                anchors.rightMargin: 20
+                anchors.topMargin: 16
+                anchors.bottomMargin: 16
+                spacing: 12
 
                 Text {
                     text: qsTr("类别名称")
@@ -1173,7 +1237,7 @@ ColumnLayout {
                     Button {
                         text: qsTr("取消")
                         variant: "ghost"
-                        onClicked: renameCategoryDialog.hide()
+                        onClicked: renameCategoryDialog.close()
                     }
 
                     Button {
@@ -1183,7 +1247,7 @@ ColumnLayout {
                                 var categories = root.customCategories.slice()
                                 categories[renameCategoryDialog.categoryIndex].name = renameCategoryInput.text.trim()
                                 root.customCategories = categories
-                                renameCategoryDialog.hide()
+                                renameCategoryDialog.close()
                             }
                         }
                     }
@@ -1196,12 +1260,21 @@ ColumnLayout {
         id: renamePresetDialog
         title: qsTr("重命名风格")
         width: 320
-        height: renamePresetContent.implicitHeight + 100
+        height: renamePresetContent.implicitHeight + 40 + 32
         color: "transparent"
         flags: Qt.Window | Qt.FramelessWindowHint
         modality: Qt.ApplicationModal
         transientParent: null
         property int presetIndex: -1
+
+        function updateExcludeRegions() {
+            renamePresetHelper.clearExcludeRegions()
+            var closeBtn = renamePresetTitleBar.closeButton
+            if (closeBtn && closeBtn.width > 0) {
+                var posInWindow = closeBtn.mapToItem(renamePresetBg, 0, 0)
+                renamePresetHelper.addExcludeRegion(posInWindow.x, posInWindow.y, closeBtn.width, closeBtn.height)
+            }
+        }
 
         SubWindowHelper {
             id: renamePresetHelper
@@ -1209,6 +1282,9 @@ ColumnLayout {
                 renamePresetHelper.setWindow(renamePresetDialog)
             }
         }
+
+        onWidthChanged: Qt.callLater(updateExcludeRegions)
+        onHeightChanged: Qt.callLater(updateExcludeRegions)
 
         onVisibleChanged: {
             if (visible) {
@@ -1221,10 +1297,15 @@ ColumnLayout {
                     renamePresetInput.text = root.customPresets[presetIndex].name
                 }
                 renamePresetInput.forceActiveFocus()
+                Qt.callLater(updateExcludeRegions)
+                Qt.callLater(updateExcludeRegions)
+                Qt.callLater(updateExcludeRegions)
+                Qt.callLater(updateExcludeRegions)
             }
         }
 
         Rectangle {
+            id: renamePresetBg
             anchors.fill: parent
             color: Theme.colors.card
             border.width: 1
@@ -1237,8 +1318,8 @@ ColumnLayout {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 titleText: qsTr("重命名风格")
-                windowRef: renamePresetHelper
-                onCloseClicked: renamePresetDialog.hide()
+                windowRef: renamePresetDialog
+                onCloseClicked: renamePresetDialog.close()
             }
 
             ColumnLayout {
@@ -1246,8 +1327,12 @@ ColumnLayout {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: renamePresetTitleBar.bottom
-                anchors.margins: 20
-                spacing: 14
+                anchors.bottom: parent.bottom
+                anchors.leftMargin: 20
+                anchors.rightMargin: 20
+                anchors.topMargin: 16
+                anchors.bottomMargin: 16
+                spacing: 12
 
                 Text {
                     text: qsTr("风格名称")
@@ -1272,7 +1357,7 @@ ColumnLayout {
                     Button {
                         text: qsTr("取消")
                         variant: "ghost"
-                        onClicked: renamePresetDialog.hide()
+                        onClicked: renamePresetDialog.close()
                     }
 
                     Button {
@@ -1282,7 +1367,7 @@ ColumnLayout {
                                 var presets = root.customPresets.slice()
                                 presets[renamePresetDialog.presetIndex].name = renamePresetInput.text.trim()
                                 root.customPresets = presets
-                                renamePresetDialog.hide()
+                                renamePresetDialog.close()
                             }
                         }
                     }
@@ -1295,13 +1380,20 @@ ColumnLayout {
         id: savePresetDialog
         title: qsTr("保存风格")
         width: 340
-        height: baseHeight + (categorySection.dropdownExpanded ? categorySection.dropdownHeight + 8 : 0) + 40
+        height: savePresetContent.implicitHeight + 40 + 32
         color: "transparent"
         flags: Qt.Window | Qt.FramelessWindowHint
         modality: Qt.ApplicationModal
         transientParent: null
 
-        property real baseHeight: 280
+        function updateExcludeRegions() {
+            savePresetHelper.clearExcludeRegions()
+            var closeBtn = savePresetTitleBar.closeButton
+            if (closeBtn && closeBtn.width > 0) {
+                var posInWindow = closeBtn.mapToItem(savePresetBg, 0, 0)
+                savePresetHelper.addExcludeRegion(posInWindow.x, posInWindow.y, closeBtn.width, closeBtn.height)
+            }
+        }
 
         SubWindowHelper {
             id: savePresetHelper
@@ -1309,6 +1401,9 @@ ColumnLayout {
                 savePresetHelper.setWindow(savePresetDialog)
             }
         }
+
+        onWidthChanged: Qt.callLater(updateExcludeRegions)
+        onHeightChanged: Qt.callLater(updateExcludeRegions)
 
         onVisibleChanged: {
             if (visible) {
@@ -1319,10 +1414,15 @@ ColumnLayout {
                 }
                 presetNameInput.forceActiveFocus()
                 categorySection.dropdownExpanded = false
+                Qt.callLater(updateExcludeRegions)
+                Qt.callLater(updateExcludeRegions)
+                Qt.callLater(updateExcludeRegions)
+                Qt.callLater(updateExcludeRegions)
             }
         }
 
         Rectangle {
+            id: savePresetBg
             anchors.fill: parent
             color: Theme.colors.card
             border.width: 1
@@ -1335,8 +1435,8 @@ ColumnLayout {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 titleText: qsTr("保存风格")
-                windowRef: savePresetHelper
-                onCloseClicked: savePresetDialog.hide()
+                windowRef: savePresetDialog
+                onCloseClicked: savePresetDialog.close()
             }
 
             ColumnLayout {
@@ -1345,8 +1445,11 @@ ColumnLayout {
                 anchors.right: parent.right
                 anchors.top: savePresetTitleBar.bottom
                 anchors.bottom: parent.bottom
-                anchors.margins: 20
-                spacing: 14
+                anchors.leftMargin: 20
+                anchors.rightMargin: 20
+                anchors.topMargin: 16
+                anchors.bottomMargin: 16
+                spacing: 12
 
                 Text {
                     text: qsTr("风格名称")
@@ -1526,14 +1629,9 @@ ColumnLayout {
                     }
                 }
 
-                Item {
-                    id: spacerItem
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: categorySection.dropdownExpanded ? categorySection.dropdownHeight + 8 : 0
-                }
-
                 RowLayout {
                     Layout.fillWidth: true
+                    Layout.topMargin: 8
                     spacing: 10
 
                     Item { Layout.fillWidth: true }
@@ -1541,7 +1639,7 @@ ColumnLayout {
                     Button {
                         text: qsTr("取消")
                         variant: "ghost"
-                        onClicked: savePresetDialog.hide()
+                        onClicked: savePresetDialog.close()
                     }
 
                     Button {
@@ -1606,7 +1704,7 @@ ColumnLayout {
                                 presetNameInput.text = ""
                                 categorySelector.selectedCategory = ""
                                 categorySelector.selectedIndex = -1
-                                savePresetDialog.hide()
+                                savePresetDialog.close()
                             }
                         }
                     }

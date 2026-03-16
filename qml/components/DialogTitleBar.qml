@@ -23,35 +23,24 @@ Rectangle {
     signal closeClicked()
 
     height: 40
-    color: Theme.colors.titleBar
+    color: Theme.colors.card
 
     Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         height: 1
-        color: Theme.colors.titleBarBorder
+        color: Theme.colors.border
         visible: root.showDivider
     }
 
-    MouseArea {
-        id: dragArea
-        anchors.fill: parent
-        acceptedButtons: Qt.LeftButton
-        z: 0
-        onPressed: function(mouse) {
-            if (root.windowRef) {
-                root.windowRef.startSystemMove()
-            }
-        }
-    }
-
     RowLayout {
+        id: titleBarRow
         anchors.fill: parent
         anchors.leftMargin: 16
         anchors.rightMargin: 8
         spacing: 8
-        z: 1
+        z: 2
 
         Text {
             text: root.titleText
@@ -67,16 +56,33 @@ Rectangle {
         }
 
         IconButton {
+            id: closeButton
             iconName: "x"
             iconSize: 14
             btnSize: 32
             danger: true
             tooltip: qsTr("关闭")
-            onClicked: root.closeClicked()
+            Layout.alignment: Qt.AlignVCenter
+            z: 3
+            onClicked: {
+                if (root.windowRef) {
+                    root.windowRef.close()
+                }
+                root.closeClicked()
+            }
         }
     }
 
-    Behavior on color {
-        ColorAnimation { duration: Theme.animation.normal; easing.type: Easing.OutCubic }
+    MouseArea {
+        id: dragArea
+        anchors.fill: parent
+        anchors.rightMargin: 44
+        acceptedButtons: Qt.LeftButton
+        z: 1
+        onPressed: function(mouse) {
+            if (root.windowRef) {
+                root.windowRef.startSystemMove()
+            }
+        }
     }
 }

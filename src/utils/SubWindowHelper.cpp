@@ -10,6 +10,7 @@
 #include <QGuiApplication>
 #include <QScreen>
 #include <QCursor>
+#include <QDebug>
 
 #ifdef Q_OS_WIN
 #include <windowsx.h>
@@ -22,7 +23,7 @@ class SubWindowHelper;
 }
 
 static QHash<HWND, EnhanceVision::SubWindowHelper*> g_windowHelpers;
-static WNDPROC g_originalQtWndProc = nullptr;
+static QHash<HWND, WNDPROC> g_originalWndProcs;
 
 static LRESULT CALLBACK SubWindowWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -46,25 +47,28 @@ static LRESULT CALLBACK SubWindowWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
         int windowWidth = windowRect.right - windowRect.left;
         int windowHeight = windowRect.bottom - windowRect.top;
 
-        int titleBarHeight = 44;
+        int titleBarHeight = 40;
+        int margin = helper->windowResizeMargin();
 
         if (localY >= 0 && localY < titleBarHeight) {
-            bool inExcludeRegion = false;
-            const auto& regions = helper->excludeRegions();
-            for (const QRect& region : regions) {
-                if (region.contains(localX, localY)) {
-                    inExcludeRegion = true;
-                    break;
+            bool inRightArea = localX >= windowWidth - 50;
+            if (!inRightArea) {
+                if (!helper->isWindowMaximized()) {
+                    bool onLeft = localX < margin;
+                    bool onRight = localX >= windowWidth - margin;
+                    bool onTop = localY < margin;
+                    
+                    if (onTop && onLeft) return HTTOPLEFT;
+                    if (onTop && onRight) return HTTOPRIGHT;
+                    if (onTop) return HTTOP;
+                    if (onLeft) return HTLEFT;
+                    if (onRight) return HTRIGHT;
                 }
-            }
-            if (!inExcludeRegion) {
                 return HTCAPTION;
             }
         }
-
+        
         if (!helper->isWindowMaximized()) {
-            int margin = helper->windowResizeMargin();
-
             bool onLeft = localX < margin;
             bool onRight = localX >= windowWidth - margin;
             bool onTop = localY < margin;
@@ -90,8 +94,9 @@ static LRESULT CALLBACK SubWindowWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
     }
     }
 
-    if (g_originalQtWndProc) {
-        return CallWindowProc(g_originalQtWndProc, hwnd, msg, wParam, lParam);
+    auto procIt = g_originalWndProcs.find(hwnd);
+    if (procIt != g_originalWndProcs.end() && procIt.value()) {
+        return CallWindowProc(procIt.value(), hwnd, msg, wParam, lParam);
     }
 
     return DefWindowProc(hwnd, msg, wParam, lParam);
@@ -113,6 +118,12 @@ SubWindowHelper::~SubWindowHelper()
 #ifdef Q_OS_WIN
         HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
         g_windowHelpers.remove(hwnd);
+        
+        auto procIt = g_originalWndProcs.find(hwnd);
+        if (procIt != g_originalWndProcs.end() && procIt.value()) {
+            SetWindowLongPtr(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(procIt.value()));
+            g_originalWndProcs.remove(hwnd);
+        }
 #endif
     }
 }
@@ -122,8 +133,14 @@ void SubWindowHelper::setWindow(QQuickWindow* window)
     if (m_window) {
         m_window->removeEventFilter(this);
 #ifdef Q_OS_WIN
-        HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
-        g_windowHelpers.remove(hwnd);
+        HWND oldHwnd = reinterpret_cast<HWND>(m_window->winId());
+        g_windowHelpers.remove(oldHwnd);
+        
+        auto procIt = g_originalWndProcs.find(oldHwnd);
+        if (procIt != g_originalWndProcs.end() && procIt.value()) {
+            SetWindowLongPtr(oldHwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(procIt.value()));
+            g_originalWndProcs.remove(oldHwnd);
+        }
 #endif
     }
 
@@ -137,12 +154,9 @@ void SubWindowHelper::setWindow(QQuickWindow* window)
         HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
         g_windowHelpers.insert(hwnd, this);
 
-        if (!g_originalQtWndProc) {
-            g_originalQtWndProc = reinterpret_cast<WNDPROC>(
-                SetWindowLongPtr(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(SubWindowWndProc)));
-        } else {
-            SetWindowLongPtr(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(SubWindowWndProc));
-        }
+        WNDPROC originalProc = reinterpret_cast<WNDPROC>(
+            SetWindowLongPtr(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(SubWindowWndProc)));
+        g_originalWndProcs.insert(hwnd, originalProc);
 #endif
     }
 }
@@ -186,6 +200,35 @@ bool SubWindowHelper::eventFilter(QObject* watched, QEvent* event)
     if (watched == m_window) {
         if (event->type() == QEvent::WindowStateChange) {
             updateMaximizedState();
+        } else if (event->type() == QEvent::Show) {
+#ifdef Q_OS_WIN
+            HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
+            
+            if (!g_windowHelpers.contains(hwnd)) {
+                QMutableHashIterator<HWND, SubWindowHelper*> it(g_windowHelpers);
+                while (it.hasNext()) {
+                    it.next();
+                    if (it.value() == this) {
+                        HWND oldHwnd = it.key();
+                        
+                        auto procIt = g_originalWndProcs.find(oldHwnd);
+                        if (procIt != g_originalWndProcs.end() && procIt.value()) {
+                            SetWindowLongPtr(oldHwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(procIt.value()));
+                            g_originalWndProcs.remove(oldHwnd);
+                        }
+                        it.remove();
+                        break;
+                    }
+                }
+                
+                g_windowHelpers.insert(hwnd, this);
+                WNDPROC originalProc = reinterpret_cast<WNDPROC>(
+                    SetWindowLongPtr(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(SubWindowWndProc)));
+                g_originalWndProcs.insert(hwnd, originalProc);
+                
+                setupWindowFrame();
+            }
+#endif
         }
     }
     return QObject::eventFilter(watched, event);
