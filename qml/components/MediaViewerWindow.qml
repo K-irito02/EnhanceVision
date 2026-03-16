@@ -5,6 +5,7 @@ import QtQuick.Window
 import QtMultimedia
 import "../styles"
 import "../controls"
+import EnhanceVision.Utils
 
 /**
  * @brief 媒体查看器独立窗口
@@ -17,24 +18,16 @@ import "../controls"
  * - 视频播放控制（播放/暂停、快进/快退、倍速、进度条、音量）
  * - 原效果对比按钮（消息模式下）
  * - 图片自适应缩放显示
+ * - 自定义标题栏
  */
 Window {
     id: root
 
-    // ========== 属性定义 ==========
-    /** @brief 媒体文件列表 [{filePath, fileName, mediaType, thumbnail, resultPath}] */
     property var mediaFiles: []
-
-    /** @brief 当前显示的文件索引 */
     property int currentIndex: 0
-
-    /** @brief 是否为消息模式（启用原图对比功能） */
     property bool messageMode: false
-
-    /** @brief 是否显示原始效果（用于对比） */
     property bool showOriginal: false
 
-    // ========== 内部属性 ==========
     property var currentFile: mediaFiles.length > 0 && currentIndex >= 0 && currentIndex < mediaFiles.length
                               ? mediaFiles[currentIndex] : null
     property bool isVideo: currentFile ? (currentFile.mediaType === 1) : false
@@ -45,24 +38,51 @@ Window {
         return currentFile.filePath || ""
     }
 
-    // 全屏前保存的窗口几何
     property real _savedX: 0
     property real _savedY: 0
     property real _savedW: 0
     property real _savedH: 0
     property bool _wasMaximized: false
 
-    // ========== 窗口设置 ==========
     width: 900
     height: 650
     minimumWidth: 480
     minimumHeight: 360
     title: currentFile ? currentFile.fileName : qsTr("媒体查看器")
     color: "#0A0E1A"
-    flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowCloseButtonHint
-           | Qt.WindowMinMaxButtonsHint
+    flags: Qt.Window | Qt.FramelessWindowHint
 
-    // ========== 快捷键 ==========
+    SubWindowHelper {
+        id: windowHelper
+        Component.onCompleted: {
+            windowHelper.setWindow(root)
+            windowHelper.setMinWidth(480)
+            windowHelper.setMinHeight(360)
+        }
+    }
+
+    function updateExcludeRegions() {
+        windowHelper.clearExcludeRegions()
+        var buttonsRow = titleBarButtonsRow
+        if (buttonsRow && buttonsRow.width > 0) {
+            var globalPos = buttonsRow.mapToItem(titleBar, 0, 0)
+            windowHelper.addExcludeRegion(globalPos.x, globalPos.y, buttonsRow.width, buttonsRow.height)
+        }
+        var compareBtn = compareButton
+        if (compareBtn && compareBtn.visible && compareBtn.width > 0) {
+            var globalPos2 = compareBtn.mapToItem(titleBar, 0, 0)
+            windowHelper.addExcludeRegion(globalPos2.x, globalPos2.y, compareBtn.width, compareBtn.height)
+        }
+    }
+
+    onWidthChanged: Qt.callLater(updateExcludeRegions)
+    onHeightChanged: Qt.callLater(updateExcludeRegions)
+    onVisibleChanged: {
+        if (visible) {
+            Qt.callLater(updateExcludeRegions)
+        }
+    }
+
     Shortcut {
         sequence: "Escape"
         onActivated: {
@@ -78,7 +98,6 @@ Window {
     Shortcut { sequence: "Space"; onActivated: if (isVideo) videoPlayer.togglePlay() }
     Shortcut { sequence: "F";     onActivated: _toggleFullscreen() }
 
-    // ========== 功能方法 ==========
     function _toggleFullscreen() {
         if (root.visibility === Window.FullScreen) {
             _exitFullscreen()
@@ -126,53 +145,58 @@ Window {
 
     onCurrentIndexChanged: showOriginal = false
 
-    // ========== 主布局 ==========
     Rectangle {
         anchors.fill: parent
         color: "#0A0E1A"
+        radius: 8
 
-        // ========== 顶部工具栏 ==========
         Rectangle {
-            id: topBar
+            id: titleBar
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
             height: 44
-            color: Qt.rgba(0, 0, 0, 0.5)
+            color: Theme.colors.titleBar
             z: 100
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                height: 1
+                color: Theme.colors.titleBarBorder
+            }
 
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: 12
-                anchors.rightMargin: 12
+                anchors.rightMargin: 8
                 spacing: 8
 
-                // 文件名
                 Text {
                     text: currentFile ? currentFile.fileName : ""
-                    color: "#FFFFFF"
+                    color: Theme.colors.foreground
                     font.pixelSize: 14
                     font.weight: Font.Medium
                     elide: Text.ElideMiddle
                     Layout.fillWidth: true
                 }
 
-                // 文件计数
                 Text {
                     text: mediaFiles.length > 0 ? "%1 / %2".arg(currentIndex + 1).arg(mediaFiles.length) : ""
-                    color: Qt.rgba(1, 1, 1, 0.6)
+                    color: Theme.colors.mutedForeground
                     font.pixelSize: 12
                 }
 
-                // 原图对比按钮（消息模式）
                 Rectangle {
+                    id: compareButton
                     visible: root.messageMode
                     width: compareRow.implicitWidth + 16
-                    height: 30
+                    height: 28
                     radius: 6
-                    color: showOriginal ? "#1E56D0" : Qt.rgba(1, 1, 1, 0.12)
+                    color: showOriginal ? Theme.colors.primary : Theme.colors.card
                     border.width: showOriginal ? 0 : 1
-                    border.color: Qt.rgba(1, 1, 1, 0.2)
+                    border.color: Theme.colors.border
 
                     Row {
                         id: compareRow
@@ -183,12 +207,12 @@ Window {
                             anchors.verticalCenter: parent.verticalCenter
                             source: Theme.icon("eye")
                             iconSize: 14
-                            color: "#FFFFFF"
+                            color: Theme.colors.foreground
                         }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             text: showOriginal ? qsTr("查看处理后") : qsTr("查看原图")
-                            color: "#FFFFFF"
+                            color: Theme.colors.foreground
                             font.pixelSize: 12
                         }
                     }
@@ -200,37 +224,35 @@ Window {
                     }
                 }
 
-                // 全屏按钮
-                IconButton {
-                    iconName: root.visibility === Window.FullScreen ? "minimize-2" : "maximize"
-                    iconSize: 16; btnSize: 32
-                    iconColor: "#FFFFFF"
-                    iconHoverColor: "#A0C4FF"
-                    onClicked: _toggleFullscreen()
-                    tooltip: root.visibility === Window.FullScreen ? qsTr("退出全屏") : qsTr("全屏")
-                }
+                Row {
+                    id: titleBarButtonsRow
+                    spacing: 2
 
-                // 关闭按钮
-                IconButton {
-                    iconName: "x"
-                    iconSize: 16; btnSize: 32
-                    iconColor: "#FFFFFF"
-                    iconHoverColor: "#FF6B6B"
-                    onClicked: root.close()
-                    tooltip: qsTr("关闭")
+                    IconButton {
+                        iconName: root.visibility === Window.FullScreen ? "minimize-2" : "maximize"
+                        iconSize: 16; btnSize: 32
+                        onClicked: _toggleFullscreen()
+                        tooltip: root.visibility === Window.FullScreen ? qsTr("退出全屏") : qsTr("全屏")
+                    }
+
+                    IconButton {
+                        iconName: "x"
+                        iconSize: 16; btnSize: 32
+                        danger: true
+                        onClicked: root.close()
+                        tooltip: qsTr("关闭")
+                    }
                 }
             }
         }
 
-        // ========== 内容区域 ==========
         Item {
             id: contentArea
-            anchors.top: topBar.bottom
+            anchors.top: titleBar.bottom
             anchors.bottom: isVideo ? videoControls.top : bottomBar.top
             anchors.left: parent.left
             anchors.right: parent.right
 
-            // 图片显示
             Image {
                 id: imageView
                 anchors.fill: parent
@@ -248,7 +270,6 @@ Window {
                 mipmap: true
             }
 
-            // 视频显示
             Item {
                 id: videoContainer
                 anchors.fill: parent
@@ -290,7 +311,6 @@ Window {
                     anchors.fill: parent
                 }
 
-                // 视频中央播放/暂停覆盖
                 Rectangle {
                     anchors.centerIn: parent
                     width: 64; height: 64; radius: 32
@@ -317,7 +337,6 @@ Window {
                 }
             }
 
-            // 占位
             ColumnLayout {
                 anchors.centerIn: parent
                 spacing: 12
@@ -338,8 +357,6 @@ Window {
             }
         }
 
-        // ========== 左右导航按钮 ==========
-        // 左侧上一张
         Rectangle {
             anchors.left: parent.left
             anchors.leftMargin: 12
@@ -367,7 +384,6 @@ Window {
             Behavior on color { ColorAnimation { duration: 150 } }
         }
 
-        // 右侧下一张
         Rectangle {
             anchors.right: parent.right
             anchors.rightMargin: 12
@@ -395,7 +411,6 @@ Window {
             Behavior on color { ColorAnimation { duration: 150 } }
         }
 
-        // ========== 视频控制栏 ==========
         Rectangle {
             id: videoControls
             anchors.bottom: bottomBar.top
@@ -410,7 +425,6 @@ Window {
                 anchors.margins: 12
                 spacing: 6
 
-                // 进度条
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
@@ -465,12 +479,10 @@ Window {
                     }
                 }
 
-                // 控制按钮行
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
 
-                    // 后退
                     IconButton {
                         iconName: "skip-back"
                         iconSize: 16; btnSize: 32
@@ -479,7 +491,6 @@ Window {
                         onClicked: mediaPlayer.position = Math.max(0, mediaPlayer.position - 10000)
                     }
 
-                    // 播放/暂停
                     Rectangle {
                         width: 36; height: 36; radius: 18
                         color: playPauseMouse.containsMouse ? Qt.rgba(1,1,1,0.2) : Qt.rgba(1,1,1,0.1)
@@ -503,7 +514,6 @@ Window {
                         Behavior on color { ColorAnimation { duration: 100 } }
                     }
 
-                    // 快进
                     IconButton {
                         iconName: "skip-forward"
                         iconSize: 16; btnSize: 32
@@ -512,10 +522,8 @@ Window {
                         onClicked: mediaPlayer.position = Math.min(mediaPlayer.duration, mediaPlayer.position + 10000)
                     }
 
-                    // 分隔
                     Item { width: 8 }
 
-                    // 倍速选择
                     Rectangle {
                         width: speedText.implicitWidth + 16
                         height: 28; radius: 6
@@ -576,7 +584,6 @@ Window {
 
                     Item { Layout.fillWidth: true }
 
-                    // 音量控制
                     Row {
                         spacing: 6
 
@@ -621,7 +628,6 @@ Window {
             }
         }
 
-        // ========== 底部缩略图导航栏 ==========
         Rectangle {
             id: bottomBar
             anchors.bottom: parent.bottom
@@ -676,7 +682,6 @@ Window {
                     }
                 }
 
-                // 滚轮水平滚动
                 MouseArea {
                     anchors.fill: parent
                     z: -1
@@ -691,7 +696,6 @@ Window {
         }
     }
 
-    // ========== 工具方法 ==========
     function _formatTime(ms) {
         var totalSec = Math.floor(ms / 1000)
         var h = Math.floor(totalSec / 3600)
@@ -702,7 +706,6 @@ Window {
         return "%1:%2".arg(String(m).padStart(2, '0')).arg(String(s).padStart(2, '0'))
     }
 
-    // 关闭时停止播放
     onClosing: {
         if (isVideo) mediaPlayer.stop()
     }

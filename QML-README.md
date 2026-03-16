@@ -88,7 +88,13 @@ qml/
 │   ├── FileList.qml        # 文件列表
 │   ├── PreviewPane.qml     # 预览面板
 │   ├── ControlPanel.qml    # 控制面板
-│   └── MediaViewer.qml     # 媒体查看器
+│   ├── MediaViewer.qml     # 媒体查看器
+│   ├── MediaViewerWindow.qml # 媒体查看器独立窗口
+│   ├── DialogTitleBar.qml  # 对话框标题栏组件
+│   └── ShaderParamsPanel.qml # Shader 参数面板
+│   ├── MediaViewerWindow.qml # 媒体查看器独立窗口
+│   ├── DialogTitleBar.qml  # 对话框标题栏组件
+│   └── ShaderParamsPanel.qml # Shader 参数面板
 ├── controls/               # 自定义控件
 │   ├── IconButton.qml      # 图标按钮
 │   ├── Slider.qml          # 滑块

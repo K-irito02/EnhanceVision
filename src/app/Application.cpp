@@ -16,6 +16,7 @@
 #include "EnhanceVision/providers/PreviewProvider.h"
 #include "EnhanceVision/providers/ThumbnailProvider.h"
 #include "EnhanceVision/utils/WindowHelper.h"
+#include "EnhanceVision/utils/SubWindowHelper.h"
 #include <QQmlEngine>
 #include <QQmlContext>
 
@@ -88,6 +89,9 @@ void Application::registerQmlTypes()
         [](QQmlEngine*, QJSEngine*) -> QObject* {
             return WindowHelper::instance();
         });
+
+    // 注册 SubWindowHelper 为可实例化类型（每个子窗口创建一个实例）
+    qmlRegisterType<SubWindowHelper>("EnhanceVision.Utils", 1, 0, "SubWindowHelper");
 
     // 注册数据模型类型
     qmlRegisterUncreatableType<FileModel>("EnhanceVision.Models", 1, 0, "FileModel",

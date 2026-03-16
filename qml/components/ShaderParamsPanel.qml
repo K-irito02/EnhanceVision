@@ -5,6 +5,7 @@ import QtQuick.Dialogs
 import QtQuick.Window
 import "../styles"
 import "../controls"
+import EnhanceVision.Utils
 
 ColumnLayout {
     id: root
@@ -803,21 +804,27 @@ ColumnLayout {
         id: deleteCategoryDialog
         title: qsTr("删除类别")
         width: 380
-        height: deleteCategoryContent.implicitHeight + 60
-        color: Theme.colors.card
-        flags: Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint
+        height: deleteCategoryContent.implicitHeight + 100
+        color: "transparent"
+        flags: Qt.Window | Qt.FramelessWindowHint
         modality: Qt.ApplicationModal
         transientParent: null
         property int categoryIndex: -1
 
+        SubWindowHelper {
+            id: deleteCategoryHelper
+            Component.onCompleted: {
+                deleteCategoryHelper.setWindow(deleteCategoryDialog)
+            }
+        }
+
         onVisibleChanged: {
             if (visible) {
-                var mainWindow = Window.window
+                var mainWindow = root.Window.window
                 if (mainWindow) {
                     x = mainWindow.x + (mainWindow.width - width) / 2
                     y = mainWindow.y + (mainWindow.height - height) / 2
                 }
-                // 延迟更新文本，确保组件已加载
                 Qt.callLater(function() {
                     if (presetsInfoText) {
                         presetsInfoText.updateText()
@@ -833,20 +840,23 @@ ColumnLayout {
             border.color: Theme.colors.border
             radius: Theme.radius.lg
 
+            DialogTitleBar {
+                id: deleteCategoryTitleBar
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                titleText: qsTr("删除类别")
+                windowRef: deleteCategoryHelper
+                onCloseClicked: deleteCategoryDialog.hide()
+            }
+
             ColumnLayout {
                 id: deleteCategoryContent
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.top: parent.top
+                anchors.top: deleteCategoryTitleBar.bottom
                 anchors.margins: 24
                 spacing: 16
-
-                Text {
-                    text: qsTr("删除类别")
-                    font.pixelSize: 16
-                    font.weight: Font.DemiBold
-                    color: Theme.colors.foreground
-                }
 
                 Text {
                     Layout.fillWidth: true
@@ -991,15 +1001,22 @@ ColumnLayout {
         id: addCategoryDialog
         title: qsTr("新建类别")
         width: 320
-        height: addCategoryContent.implicitHeight + 60
-        color: Theme.colors.card
-        flags: Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint
+        height: addCategoryContent.implicitHeight + 100
+        color: "transparent"
+        flags: Qt.Window | Qt.FramelessWindowHint
         modality: Qt.ApplicationModal
         transientParent: null
 
+        SubWindowHelper {
+            id: addCategoryHelper
+            Component.onCompleted: {
+                addCategoryHelper.setWindow(addCategoryDialog)
+            }
+        }
+
         onVisibleChanged: {
             if (visible) {
-                var mainWindow = Window.window
+                var mainWindow = root.Window.window
                 if (mainWindow) {
                     x = mainWindow.x + (mainWindow.width - width) / 2
                     y = mainWindow.y + (mainWindow.height - height) / 2
@@ -1015,17 +1032,29 @@ ColumnLayout {
             border.color: Theme.colors.border
             radius: Theme.radius.lg
 
+            DialogTitleBar {
+                id: addCategoryTitleBar
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                titleText: qsTr("新建类别")
+                windowRef: addCategoryHelper
+                onCloseClicked: addCategoryDialog.hide()
+            }
+
             ColumnLayout {
                 id: addCategoryContent
-                anchors.fill: parent
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: addCategoryTitleBar.bottom
                 anchors.margins: 20
                 spacing: 14
 
                 Text {
-                    text: qsTr("新建类别")
-                    font.pixelSize: 16
-                    font.weight: Font.DemiBold
-                    color: Theme.colors.foreground
+                    text: qsTr("类别名称")
+                    font.pixelSize: 12
+                    font.weight: Font.Medium
+                    color: Theme.colors.mutedForeground
                 }
 
                 TextField {
@@ -1068,16 +1097,23 @@ ColumnLayout {
         id: renameCategoryDialog
         title: qsTr("重命名类别")
         width: 320
-        height: renameCategoryContent.implicitHeight + 60
-        color: Theme.colors.card
-        flags: Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint
+        height: renameCategoryContent.implicitHeight + 100
+        color: "transparent"
+        flags: Qt.Window | Qt.FramelessWindowHint
         modality: Qt.ApplicationModal
         transientParent: null
         property int categoryIndex: -1
 
+        SubWindowHelper {
+            id: renameCategoryHelper
+            Component.onCompleted: {
+                renameCategoryHelper.setWindow(renameCategoryDialog)
+            }
+        }
+
         onVisibleChanged: {
             if (visible) {
-                var mainWindow = Window.window
+                var mainWindow = root.Window.window
                 if (mainWindow) {
                     x = mainWindow.x + (mainWindow.width - width) / 2
                     y = mainWindow.y + (mainWindow.height - height) / 2
@@ -1096,19 +1132,29 @@ ColumnLayout {
             border.color: Theme.colors.border
             radius: Theme.radius.lg
 
+            DialogTitleBar {
+                id: renameCategoryTitleBar
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                titleText: qsTr("重命名类别")
+                windowRef: renameCategoryHelper
+                onCloseClicked: renameCategoryDialog.hide()
+            }
+
             ColumnLayout {
                 id: renameCategoryContent
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.top: parent.top
+                anchors.top: renameCategoryTitleBar.bottom
                 anchors.margins: 20
                 spacing: 14
 
                 Text {
-                    text: qsTr("重命名类别")
-                    font.pixelSize: 16
-                    font.weight: Font.DemiBold
-                    color: Theme.colors.foreground
+                    text: qsTr("类别名称")
+                    font.pixelSize: 12
+                    font.weight: Font.Medium
+                    color: Theme.colors.mutedForeground
                 }
 
                 TextField {
@@ -1150,16 +1196,23 @@ ColumnLayout {
         id: renamePresetDialog
         title: qsTr("重命名风格")
         width: 320
-        height: renamePresetContent.implicitHeight + 60
-        color: Theme.colors.card
-        flags: Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint
+        height: renamePresetContent.implicitHeight + 100
+        color: "transparent"
+        flags: Qt.Window | Qt.FramelessWindowHint
         modality: Qt.ApplicationModal
         transientParent: null
         property int presetIndex: -1
 
+        SubWindowHelper {
+            id: renamePresetHelper
+            Component.onCompleted: {
+                renamePresetHelper.setWindow(renamePresetDialog)
+            }
+        }
+
         onVisibleChanged: {
             if (visible) {
-                var mainWindow = Window.window
+                var mainWindow = root.Window.window
                 if (mainWindow) {
                     x = mainWindow.x + (mainWindow.width - width) / 2
                     y = mainWindow.y + (mainWindow.height - height) / 2
@@ -1178,19 +1231,29 @@ ColumnLayout {
             border.color: Theme.colors.border
             radius: Theme.radius.lg
 
+            DialogTitleBar {
+                id: renamePresetTitleBar
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                titleText: qsTr("重命名风格")
+                windowRef: renamePresetHelper
+                onCloseClicked: renamePresetDialog.hide()
+            }
+
             ColumnLayout {
                 id: renamePresetContent
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.top: parent.top
+                anchors.top: renamePresetTitleBar.bottom
                 anchors.margins: 20
                 spacing: 14
 
                 Text {
-                    text: qsTr("重命名风格")
-                    font.pixelSize: 16
-                    font.weight: Font.DemiBold
-                    color: Theme.colors.foreground
+                    text: qsTr("风格名称")
+                    font.pixelSize: 12
+                    font.weight: Font.Medium
+                    color: Theme.colors.mutedForeground
                 }
 
                 TextField {
@@ -1232,17 +1295,24 @@ ColumnLayout {
         id: savePresetDialog
         title: qsTr("保存风格")
         width: 340
-        height: baseHeight + (categorySection.dropdownExpanded ? categorySection.dropdownHeight + 8 : 0)
-        color: Theme.colors.card
-        flags: Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint
+        height: baseHeight + (categorySection.dropdownExpanded ? categorySection.dropdownHeight + 8 : 0) + 40
+        color: "transparent"
+        flags: Qt.Window | Qt.FramelessWindowHint
         modality: Qt.ApplicationModal
         transientParent: null
 
         property real baseHeight: 280
 
+        SubWindowHelper {
+            id: savePresetHelper
+            Component.onCompleted: {
+                savePresetHelper.setWindow(savePresetDialog)
+            }
+        }
+
         onVisibleChanged: {
             if (visible) {
-                var mainWindow = Window.window
+                var mainWindow = root.Window.window
                 if (mainWindow) {
                     x = mainWindow.x + (mainWindow.width - width) / 2
                     y = mainWindow.y + (mainWindow.height - height) / 2
@@ -1253,28 +1323,30 @@ ColumnLayout {
         }
 
         Rectangle {
-            width: parent.width
-            height: parent.height
+            anchors.fill: parent
             color: Theme.colors.card
             border.width: 1
             border.color: Theme.colors.border
             radius: Theme.radius.lg
 
+            DialogTitleBar {
+                id: savePresetTitleBar
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                titleText: qsTr("保存风格")
+                windowRef: savePresetHelper
+                onCloseClicked: savePresetDialog.hide()
+            }
+
             ColumnLayout {
                 id: savePresetContent
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.top: parent.top
+                anchors.top: savePresetTitleBar.bottom
                 anchors.bottom: parent.bottom
                 anchors.margins: 20
                 spacing: 14
-
-                Text {
-                    text: qsTr("保存风格")
-                    font.pixelSize: 16
-                    font.weight: Font.DemiBold
-                    color: Theme.colors.foreground
-                }
 
                 Text {
                     text: qsTr("风格名称")
@@ -2028,3 +2100,4 @@ ColumnLayout {
         shadows = 0.0
     }
 }
+

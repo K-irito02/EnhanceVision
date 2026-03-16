@@ -103,6 +103,7 @@ qt_add_executable(EnhanceVision
     src/utils/FileUtils.cpp
     src/utils/ImageUtils.cpp
     src/utils/WindowHelper.cpp
+    src/utils/SubWindowHelper.cpp
     src/controllers/SettingsController.cpp
     src/controllers/SessionController.cpp
     src/controllers/FileController.cpp
@@ -125,6 +126,7 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/utils/FileUtils.h
     include/EnhanceVision/utils/ImageUtils.h
     include/EnhanceVision/utils/WindowHelper.h
+    include/EnhanceVision/utils/SubWindowHelper.h
     include/EnhanceVision/controllers/SettingsController.h
     include/EnhanceVision/controllers/SessionController.h
     include/EnhanceVision/controllers/FileController.h
@@ -185,6 +187,7 @@ qt_add_qml_module(EnhanceVision
         qml/components/Dialog.qml
         qml/components/ControlPanel.qml
         qml/components/ShaderParamsPanel.qml
+        qml/components/DialogTitleBar.qml
         qml/controls/IconButton.qml
         qml/controls/Slider.qml
         qml/controls/ComboBox.qml
