@@ -5,6 +5,7 @@ import "./styles"
 import "./components"
 import "./pages"
 import "./utils"
+import EnhanceVision.Utils
 
 /**
  * @brief 应用根组件
@@ -12,10 +13,9 @@ import "./utils"
  * 管理整体布局结构，包括标题栏、侧边栏、主内容区域和控制面板
  * 参考功能设计文档 0.2 和 UI 设计文档 08-ui-design.md
  */
-Rectangle {
+FocusScope {
     id: root
-    color: Theme.colors.background
-
+    
     property bool sidebarExpanded: true
     property bool controlPanelExpanded: true
     property bool controlPanelCollapsed: false
@@ -23,25 +23,38 @@ Rectangle {
     property int processingMode: 0
 
     function clearAllFocus() {
-        root.forceActiveFocus()
+        focusCatcher.forceActiveFocus()
     }
 
-    MouseArea {
+    Item {
+        id: focusCatcher
+        focus: true
+        visible: false
+    }
+
+    TapHandler {
+        onTapped: function(eventPoint, button) {
+            focusCatcher.forceActiveFocus()
+        }
+    }
+
+    Connections {
+        target: WindowHelper
+        function onResizeStarted() {
+            sidebarAnimation.enabled = false
+            controlPanelAnimation.enabled = false
+        }
+        function onResizeFinished() {
+            sidebarAnimation.enabled = true
+            controlPanelAnimation.enabled = true
+        }
+    }
+
+    // ========== 背景 ==========
+    Rectangle {
+        id: backgroundRect
         anchors.fill: parent
-        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-        onPressed: function(mouse) {
-            root.forceActiveFocus()
-            mouse.accepted = false
-        }
-        onClicked: function(mouse) {
-            mouse.accepted = false
-        }
-        onReleased: function(mouse) {
-            mouse.accepted = false
-        }
-        z: -1000
-        propagateComposedEvents: true
-        enabled: true
+        color: Theme.colors.background
     }
 
     // ========== 主布局 ==========
@@ -90,8 +103,11 @@ Rectangle {
                 Layout.fillHeight: true
                 Layout.maximumWidth: sidebarExpanded ? 200 : 0
                 Layout.minimumWidth: 0
+                clip: true
 
                 Behavior on Layout.preferredWidth {
+                    id: sidebarAnimation
+                    enabled: true
                     NumberAnimation {
                         duration: Theme.animation.normal
                         easing.type: Easing.OutCubic
@@ -134,12 +150,15 @@ Rectangle {
                 Layout.maximumWidth: controlPanelCollapsed ? 52 : (controlPanelExpanded ? 280 : 0)
                 Layout.minimumWidth: 0
                 Layout.alignment: Qt.AlignRight
+                clip: true
 
                 onCollapseToggleRequested: {
                     root.controlPanelCollapsed = !root.controlPanelCollapsed
                 }
 
                 Behavior on Layout.preferredWidth {
+                    id: controlPanelAnimation
+                    enabled: true
                     NumberAnimation {
                         duration: Theme.animation.normal
                         easing.type: Easing.OutCubic
@@ -155,7 +174,7 @@ Rectangle {
         anchors.top: parent.top
         anchors.topMargin: 56
         anchors.horizontalCenter: parent.horizontalCenter
-        z: 1000
+        z: 10000
 
         Component.onCompleted: {
             NotificationManager.toastComponent = toast
@@ -166,7 +185,7 @@ Rectangle {
     Dialog {
         id: dialog
         anchors.fill: parent
-        z: 2000
+        z: 20000
 
         Component.onCompleted: {
             NotificationManager.dialogComponent = dialog
@@ -180,19 +199,4 @@ Rectangle {
             NotificationManager.handleCancel()
         }
     }
-
-    // ========== 全局焦点处理器 - 用于退出会话重命名编辑模式 ==========
-    // 当点击应用任何区域时，强制获取焦点从而让输入框失去焦点
-    MouseArea {
-        anchors.fill: parent
-        z: 1000
-        enabled: sidebar.isEditing
-        
-        onPressed: function(mouse) {
-            sidebar.cancelEditing()
-            mouse.accepted = false
-        }
-    }
-
-    Behavior on color { ColorAnimation { duration: Theme.animation.normal } }
 }

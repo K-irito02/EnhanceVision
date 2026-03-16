@@ -15,6 +15,7 @@
 #include "EnhanceVision/controllers/ProcessingController.h"
 #include "EnhanceVision/providers/PreviewProvider.h"
 #include "EnhanceVision/providers/ThumbnailProvider.h"
+#include "EnhanceVision/utils/WindowHelper.h"
 #include <QQmlEngine>
 #include <QQmlContext>
 
@@ -43,6 +44,8 @@ Application::~Application()
 
 void Application::initialize()
 {
+    m_mainWidget->setWindowFlags(Qt::FramelessWindowHint);
+    
     // 注册图像提供者
     QQmlEngine *engine = m_mainWidget->engine();
     engine->addImageProvider(QStringLiteral("preview"), new PreviewProvider());
@@ -56,6 +59,9 @@ void Application::initialize()
 
     // 设置 QML 上下文属性
     setupQmlContext();
+
+    // 设置 WindowHelper 的窗口引用（必须在 show 之前设置，以便设置圆角）
+    WindowHelper::instance()->setWindow(m_mainWidget);
 
     // 加载 QML
     m_mainWidget->setSource(QUrl(QStringLiteral("qrc:/qt/qml/EnhanceVision/qml/main.qml")));
@@ -77,6 +83,12 @@ void Application::show()
 
 void Application::registerQmlTypes()
 {
+    // 注册 WindowHelper 为单例
+    qmlRegisterSingletonType<WindowHelper>("EnhanceVision.Utils", 1, 0, "WindowHelper",
+        [](QQmlEngine*, QJSEngine*) -> QObject* {
+            return WindowHelper::instance();
+        });
+
     // 注册数据模型类型
     qmlRegisterUncreatableType<FileModel>("EnhanceVision.Models", 1, 0, "FileModel",
                                            "FileModel should be accessed via context property");

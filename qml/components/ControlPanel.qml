@@ -206,45 +206,6 @@ Rectangle {
             spacing: 4
 
             Item { Layout.fillHeight: true }
-
-            // 处理按钮（收缩状态）
-            Rectangle {
-                Layout.alignment: Qt.AlignHCenter
-                width: 36
-                height: 36
-                radius: Theme.radius.md
-                color: processBtnMouse.containsMouse ? Theme.colors.primary : Theme.colors.primarySubtle
-                border.width: 1
-                border.color: Theme.colors.primary
-
-                ColoredIcon {
-                    anchors.centerIn: parent
-                    source: Theme.icon("send")
-                    iconSize: 16
-                    color: processBtnMouse.containsMouse ? "#FFFFFF" : Theme.colors.primary
-                }
-
-                MouseArea {
-                    id: processBtnMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: sendToProcessing()
-                }
-
-                Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
-            }
-
-            // 重置按钮（收缩状态）
-            IconButton {
-                Layout.alignment: Qt.AlignHCenter
-                iconName: "rotate-ccw"
-                iconSize: 16
-                btnSize: 36
-                tooltip: qsTr("重置参数")
-                onClicked: resetAllParams()
-            }
-
             Item { Layout.fillHeight: true }
         }
 

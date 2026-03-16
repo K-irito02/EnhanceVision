@@ -102,6 +102,7 @@ qt_add_executable(EnhanceVision
     src/providers/ThumbnailProvider.cpp
     src/utils/FileUtils.cpp
     src/utils/ImageUtils.cpp
+    src/utils/WindowHelper.cpp
     src/controllers/SettingsController.cpp
     src/controllers/SessionController.cpp
     src/controllers/FileController.cpp
@@ -123,6 +124,7 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/providers/ThumbnailProvider.h
     include/EnhanceVision/utils/FileUtils.h
     include/EnhanceVision/utils/ImageUtils.h
+    include/EnhanceVision/utils/WindowHelper.h
     include/EnhanceVision/controllers/SettingsController.h
     include/EnhanceVision/controllers/SessionController.h
     include/EnhanceVision/controllers/FileController.h

@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Window
 import "../styles"
 import "../controls"
+import EnhanceVision.Utils
 
 /**
  * @brief 自定义标题栏组件
@@ -13,17 +14,6 @@ import "../controls"
  */
 Rectangle {
     id: root
-    
-    // ========== 属性定义 ==========
-    /**
-     * @brief 父窗口引用
-     */
-    property var parentWindow: null
-    
-    /**
-     * @brief 是否可拖动区域
-     */
-    property bool isDraggable: true
     
     // ========== 信号 ==========
     signal toggleSidebar()
@@ -36,6 +26,29 @@ Rectangle {
     // ========== 视觉属性 ==========
     color: Theme.colors.titleBar
     height: 48
+    
+    // ========== 排除区域管理 ==========
+    function updateExcludeRegions() {
+        WindowHelper.clearExcludeRegions()
+        
+        // 左侧按钮组区域
+        if (leftButtonsRow.width > 0) {
+            WindowHelper.addExcludeRegion(leftButtonsRow.x, leftButtonsRow.y, leftButtonsRow.width, leftButtonsRow.height)
+        }
+        
+        // 右侧按钮组区域
+        if (rightButtonsRow.width > 0) {
+            WindowHelper.addExcludeRegion(rightButtonsRow.x, rightButtonsRow.y, rightButtonsRow.width, rightButtonsRow.height)
+        }
+    }
+    
+    Component.onCompleted: {
+        updateExcludeRegions()
+    }
+    
+    onWidthChanged: {
+        updateExcludeRegions()
+    }
     
     // ========== 底部分隔线 ==========
     Rectangle {
@@ -105,39 +118,18 @@ Rectangle {
             }
         }
         
-        // ========== 中间：可拖动区域 ==========
-        MouseArea {
-            id: dragArea
+        // ========== 中间：可拖动区域（由 Windows 系统处理） ==========
+        Item {
+            id: dragAreaContainer
             Layout.fillWidth: true
             Layout.fillHeight: true
-            enabled: isDraggable && parentWindow
-            
-            property point startMousePos: Qt.point(0, 0)
-            property point startWindowPos: Qt.point(0, 0)
-            
-            onPressed: {
-                startMousePos = Qt.point(mouseX, mouseY)
-                startWindowPos = Qt.point(parentWindow.x, parentWindow.y)
-            }
-            
-            onPositionChanged: {
-                if (pressed && parentWindow) {
-                    var dx = mouseX - startMousePos.x
-                    var dy = mouseY - startMousePos.y
-                    parentWindow.x = startWindowPos.x + dx
-                    parentWindow.y = startWindowPos.y + dy
-                }
-            }
-            
-            onDoubleClicked: {
-                if (parentWindow) {
-                    toggleMaximize()
-                }
-            }
+            z: 0
         }
         
         // ========== 左侧：功能按钮组 ==========
         RowLayout {
+            id: leftButtonsRow
+            z: 1
             spacing: 2
             Layout.alignment: Qt.AlignVCenter
             
@@ -168,6 +160,7 @@ Rectangle {
         
         // ========== 右侧：功能按钮组 ==========
         RowLayout {
+            id: rightButtonsRow
             spacing: 2
             Layout.alignment: Qt.AlignVCenter
             
@@ -246,18 +239,16 @@ Rectangle {
                 iconSize: 14
                 btnSize: 32
                 tooltip: qsTr("最小化")
-                onClicked: {
-                    if (parentWindow) parentWindow.showMinimized()
-                }
+                onClicked: WindowHelper.minimize()
             }
             
             // 最大化/还原
             IconButton {
-                iconName: (parentWindow && parentWindow.visibility === Window.Maximized) ? "copy" : "square"
+                iconName: WindowHelper.maximized ? "copy" : "square"
                 iconSize: 13
                 btnSize: 32
-                tooltip: (parentWindow && parentWindow.visibility === Window.Maximized) ? qsTr("还原") : qsTr("最大化")
-                onClicked: toggleMaximize()
+                tooltip: WindowHelper.maximized ? qsTr("还原") : qsTr("最大化")
+                onClicked: WindowHelper.toggleMaximize()
             }
             
             // 关闭按钮 - 特殊红色悬浮效果
@@ -268,37 +259,8 @@ Rectangle {
                 btnSize: 32
                 danger: true
                 tooltip: qsTr("关闭")
-                onClicked: {
-                    if (parentWindow) parentWindow.close()
-                }
+                onClicked: WindowHelper.close()
             }
-        }
-    }
-    
-    // ========== 辅助函数 ==========
-    /**
-     * @brief 切换最大化/还原状态
-     */
-    function toggleMaximize() {
-        if (parentWindow) {
-            if (parentWindow.visibility === Window.Maximized) {
-                parentWindow.showNormal()
-            } else {
-                parentWindow.showMaximized()
-            }
-        }
-    }
-    
-    // ========== 初始化 ==========
-    Component.onCompleted: {
-        // 查找父窗口
-        var item = parent
-        while (item) {
-            if (item.window) {
-                parentWindow = item.window
-                break
-            }
-            item = item.parent
         }
     }
     
