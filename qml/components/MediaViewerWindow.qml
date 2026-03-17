@@ -50,6 +50,23 @@ Window {
     property bool _wasMaximized: false
     property var mediaPlayer: null
 
+    property bool hoverActive: true
+    property bool _prevButtonHovered: false
+    property bool _nextButtonHovered: false
+    property bool _buttonsHovered: _prevButtonHovered || _nextButtonHovered
+
+    Timer {
+        id: hideButtonsTimer
+        interval: 2000
+        running: false
+        repeat: false
+        onTriggered: {
+            if (!_buttonsHovered) {
+                hoverActive = false
+            }
+        }
+    }
+
     width: 900
     height: 650
     minimumWidth: 480
@@ -265,7 +282,7 @@ Window {
             Image {
                 id: imageView
                 anchors.fill: parent
-                anchors.margins: 20
+                anchors.margins: 8
                 visible: !isVideo && currentSource !== ""
                 source: {
                     if (isVideo || !currentSource) return ""
@@ -281,12 +298,38 @@ Window {
                 onStatusChanged: {
                     // Image loading status changes
                 }
+
+                MouseArea {
+                    id: imageClickArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    propagateComposedEvents: true
+                    acceptedButtons: Qt.LeftButton
+
+                    onContainsMouseChanged: {
+                        if (containsMouse) {
+                            root.hoverActive = true
+                            hideButtonsTimer.stop()
+                        } else if (!root._buttonsHovered) {
+                            hideButtonsTimer.restart()
+                        }
+                    }
+
+                    onClicked: {
+                        // 切换控制元素显示状态
+                        root.hoverActive = !root.hoverActive
+                    }
+
+                    onDoubleClicked: {
+                        _toggleFullscreen()
+                    }
+                }
             }
 
             Item {
                 id: videoContainer
                 anchors.fill: parent
-                anchors.margins: 20
+                anchors.margins: 8
                 visible: isVideo
 
                 Image {
@@ -418,9 +461,44 @@ Window {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: if (mediaPlayer) mediaPlayer.togglePlay()
+                        onContainsMouseChanged: {
+                            if (containsMouse) {
+                                root.hoverActive = true
+                                hideButtonsTimer.stop()
+                            }
+                        }
                     }
 
                     Behavior on opacity { NumberAnimation { duration: 150 } }
+                }
+
+                MouseArea {
+                    id: videoClickArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    propagateComposedEvents: true
+                    acceptedButtons: Qt.LeftButton
+                    z: 2
+
+                    onContainsMouseChanged: {
+                        if (containsMouse) {
+                            root.hoverActive = true
+                            hideButtonsTimer.stop()
+                        } else if (!root._buttonsHovered) {
+                            hideButtonsTimer.restart()
+                        }
+                    }
+
+                    onClicked: function(mouse) {
+                        if (mediaPlayer) {
+                            mediaPlayer.togglePlay()
+                        }
+                        mouse.accepted = false
+                    }
+
+                    onDoubleClicked: {
+                        _toggleFullscreen()
+                    }
                 }
             }
 
@@ -445,6 +523,7 @@ Window {
         }
 
         Rectangle {
+            id: prevButton
             anchors.left: parent.left
             anchors.leftMargin: 12
             anchors.verticalCenter: contentArea.verticalCenter
@@ -453,6 +532,7 @@ Window {
                    ? (prevMouse.containsMouse ? Qt.rgba(1,1,1,0.2) : Qt.rgba(1,1,1,0.08))
                    : (prevMouse.containsMouse ? Qt.rgba(0,0,0,0.12) : Qt.rgba(0,0,0,0.05))
             visible: currentIndex > 0
+            opacity: hoverActive || prevMouse.containsMouse ? 1.0 : 0.0
             z: 50
 
             ColoredIcon {
@@ -468,12 +548,21 @@ Window {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: _prevFile()
+                onContainsMouseChanged: {
+                    root._prevButtonHovered = containsMouse
+                    if (containsMouse) {
+                        hoverActive = true
+                        hideButtonsTimer.stop()
+                    }
+                }
             }
 
             Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
         }
 
         Rectangle {
+            id: nextButton
             anchors.right: parent.right
             anchors.rightMargin: 12
             anchors.verticalCenter: contentArea.verticalCenter
@@ -482,6 +571,7 @@ Window {
                    ? (nextMouse.containsMouse ? Qt.rgba(1,1,1,0.2) : Qt.rgba(1,1,1,0.08))
                    : (nextMouse.containsMouse ? Qt.rgba(0,0,0,0.12) : Qt.rgba(0,0,0,0.05))
             visible: currentIndex < mediaFiles.length - 1
+            opacity: hoverActive || nextMouse.containsMouse ? 1.0 : 0.0
             z: 50
 
             ColoredIcon {
@@ -497,9 +587,17 @@ Window {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: _nextFile()
+                onContainsMouseChanged: {
+                    root._nextButtonHovered = containsMouse
+                    if (containsMouse) {
+                        hoverActive = true
+                        hideButtonsTimer.stop()
+                    }
+                }
             }
 
             Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
         }
 
         Rectangle {
