@@ -47,12 +47,20 @@ static LRESULT CALLBACK SubWindowWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
         int windowWidth = windowRect.right - windowRect.left;
         int windowHeight = windowRect.bottom - windowRect.top;
 
-        int titleBarHeight = 40;
+        int titleBarHeight = helper->windowTitleBarHeight();
         int margin = helper->windowResizeMargin();
 
         if (localY >= 0 && localY < titleBarHeight) {
-            bool inRightArea = localX >= windowWidth - 50;
-            if (!inRightArea) {
+            bool inExcludeRegion = false;
+            const QVector<QRect>& excludeRegions = helper->excludeRegions();
+            for (const QRect& region : excludeRegions) {
+                if (region.contains(localX, localY)) {
+                    inExcludeRegion = true;
+                    break;
+                }
+            }
+
+            if (!inExcludeRegion) {
                 if (!helper->isWindowMaximized()) {
                     bool onLeft = localX < margin;
                     bool onRight = localX >= windowWidth - margin;
@@ -182,6 +190,14 @@ void SubWindowHelper::setResizeMargin(int margin)
     if (m_resizeMargin != margin) {
         m_resizeMargin = margin;
         emit resizeMarginChanged();
+    }
+}
+
+void SubWindowHelper::setTitleBarHeight(int height)
+{
+    if (m_titleBarHeight != height) {
+        m_titleBarHeight = height;
+        emit titleBarHeightChanged();
     }
 }
 

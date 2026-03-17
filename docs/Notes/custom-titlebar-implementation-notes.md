@@ -130,6 +130,44 @@ onVisibleChanged: {
 }
 ```
 
+### 问题 5：标题栏按钮不起作用（排除区域机制未生效）
+
+**现象**：MediaViewerWindow 和 Shader 模式对话框的标题栏按钮不起作用，需要多次点击。
+
+**原因**：
+1. `SubWindowWndProc` 函数中**完全没有使用**排除区域 `m_excludeRegions`，而是硬编码了 `localX >= windowWidth - 50` 的判断逻辑
+2. 标题栏高度硬编码为 40px，而 MediaViewerWindow 实际高度为 44px
+
+**解决方案**：
+1. 添加 `titleBarHeight` 属性支持动态配置
+2. 修改 `SubWindowWndProc` 使用排除区域机制替代硬编码
+
+修改代码：
+```cpp
+// 修改前
+int titleBarHeight = 40;  // 硬编码
+bool inRightArea = localX >= windowWidth - 50;  // 硬编码
+
+// 修改后
+int titleBarHeight = helper->windowTitleBarHeight();  // 动态获取
+bool inExcludeRegion = false;
+for (const QRect& region : helper->excludeRegions()) {
+    if (region.contains(localX, localY)) {
+        inExcludeRegion = true;
+        break;
+    }
+}
+```
+
+QML 端设置：
+```qml
+SubWindowHelper {
+    Component.onCompleted: {
+        windowHelper.setTitleBarHeight(44)  // MediaViewerWindow 使用 44px
+    }
+}
+```
+
 ---
 
 ## 三、技术实现细节

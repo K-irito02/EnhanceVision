@@ -85,6 +85,7 @@ Window {
             windowHelper.setWindow(root)
             windowHelper.setMinWidth(480)
             windowHelper.setMinHeight(360)
+            windowHelper.setTitleBarHeight(44)
         }
     }
 

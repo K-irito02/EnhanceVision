@@ -26,6 +26,7 @@ class SubWindowHelper : public QObject
     Q_PROPERTY(int minWidth READ minWidth WRITE setMinWidth NOTIFY minSizeChanged)
     Q_PROPERTY(int minHeight READ minHeight WRITE setMinHeight NOTIFY minSizeChanged)
     Q_PROPERTY(int resizeMargin READ resizeMargin WRITE setResizeMargin NOTIFY resizeMarginChanged)
+    Q_PROPERTY(int titleBarHeight READ titleBarHeight WRITE setTitleBarHeight NOTIFY titleBarHeightChanged)
 
 public:
     explicit SubWindowHelper(QObject* parent = nullptr);
@@ -48,6 +49,9 @@ public:
     int resizeMargin() const { return m_resizeMargin; }
     void setResizeMargin(int margin);
 
+    int titleBarHeight() const { return m_titleBarHeight; }
+    Q_INVOKABLE void setTitleBarHeight(int height);
+
     Q_INVOKABLE void clearExcludeRegions();
     Q_INVOKABLE void addExcludeRegion(int x, int y, int width, int height);
 
@@ -56,11 +60,13 @@ public:
     int windowResizeMargin() const { return m_resizeMargin; }
     int windowMinWidth() const { return m_minWidth; }
     int windowMinHeight() const { return m_minHeight; }
+    int windowTitleBarHeight() const { return m_titleBarHeight; }
 
 signals:
     void maximizedChanged();
     void minSizeChanged();
     void resizeMarginChanged();
+    void titleBarHeightChanged();
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -74,6 +80,7 @@ private:
     int m_minWidth = 400;
     int m_minHeight = 300;
     int m_resizeMargin = 8;
+    int m_titleBarHeight = 40;
     QRect m_normalGeometry;
     QVector<QRect> m_excludeRegions;
 
