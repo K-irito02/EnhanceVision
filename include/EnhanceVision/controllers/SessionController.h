@@ -117,16 +117,11 @@ private:
     QString generateSessionId();
     QString generateDefaultSessionName();
     
-    /**
-     * @brief 保存当前会话的消息到Session
-     */
     void saveCurrentSessionMessages();
     
-    /**
-     * @brief 从Session加载消息到MessageModel
-     * @param sessionId 会话ID
-     */
     void loadSessionMessages(const QString& sessionId);
+    
+    void onMessageCountChanged();
 };
 
 } // namespace EnhanceVision

@@ -59,7 +59,27 @@ SessionController::~SessionController()
 
 void SessionController::setMessageModel(MessageModel* model)
 {
+    if (m_messageModel) {
+        disconnect(m_messageModel, &MessageModel::countChanged, this, nullptr);
+    }
+    
     m_messageModel = model;
+    
+    if (m_messageModel) {
+        connect(m_messageModel, &MessageModel::countChanged, this, &SessionController::onMessageCountChanged);
+    }
+}
+
+void SessionController::onMessageCountChanged()
+{
+    QString currentId = m_sessionModel->activeSessionId();
+    if (currentId.isEmpty() || !m_messageModel) return;
+    
+    Session* session = getSession(currentId);
+    if (session) {
+        m_messageModel->syncToSession(*session);
+        m_sessionModel->notifySessionDataChanged(currentId);
+    }
 }
 
 QString SessionController::activeSessionId() const
