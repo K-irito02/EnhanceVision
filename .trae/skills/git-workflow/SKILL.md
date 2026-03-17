@@ -5,7 +5,7 @@ description: "Manages version control and GitHub submissions following Git Flow 
 
 # Git Workflow & Standards
 
-此技能确保所有版本控制操作遵循项目标准，详见 `.trae/rules/06-git-and-i18n.md`。
+此技能确保所有版本控制操作遵循项目标准，详见 `.trae/rules/01-project-overview.md` 和 `.trae/rules/05-build-system.md`。
 
 ## Git Flow Strategy
 
@@ -73,6 +73,7 @@ Format: `<type>(scope): <subject>`
 | `.gitignore` | Git 忽略配置 | **必须** |
 | `.clang-format` | C++ 代码格式化配置 | **必须** |
 | `.clang-tidy` | C++ 静态分析配置 | **必须** |
+| `docs/` | 项目开发文档（Notes 子目录） | **必须** |
 
 ### IDE 配置目录
 
