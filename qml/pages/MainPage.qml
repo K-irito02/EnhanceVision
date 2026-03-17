@@ -402,18 +402,17 @@ Rectangle {
     Connections {
         target: typeof fileModel !== "undefined" ? fileModel : null
         enabled: typeof fileModel !== "undefined"
-        function onRowsRemoved(parent, first, last) {
-            _syncPendingViewerWindow()
-        }
+        function onRowsInserted(parent, first, last) { _syncPendingViewerWindow() }
+        function onRowsRemoved(parent, first, last) { _syncPendingViewerWindow() }
+        function onDataChanged(topLeft, bottomRight, roles) { _syncPendingViewerWindow() }
+        function onModelReset() { _syncPendingViewerWindow() }
     }
     
     // 监听 pendingFilesModel 变化（demo 模式）
     Connections {
         target: typeof fileModel === "undefined" ? pendingFilesModel : null
         enabled: typeof fileModel === "undefined"
-        function onCountChanged() {
-            _syncPendingViewerWindow()
-        }
+        function onCountChanged() { _syncPendingViewerWindow() }
     }
     
     // ========== 临时待处理文件模型（无 C++ fileModel 时使用） ==========

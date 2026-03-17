@@ -468,9 +468,17 @@ bool MessageModel::removeMediaFile(const QString &messageId, int fileIndex)
 
     message.mediaFiles.removeAt(fileIndex);
     
-    QModelIndex modelIndex = createIndex(msgIdx, 0);
-    emit dataChanged(modelIndex, modelIndex, {MediaFilesRole});
-    emit mediaFileRemoved(messageId, fileIndex);
+    if (message.mediaFiles.isEmpty()) {
+        beginRemoveRows(QModelIndex(), msgIdx, msgIdx);
+        m_messages.removeAt(msgIdx);
+        endRemoveRows();
+        emit countChanged();
+        emit messageRemoved(messageId);
+    } else {
+        QModelIndex modelIndex = createIndex(msgIdx, 0);
+        emit dataChanged(modelIndex, modelIndex, {MediaFilesRole});
+        emit mediaFileRemoved(messageId, fileIndex);
+    }
     
     return true;
 }

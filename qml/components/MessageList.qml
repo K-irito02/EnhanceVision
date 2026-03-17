@@ -197,6 +197,11 @@ Item {
                 root._syncViewerWindow(messageId, fileIndex)
             }
         }
+        function onMessageRemoved(messageId) {
+            if (viewerWindow.visible && viewerWindow.currentMessageId === messageId) {
+                viewerWindow.close()
+            }
+        }
     }
 
     // ========== 演示数据模型 ==========
@@ -267,6 +272,7 @@ Item {
         }
         
         if (files.length > 0) {
+            viewerWindow.messageId = msgId
             viewerWindow.currentMessageId = msgId
             viewerWindow.mediaFiles = files
             viewerWindow.openAt(Math.min(fileIndex, files.length - 1))
@@ -298,9 +304,6 @@ Item {
         
         if (files.length === 0) {
             viewerWindow.close()
-            if (root._hasRealModel) {
-                messageModel.removeMessage(messageId)
-            }
             return
         }
         
