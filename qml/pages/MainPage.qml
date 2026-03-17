@@ -389,6 +389,21 @@ Rectangle {
         id: pendingViewerWindow
         messageMode: false
         
+        shaderEnabled: root.processingMode === 0 && _getShaderParam("hasShaderModifications", false)
+        shaderBrightness: _getShaderParam("shaderBrightness", 0.0)
+        shaderContrast: _getShaderParam("shaderContrast", 1.0)
+        shaderSaturation: _getShaderParam("shaderSaturation", 1.0)
+        shaderHue: _getShaderParam("shaderHue", 0.0)
+        shaderSharpness: _getShaderParam("shaderSharpness", 0.0)
+        shaderBlur: _getShaderParam("shaderBlur", 0.0)
+        shaderExposure: _getShaderParam("shaderExposure", 0.0)
+        shaderGamma: _getShaderParam("shaderGamma", 1.0)
+        shaderTemperature: _getShaderParam("shaderTemperature", 0.0)
+        shaderTint: _getShaderParam("shaderTint", 0.0)
+        shaderVignette: _getShaderParam("shaderVignette", 0.0)
+        shaderHighlights: _getShaderParam("shaderHighlights", 0.0)
+        shaderShadows: _getShaderParam("shaderShadows", 0.0)
+        
         onFileRemoved: function(msgId, fileIndex) {
             if (typeof fileController !== "undefined") {
                 fileController.removeFileAt(fileIndex)
@@ -448,13 +463,43 @@ Rectangle {
     }
     
     // ========== 内部方法 ==========
+    function _getShaderParam(paramName, defaultValue) {
+        var p = root.parent
+        while (p) {
+            if (p.objectName === "AppRoot" || (p[paramName] !== undefined)) {
+                return p[paramName] !== undefined ? p[paramName] : defaultValue
+            }
+            p = p.parent
+        }
+        return defaultValue
+    }
+    
     function _sendForProcessing() {
         console.log("发送处理任务，模式:", root.processingMode === 0 ? "Shader" : "AI")
         if (typeof sessionController !== "undefined") {
             sessionController.ensureActiveSession()
         }
         if (typeof processingController !== "undefined") {
-            processingController.sendToProcessing(root.processingMode, {})
+            var params = {}
+            if (root.processingMode === 0) {
+                params = {
+                    brightness: _getShaderParam("shaderBrightness", 0.0),
+                    contrast: _getShaderParam("shaderContrast", 1.0),
+                    saturation: _getShaderParam("shaderSaturation", 1.0),
+                    hue: _getShaderParam("shaderHue", 0.0),
+                    sharpness: _getShaderParam("shaderSharpness", 0.0),
+                    blur: _getShaderParam("shaderBlur", 0.0),
+                    denoise: _getShaderParam("shaderDenoise", 0.0),
+                    exposure: _getShaderParam("shaderExposure", 0.0),
+                    gamma: _getShaderParam("shaderGamma", 1.0),
+                    temperature: _getShaderParam("shaderTemperature", 0.0),
+                    tint: _getShaderParam("shaderTint", 0.0),
+                    vignette: _getShaderParam("shaderVignette", 0.0),
+                    highlights: _getShaderParam("shaderHighlights", 0.0),
+                    shadows: _getShaderParam("shaderShadows", 0.0)
+                }
+            }
+            processingController.sendToProcessing(root.processingMode, params)
         }
     }
     

@@ -59,20 +59,36 @@ enum class QueueStatus {
  * @brief Shader 参数结构
  */
 struct ShaderParams {
-    float brightness;  ///< 亮度 (-1.0 ~ 1.0)
-    float contrast;    ///< 对比度 (0.0 ~ 2.0)
-    float saturation;  ///< 饱和度 (0.0 ~ 2.0)
-    float sharpness;   ///< 锐度 (0.0 ~ 2.0)
-    float denoise;     ///< 降噪 (0.0 ~ 1.0)
-    float hue;         ///< 色相 (-1.0 ~ 1.0)
+    float brightness;    ///< 亮度 (-1.0 ~ 1.0)
+    float contrast;      ///< 对比度 (0.0 ~ 2.0)
+    float saturation;    ///< 饱和度 (0.0 ~ 2.0)
+    float sharpness;     ///< 锐度 (0.0 ~ 2.0)
+    float blur;          ///< 模糊 (0.0 ~ 1.0)
+    float denoise;       ///< 降噪 (0.0 ~ 1.0)
+    float hue;           ///< 色相 (-0.5 ~ 0.5)
+    float exposure;      ///< 曝光 (-1.0 ~ 1.0)
+    float gamma;         ///< 伽马 (0.5 ~ 2.0)
+    float temperature;   ///< 色温 (-0.5 ~ 0.5)
+    float tint;          ///< 色调 (-0.5 ~ 0.5)
+    float vignette;      ///< 晕影 (0.0 ~ 1.0)
+    float highlights;    ///< 高光 (-1.0 ~ 1.0)
+    float shadows;       ///< 阴影 (-1.0 ~ 1.0)
 
     ShaderParams()
         : brightness(0.0f)
         , contrast(1.0f)
         , saturation(1.0f)
         , sharpness(0.0f)
+        , blur(0.0f)
         , denoise(0.0f)
         , hue(0.0f)
+        , exposure(0.0f)
+        , gamma(1.0f)
+        , temperature(0.0f)
+        , tint(0.0f)
+        , vignette(0.0f)
+        , highlights(0.0f)
+        , shadows(0.0f)
     {}
 };
 

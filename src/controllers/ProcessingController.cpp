@@ -9,6 +9,8 @@
 #include "EnhanceVision/controllers/FileController.h"
 #include "EnhanceVision/controllers/SessionController.h"
 #include "EnhanceVision/models/MessageModel.h"
+#include "EnhanceVision/utils/ImageUtils.h"
+#include "EnhanceVision/providers/ThumbnailProvider.h"
 #include <QUuid>
 #include <QDebug>
 #include <QTimer>
@@ -394,7 +396,38 @@ void ProcessingController::completeTask(const QString& taskId, const QString& re
                 m_tasks[i].progress = 100;
                 emit taskCompleted(taskId, resultPath);
 
-                // 更新消息中对应文件的状态和结果路径
+                Message msg = m_messageModel->messageById(messageId);
+                
+                for (const MediaFile& mf : msg.mediaFiles) {
+                    if (mf.id == fileId) {
+                        if (msg.mode == ProcessingMode::Shader && ImageUtils::isImageFile(mf.filePath)) {
+                            QImage originalThumb = ImageUtils::generateThumbnail(mf.filePath, QSize(256, 256));
+                            if (!originalThumb.isNull()) {
+                                QImage processedThumb = ImageUtils::applyShaderEffects(
+                                    originalThumb,
+                                    msg.shaderParams.brightness,
+                                    msg.shaderParams.contrast,
+                                    msg.shaderParams.saturation,
+                                    msg.shaderParams.hue,
+                                    msg.shaderParams.exposure,
+                                    msg.shaderParams.gamma,
+                                    msg.shaderParams.temperature,
+                                    msg.shaderParams.tint,
+                                    msg.shaderParams.vignette,
+                                    msg.shaderParams.highlights,
+                                    msg.shaderParams.shadows
+                                );
+                                
+                                QString thumbId = "processed_" + fileId;
+                                if (ThumbnailProvider::instance()) {
+                                    ThumbnailProvider::instance()->setThumbnail(thumbId, processedThumb);
+                                }
+                            }
+                        }
+                        break;
+                    }
+                }
+
                 if (m_messageModel) {
                     m_messageModel->updateFileStatus(messageId, fileId,
                         static_cast<int>(ProcessingStatus::Completed), resultPath);
@@ -405,11 +438,9 @@ void ProcessingController::completeTask(const QString& taskId, const QString& re
             emit currentProcessingCountChanged();
             m_processingModel->updateTasks(m_tasks);
 
-            // 同步消息整体进度和状态
             syncMessageProgress(messageId);
             syncMessageStatus(messageId);
 
-            // 继续处理下一个任务
             processNextTask();
             break;
         }
@@ -480,8 +511,17 @@ QString ProcessingController::sendToProcessing(int mode, const QVariantMap& para
         message.shaderParams.brightness = params.value("brightness", 0.0f).toFloat();
         message.shaderParams.contrast = params.value("contrast", 1.0f).toFloat();
         message.shaderParams.saturation = params.value("saturation", 1.0f).toFloat();
+        message.shaderParams.hue = params.value("hue", 0.0f).toFloat();
         message.shaderParams.sharpness = params.value("sharpness", 0.0f).toFloat();
+        message.shaderParams.blur = params.value("blur", 0.0f).toFloat();
         message.shaderParams.denoise = params.value("denoise", 0.0f).toFloat();
+        message.shaderParams.exposure = params.value("exposure", 0.0f).toFloat();
+        message.shaderParams.gamma = params.value("gamma", 1.0f).toFloat();
+        message.shaderParams.temperature = params.value("temperature", 0.0f).toFloat();
+        message.shaderParams.tint = params.value("tint", 0.0f).toFloat();
+        message.shaderParams.vignette = params.value("vignette", 0.0f).toFloat();
+        message.shaderParams.highlights = params.value("highlights", 0.0f).toFloat();
+        message.shaderParams.shadows = params.value("shadows", 0.0f).toFloat();
     }
 
     // 将消息添加到 MessageModel（QML 会自动更新显示）

@@ -243,4 +243,202 @@ bool ImageUtils::isVideoFile(const QString &filePath)
     return videoExtensions.contains(suffix);
 }
 
+QImage ImageUtils::applyShaderEffects(const QImage &image, 
+                                       float brightness,
+                                       float contrast,
+                                       float saturation,
+                                       float hue,
+                                       float exposure,
+                                       float gamma,
+                                       float temperature,
+                                       float tint,
+                                       float vignette,
+                                       float highlights,
+                                       float shadows)
+{
+    if (image.isNull()) {
+        return QImage();
+    }
+    
+    QImage result = image.convertToFormat(QImage::Format_ARGB32);
+    
+    int width = result.width();
+    int height = result.height();
+    int centerX = width / 2;
+    int centerY = height / 2;
+    float maxDist = std::sqrt(centerX * centerX + centerY * centerY);
+    
+    for (int y = 0; y < height; ++y) {
+        QRgb* line = reinterpret_cast<QRgb*>(result.scanLine(y));
+        for (int x = 0; x < width; ++x) {
+            float r = qRed(line[x]) / 255.0f;
+            float g = qGreen(line[x]) / 255.0f;
+            float b = qBlue(line[x]) / 255.0f;
+            int a = qAlpha(line[x]);
+            
+            // 曝光
+            if (qAbs(exposure) > 0.001f) {
+                r = r * std::pow(2.0f, exposure);
+                g = g * std::pow(2.0f, exposure);
+                b = b * std::pow(2.0f, exposure);
+            }
+            
+            // 亮度
+            if (qAbs(brightness) > 0.001f) {
+                r = qBound(0.0f, r + brightness, 1.0f);
+                g = qBound(0.0f, g + brightness, 1.0f);
+                b = qBound(0.0f, b + brightness, 1.0f);
+            }
+            
+            // 对比度
+            if (qAbs(contrast - 1.0f) > 0.001f) {
+                r = qBound(0.0f, (r - 0.5f) * contrast + 0.5f, 1.0f);
+                g = qBound(0.0f, (g - 0.5f) * contrast + 0.5f, 1.0f);
+                b = qBound(0.0f, (b - 0.5f) * contrast + 0.5f, 1.0f);
+            }
+            
+            // 饱和度
+            if (qAbs(saturation - 1.0f) > 0.001f) {
+                float gray = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+                r = qBound(0.0f, gray + saturation * (r - gray), 1.0f);
+                g = qBound(0.0f, gray + saturation * (g - gray), 1.0f);
+                b = qBound(0.0f, gray + saturation * (b - gray), 1.0f);
+            }
+            
+            // 色相
+            if (qAbs(hue) > 0.001f) {
+                float h, s, v;
+                rgbToHsv(r, g, b, h, s, v);
+                h = h + hue;
+                if (h < 0.0f) h += 1.0f;
+                if (h > 1.0f) h -= 1.0f;
+                hsvToRgb(h, s, v, r, g, b);
+            }
+            
+            // 伽马
+            if (qAbs(gamma - 1.0f) > 0.001f) {
+                float invGamma = 1.0f / gamma;
+                r = std::pow(r, invGamma);
+                g = std::pow(g, invGamma);
+                b = std::pow(b, invGamma);
+            }
+            
+            // 色温
+            if (qAbs(temperature) > 0.001f) {
+                if (temperature > 0.0f) {
+                    r = qBound(0.0f, r + temperature * 0.1f, 1.0f);
+                    b = qBound(0.0f, b - temperature * 0.1f, 1.0f);
+                } else {
+                    r = qBound(0.0f, r + temperature * 0.1f, 1.0f);
+                    b = qBound(0.0f, b - temperature * 0.1f, 1.0f);
+                }
+            }
+            
+            // 色调
+            if (qAbs(tint) > 0.001f) {
+                if (tint > 0.0f) {
+                    g = qBound(0.0f, g + tint * 0.1f, 1.0f);
+                } else {
+                    g = qBound(0.0f, g + tint * 0.1f, 1.0f);
+                }
+            }
+            
+            // 高光
+            if (qAbs(highlights) > 0.001f) {
+                float luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+                if (luminance > 0.5f) {
+                    float factor = (luminance - 0.5f) * 2.0f;
+                    float adjustment = highlights * factor * 0.2f;
+                    r = qBound(0.0f, r + adjustment, 1.0f);
+                    g = qBound(0.0f, g + adjustment, 1.0f);
+                    b = qBound(0.0f, b + adjustment, 1.0f);
+                }
+            }
+            
+            // 阴影
+            if (qAbs(shadows) > 0.001f) {
+                float luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+                if (luminance < 0.5f) {
+                    float factor = (0.5f - luminance) * 2.0f;
+                    float adjustment = shadows * factor * 0.2f;
+                    r = qBound(0.0f, r + adjustment, 1.0f);
+                    g = qBound(0.0f, g + adjustment, 1.0f);
+                    b = qBound(0.0f, b + adjustment, 1.0f);
+                }
+            }
+            
+            // 晕影
+            if (vignette > 0.001f) {
+                float dx = x - centerX;
+                float dy = y - centerY;
+                float dist = std::sqrt(dx * dx + dy * dy) / maxDist;
+                float vignetteFactor = 1.0f - vignette * dist * dist;
+                vignetteFactor = qBound(0.0f, vignetteFactor, 1.0f);
+                r *= vignetteFactor;
+                g *= vignetteFactor;
+                b *= vignetteFactor;
+            }
+            
+            line[x] = qRgba(static_cast<int>(qBound(0.0f, r, 1.0f) * 255),
+                           static_cast<int>(qBound(0.0f, g, 1.0f) * 255),
+                           static_cast<int>(qBound(0.0f, b, 1.0f) * 255),
+                           a);
+        }
+    }
+    
+    return result;
+}
+
+void ImageUtils::rgbToHsv(float r, float g, float b, float &h, float &s, float &v)
+{
+    float max = std::max({r, g, b});
+    float min = std::min({r, g, b});
+    float delta = max - min;
+    
+    v = max;
+    
+    if (delta < 0.00001f) {
+        h = 0.0f;
+        s = 0.0f;
+        return;
+    }
+    
+    s = delta / max;
+    
+    if (max == r) {
+        h = (g - b) / delta;
+        if (g < b) h += 6.0f;
+    } else if (max == g) {
+        h = 2.0f + (b - r) / delta;
+    } else {
+        h = 4.0f + (r - g) / delta;
+    }
+    
+    h /= 6.0f;
+}
+
+void ImageUtils::hsvToRgb(float h, float s, float v, float &r, float &g, float &b)
+{
+    if (s < 0.00001f) {
+        r = g = b = v;
+        return;
+    }
+    
+    h *= 6.0f;
+    int i = static_cast<int>(h);
+    float f = h - i;
+    float p = v * (1.0f - s);
+    float q = v * (1.0f - s * f);
+    float t = v * (1.0f - s * (1.0f - f));
+    
+    switch (i % 6) {
+        case 0: r = v; g = t; b = p; break;
+        case 1: r = q; g = v; b = p; break;
+        case 2: r = p; g = v; b = t; break;
+        case 3: r = p; g = q; b = v; break;
+        case 4: r = t; g = p; b = v; break;
+        case 5: r = v; g = p; b = q; break;
+    }
+}
+
 } // namespace EnhanceVision

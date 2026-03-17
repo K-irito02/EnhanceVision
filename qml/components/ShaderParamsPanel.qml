@@ -1765,7 +1765,7 @@ ColumnLayout {
             Layout.fillWidth: true
             title: qsTr("基础调整")
             icon: "adjust-basic"
-            hasModifiedValues: brightness !== 0.0 || contrast !== 1.0 || saturation !== 1.0 || hue !== 0.0
+            hasModifiedValues: Math.abs(brightness) > 0.001 || Math.abs(contrast - 1.0) > 0.001 || Math.abs(saturation - 1.0) > 0.001 || Math.abs(hue) > 0.001
 
             ColumnLayout {
                 spacing: 8
@@ -1775,7 +1775,7 @@ ColumnLayout {
                     paramName: qsTr("亮度")
                     from: -1.0
                     to: 1.0
-                    value: root.brightness
+                    externalValue: root.brightness
                     stepSize: 0.01
                     decimals: 2
                     onParamValueChanged: function(newValue) {
@@ -1789,7 +1789,7 @@ ColumnLayout {
                     paramName: qsTr("对比度")
                     from: 0.0
                     to: 2.0
-                    value: root.contrast
+                    externalValue: root.contrast
                     stepSize: 0.01
                     decimals: 2
                     onParamValueChanged: function(newValue) {
@@ -1803,7 +1803,7 @@ ColumnLayout {
                     paramName: qsTr("饱和度")
                     from: 0.0
                     to: 2.0
-                    value: root.saturation
+                    externalValue: root.saturation
                     stepSize: 0.01
                     decimals: 2
                     onParamValueChanged: function(newValue) {
@@ -1817,7 +1817,7 @@ ColumnLayout {
                     paramName: qsTr("色相")
                     from: -0.5
                     to: 0.5
-                    value: root.hue
+                    externalValue: root.hue
                     stepSize: 0.01
                     decimals: 2
                     onParamValueChanged: function(newValue) {
@@ -1858,6 +1858,10 @@ ColumnLayout {
                                 contrast = 1.0
                                 saturation = 1.0
                                 hue = 0.0
+                                root.paramChanged("brightness", 0.0)
+                                root.paramChanged("contrast", 1.0)
+                                root.paramChanged("saturation", 1.0)
+                                root.paramChanged("hue", 0.0)
                             }
                         }
                     }
@@ -1870,7 +1874,7 @@ ColumnLayout {
             Layout.fillWidth: true
             title: qsTr("细节增强")
             icon: "detail-enhance"
-            hasModifiedValues: sharpness !== 0.0 || blur !== 0.0 || denoise !== 0.0
+            hasModifiedValues: Math.abs(sharpness) > 0.001 || Math.abs(blur) > 0.001 || Math.abs(denoise) > 0.001
 
             ColumnLayout {
                 spacing: 8
@@ -1880,7 +1884,7 @@ ColumnLayout {
                     paramName: qsTr("锐度")
                     from: 0.0
                     to: 2.0
-                    value: root.sharpness
+                    externalValue: root.sharpness
                     stepSize: 0.01
                     decimals: 2
                     onParamValueChanged: function(newValue) {
@@ -1894,7 +1898,7 @@ ColumnLayout {
                     paramName: qsTr("模糊")
                     from: 0.0
                     to: 1.0
-                    value: root.blur
+                    externalValue: root.blur
                     stepSize: 0.01
                     decimals: 2
                     onParamValueChanged: function(newValue) {
@@ -1908,7 +1912,7 @@ ColumnLayout {
                     paramName: qsTr("降噪")
                     from: 0.0
                     to: 1.0
-                    value: root.denoise
+                    externalValue: root.denoise
                     stepSize: 0.01
                     decimals: 2
                     onParamValueChanged: function(newValue) {
@@ -1948,6 +1952,9 @@ ColumnLayout {
                                 sharpness = 0.0
                                 blur = 0.0
                                 denoise = 0.0
+                                root.paramChanged("sharpness", 0.0)
+                                root.paramChanged("blur", 0.0)
+                                root.paramChanged("denoise", 0.0)
                             }
                         }
                     }
@@ -1960,7 +1967,7 @@ ColumnLayout {
             Layout.fillWidth: true
             title: qsTr("光影调整")
             icon: "light-shadow"
-            hasModifiedValues: exposure !== 0.0 || gamma !== 1.0 || highlights !== 0.0 || shadows !== 0.0
+            hasModifiedValues: Math.abs(exposure) > 0.001 || Math.abs(gamma - 1.0) > 0.001 || Math.abs(highlights) > 0.001 || Math.abs(shadows) > 0.001
 
             ColumnLayout {
                 spacing: 4
@@ -1970,7 +1977,7 @@ ColumnLayout {
                     paramName: qsTr("曝光")
                     from: -1.0
                     to: 1.0
-                    value: root.exposure
+                    externalValue: root.exposure
                     stepSize: 0.01
                     decimals: 2
                     onParamValueChanged: function(newValue) {
@@ -1984,7 +1991,7 @@ ColumnLayout {
                     paramName: qsTr("伽马")
                     from: 0.5
                     to: 2.0
-                    value: root.gamma
+                    externalValue: root.gamma
                     stepSize: 0.01
                     decimals: 2
                     onParamValueChanged: function(newValue) {
@@ -1998,7 +2005,7 @@ ColumnLayout {
                     paramName: qsTr("高光")
                     from: -1.0
                     to: 1.0
-                    value: root.highlights
+                    externalValue: root.highlights
                     stepSize: 0.01
                     decimals: 2
                     onParamValueChanged: function(newValue) {
@@ -2012,7 +2019,7 @@ ColumnLayout {
                     paramName: qsTr("阴影")
                     from: -1.0
                     to: 1.0
-                    value: root.shadows
+                    externalValue: root.shadows
                     stepSize: 0.01
                     decimals: 2
                     onParamValueChanged: function(newValue) {
@@ -2053,6 +2060,10 @@ ColumnLayout {
                                 gamma = 1.0
                                 highlights = 0.0
                                 shadows = 0.0
+                                root.paramChanged("exposure", 0.0)
+                                root.paramChanged("gamma", 1.0)
+                                root.paramChanged("highlights", 0.0)
+                                root.paramChanged("shadows", 0.0)
                             }
                         }
                     }
@@ -2065,7 +2076,7 @@ ColumnLayout {
             Layout.fillWidth: true
             title: qsTr("色彩调整")
             icon: "color-palette"
-            hasModifiedValues: temperature !== 0.0 || tint !== 0.0 || vignette !== 0.0
+            hasModifiedValues: Math.abs(temperature) > 0.001 || Math.abs(tint) > 0.001 || Math.abs(vignette) > 0.001
 
             ColumnLayout {
                 spacing: 4
@@ -2075,7 +2086,7 @@ ColumnLayout {
                     paramName: qsTr("色温")
                     from: -0.5
                     to: 0.5
-                    value: root.temperature
+                    externalValue: root.temperature
                     stepSize: 0.01
                     decimals: 2
                     onParamValueChanged: function(newValue) {
@@ -2089,7 +2100,7 @@ ColumnLayout {
                     paramName: qsTr("色调")
                     from: -0.5
                     to: 0.5
-                    value: root.tint
+                    externalValue: root.tint
                     stepSize: 0.01
                     decimals: 2
                     onParamValueChanged: function(newValue) {
@@ -2103,7 +2114,7 @@ ColumnLayout {
                     paramName: qsTr("晕影")
                     from: 0.0
                     to: 1.0
-                    value: root.vignette
+                    externalValue: root.vignette
                     stepSize: 0.01
                     decimals: 2
                     onParamValueChanged: function(newValue) {
@@ -2143,6 +2154,9 @@ ColumnLayout {
                                 temperature = 0.0
                                 tint = 0.0
                                 vignette = 0.0
+                                root.paramChanged("temperature", 0.0)
+                                root.paramChanged("tint", 0.0)
+                                root.paramChanged("vignette", 0.0)
                             }
                         }
                     }
@@ -2177,6 +2191,21 @@ ColumnLayout {
         tint = preset.tint !== undefined ? preset.tint : 0.0
         highlights = preset.highlights !== undefined ? preset.highlights : 0.0
         shadows = preset.shadows !== undefined ? preset.shadows : 0.0
+        
+        root.paramChanged("brightness", brightness)
+        root.paramChanged("contrast", contrast)
+        root.paramChanged("saturation", saturation)
+        root.paramChanged("hue", hue)
+        root.paramChanged("sharpness", sharpness)
+        root.paramChanged("blur", blur)
+        root.paramChanged("denoise", denoise)
+        root.paramChanged("exposure", exposure)
+        root.paramChanged("gamma", gamma)
+        root.paramChanged("temperature", temperature)
+        root.paramChanged("tint", tint)
+        root.paramChanged("vignette", vignette)
+        root.paramChanged("highlights", highlights)
+        root.paramChanged("shadows", shadows)
     }
 
     function resetAll() {

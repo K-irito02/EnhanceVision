@@ -31,6 +31,21 @@ Window {
     property bool showOriginal: false
     property string messageId: ""
 
+    property bool shaderEnabled: false
+    property real shaderBrightness: 0.0
+    property real shaderContrast: 1.0
+    property real shaderSaturation: 1.0
+    property real shaderHue: 0.0
+    property real shaderSharpness: 0.0
+    property real shaderBlur: 0.0
+    property real shaderExposure: 0.0
+    property real shaderGamma: 1.0
+    property real shaderTemperature: 0.0
+    property real shaderTint: 0.0
+    property real shaderVignette: 0.0
+    property real shaderHighlights: 0.0
+    property real shaderShadows: 0.0
+
     property var currentFile: mediaFiles.length > 0 && currentIndex >= 0 && currentIndex < mediaFiles.length
                               ? mediaFiles[currentIndex] : null
     property bool isVideo: currentFile ? (currentFile.mediaType === 1) : false
@@ -242,7 +257,7 @@ Window {
                         }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: showOriginal ? qsTr("查看处理后") : qsTr("查看原图")
+                            text: showOriginal ? qsTr("查看修改") : qsTr("查看原图")
                             color: Theme.colors.foreground
                             font.pixelSize: 12
                         }
@@ -285,10 +300,10 @@ Window {
             anchors.right: parent.right
 
             Image {
-                id: imageView
+                id: imageViewSource
                 anchors.fill: parent
                 anchors.margins: 8
-                visible: !isVideo && currentSource !== ""
+                visible: false
                 source: {
                     if (isVideo || !currentSource) return ""
                     var src = currentSource
@@ -301,7 +316,66 @@ Window {
                 mipmap: true
                 
                 onStatusChanged: {
-                    // Image loading status changes
+                }
+            }
+
+            MultiEffect {
+                id: imageViewWithShader
+                anchors.fill: imageViewSource
+                source: imageViewSource
+                visible: !isVideo && currentSource !== "" && shaderEnabled && !showOriginal
+                
+                brightness: shaderBrightness
+                contrast: shaderContrast
+                saturation: shaderSaturation
+                blurEnabled: shaderBlur > 0.01
+                blur: shaderBlur
+                blurMax: 32
+                blurMultiplier: 1.0
+                
+                MouseArea {
+                    id: shaderImageClickArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    propagateComposedEvents: true
+                    acceptedButtons: Qt.LeftButton
+
+                    onContainsMouseChanged: {
+                        if (containsMouse) {
+                            root.hoverActive = true
+                            hideButtonsTimer.stop()
+                        } else if (!root._buttonsHovered) {
+                            hideButtonsTimer.restart()
+                        }
+                    }
+
+                    onClicked: {
+                        root.hoverActive = !root.hoverActive
+                    }
+
+                    onDoubleClicked: {
+                        _toggleFullscreen()
+                    }
+                }
+            }
+
+            Image {
+                id: imageView
+                anchors.fill: parent
+                anchors.margins: 8
+                visible: !isVideo && currentSource !== "" && (!shaderEnabled || showOriginal)
+                source: {
+                    if (isVideo || !currentSource) return ""
+                    var src = currentSource
+                    if (src.startsWith("file:///") || src.startsWith("qrc:/") || src.startsWith("demo://")) return src
+                    return "file:///" + src
+                }
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+                smooth: true
+                mipmap: true
+                
+                onStatusChanged: {
                 }
 
                 MouseArea {
@@ -321,7 +395,6 @@ Window {
                     }
 
                     onClicked: {
-                        // 切换控制元素显示状态
                         root.hoverActive = !root.hoverActive
                     }
 

@@ -38,6 +38,23 @@ Rectangle {
 
     property int aiModelIndex: 0
     property bool collapsed: false
+    
+    readonly property bool hasShaderModifications: {
+        return Math.abs(brightness) > 0.001 ||
+               Math.abs(contrast - 1.0) > 0.001 ||
+               Math.abs(saturation - 1.0) > 0.001 ||
+               Math.abs(hue) > 0.001 ||
+               Math.abs(sharpness) > 0.001 ||
+               Math.abs(blur) > 0.001 ||
+               Math.abs(denoise) > 0.001 ||
+               Math.abs(exposure) > 0.001 ||
+               Math.abs(gamma - 1.0) > 0.001 ||
+               Math.abs(temperature) > 0.001 ||
+               Math.abs(tint) > 0.001 ||
+               Math.abs(vignette) > 0.001 ||
+               Math.abs(highlights) > 0.001 ||
+               Math.abs(shadows) > 0.001
+    }
 
     // ========== 信号 ==========
     signal collapseToggleRequested()

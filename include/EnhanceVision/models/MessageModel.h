@@ -183,6 +183,13 @@ public:
     Q_INVOKABLE QVariantList getMediaFiles(const QString &messageId) const;
 
     /**
+     * @brief 获取消息的 Shader 参数（供QML使用）
+     * @param messageId 消息ID
+     * @return Shader 参数的 QVariantMap
+     */
+    Q_INVOKABLE QVariantMap getShaderParams(const QString &messageId) const;
+
+    /**
      * @brief 获取消息列表
      * @return 消息列表
      */

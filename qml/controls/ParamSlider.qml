@@ -12,11 +12,15 @@ ColumnLayout {
     property real value: 0.0
     property real stepSize: 0.01
     property int decimals: 2
+    
+    property real externalValue: value
 
     signal paramValueChanged(real newValue)
 
     spacing: 4
     Layout.fillWidth: true
+    
+    property bool _internalChange: false
 
     RowLayout {
         Layout.fillWidth: true
@@ -58,7 +62,11 @@ ColumnLayout {
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
                     var newValue = Math.max(root.from, slider.value - root.stepSize * 10)
+                    _internalChange = true
                     slider.value = newValue
+                    root.value = newValue
+                    _internalChange = false
+                    root.paramValueChanged(newValue)
                 }
             }
 
@@ -92,7 +100,11 @@ ColumnLayout {
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
                     var newValue = Math.min(root.to, slider.value + root.stepSize * 10)
+                    _internalChange = true
                     slider.value = newValue
+                    root.value = newValue
+                    _internalChange = false
+                    root.paramValueChanged(newValue)
                 }
             }
 
@@ -137,7 +149,11 @@ ColumnLayout {
                     var newValue = parseFloat(text)
                     if (!isNaN(newValue)) {
                         newValue = Math.max(root.from, Math.min(root.to, newValue))
+                        _internalChange = true
                         slider.value = newValue
+                        root.value = newValue
+                        _internalChange = false
+                        root.paramValueChanged(newValue)
                     }
                     focus = false
                 }
@@ -161,11 +177,11 @@ ColumnLayout {
         Layout.preferredHeight: 20
         from: root.from
         to: root.to
-        value: root.value
+        value: root.externalValue
         stepSize: root.stepSize
 
         onValueChanged: {
-            if (Math.abs(value - root.value) > 0.0001) {
+            if (!_internalChange && Math.abs(value - root.value) > 0.0001) {
                 root.value = value
                 root.paramValueChanged(value)
             }
@@ -234,9 +250,12 @@ ColumnLayout {
         }
     }
 
-    onValueChanged: {
-        if (Math.abs(value - slider.value) > 0.0001) {
-            slider.value = value
+    onExternalValueChanged: {
+        if (Math.abs(externalValue - slider.value) > 0.0001) {
+            _internalChange = true
+            slider.value = externalValue
+            root.value = externalValue
+            _internalChange = false
         }
     }
 }

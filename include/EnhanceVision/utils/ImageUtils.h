@@ -70,6 +70,39 @@ public:
      * @return 是否为视频
      */
     static bool isVideoFile(const QString &filePath);
+    
+    /**
+     * @brief 应用 Shader 效果到图像
+     * @param image 原始图像
+     * @param brightness 亮度 (-1.0 ~ 1.0)
+     * @param contrast 对比度 (0.0 ~ 2.0)
+     * @param saturation 饱和度 (0.0 ~ 2.0)
+     * @param hue 色相 (-0.5 ~ 0.5)
+     * @param exposure 曝光 (-1.0 ~ 1.0)
+     * @param gamma 伽马 (0.5 ~ 2.0)
+     * @param temperature 色温 (-0.5 ~ 0.5)
+     * @param tint 色调 (-0.5 ~ 0.5)
+     * @param vignette 晕影 (0.0 ~ 1.0)
+     * @param highlights 高光 (-1.0 ~ 1.0)
+     * @param shadows 阴影 (-1.0 ~ 1.0)
+     * @return 处理后的图像
+     */
+    static QImage applyShaderEffects(const QImage &image, 
+                                     float brightness = 0.0f,
+                                     float contrast = 1.0f,
+                                     float saturation = 1.0f,
+                                     float hue = 0.0f,
+                                     float exposure = 0.0f,
+                                     float gamma = 1.0f,
+                                     float temperature = 0.0f,
+                                     float tint = 0.0f,
+                                     float vignette = 0.0f,
+                                     float highlights = 0.0f,
+                                     float shadows = 0.0f);
+
+private:
+    static void rgbToHsv(float r, float g, float b, float &h, float &s, float &v);
+    static void hsvToRgb(float h, float s, float v, float &r, float &g, float &b);
 };
 
 } // namespace EnhanceVision

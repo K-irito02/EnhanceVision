@@ -74,11 +74,17 @@ Item {
                     var files = model.mediaFiles
                     for (var i = 0; i < files.length; i++) {
                         var f = files[i]
+                        var thumbSource = ""
+                        if (f.processedThumbnailId && f.processedThumbnailId !== "") {
+                            thumbSource = "image://thumbnail/" + f.processedThumbnailId
+                        } else if (f.filePath) {
+                            thumbSource = "image://thumbnail/" + f.filePath
+                        }
                         _cachedMedia.append({
                             "filePath":  f.filePath  || "",
                             "fileName":  f.fileName  || "",
                             "mediaType": f.mediaType !== undefined ? f.mediaType : 0,
-                            "thumbnail": f.filePath ? ("image://thumbnail/" + f.filePath) : "",
+                            "thumbnail": thumbSource,
                             "status":    f.status    !== undefined ? f.status : 0,
                             "resultPath": f.resultPath || ""
                         })
@@ -180,12 +186,45 @@ Item {
         id: viewerWindow
         messageMode: true
         property string currentMessageId: ""
+        property var currentShaderParams: null
+        
+        shaderEnabled: currentShaderParams !== null && _hasShaderModifications(currentShaderParams)
+        shaderBrightness: currentShaderParams ? currentShaderParams.brightness : 0.0
+        shaderContrast: currentShaderParams ? currentShaderParams.contrast : 1.0
+        shaderSaturation: currentShaderParams ? currentShaderParams.saturation : 1.0
+        shaderHue: currentShaderParams ? currentShaderParams.hue : 0.0
+        shaderSharpness: currentShaderParams ? currentShaderParams.sharpness : 0.0
+        shaderBlur: currentShaderParams ? currentShaderParams.blur : 0.0
+        shaderExposure: currentShaderParams ? currentShaderParams.exposure : 0.0
+        shaderGamma: currentShaderParams ? currentShaderParams.gamma : 1.0
+        shaderTemperature: currentShaderParams ? currentShaderParams.temperature : 0.0
+        shaderTint: currentShaderParams ? currentShaderParams.tint : 0.0
+        shaderVignette: currentShaderParams ? currentShaderParams.vignette : 0.0
+        shaderHighlights: currentShaderParams ? currentShaderParams.highlights : 0.0
+        shaderShadows: currentShaderParams ? currentShaderParams.shadows : 0.0
         
         onFileRemoved: function(msgId, fileIndex) {
             if (root._hasRealModel) {
                 messageModel.removeMediaFile(msgId, fileIndex)
             }
         }
+    }
+    
+    function _hasShaderModifications(params) {
+        if (!params) return false
+        return Math.abs(params.brightness) > 0.001 ||
+               Math.abs(params.contrast - 1.0) > 0.001 ||
+               Math.abs(params.saturation - 1.0) > 0.001 ||
+               Math.abs(params.hue) > 0.001 ||
+               Math.abs(params.sharpness) > 0.001 ||
+               Math.abs(params.blur) > 0.001 ||
+               Math.abs(params.exposure) > 0.001 ||
+               Math.abs(params.gamma - 1.0) > 0.001 ||
+               Math.abs(params.temperature) > 0.001 ||
+               Math.abs(params.tint) > 0.001 ||
+               Math.abs(params.vignette) > 0.001 ||
+               Math.abs(params.highlights) > 0.001 ||
+               Math.abs(params.shadows) > 0.001
     }
     
     // 监听 C++ MessageModel 的 mediaFileRemoved 信号
@@ -238,18 +277,19 @@ Item {
     /** @brief 打开媒体查看器 */
     function _openViewer(msgId, fileIndex, msgStatus) {
         var files = []
+        var shaderParams = null
         if (_hasRealModel) {
             var allFiles = messageModel.getMediaFiles(msgId)
+            shaderParams = messageModel.getShaderParams(msgId)
             
             for (var i = 0; i < allFiles.length; i++) {
                 var f = allFiles[i]
                 var filePath = f.filePath || ""
                 var resultPath = f.resultPath || ""
-                var displayPath = resultPath !== "" ? resultPath : filePath
                 
                 if (f.status === 2) {
                     files.push({
-                        "filePath":  displayPath,
+                        "filePath":  filePath,
                         "fileName":  f.fileName  || "",
                         "mediaType": f.mediaType !== undefined ? f.mediaType : 0,
                         "thumbnail": filePath !== "" ? ("image://thumbnail/" + filePath) : "",
@@ -274,6 +314,7 @@ Item {
         if (files.length > 0) {
             viewerWindow.messageId = msgId
             viewerWindow.currentMessageId = msgId
+            viewerWindow.currentShaderParams = shaderParams
             viewerWindow.mediaFiles = files
             viewerWindow.openAt(Math.min(fileIndex, files.length - 1))
         }
@@ -288,11 +329,10 @@ Item {
             var f = allFiles[i]
             var filePath = f.filePath || ""
             var resultPath = f.resultPath || ""
-            var displayPath = resultPath !== "" ? resultPath : filePath
             
             if (f.status === 2) {
                 files.push({
-                    "filePath":  displayPath,
+                    "filePath":  filePath,
                     "fileName":  f.fileName  || "",
                     "mediaType": f.mediaType !== undefined ? f.mediaType : 0,
                     "thumbnail": filePath !== "" ? ("image://thumbnail/" + filePath) : "",
@@ -355,7 +395,6 @@ Item {
     /** @brief 打开编辑对话框 */
     function _openEditDialog(msgId) {
         console.log("编辑消息:", msgId)
-        // TODO: 打开编辑对话框
     }
 
     /** @brief 填充演示数据 */

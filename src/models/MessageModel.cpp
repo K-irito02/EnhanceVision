@@ -7,6 +7,7 @@
 #include "EnhanceVision/models/MessageModel.h"
 #include <QUuid>
 #include <QDateTime>
+#include <QtMath>
 
 namespace EnhanceVision {
 
@@ -42,6 +43,12 @@ QVariant MessageModel::data(const QModelIndex &index, int role) const
         return static_cast<int>(message.mode);
     case MediaFilesRole: {
         QVariantList filesList;
+        
+        bool hasShaderModifications = 
+            qAbs(message.shaderParams.brightness) > 0.001f ||
+            qAbs(message.shaderParams.contrast - 1.0f) > 0.001f ||
+            qAbs(message.shaderParams.saturation - 1.0f) > 0.001f;
+        
         for (const MediaFile &file : message.mediaFiles) {
             QVariantMap fileMap;
             fileMap["id"] = file.id;
@@ -49,18 +56,39 @@ QVariant MessageModel::data(const QModelIndex &index, int role) const
             fileMap["fileName"] = file.fileName;
             fileMap["fileSize"] = file.fileSize;
             fileMap["mediaType"] = static_cast<int>(file.type);
-            fileMap["thumbnail"] = ""; // 缩略图通过 ThumbnailProvider 加载
+            fileMap["thumbnail"] = "";
             fileMap["status"] = static_cast<int>(file.status);
             fileMap["resultPath"] = file.resultPath;
             fileMap["duration"] = file.duration;
+            
+            if (message.mode == ProcessingMode::Shader && hasShaderModifications && file.status == ProcessingStatus::Completed) {
+                fileMap["processedThumbnailId"] = "processed_" + file.id;
+            }
+            
             filesList.append(fileMap);
         }
         return filesList;
     }
     case ParametersRole:
         return message.parameters;
-    case ShaderParamsRole:
-        return QVariant(); // 暂时返回空
+    case ShaderParamsRole: {
+        QVariantMap shaderMap;
+        shaderMap["brightness"] = message.shaderParams.brightness;
+        shaderMap["contrast"] = message.shaderParams.contrast;
+        shaderMap["saturation"] = message.shaderParams.saturation;
+        shaderMap["hue"] = message.shaderParams.hue;
+        shaderMap["sharpness"] = message.shaderParams.sharpness;
+        shaderMap["blur"] = message.shaderParams.blur;
+        shaderMap["denoise"] = message.shaderParams.denoise;
+        shaderMap["exposure"] = message.shaderParams.exposure;
+        shaderMap["gamma"] = message.shaderParams.gamma;
+        shaderMap["temperature"] = message.shaderParams.temperature;
+        shaderMap["tint"] = message.shaderParams.tint;
+        shaderMap["vignette"] = message.shaderParams.vignette;
+        shaderMap["highlights"] = message.shaderParams.highlights;
+        shaderMap["shadows"] = message.shaderParams.shadows;
+        return shaderMap;
+    }
     case StatusRole:
         return static_cast<int>(message.status);
     case ErrorMessageRole:
@@ -437,7 +465,13 @@ QVariantList MessageModel::getMediaFiles(const QString &messageId) const
     int idx = findMessageIndex(messageId);
     if (idx < 0) return result;
 
-    for (const MediaFile &file : m_messages.at(idx).mediaFiles) {
+    const Message &msg = m_messages.at(idx);
+    bool hasShaderModifications = 
+        qAbs(msg.shaderParams.brightness) > 0.001f ||
+        qAbs(msg.shaderParams.contrast - 1.0f) > 0.001f ||
+        qAbs(msg.shaderParams.saturation - 1.0f) > 0.001f;
+
+    for (const MediaFile &file : msg.mediaFiles) {
         QVariantMap fileMap;
         fileMap["id"] = file.id;
         fileMap["filePath"] = file.filePath;
@@ -447,8 +481,37 @@ QVariantList MessageModel::getMediaFiles(const QString &messageId) const
         fileMap["status"] = static_cast<int>(file.status);
         fileMap["resultPath"] = file.resultPath;
         fileMap["duration"] = file.duration;
+        
+        if (msg.mode == ProcessingMode::Shader && hasShaderModifications && file.status == ProcessingStatus::Completed) {
+            fileMap["processedThumbnailId"] = "processed_" + file.id;
+        }
+        
         result.append(fileMap);
     }
+    return result;
+}
+
+QVariantMap MessageModel::getShaderParams(const QString &messageId) const
+{
+    QVariantMap result;
+    int idx = findMessageIndex(messageId);
+    if (idx < 0) return result;
+
+    const ShaderParams &params = m_messages.at(idx).shaderParams;
+    result["brightness"] = params.brightness;
+    result["contrast"] = params.contrast;
+    result["saturation"] = params.saturation;
+    result["hue"] = params.hue;
+    result["sharpness"] = params.sharpness;
+    result["blur"] = params.blur;
+    result["denoise"] = params.denoise;
+    result["exposure"] = params.exposure;
+    result["gamma"] = params.gamma;
+    result["temperature"] = params.temperature;
+    result["tint"] = params.tint;
+    result["vignette"] = params.vignette;
+    result["highlights"] = params.highlights;
+    result["shadows"] = params.shadows;
     return result;
 }
 

@@ -15,12 +15,28 @@ import EnhanceVision.Utils
  */
 FocusScope {
     id: root
+    objectName: "AppRoot"
     
     property bool sidebarExpanded: true
     property bool controlPanelExpanded: true
     property bool controlPanelCollapsed: false
     property int currentPage: 0
     property int processingMode: 0
+
+    property alias shaderBrightness: controlPanel.brightness
+    property alias shaderContrast: controlPanel.contrast
+    property alias shaderSaturation: controlPanel.saturation
+    property alias shaderHue: controlPanel.hue
+    property alias shaderSharpness: controlPanel.sharpness
+    property alias shaderBlur: controlPanel.blur
+    property alias shaderExposure: controlPanel.exposure
+    property alias shaderGamma: controlPanel.gamma
+    property alias shaderTemperature: controlPanel.temperature
+    property alias shaderTint: controlPanel.tint
+    property alias shaderVignette: controlPanel.vignette
+    property alias shaderHighlights: controlPanel.highlights
+    property alias shaderShadows: controlPanel.shadows
+    property alias hasShaderModifications: controlPanel.hasShaderModifications
 
     function clearAllFocus() {
         focusCatcher.forceActiveFocus()
