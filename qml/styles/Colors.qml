@@ -99,6 +99,17 @@ QtObject {
         readonly property color icon: "#5A6A85"
         readonly property color iconHover: "#002FA7"
         readonly property color iconActive: "#002FA7"
+
+        // 媒体查看器控制区域
+        readonly property color mediaControlBg: "#F5F8FC"
+        readonly property color mediaControlBgLight: "#FAFBFD"
+        readonly property color mediaControlBorder: "#D0DAE8"
+        readonly property color mediaControlIcon: "#5A6A85"
+        readonly property color mediaControlIconHover: "#002FA7"
+        readonly property color mediaControlText: "#0A1628"
+        readonly property color mediaControlTextMuted: "#5A6A85"
+        readonly property color mediaControlOverlay: Qt.rgba(255, 255, 255, 0.85)
+        readonly property color mediaControlOverlayHover: Qt.rgba(240, 244, 250, 0.92)
     }
 
     // ========== 暗色主题 (Dark Theme) - 克莱因蓝深色系 ==========
@@ -193,5 +204,16 @@ QtObject {
         readonly property color icon: "#7AA2F7"
         readonly property color iconHover: "#A0C4FF"
         readonly property color iconActive: "#5B8DEF"
+
+        // 媒体查看器控制区域
+        readonly property color mediaControlBg: "#0A1428"
+        readonly property color mediaControlBgLight: "#0D1A38"
+        readonly property color mediaControlBorder: "#152040"
+        readonly property color mediaControlIcon: "#A0C4FF"
+        readonly property color mediaControlIconHover: "#FFFFFF"
+        readonly property color mediaControlText: "#E8EDF5"
+        readonly property color mediaControlTextMuted: "#7A8BA8"
+        readonly property color mediaControlOverlay: Qt.rgba(10, 20, 40, 0.88)
+        readonly property color mediaControlOverlayHover: Qt.rgba(15, 32, 64, 0.92)
     }
 }

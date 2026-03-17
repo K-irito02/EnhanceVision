@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
+import QtQuick.Effects
 import QtMultimedia
 import "../styles"
 import "../controls"
@@ -33,9 +34,13 @@ Window {
     property bool isVideo: currentFile ? (currentFile.mediaType === 1) : false
     property string currentSource: {
         if (!currentFile) return ""
-        if (messageMode && !showOriginal && currentFile.resultPath && currentFile.resultPath !== "")
-            return currentFile.resultPath
-        return currentFile.filePath || ""
+        var src = ""
+        if (messageMode && !showOriginal && currentFile.resultPath && currentFile.resultPath !== "") {
+            src = currentFile.resultPath
+        } else {
+            src = currentFile.filePath || currentFile.originalPath || ""
+        }
+        return src
     }
 
     property real _savedX: 0
@@ -43,13 +48,14 @@ Window {
     property real _savedW: 0
     property real _savedH: 0
     property bool _wasMaximized: false
+    property var mediaPlayer: null
 
     width: 900
     height: 650
     minimumWidth: 480
     minimumHeight: 360
     title: currentFile ? currentFile.fileName : qsTr("媒体查看器")
-    color: "#0A0E1A"
+    color: Theme.colors.background
     flags: Qt.Window | Qt.FramelessWindowHint
 
     SubWindowHelper {
@@ -128,11 +134,14 @@ Window {
         }
     }
 
+    property bool _videoEnded: false
+
     function _stopCurrentMedia() {
-        if (isVideo) {
+        if (isVideo && mediaPlayer) {
             mediaPlayer.stop()
         }
         showOriginal = false
+        _videoEnded = false
     }
 
     function openAt(index) {
@@ -147,7 +156,7 @@ Window {
 
     Rectangle {
         anchors.fill: parent
-        color: "#0A0E1A"
+        color: Theme.colors.background
         radius: 8
 
         Rectangle {
@@ -261,13 +270,17 @@ Window {
                 source: {
                     if (isVideo || !currentSource) return ""
                     var src = currentSource
-                    if (src.startsWith("file:///") || src.startsWith("qrc:/")) return src
+                    if (src.startsWith("file:///") || src.startsWith("qrc:/") || src.startsWith("demo://")) return src
                     return "file:///" + src
                 }
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
                 smooth: true
                 mipmap: true
+                
+                onStatusChanged: {
+                    // Image loading status changes
+                }
             }
 
             Item {
@@ -276,16 +289,66 @@ Window {
                 anchors.margins: 20
                 visible: isVideo
 
-                MediaPlayer {
-                    id: mediaPlayer
+                Image {
+                    id: videoPreviewFrame
+                    anchors.fill: parent
+                    fillMode: Image.PreserveAspectFit
+                    asynchronous: true
+                    smooth: true
+                    mipmap: true
+                    visible: isVideo && mediaPlayer && (mediaPlayer.playbackState === MediaPlayer.StoppedState || root._videoEnded)
+                    opacity: visible ? 1.0 : 0.0
+                    z: 1
+                    
                     source: {
-                        if (!isVideo || !currentSource) return ""
+                        if (!isVideo || !currentSource || currentSource === "") return ""
                         var src = currentSource
-                        if (src.startsWith("file:///") || src.startsWith("qrc:/")) return src
-                        return "file:///" + src
+                        if (src.startsWith("file:///")) {
+                            src = src.substring(8)
+                        }
+                        return "image://thumbnail/" + src
                     }
+                    
+                    Rectangle {
+                        anchors.fill: parent
+                        color: Theme.colors.card
+                        visible: parent.status === Image.Loading
+                        
+                        BusyIndicator {
+                            anchors.centerIn: parent
+                            running: parent.visible
+                            implicitWidth: 48
+                            implicitHeight: 48
+                        }
+                    }
+                    
+                    ColoredIcon {
+                        anchors.centerIn: parent
+                        source: Theme.icon("video")
+                        iconSize: 64
+                        color: Theme.colors.mutedForeground
+                        visible: parent.status === Image.Error || parent.status === Image.Null
+                    }
+                    
+                    Behavior on opacity { NumberAnimation { duration: 200 } }
+                }
+
+                VideoOutput {
+                    id: videoOutput
+                    anchors.fill: parent
+                    z: 0
+                }
+
+                AudioOutput {
+                    id: audioOutput
+                    volume: volumeSlider.value
+                }
+
+                MediaPlayer {
+                    id: videoPlayer
                     videoOutput: videoOutput
                     audioOutput: audioOutput
+                    playbackRate: 1.0
 
                     function togglePlay() {
                         if (playbackState === MediaPlayer.PlayingState)
@@ -294,35 +357,59 @@ Window {
                             play()
                     }
 
-                    onPositionChanged: {
+                    onPositionChanged: function(position) {
                         if (!videoProgressSlider.pressed) {
                             videoProgressSlider.value = position
                         }
                     }
+
+                    onPlaybackStateChanged: {
+                        if (playbackState === MediaPlayer.StoppedState) {
+                            if (position > 0 && duration > 0 && position >= duration - 500) {
+                                root._videoEnded = true
+                            }
+                        } else if (playbackState === MediaPlayer.PlayingState) {
+                            root._videoEnded = false
+                        }
+                    }
+
+                    Component.onCompleted: root.mediaPlayer = this
                 }
 
-                AudioOutput {
-                    id: audioOutput
-                    volume: volumeSlider.value
-                }
-
-                VideoOutput {
-                    id: videoOutput
-                    anchors.fill: parent
+                Connections {
+                    target: root
+                    function onCurrentSourceChanged() {
+                        if (isVideo && currentSource && currentSource !== "") {
+                            var src = currentSource
+                            if (!src.startsWith("file:///") && !src.startsWith("qrc:/")) {
+                                src = "file:///" + src
+                            }
+                            videoPlayer.source = src
+                        } else {
+                            videoPlayer.source = ""
+                        }
+                    }
+                    function onIsVideoChanged() {
+                        if (!isVideo) {
+                            videoPlayer.stop()
+                            videoPlayer.source = ""
+                        }
+                    }
                 }
 
                 Rectangle {
                     anchors.centerIn: parent
                     width: 64; height: 64; radius: 32
-                    color: Qt.rgba(0, 0, 0, 0.5)
-                    visible: isVideo && mediaPlayer.playbackState !== MediaPlayer.PlayingState
+                    color: Theme.isDark ? Qt.rgba(0, 0, 0, 0.5) : Qt.rgba(255, 255, 255, 0.8)
+                    visible: isVideo && mediaPlayer && mediaPlayer.playbackState !== MediaPlayer.PlayingState
                     opacity: videoCenterMouse.containsMouse ? 1.0 : 0.7
+                    z: 10
 
                     ColoredIcon {
                         anchors.centerIn: parent
                         source: Theme.icon("play")
                         iconSize: 28
-                        color: "#FFFFFF"
+                        color: Theme.colors.mediaControlIcon
                     }
 
                     MouseArea {
@@ -330,7 +417,7 @@ Window {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: mediaPlayer.togglePlay()
+                        onClicked: if (mediaPlayer) mediaPlayer.togglePlay()
                     }
 
                     Behavior on opacity { NumberAnimation { duration: 150 } }
@@ -346,12 +433,12 @@ Window {
                     Layout.alignment: Qt.AlignHCenter
                     source: Theme.icon("image")
                     iconSize: 48
-                    color: Qt.rgba(1, 1, 1, 0.3)
+                    color: Theme.colors.mutedForeground
                 }
                 Text {
                     Layout.alignment: Qt.AlignHCenter
                     text: qsTr("无媒体文件")
-                    color: Qt.rgba(1, 1, 1, 0.4)
+                    color: Theme.colors.mutedForeground
                     font.pixelSize: 14
                 }
             }
@@ -362,7 +449,9 @@ Window {
             anchors.leftMargin: 12
             anchors.verticalCenter: contentArea.verticalCenter
             width: 40; height: 40; radius: 20
-            color: prevMouse.containsMouse ? Qt.rgba(1,1,1,0.2) : Qt.rgba(1,1,1,0.08)
+            color: Theme.isDark 
+                   ? (prevMouse.containsMouse ? Qt.rgba(1,1,1,0.2) : Qt.rgba(1,1,1,0.08))
+                   : (prevMouse.containsMouse ? Qt.rgba(0,0,0,0.12) : Qt.rgba(0,0,0,0.05))
             visible: currentIndex > 0
             z: 50
 
@@ -370,7 +459,7 @@ Window {
                 anchors.centerIn: parent
                 source: Theme.icon("chevron-left")
                 iconSize: 20
-                color: "#FFFFFF"
+                color: Theme.colors.mediaControlIcon
             }
 
             MouseArea {
@@ -389,7 +478,9 @@ Window {
             anchors.rightMargin: 12
             anchors.verticalCenter: contentArea.verticalCenter
             width: 40; height: 40; radius: 20
-            color: nextMouse.containsMouse ? Qt.rgba(1,1,1,0.2) : Qt.rgba(1,1,1,0.08)
+            color: Theme.isDark 
+                   ? (nextMouse.containsMouse ? Qt.rgba(1,1,1,0.2) : Qt.rgba(1,1,1,0.08))
+                   : (nextMouse.containsMouse ? Qt.rgba(0,0,0,0.12) : Qt.rgba(0,0,0,0.05))
             visible: currentIndex < mediaFiles.length - 1
             z: 50
 
@@ -397,7 +488,7 @@ Window {
                 anchors.centerIn: parent
                 source: Theme.icon("chevron-right")
                 iconSize: 20
-                color: "#FFFFFF"
+                color: Theme.colors.mediaControlIcon
             }
 
             MouseArea {
@@ -418,7 +509,15 @@ Window {
             anchors.right: parent.right
             height: isVideo ? 90 : 0
             visible: isVideo
-            color: Qt.rgba(0, 0, 0, 0.6)
+            color: Theme.colors.mediaControlBg
+
+            Rectangle {
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 1
+                color: Theme.colors.mediaControlBorder
+            }
 
             ColumnLayout {
                 anchors.fill: parent
@@ -430,8 +529,8 @@ Window {
                     spacing: 8
 
                     Text {
-                        text: _formatTime(mediaPlayer.position)
-                        color: Qt.rgba(1, 1, 1, 0.8)
+                        text: _formatTime(mediaPlayer ? mediaPlayer.position : 0)
+                        color: Theme.colors.mediaControlTextMuted
                         font.pixelSize: 11
                         font.family: "Consolas"
                     }
@@ -440,11 +539,11 @@ Window {
                         id: videoProgressSlider
                         Layout.fillWidth: true
                         from: 0
-                        to: mediaPlayer.duration > 0 ? mediaPlayer.duration : 1
-                        value: mediaPlayer.position
+                        to: mediaPlayer && mediaPlayer.duration > 0 ? mediaPlayer.duration : 1
+                        value: mediaPlayer ? mediaPlayer.position : 0
 
                         onMoved: {
-                            mediaPlayer.position = value
+                            if (mediaPlayer) mediaPlayer.position = value
                         }
 
                         background: Rectangle {
@@ -452,12 +551,12 @@ Window {
                             y: videoProgressSlider.topPadding + videoProgressSlider.availableHeight / 2 - height / 2
                             width: videoProgressSlider.availableWidth
                             height: 4; radius: 2
-                            color: Qt.rgba(1, 1, 1, 0.2)
+                            color: Theme.isDark ? Qt.rgba(1, 1, 1, 0.2) : Qt.rgba(0, 0, 0, 0.15)
 
                             Rectangle {
                                 width: videoProgressSlider.visualPosition * parent.width
                                 height: parent.height; radius: 2
-                                color: "#1E56D0"
+                                color: Theme.colors.primary
                             }
                         }
 
@@ -465,15 +564,15 @@ Window {
                             x: videoProgressSlider.leftPadding + videoProgressSlider.visualPosition * (videoProgressSlider.availableWidth - width)
                             y: videoProgressSlider.topPadding + videoProgressSlider.availableHeight / 2 - height / 2
                             width: 14; height: 14; radius: 7
-                            color: videoProgressSlider.pressed ? "#5B8DEF" : "#FFFFFF"
-                            border.width: 2; border.color: "#1E56D0"
+                            color: videoProgressSlider.pressed ? Theme.colors.primaryLight : Theme.colors.card
+                            border.width: 2; border.color: Theme.colors.primary
                             visible: videoProgressSlider.hovered || videoProgressSlider.pressed
                         }
                     }
 
                     Text {
-                        text: _formatTime(mediaPlayer.duration)
-                        color: Qt.rgba(1, 1, 1, 0.8)
+                        text: _formatTime(mediaPlayer ? mediaPlayer.duration : 0)
+                        color: Theme.colors.mediaControlTextMuted
                         font.pixelSize: 11
                         font.family: "Consolas"
                     }
@@ -486,21 +585,24 @@ Window {
                     IconButton {
                         iconName: "skip-back"
                         iconSize: 16; btnSize: 32
-                        iconColor: "#FFFFFF"; iconHoverColor: "#A0C4FF"
+                        iconColor: Theme.colors.mediaControlIcon
+                        iconHoverColor: Theme.colors.mediaControlIconHover
                         tooltip: qsTr("快退 10 秒")
-                        onClicked: mediaPlayer.position = Math.max(0, mediaPlayer.position - 10000)
+                        onClicked: if (mediaPlayer) mediaPlayer.position = Math.max(0, mediaPlayer.position - 10000)
                     }
 
                     Rectangle {
                         width: 36; height: 36; radius: 18
-                        color: playPauseMouse.containsMouse ? Qt.rgba(1,1,1,0.2) : Qt.rgba(1,1,1,0.1)
+                        color: Theme.isDark 
+                               ? (playPauseMouse.containsMouse ? Qt.rgba(1,1,1,0.2) : Qt.rgba(1,1,1,0.1))
+                               : (playPauseMouse.containsMouse ? Qt.rgba(0,0,0,0.1) : Qt.rgba(0,0,0,0.05))
 
                         ColoredIcon {
                             anchors.centerIn: parent
-                            source: mediaPlayer.playbackState === MediaPlayer.PlayingState
+                            source: mediaPlayer && mediaPlayer.playbackState === MediaPlayer.PlayingState
                                     ? Theme.icon("pause") : Theme.icon("play")
                             iconSize: 18
-                            color: "#FFFFFF"
+                            color: Theme.colors.mediaControlIcon
                         }
 
                         MouseArea {
@@ -508,7 +610,7 @@ Window {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: mediaPlayer.togglePlay()
+                            onClicked: if (mediaPlayer) mediaPlayer.togglePlay()
                         }
 
                         Behavior on color { ColorAnimation { duration: 100 } }
@@ -517,69 +619,71 @@ Window {
                     IconButton {
                         iconName: "skip-forward"
                         iconSize: 16; btnSize: 32
-                        iconColor: "#FFFFFF"; iconHoverColor: "#A0C4FF"
+                        iconColor: Theme.colors.mediaControlIcon
+                        iconHoverColor: Theme.colors.mediaControlIconHover
                         tooltip: qsTr("快进 10 秒")
-                        onClicked: mediaPlayer.position = Math.min(mediaPlayer.duration, mediaPlayer.position + 10000)
+                        onClicked: if (mediaPlayer) mediaPlayer.position = Math.min(mediaPlayer.duration, mediaPlayer.position + 10000)
                     }
 
                     Item { width: 8 }
 
-                    Rectangle {
-                        width: speedText.implicitWidth + 16
-                        height: 28; radius: 6
-                        color: speedMouse.containsMouse ? Qt.rgba(1,1,1,0.15) : Qt.rgba(1,1,1,0.08)
-                        border.width: 1; border.color: Qt.rgba(1,1,1,0.15)
+                    Row {
+                        spacing: 4
 
-                        Text {
-                            id: speedText
-                            anchors.centerIn: parent
-                            text: mediaPlayer.playbackRate + "x"
-                            color: "#FFFFFF"
-                            font.pixelSize: 12
-                            font.weight: Font.Medium
-                        }
-
-                        MouseArea {
-                            id: speedMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: speedMenu.open()
-                        }
-
-                        Menu {
-                            id: speedMenu
-                            y: -implicitHeight - 4
-
-                            background: Rectangle {
-                                color: "#1A2040"
-                                border.width: 1; border.color: Qt.rgba(1,1,1,0.15)
-                                radius: 6
-                            }
-
-                            Repeater {
-                                model: [0.5, 1.0, 1.5, 2.0, 3.0]
-                                MenuItem {
-                                    required property real modelData
-                                    text: modelData + "x"
-                                    onTriggered: mediaPlayer.playbackRate = modelData
-
-                                    background: Rectangle {
-                                        color: parent.highlighted ? Qt.rgba(1,1,1,0.1) : "transparent"
-                                        radius: 4
+                        Repeater {
+                            model: [0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
+                            Rectangle {
+                                required property real modelData
+                                width: speedBtnText.implicitWidth + 12
+                                height: 26
+                                radius: 5
+                                color: {
+                                    var currentRate = mediaPlayer ? mediaPlayer.playbackRate : 1.0
+                                    if (Math.abs(currentRate - modelData) < 0.01) {
+                                        return Theme.colors.primary
                                     }
-                                    contentItem: Text {
-                                        text: parent.text
-                                        color: mediaPlayer.playbackRate === modelData ? "#5B8DEF" : "#FFFFFF"
-                                        font.pixelSize: 13
-                                        font.weight: mediaPlayer.playbackRate === modelData ? Font.Bold : Font.Normal
-                                        leftPadding: 8
+                                    return Theme.isDark 
+                                           ? (speedBtnMouse.containsMouse ? Qt.rgba(1,1,1,0.12) : Qt.rgba(1,1,1,0.06))
+                                           : (speedBtnMouse.containsMouse ? Qt.rgba(0,0,0,0.08) : Qt.rgba(0,0,0,0.03))
+                                }
+                                border.width: 1
+                                border.color: {
+                                    var currentRate = mediaPlayer ? mediaPlayer.playbackRate : 1.0
+                                    if (Math.abs(currentRate - modelData) < 0.01) {
+                                        return "transparent"
+                                    }
+                                    return Theme.colors.mediaControlBorder
+                                }
+
+                                Text {
+                                    id: speedBtnText
+                                    anchors.centerIn: parent
+                                    text: modelData.toFixed(1) + "x"
+                                    color: {
+                                        var currentRate = mediaPlayer ? mediaPlayer.playbackRate : 1.0
+                                        if (Math.abs(currentRate - modelData) < 0.01) {
+                                            return Theme.colors.primaryForeground
+                                        }
+                                        return Theme.colors.mediaControlTextMuted
+                                    }
+                                    font.pixelSize: 11
+                                    font.weight: {
+                                        var currentRate = mediaPlayer ? mediaPlayer.playbackRate : 1.0
+                                        return Math.abs(currentRate - modelData) < 0.01 ? Font.Bold : Font.Normal
                                     }
                                 }
+
+                                MouseArea {
+                                    id: speedBtnMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: if (mediaPlayer) mediaPlayer.playbackRate = modelData
+                                }
+
+                                Behavior on color { ColorAnimation { duration: 100 } }
                             }
                         }
-
-                        Behavior on color { ColorAnimation { duration: 100 } }
                     }
 
                     Item { Layout.fillWidth: true }
@@ -590,7 +694,8 @@ Window {
                         IconButton {
                             iconName: audioOutput.volume > 0 ? "volume-2" : "volume-x"
                             iconSize: 16; btnSize: 28
-                            iconColor: "#FFFFFF"; iconHoverColor: "#A0C4FF"
+                            iconColor: Theme.colors.mediaControlIcon
+                            iconHoverColor: Theme.colors.mediaControlIconHover
                             tooltip: qsTr("静音")
                             onClicked: audioOutput.volume = audioOutput.volume > 0 ? 0 : 0.7
                         }
@@ -606,12 +711,12 @@ Window {
                                 y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
                                 width: volumeSlider.availableWidth
                                 height: 3; radius: 1.5
-                                color: Qt.rgba(1, 1, 1, 0.2)
+                                color: Theme.isDark ? Qt.rgba(1, 1, 1, 0.2) : Qt.rgba(0, 0, 0, 0.15)
 
                                 Rectangle {
                                     width: volumeSlider.visualPosition * parent.width
                                     height: parent.height; radius: 1.5
-                                    color: "#1E56D0"
+                                    color: Theme.colors.primary
                                 }
                             }
 
@@ -619,7 +724,7 @@ Window {
                                 x: volumeSlider.leftPadding + volumeSlider.visualPosition * (volumeSlider.availableWidth - width)
                                 y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
                                 width: 12; height: 12; radius: 6
-                                color: "#FFFFFF"
+                                color: Theme.colors.card
                                 visible: volumeSlider.hovered || volumeSlider.pressed
                             }
                         }
@@ -635,7 +740,15 @@ Window {
             anchors.right: parent.right
             height: mediaFiles.length > 1 ? 60 : 0
             visible: mediaFiles.length > 1
-            color: Qt.rgba(0, 0, 0, 0.5)
+            color: Theme.colors.mediaControlBgLight
+
+            Rectangle {
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 1
+                color: Theme.colors.mediaControlBorder
+            }
 
             ListView {
                 id: bottomThumbList
@@ -647,29 +760,99 @@ Window {
                 model: mediaFiles.length
                 currentIndex: root.currentIndex
 
-                delegate: Rectangle {
+                delegate: Item {
                     required property int index
                     width: 48; height: 48
-                    radius: 6
-                    color: index === root.currentIndex ? "transparent" : Qt.rgba(1,1,1,0.05)
-                    border.width: index === root.currentIndex ? 2 : 0
-                    border.color: "#1E56D0"
-                    clip: true
 
-                    Image {
+                    Rectangle {
+                        id: bottomHoverBorder
+                        anchors.fill: parent
+                        radius: 6
+                        color: "transparent"
+                        border.width: 2
+                        border.color: index === root.currentIndex ? Theme.colors.primary : "transparent"
+                        z: 5
+                    }
+
+                    Rectangle {
+                        id: bottomThumbRect
                         anchors.fill: parent
                         anchors.margins: 2
-                        source: {
-                            var f = root.mediaFiles[index]
-                            if (!f) return ""
-                            if (f.thumbnail && f.thumbnail !== "") return f.thumbnail
-                            if (f.filePath) return "image://thumbnail/" + f.filePath
-                            return ""
+                        radius: 6
+                        color: Theme.isDark ? Qt.rgba(1, 1, 1, 0.05) : Qt.rgba(0, 0, 0, 0.03)
+                        clip: true
+
+                        Image {
+                            id: bottomThumbImage
+                            anchors.fill: parent
+                            source: {
+                                var f = root.mediaFiles[index]
+                                if (!f) return ""
+                                if (f.thumbnail && f.thumbnail !== "") return f.thumbnail
+                                if (f.filePath) return "image://thumbnail/" + f.filePath
+                                return ""
+                            }
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                            smooth: true
+                            sourceSize: Qt.size(96, 96)
+                            visible: status === Image.Ready
+                            layer.enabled: true
+                            layer.samples: 4
+                            layer.effect: MultiEffect {
+                                maskEnabled: true
+                                maskThresholdMin: 0.5
+                                maskSpreadAtMin: 1.0
+                                maskSource: bottomThumbMask
+                            }
                         }
-                        fillMode: Image.PreserveAspectCrop
-                        asynchronous: true
-                        smooth: true
-                        sourceSize: Qt.size(96, 96)
+
+                        Item {
+                            id: bottomThumbMask
+                            visible: false
+                            layer.enabled: true
+                            layer.samples: 4
+                            width: bottomThumbRect.width
+                            height: bottomThumbRect.height
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: 6
+                                color: "white"
+                                antialiasing: true
+                            }
+                        }
+
+                        ColoredIcon {
+                            anchors.centerIn: parent
+                            source: {
+                                var f = root.mediaFiles[index]
+                                if (!f) return Theme.icon("image")
+                                return f.mediaType === 1 ? Theme.icon("video") : Theme.icon("image")
+                            }
+                            iconSize: 16
+                            color: Theme.colors.mutedForeground
+                            visible: bottomThumbImage.status !== Image.Ready
+                        }
+
+                        Rectangle {
+                            visible: {
+                                var f = root.mediaFiles[index]
+                                return f && f.mediaType === 1
+                            }
+                            anchors.bottom: parent.bottom
+                            anchors.left: parent.left
+                            anchors.margins: 3
+                            width: 16; height: 12
+                            radius: 2
+                            color: Theme.isDark ? Qt.rgba(0, 0, 0, 0.65) : Qt.rgba(0, 0, 0, 0.5)
+                            ColoredIcon {
+                                anchors.centerIn: parent
+                                source: Theme.icon("play")
+                                iconSize: 8
+                                color: "#FFFFFF"
+                            }
+                        }
                     }
 
                     MouseArea {
@@ -707,6 +890,6 @@ Window {
     }
 
     onClosing: {
-        if (isVideo) mediaPlayer.stop()
+        if (isVideo && mediaPlayer) mediaPlayer.stop()
     }
 }

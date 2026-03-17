@@ -103,8 +103,26 @@ QImage ImageUtils::generateVideoThumbnail(const QString &videoPath, const QSize 
         return QImage();
     }
     
-    int targetWidth = size.width() > 0 ? size.width() : 256;
-    int targetHeight = size.height() > 0 ? size.height() : 256;
+    int maxWidth = size.width() > 0 ? size.width() : 256;
+    int maxHeight = size.height() > 0 ? size.height() : 256;
+    
+    int originalWidth = codecCtx->width;
+    int originalHeight = codecCtx->height;
+    
+    int targetWidth, targetHeight;
+    if (originalWidth > 0 && originalHeight > 0) {
+        double aspectRatio = static_cast<double>(originalWidth) / originalHeight;
+        if (aspectRatio > static_cast<double>(maxWidth) / maxHeight) {
+            targetWidth = maxWidth;
+            targetHeight = static_cast<int>(maxWidth / aspectRatio);
+        } else {
+            targetHeight = maxHeight;
+            targetWidth = static_cast<int>(maxHeight * aspectRatio);
+        }
+    } else {
+        targetWidth = maxWidth;
+        targetHeight = maxHeight;
+    }
     
     int numBytes = av_image_get_buffer_size(AV_PIX_FMT_RGB24, targetWidth, targetHeight, 1);
     buffer = static_cast<uint8_t*>(av_malloc(numBytes * sizeof(uint8_t)));

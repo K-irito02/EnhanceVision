@@ -177,7 +177,7 @@ Rectangle {
                 iconName: "help-circle"
                 iconSize: 16
                 tooltip: qsTr("快捷键说明")
-                onClicked: console.log("Show shortcuts")
+                onClicked: _showShortcuts()
             }
             
             // 主题切换按钮
