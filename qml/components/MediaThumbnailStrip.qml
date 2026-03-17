@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Effects
 import "../styles"
 import "../controls"
 
@@ -15,6 +16,7 @@ import "../controls"
  * - 右键上下文菜单（放大查看、保存、删除）
  * - 左键点击触发放大查看
  * - 可选展开/收缩功能
+ * - 删除文件时同步更新
  */
 Item {
     id: root
@@ -22,6 +24,9 @@ Item {
     // ========== 属性定义 ==========
     /** @brief 媒体文件列表模型，每项需包含: filePath, fileName, mediaType, thumbnail, status, resultPath */
     property var mediaModel: ListModel {}
+
+    /** @brief 所属消息ID（用于删除同步） */
+    property string messageId: ""
 
     /** @brief 缩略图尺寸 */
     property int thumbSize: 80
@@ -54,6 +59,7 @@ Item {
     signal viewFile(int index)
     signal saveFile(int index)
     signal deleteFile(int index)
+    signal fileRemoved(string messageId, int fileIndex)
 
     // ========== 尺寸 ==========
     implicitHeight: contentCol.implicitHeight
@@ -73,7 +79,19 @@ Item {
         target: mediaModel
         function onDataChanged(topLeft, bottomRight, roles) { _rebuildFiltered() }
         function onRowsInserted(parent, first, last) { _rebuildFiltered() }
+        function onRowsRemoved(parent, first, last) { _handleRowsRemoved(first, last) }
         function onModelReset() { _rebuildFiltered() }
+    }
+    
+    function _handleRowsRemoved(first, last) {
+        for (var i = filteredModel.count - 1; i >= 0; i--) {
+            var item = filteredModel.get(i)
+            if (item.origIndex >= first && item.origIndex <= last) {
+                filteredModel.remove(i)
+            } else if (item.origIndex > last) {
+                filteredModel.setProperty(i, "origIndex", item.origIndex - (last - first + 1))
+            }
+        }
     }
 
     function _rebuildFiltered() {
@@ -153,20 +171,31 @@ Item {
                     height: root.thumbSize
                     required property int index
                     property var itemData: index < filteredModel.count ? filteredModel.get(index) : null
+                    property bool showDeleteBtn: thumbMouse.containsMouse || deleteBtnMouse.containsMouse
+
+                    Rectangle {
+                        id: hoverBorder
+                        anchors.fill: parent
+                        anchors.margins: 2
+                        radius: Theme.radius.md
+                        color: "transparent"
+                        border.width: 2
+                        border.color: thumbMouse.containsMouse ? Theme.colors.primary : "transparent"
+                        z: 5
+                        
+                        Behavior on border.color { ColorAnimation { duration: Theme.animation.fast } }
+                    }
 
                     Rectangle {
                         id: thumbRect
                         anchors.fill: parent
+                        anchors.margins: 2
                         radius: Theme.radius.md
-                        color: thumbMouse.containsMouse ? Theme.colors.surfaceHover : Theme.colors.surface
-                        border.width: 1
-                        border.color: thumbMouse.containsMouse ? Theme.colors.primary : Theme.colors.border
-                        clip: true
+                        color: Theme.colors.surface
 
                         Image {
                             id: thumbImage
                             anchors.fill: parent
-                            anchors.margins: 2
                             source: {
                                 if (!thumbDelegate.itemData) return ""
                                 var path = thumbDelegate.itemData.thumbnail
@@ -180,6 +209,30 @@ Item {
                             smooth: true
                             sourceSize: Qt.size(root.thumbSize * 2, root.thumbSize * 2)
                             visible: status === Image.Ready
+                            layer.enabled: true
+                            layer.samples: 4
+                            layer.effect: MultiEffect {
+                                maskEnabled: true
+                                maskThresholdMin: 0.5
+                                maskSpreadAtMin: 1.0
+                                maskSource: thumbMask
+                            }
+                        }
+
+                        Item {
+                            id: thumbMask
+                            visible: false
+                            layer.enabled: true
+                            layer.samples: 4
+                            width: thumbRect.width
+                            height: thumbRect.height
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: Theme.radius.md
+                                color: "white"
+                                antialiasing: true
+                            }
                         }
 
                         ColoredIcon {
@@ -226,9 +279,6 @@ Item {
                                 }
                             }
                         }
-
-                        Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
-                        Behavior on border.color { ColorAnimation { duration: Theme.animation.fast } }
                     }
 
                     MouseArea {
@@ -251,17 +301,21 @@ Item {
                         id: deleteBtn
                         anchors.top: parent.top
                         anchors.right: parent.right
-                        anchors.margins: 2
-                        width: 18; height: 18
-                        radius: 9
-                        color: deleteBtnMouse.containsMouse ? Theme.colors.destructive : Qt.rgba(0, 0, 0, 0.6)
-                        visible: thumbMouse.containsMouse
+                        anchors.margins: 4
+                        width: 20; height: 20
+                        radius: 10
+                        color: deleteBtnMouse.containsMouse ? Theme.colors.destructive : Qt.rgba(0, 0, 0, 0.7)
+                        visible: thumbDelegate.showDeleteBtn
                         z: 10
+                        
+                        opacity: visible ? 1 : 0
+                        Behavior on opacity { NumberAnimation { duration: 100 } }
+                        
                         Text {
                             anchors.centerIn: parent
                             text: "\u00D7"
                             color: "#FFFFFF"
-                            font.pixelSize: 12
+                            font.pixelSize: 14
                             font.weight: Font.Bold
                         }
                         MouseArea {
@@ -269,7 +323,13 @@ Item {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: root.deleteFile(thumbDelegate.itemData ? thumbDelegate.itemData.origIndex : thumbDelegate.index)
+                            onClicked: {
+                                var origIndex = thumbDelegate.itemData ? thumbDelegate.itemData.origIndex : thumbDelegate.index
+                                root.deleteFile(origIndex)
+                                if (root.messageId !== "") {
+                                    root.fileRemoved(root.messageId, origIndex)
+                                }
+                            }
                         }
                         Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
                     }
@@ -351,7 +411,16 @@ Item {
                 ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("trash"); iconSize: 14; color: Theme.colors.destructive }
                 Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("删除"); color: Theme.colors.destructive; font.pixelSize: 13 }
             }
-            onTriggered: { if (contextMenu.targetIndex >= 0) { var item = filteredModel.get(contextMenu.targetIndex); root.deleteFile(item ? item.origIndex : contextMenu.targetIndex) } }
+            onTriggered: { 
+                if (contextMenu.targetIndex >= 0) { 
+                    var item = filteredModel.get(contextMenu.targetIndex)
+                    var origIndex = item ? item.origIndex : contextMenu.targetIndex
+                    root.deleteFile(origIndex)
+                    if (root.messageId !== "") {
+                        root.fileRemoved(root.messageId, origIndex)
+                    }
+                } 
+            }
         }
     }
 }

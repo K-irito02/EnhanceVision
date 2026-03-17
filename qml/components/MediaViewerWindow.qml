@@ -20,6 +20,7 @@ import EnhanceVision.Utils
  * - 原效果对比按钮（消息模式下）
  * - 图片自适应缩放显示
  * - 自定义标题栏
+ * - 删除文件功能（底部缩略图悬停显示删除按钮）
  */
 Window {
     id: root
@@ -28,6 +29,7 @@ Window {
     property int currentIndex: 0
     property bool messageMode: false
     property bool showOriginal: false
+    property string messageId: ""
 
     property var currentFile: mediaFiles.length > 0 && currentIndex >= 0 && currentIndex < mediaFiles.length
                               ? mediaFiles[currentIndex] : null
@@ -54,6 +56,8 @@ Window {
     property bool _prevButtonHovered: false
     property bool _nextButtonHovered: false
     property bool _buttonsHovered: _prevButtonHovered || _nextButtonHovered
+
+    signal fileRemoved(string messageId, int fileIndex)
 
     Timer {
         id: hideButtonsTimer
@@ -861,6 +865,7 @@ Window {
                 delegate: Item {
                     required property int index
                     width: 48; height: 48
+                    property bool showDeleteBtn: bottomThumbMouse.containsMouse || bottomDeleteBtnMouse.containsMouse
 
                     Rectangle {
                         id: bottomHoverBorder
@@ -954,12 +959,49 @@ Window {
                     }
 
                     MouseArea {
+                        id: bottomThumbMouse
                         anchors.fill: parent
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             _stopCurrentMedia()
                             root.currentIndex = index
                         }
+                    }
+                    
+                    Rectangle {
+                        id: bottomDeleteBtn
+                        anchors.top: parent.top
+                        anchors.right: parent.right
+                        anchors.margins: 2
+                        width: 14; height: 14
+                        radius: 7
+                        color: bottomDeleteBtnMouse.containsMouse ? Theme.colors.destructive : Qt.rgba(0, 0, 0, 0.7)
+                        visible: showDeleteBtn
+                        z: 10
+                        
+                        opacity: visible ? 1 : 0
+                        Behavior on opacity { NumberAnimation { duration: 100 } }
+                        
+                        Text {
+                            anchors.centerIn: parent
+                            text: "\u00D7"
+                            color: "#FFFFFF"
+                            font.pixelSize: 10
+                            font.weight: Font.Bold
+                        }
+                        
+                        MouseArea {
+                            id: bottomDeleteBtnMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                root.fileRemoved(root.messageId, index)
+                            }
+                        }
+                        
+                        Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
                     }
                 }
 

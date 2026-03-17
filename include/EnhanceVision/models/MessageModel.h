@@ -153,6 +153,22 @@ public:
     Q_INVOKABLE int getTotalFileCount(const QString &messageId) const;
 
     /**
+     * @brief 从消息中删除指定索引的媒体文件
+     * @param messageId 消息ID
+     * @param fileIndex 文件索引
+     * @return 是否成功
+     */
+    Q_INVOKABLE bool removeMediaFile(const QString &messageId, int fileIndex);
+
+    /**
+     * @brief 从消息中删除指定ID的媒体文件
+     * @param messageId 消息ID
+     * @param fileId 文件ID
+     * @return 是否成功
+     */
+    Q_INVOKABLE bool removeMediaFileById(const QString &messageId, const QString &fileId);
+
+    /**
      * @brief 获取消息中已完成文件的列表（供QML使用）
      * @param messageId 消息ID
      * @return 已完成文件的 QVariantList
@@ -214,6 +230,13 @@ signals:
      * @param messageId 消息ID
      */
     void messageRemoved(const QString &messageId);
+
+    /**
+     * @brief 消息中的媒体文件被删除
+     * @param messageId 消息ID
+     * @param fileIndex 被删除的文件索引
+     */
+    void mediaFileRemoved(const QString &messageId, int fileIndex);
 
     /**
      * @brief 消息状态更新信号

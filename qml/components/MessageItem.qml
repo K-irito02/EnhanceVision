@@ -232,6 +232,7 @@ Rectangle {
         MediaThumbnailStrip {
             Layout.fillWidth: true
             mediaModel: root.mediaFiles
+            messageId: root.taskId
             thumbSize: 80
             thumbSpacing: 8
             expandable: true
@@ -241,6 +242,7 @@ Rectangle {
             onViewFile: function(index) { root.viewMediaFile(index) }
             onSaveFile: function(index) { root.saveMediaFile(index) }
             onDeleteFile: function(index) { root.deleteMediaFile(index) }
+            onFileRemoved: function(msgId, fileIndex) { root.deleteMediaFile(fileIndex) }
         }
         
         // ========== 进度条（处理中/排队中） ==========

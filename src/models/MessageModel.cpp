@@ -452,4 +452,43 @@ QVariantList MessageModel::getMediaFiles(const QString &messageId) const
     return result;
 }
 
+bool MessageModel::removeMediaFile(const QString &messageId, int fileIndex)
+{
+    int msgIdx = findMessageIndex(messageId);
+    if (msgIdx < 0) {
+        emit errorOccurred(tr("消息不存在: %1").arg(messageId));
+        return false;
+    }
+
+    Message &message = m_messages[msgIdx];
+    if (fileIndex < 0 || fileIndex >= message.mediaFiles.size()) {
+        emit errorOccurred(tr("文件索引无效: %1").arg(fileIndex));
+        return false;
+    }
+
+    message.mediaFiles.removeAt(fileIndex);
+    
+    QModelIndex modelIndex = createIndex(msgIdx, 0);
+    emit dataChanged(modelIndex, modelIndex, {MediaFilesRole});
+    emit mediaFileRemoved(messageId, fileIndex);
+    
+    return true;
+}
+
+bool MessageModel::removeMediaFileById(const QString &messageId, const QString &fileId)
+{
+    int msgIdx = findMessageIndex(messageId);
+    if (msgIdx < 0) {
+        return false;
+    }
+
+    Message &message = m_messages[msgIdx];
+    for (int i = 0; i < message.mediaFiles.size(); ++i) {
+        if (message.mediaFiles[i].id == fileId) {
+            return removeMediaFile(messageId, i);
+        }
+    }
+    return false;
+}
+
 } // namespace EnhanceVision

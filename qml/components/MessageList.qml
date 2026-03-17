@@ -114,7 +114,11 @@ Item {
                 root._saveOneFile(model.id, idx)
             }
             onDeleteMediaFile: function(idx) {
-                console.log("删除文件:", model.id, "索引:", idx)
+                if (root._hasRealModel) {
+                    messageModel.removeMediaFile(model.id, idx)
+                } else {
+                    console.log("删除文件（demo模式）:", model.id, "索引:", idx)
+                }
             }
             onSelectionToggled: function(isSelected) {
                 var mid = model.id
@@ -175,6 +179,24 @@ Item {
     MediaViewerWindow {
         id: viewerWindow
         messageMode: true
+        property string currentMessageId: ""
+        
+        onFileRemoved: function(msgId, fileIndex) {
+            if (root._hasRealModel) {
+                messageModel.removeMediaFile(msgId, fileIndex)
+            }
+        }
+    }
+    
+    // 监听 C++ MessageModel 的 mediaFileRemoved 信号
+    Connections {
+        target: root._hasRealModel ? messageModel : null
+        enabled: root._hasRealModel
+        function onMediaFileRemoved(messageId, fileIndex) {
+            if (viewerWindow.visible && viewerWindow.currentMessageId === messageId) {
+                root._syncViewerWindow(messageId, fileIndex)
+            }
+        }
     }
 
     // ========== 演示数据模型 ==========
@@ -212,33 +234,80 @@ Item {
     function _openViewer(msgId, fileIndex, msgStatus) {
         var files = []
         if (_hasRealModel) {
-            // 从 C++ MessageModel 获取已完成的文件
-            var completedFiles = messageModel.getCompletedFiles(msgId)
-            for (var i = 0; i < completedFiles.length; i++) {
-                var cf = completedFiles[i]
-                files.push({
-                    "filePath":  cf.resultPath || cf.filePath || "",
-                    "fileName":  cf.fileName  || "",
-                    "mediaType": cf.mediaType !== undefined ? cf.mediaType : 0,
-                    "thumbnail": cf.filePath ? ("image://thumbnail/" + cf.filePath) : "",
-                    "resultPath": cf.resultPath || "",
-                    "originalPath": cf.filePath || ""
-                })
+            var allFiles = messageModel.getMediaFiles(msgId)
+            
+            for (var i = 0; i < allFiles.length; i++) {
+                var f = allFiles[i]
+                var filePath = f.filePath || ""
+                var resultPath = f.resultPath || ""
+                var displayPath = resultPath !== "" ? resultPath : filePath
+                
+                if (f.status === 2) {
+                    files.push({
+                        "filePath":  displayPath,
+                        "fileName":  f.fileName  || "",
+                        "mediaType": f.mediaType !== undefined ? f.mediaType : 0,
+                        "thumbnail": filePath !== "" ? ("image://thumbnail/" + filePath) : "",
+                        "resultPath": resultPath,
+                        "originalPath": filePath
+                    })
+                }
             }
         } else {
             for (var j = 0; j < 10; j++) {
                 files.push({
-                    "filePath": "",
-                    "fileName": "media_" + (j+1) + ".jpg",
+                    "filePath":  "demo://placeholder_" + (j+1) + ".jpg",
+                    "fileName":  "media_" + (j+1) + ".jpg",
                     "mediaType": 0,
                     "thumbnail": "",
-                    "resultPath": ""
+                    "resultPath": "",
+                    "originalPath": ""
                 })
             }
         }
+        
         if (files.length > 0) {
+            viewerWindow.currentMessageId = msgId
             viewerWindow.mediaFiles = files
             viewerWindow.openAt(Math.min(fileIndex, files.length - 1))
+        }
+    }
+    
+    /** @brief 同步更新查看器窗口数据 */
+    function _syncViewerWindow(messageId, deletedIndex) {
+        var files = []
+        var allFiles = messageModel.getMediaFiles(messageId)
+        
+        for (var i = 0; i < allFiles.length; i++) {
+            var f = allFiles[i]
+            var filePath = f.filePath || ""
+            var resultPath = f.resultPath || ""
+            var displayPath = resultPath !== "" ? resultPath : filePath
+            
+            if (f.status === 2) {
+                files.push({
+                    "filePath":  displayPath,
+                    "fileName":  f.fileName  || "",
+                    "mediaType": f.mediaType !== undefined ? f.mediaType : 0,
+                    "thumbnail": filePath !== "" ? ("image://thumbnail/" + filePath) : "",
+                    "resultPath": resultPath,
+                    "originalPath": filePath
+                })
+            }
+        }
+        
+        if (files.length === 0) {
+            viewerWindow.close()
+            if (root._hasRealModel) {
+                messageModel.removeMessage(messageId)
+            }
+            return
+        }
+        
+        viewerWindow.mediaFiles = files
+        
+        if (viewerWindow.currentIndex >= files.length) {
+            viewerWindow.currentIndex = Math.max(0, files.length - 1)
         }
     }
 

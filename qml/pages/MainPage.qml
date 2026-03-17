@@ -388,6 +388,32 @@ Rectangle {
     MediaViewerWindow {
         id: pendingViewerWindow
         messageMode: false
+        
+        onFileRemoved: function(msgId, fileIndex) {
+            if (typeof fileController !== "undefined") {
+                fileController.removeFileAt(fileIndex)
+            } else {
+                pendingFilesModel.remove(fileIndex)
+            }
+        }
+    }
+    
+    // 监听 fileModel 变化，同步更新查看器窗口
+    Connections {
+        target: typeof fileModel !== "undefined" ? fileModel : null
+        enabled: typeof fileModel !== "undefined"
+        function onRowsRemoved(parent, first, last) {
+            _syncPendingViewerWindow()
+        }
+    }
+    
+    // 监听 pendingFilesModel 变化（demo 模式）
+    Connections {
+        target: typeof fileModel === "undefined" ? pendingFilesModel : null
+        enabled: typeof fileModel === "undefined"
+        function onCountChanged() {
+            _syncPendingViewerWindow()
+        }
     }
     
     // ========== 临时待处理文件模型（无 C++ fileModel 时使用） ==========
@@ -436,20 +462,86 @@ Rectangle {
     function _openPendingFileViewer(index) {
         var model = typeof fileModel !== "undefined" ? fileModel : pendingFilesModel
         var files = []
-        for (var i = 0; i < model.count; i++) {
-            var item = model.get ? model.get(i) : null
+        
+        var count = model.count !== undefined ? model.count : (typeof model.rowCount === "function" ? model.rowCount() : 0)
+        
+        for (var i = 0; i < count; i++) {
+            var item = null
+            if (typeof model.get === "function") {
+                item = model.get(i)
+            } else if (typeof model.data === "function" && typeof model.index === "function") {
+                var idx = model.index(i, 0)
+                item = {
+                    filePath: model.data(idx, 258) || "",
+                    fileName: model.data(idx, 259) || ("file_" + (i+1)),
+                    mediaType: model.data(idx, 262) !== undefined ? model.data(idx, 262) : 0,
+                    thumbnail: model.data(idx, 263) || ""
+                }
+            }
+            
             if (item) {
+                var filePath = item.filePath || ""
                 files.push({
-                    "filePath": item.filePath || "",
-                    "fileName": item.fileName || ("file_" + (i+1)),
+                    "filePath":  filePath,
+                    "fileName":  item.fileName || ("file_" + (i+1)),
                     "mediaType": item.mediaType !== undefined ? item.mediaType : 0,
-                    "thumbnail": item.thumbnail || "",
-                    "resultPath": ""
+                    "thumbnail": item.thumbnail || (filePath !== "" ? "image://thumbnail/" + filePath : ""),
+                    "resultPath": "",
+                    "originalPath": filePath
                 })
             }
         }
+        
+        if (files.length > 0) {
+            pendingViewerWindow.mediaFiles = files
+            pendingViewerWindow.openAt(Math.min(index, files.length - 1))
+        }
+    }
+    
+    function _syncPendingViewerWindow() {
+        if (!pendingViewerWindow.visible) return
+        
+        var model = typeof fileModel !== "undefined" ? fileModel : pendingFilesModel
+        var files = []
+        
+        var count = model.count !== undefined ? model.count : (typeof model.rowCount === "function" ? model.rowCount() : 0)
+        
+        for (var i = 0; i < count; i++) {
+            var item = null
+            if (typeof model.get === "function") {
+                item = model.get(i)
+            } else if (typeof model.data === "function" && typeof model.index === "function") {
+                var idx = model.index(i, 0)
+                item = {
+                    filePath: model.data(idx, 258) || "",
+                    fileName: model.data(idx, 259) || ("file_" + (i+1)),
+                    mediaType: model.data(idx, 262) !== undefined ? model.data(idx, 262) : 0,
+                    thumbnail: model.data(idx, 263) || ""
+                }
+            }
+            
+            if (item) {
+                var filePath = item.filePath || ""
+                files.push({
+                    "filePath":  filePath,
+                    "fileName":  item.fileName || ("file_" + (i+1)),
+                    "mediaType": item.mediaType !== undefined ? item.mediaType : 0,
+                    "thumbnail": item.thumbnail || (filePath !== "" ? "image://thumbnail/" + filePath : ""),
+                    "resultPath": "",
+                    "originalPath": filePath
+                })
+            }
+        }
+        
+        if (files.length === 0) {
+            pendingViewerWindow.close()
+            return
+        }
+        
         pendingViewerWindow.mediaFiles = files
-        pendingViewerWindow.openAt(index)
+        if (pendingViewerWindow.currentIndex >= files.length) {
+            pendingViewerWindow.currentIndex = Math.max(0, files.length - 1)
+        }
     }
     
     function _addDemoFiles(urls) {
