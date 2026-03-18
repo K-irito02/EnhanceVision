@@ -94,10 +94,43 @@ Select-String -Path "logs\build_output.log" -Pattern "warning C\d+" | Select-Obj
 
 ### 7. 运行验证
 
-启动应用程序：
+**重要**：每次构建编译成功后，必须运行程序进行验证。
+
+#### 7.1 检查并关闭已运行的程序
+
+在启动新程序前，必须先检查并关闭已运行的相同程序：
+
+```powershell
+# 检查并关闭已运行的 EnhanceVision 程序
+Get-Process | Where-Object { $_.Name -like "*EnhanceVision*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+
+# 等待进程完全关闭
+Start-Sleep -Seconds 2
+```
+
+#### 7.2 启动应用程序
 
 ```powershell
 Start-Process -FilePath "build\msvc2022\Release\Release\EnhanceVision.exe"
+```
+
+#### 7.3 完整的构建-运行流程
+
+```powershell
+# 1. 关闭已运行的程序
+Get-Process | Where-Object { $_.Name -like "*EnhanceVision*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
+
+# 2. 构建项目
+& "C:\Program Files\CMake\bin\cmake.exe" --build build/msvc2022/Release --config Release -j 8 2>&1 | Tee-Object -FilePath "logs/build_output.log"
+
+# 3. 检查构建结果
+if ($LASTEXITCODE -eq 0) {
+    # 4. 构建成功，启动程序
+    Start-Process -FilePath "build\msvc2022\Release\Release\EnhanceVision.exe"
+} else {
+    Write-Host "构建失败，请检查日志: logs\build_output.log"
+}
 ```
 
 ### 8. 查看运行时日志
@@ -229,3 +262,5 @@ Remove-Item -Path "logs\*" -Recurse -Force -ErrorAction SilentlyContinue
 - 头文件：需要在 CMakeLists.txt 中添加到目标以支持 MOC
 - **增量构建**：不要每次都删除 build 目录，仅在遇到问题时清理
 - **运行时日志**：每次程序启动会覆盖 `runtime_output.log`
+- **构建后运行**：每次构建成功后必须运行程序验证
+- **关闭已运行程序**：启动新程序前必须先关闭已运行的相同程序

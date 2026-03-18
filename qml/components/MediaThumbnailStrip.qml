@@ -164,6 +164,16 @@ Item {
                                 anchors.fill: parent
                                 source: {
                                     if (!thumbDelegate.itemData) return ""
+                                    
+                                    if (root.messageMode && thumbDelegate.itemData.status === 2) {
+                                        if (thumbDelegate.itemData.processedThumbnailId && thumbDelegate.itemData.processedThumbnailId !== "") {
+                                            return "image://thumbnail/" + thumbDelegate.itemData.processedThumbnailId
+                                        }
+                                        if (thumbDelegate.itemData.resultPath && thumbDelegate.itemData.resultPath !== "") {
+                                            return "image://thumbnail/" + thumbDelegate.itemData.resultPath
+                                        }
+                                    }
+                                    
                                     var path = thumbDelegate.itemData.thumbnail
                                     if (path && path !== "") return path
                                     var fp = thumbDelegate.itemData.filePath
@@ -211,7 +221,7 @@ Item {
                             }
 
                             Rectangle {
-                                visible: thumbDelegate.itemData && thumbDelegate.itemData.mediaType === 1
+                                visible: thumbDelegate.itemData !== undefined && thumbDelegate.itemData !== null && thumbDelegate.itemData.mediaType === 1
                                 anchors.bottom: parent.bottom
                                 anchors.left: parent.left
                                 anchors.margins: 4
@@ -230,7 +240,7 @@ Item {
                                 anchors.fill: parent
                                 radius: parent.radius
                                 color: Qt.rgba(0, 0, 0, 0.5)
-                                visible: thumbDelegate.itemData && thumbDelegate.itemData.status !== 2 && root.messageMode
+                                visible: thumbDelegate.itemData !== undefined && thumbDelegate.itemData !== null && thumbDelegate.itemData.status !== 2 && root.messageMode
                                 ColoredIcon {
                                     anchors.centerIn: parent
                                     source: Theme.icon("loader")
@@ -241,7 +251,7 @@ Item {
                                         from: 0; to: 360
                                         duration: 1500
                                         loops: Animation.Infinite
-                                        running: thumbDelegate.itemData && thumbDelegate.itemData.status === 1
+                                        running: thumbDelegate.itemData !== undefined && thumbDelegate.itemData !== null && thumbDelegate.itemData.status === 1
                                     }
                                 }
                             }
@@ -401,6 +411,16 @@ Item {
                                 anchors.fill: parent
                                 source: {
                                     if (!thumbDelegate.itemData) return ""
+                                    
+                                    if (root.messageMode && thumbDelegate.itemData.status === 2) {
+                                        if (thumbDelegate.itemData.processedThumbnailId && thumbDelegate.itemData.processedThumbnailId !== "") {
+                                            return "image://thumbnail/" + thumbDelegate.itemData.processedThumbnailId
+                                        }
+                                        if (thumbDelegate.itemData.resultPath && thumbDelegate.itemData.resultPath !== "") {
+                                            return "image://thumbnail/" + thumbDelegate.itemData.resultPath
+                                        }
+                                    }
+                                    
                                     var path = thumbDelegate.itemData.thumbnail
                                     if (path && path !== "") return path
                                     var fp = thumbDelegate.itemData.filePath

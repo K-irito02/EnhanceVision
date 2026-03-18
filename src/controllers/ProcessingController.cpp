@@ -9,11 +9,14 @@
 #include "EnhanceVision/controllers/FileController.h"
 #include "EnhanceVision/controllers/SessionController.h"
 #include "EnhanceVision/models/MessageModel.h"
-#include "EnhanceVision/utils/ImageUtils.h"
+#include "EnhanceVision/services/ImageExportService.h"
 #include "EnhanceVision/providers/ThumbnailProvider.h"
+#include "EnhanceVision/utils/ImageUtils.h"
 #include <QUuid>
 #include <QDebug>
 #include <QTimer>
+#include <QStandardPaths>
+#include <QDir>
 #include <algorithm>
 
 namespace EnhanceVision {
@@ -401,50 +404,109 @@ void ProcessingController::completeTask(const QString& taskId, const QString& re
                 for (const MediaFile& mf : msg.mediaFiles) {
                     if (mf.id == fileId) {
                         if (msg.mode == ProcessingMode::Shader && ImageUtils::isImageFile(mf.filePath)) {
-                            QImage originalThumb = ImageUtils::generateThumbnail(mf.filePath, QSize(256, 256));
-                            if (!originalThumb.isNull()) {
-                                QImage processedThumb = ImageUtils::applyShaderEffects(
-                                    originalThumb,
-                                    msg.shaderParams.brightness,
-                                    msg.shaderParams.contrast,
-                                    msg.shaderParams.saturation,
-                                    msg.shaderParams.hue,
-                                    msg.shaderParams.exposure,
-                                    msg.shaderParams.gamma,
-                                    msg.shaderParams.temperature,
-                                    msg.shaderParams.tint,
-                                    msg.shaderParams.vignette,
-                                    msg.shaderParams.highlights,
-                                    msg.shaderParams.shadows
-                                );
-                                
-                                QString thumbId = "processed_" + fileId;
-                                if (ThumbnailProvider::instance()) {
-                                    ThumbnailProvider::instance()->setThumbnail(thumbId, processedThumb);
-                                }
+                            QString processedDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/processed";
+                            QDir().mkpath(processedDir);
+                            QString processedPath = processedDir + "/" + QUuid::createUuid().toString(QUuid::WithoutBraces) + ".png";
+                            
+                            PendingExport pending;
+                            pending.taskId = taskId;
+                            pending.messageId = messageId;
+                            pending.fileId = fileId;
+                            pending.originalPath = mf.filePath;
+                            pending.outputPath = processedPath;
+                            pending.shaderParams = shaderParamsToVariantMap(msg.shaderParams);
+                            
+                            m_pendingExports[taskId] = pending;
+                            
+                            qDebug() << "[ProcessingController] Requesting GPU export for task:" << taskId
+                                     << "image:" << mf.filePath
+                                     << "output:" << processedPath;
+                            
+                            emit requestShaderExport(taskId, mf.filePath, pending.shaderParams, processedPath);
+                        } else {
+                            if (m_messageModel) {
+                                m_messageModel->updateFileStatus(messageId, fileId,
+                                    static_cast<int>(ProcessingStatus::Completed), mf.filePath);
                             }
+                            
+                            m_currentProcessingCount--;
+                            emit currentProcessingCountChanged();
+                            m_processingModel->updateTasks(m_tasks);
+                            
+                            syncMessageProgress(messageId);
+                            syncMessageStatus(messageId);
+                            processNextTask();
                         }
                         break;
                     }
                 }
-
-                if (m_messageModel) {
-                    m_messageModel->updateFileStatus(messageId, fileId,
-                        static_cast<int>(ProcessingStatus::Completed), resultPath);
-                }
             }
-
-            m_currentProcessingCount--;
-            emit currentProcessingCountChanged();
-            m_processingModel->updateTasks(m_tasks);
-
-            syncMessageProgress(messageId);
-            syncMessageStatus(messageId);
-
-            processNextTask();
             break;
         }
     }
+}
+
+void ProcessingController::onShaderExportCompleted(const QString& exportId, bool success, const QString& outputPath, const QString& error)
+{
+    qDebug() << "[ProcessingController] Shader export completed:" << exportId
+             << "success:" << success
+             << "output:" << outputPath
+             << "error:" << error;
+    
+    if (!m_pendingExports.contains(exportId)) {
+        qWarning() << "[ProcessingController] Unknown export ID:" << exportId;
+        return;
+    }
+    
+    PendingExport pending = m_pendingExports.take(exportId);
+    
+    if (success) {
+        QImage processedThumb = ImageUtils::generateThumbnail(outputPath, QSize(256, 256));
+        QString thumbId = "processed_" + pending.fileId;
+        if (ThumbnailProvider::instance() && !processedThumb.isNull()) {
+            ThumbnailProvider::instance()->setThumbnail(thumbId, processedThumb);
+        }
+        
+        if (m_messageModel) {
+            m_messageModel->updateFileStatus(pending.messageId, pending.fileId,
+                static_cast<int>(ProcessingStatus::Completed), outputPath);
+        }
+    } else {
+        if (m_messageModel) {
+            m_messageModel->updateFileStatus(pending.messageId, pending.fileId,
+                static_cast<int>(ProcessingStatus::Failed), QString());
+            m_messageModel->updateErrorMessage(pending.messageId, error);
+        }
+    }
+    
+    m_currentProcessingCount--;
+    emit currentProcessingCountChanged();
+    m_processingModel->updateTasks(m_tasks);
+    
+    syncMessageProgress(pending.messageId);
+    syncMessageStatus(pending.messageId);
+    
+    processNextTask();
+}
+
+QVariantMap ProcessingController::shaderParamsToVariantMap(const ShaderParams& params)
+{
+    QVariantMap map;
+    map["brightness"] = params.brightness;
+    map["contrast"] = params.contrast;
+    map["saturation"] = params.saturation;
+    map["hue"] = params.hue;
+    map["sharpness"] = params.sharpness;
+    map["blur"] = params.blur;
+    map["denoise"] = params.denoise;
+    map["exposure"] = params.exposure;
+    map["gamma"] = params.gamma;
+    map["temperature"] = params.temperature;
+    map["tint"] = params.tint;
+    map["vignette"] = params.vignette;
+    map["highlights"] = params.highlights;
+    map["shadows"] = params.shadows;
+    return map;
 }
 
 void ProcessingController::failTask(const QString& taskId, const QString& error)

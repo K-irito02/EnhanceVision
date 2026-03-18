@@ -466,10 +466,22 @@ QVariantList MessageModel::getMediaFiles(const QString &messageId) const
     if (idx < 0) return result;
 
     const Message &msg = m_messages.at(idx);
+    const ShaderParams &p = msg.shaderParams;
     bool hasShaderModifications = 
-        qAbs(msg.shaderParams.brightness) > 0.001f ||
-        qAbs(msg.shaderParams.contrast - 1.0f) > 0.001f ||
-        qAbs(msg.shaderParams.saturation - 1.0f) > 0.001f;
+        qAbs(p.brightness) > 0.001f ||
+        qAbs(p.contrast - 1.0f) > 0.001f ||
+        qAbs(p.saturation - 1.0f) > 0.001f ||
+        qAbs(p.hue) > 0.001f ||
+        qAbs(p.sharpness) > 0.001f ||
+        qAbs(p.blur) > 0.001f ||
+        qAbs(p.denoise) > 0.001f ||
+        qAbs(p.exposure) > 0.001f ||
+        qAbs(p.gamma - 1.0f) > 0.001f ||
+        qAbs(p.temperature) > 0.001f ||
+        qAbs(p.tint) > 0.001f ||
+        qAbs(p.vignette) > 0.001f ||
+        qAbs(p.highlights) > 0.001f ||
+        qAbs(p.shadows) > 0.001f;
 
     for (const MediaFile &file : msg.mediaFiles) {
         QVariantMap fileMap;
@@ -497,7 +509,8 @@ QVariantMap MessageModel::getShaderParams(const QString &messageId) const
     int idx = findMessageIndex(messageId);
     if (idx < 0) return result;
 
-    const ShaderParams &params = m_messages.at(idx).shaderParams;
+    const Message &msg = m_messages.at(idx);
+    const ShaderParams &params = msg.shaderParams;
     result["brightness"] = params.brightness;
     result["contrast"] = params.contrast;
     result["saturation"] = params.saturation;
@@ -512,6 +525,36 @@ QVariantMap MessageModel::getShaderParams(const QString &messageId) const
     result["vignette"] = params.vignette;
     result["highlights"] = params.highlights;
     result["shadows"] = params.shadows;
+    
+    bool hasShaderModifications = 
+        qAbs(params.brightness) > 0.001f ||
+        qAbs(params.contrast - 1.0f) > 0.001f ||
+        qAbs(params.saturation - 1.0f) > 0.001f ||
+        qAbs(params.hue) > 0.001f ||
+        qAbs(params.sharpness) > 0.001f ||
+        qAbs(params.blur) > 0.001f ||
+        qAbs(params.denoise) > 0.001f ||
+        qAbs(params.exposure) > 0.001f ||
+        qAbs(params.gamma - 1.0f) > 0.001f ||
+        qAbs(params.temperature) > 0.001f ||
+        qAbs(params.tint) > 0.001f ||
+        qAbs(params.vignette) > 0.001f ||
+        qAbs(params.highlights) > 0.001f ||
+        qAbs(params.shadows) > 0.001f;
+    result["hasShaderModifications"] = hasShaderModifications;
+    
+    // 对于 Shader 模式，如果文件已处理完成，则 Shader 效果已经应用到导出的图像上
+    // 不需要再次应用 Shader 效果
+    bool isShaderMode = (msg.mode == ProcessingMode::Shader);
+    bool hasCompletedFiles = false;
+    for (const MediaFile &file : msg.mediaFiles) {
+        if (file.status == ProcessingStatus::Completed) {
+            hasCompletedFiles = true;
+            break;
+        }
+    }
+    result["shaderAlreadyApplied"] = isShaderMode && hasShaderModifications && hasCompletedFiles;
+    
     return result;
 }
 

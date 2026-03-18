@@ -38,6 +38,7 @@ Window {
     property real shaderHue: 0.0
     property real shaderSharpness: 0.0
     property real shaderBlur: 0.0
+    property real shaderDenoise: 0.0
     property real shaderExposure: 0.0
     property real shaderGamma: 1.0
     property real shaderTemperature: 0.0
@@ -51,13 +52,15 @@ Window {
     property bool isVideo: currentFile ? (currentFile.mediaType === 1) : false
     property string currentSource: {
         if (!currentFile) return ""
-        var src = ""
-        if (messageMode && !showOriginal && currentFile.resultPath && currentFile.resultPath !== "") {
-            src = currentFile.resultPath
+        
+        if (messageMode) {
+            if (showOriginal) {
+                return currentFile.originalPath || currentFile.filePath || ""
+            }
+            return currentFile.filePath || currentFile.originalPath || ""
         } else {
-            src = currentFile.filePath || currentFile.originalPath || ""
+            return currentFile.filePath || currentFile.originalPath || ""
         }
-        return src
     }
 
     property real _savedX: 0
@@ -319,7 +322,7 @@ Window {
                 }
             }
 
-            MultiEffect {
+            FullShaderEffect {
                 id: imageViewWithShader
                 anchors.fill: imageViewSource
                 source: imageViewSource
@@ -328,10 +331,17 @@ Window {
                 brightness: shaderBrightness
                 contrast: shaderContrast
                 saturation: shaderSaturation
-                blurEnabled: shaderBlur > 0.01
-                blur: shaderBlur
-                blurMax: 32
-                blurMultiplier: 1.0
+                hue: shaderHue
+                sharpness: shaderSharpness
+                blurAmount: shaderBlur
+                denoise: shaderDenoise
+                exposure: shaderExposure
+                gamma: shaderGamma
+                temperature: shaderTemperature
+                tint: shaderTint
+                vignette: shaderVignette
+                highlights: shaderHighlights
+                shadows: shaderShadows
                 
                 MouseArea {
                     id: shaderImageClickArea
@@ -965,6 +975,16 @@ Window {
                             source: {
                                 var f = root.mediaFiles[index]
                                 if (!f) return ""
+                                
+                                if (root.messageMode && f.status === 2) {
+                                    if (f.processedThumbnailId && f.processedThumbnailId !== "") {
+                                        return "image://thumbnail/" + f.processedThumbnailId
+                                    }
+                                    if (f.resultPath && f.resultPath !== "") {
+                                        return "image://thumbnail/" + f.resultPath
+                                    }
+                                }
+                                
                                 if (f.thumbnail && f.thumbnail !== "") return f.thumbnail
                                 if (f.filePath) return "image://thumbnail/" + f.filePath
                                 return ""

@@ -1788,7 +1788,7 @@ ColumnLayout {
                     Layout.fillWidth: true
                     paramName: qsTr("对比度")
                     from: 0.0
-                    to: 2.0
+                    to: 3.0
                     externalValue: root.contrast
                     stepSize: 0.01
                     decimals: 2
@@ -1802,7 +1802,7 @@ ColumnLayout {
                     Layout.fillWidth: true
                     paramName: qsTr("饱和度")
                     from: 0.0
-                    to: 2.0
+                    to: 3.0
                     externalValue: root.saturation
                     stepSize: 0.01
                     decimals: 2
@@ -1975,8 +1975,8 @@ ColumnLayout {
                 ParamSlider {
                     Layout.fillWidth: true
                     paramName: qsTr("曝光")
-                    from: -1.0
-                    to: 1.0
+                    from: -2.0
+                    to: 2.0
                     externalValue: root.exposure
                     stepSize: 0.01
                     decimals: 2
@@ -1989,8 +1989,8 @@ ColumnLayout {
                 ParamSlider {
                     Layout.fillWidth: true
                     paramName: qsTr("伽马")
-                    from: 0.5
-                    to: 2.0
+                    from: 0.3
+                    to: 3.0
                     externalValue: root.gamma
                     stepSize: 0.01
                     decimals: 2
@@ -2084,8 +2084,8 @@ ColumnLayout {
                 ParamSlider {
                     Layout.fillWidth: true
                     paramName: qsTr("色温")
-                    from: -0.5
-                    to: 0.5
+                    from: -1.0
+                    to: 1.0
                     externalValue: root.temperature
                     stepSize: 0.01
                     decimals: 2
@@ -2098,8 +2098,8 @@ ColumnLayout {
                 ParamSlider {
                     Layout.fillWidth: true
                     paramName: qsTr("色调")
-                    from: -0.5
-                    to: 0.5
+                    from: -1.0
+                    to: 1.0
                     externalValue: root.tint
                     stepSize: 0.01
                     decimals: 2

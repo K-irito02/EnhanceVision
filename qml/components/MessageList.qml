@@ -74,19 +74,30 @@ Item {
                     var files = model.mediaFiles
                     for (var i = 0; i < files.length; i++) {
                         var f = files[i]
+                        
                         var thumbSource = ""
-                        if (f.processedThumbnailId && f.processedThumbnailId !== "") {
-                            thumbSource = "image://thumbnail/" + f.processedThumbnailId
-                        } else if (f.filePath) {
-                            thumbSource = "image://thumbnail/" + f.filePath
+                        if (f.status === 2) {
+                            if (f.processedThumbnailId && f.processedThumbnailId !== "") {
+                                thumbSource = "image://thumbnail/" + f.processedThumbnailId
+                            } else if (f.resultPath && f.resultPath !== "") {
+                                thumbSource = "image://thumbnail/" + f.resultPath
+                            } else if (f.filePath) {
+                                thumbSource = "image://thumbnail/" + f.filePath
+                            }
+                        } else {
+                            if (f.filePath) {
+                                thumbSource = "image://thumbnail/" + f.filePath
+                            }
                         }
+                        
                         _cachedMedia.append({
                             "filePath":  f.filePath  || "",
                             "fileName":  f.fileName  || "",
                             "mediaType": f.mediaType !== undefined ? f.mediaType : 0,
                             "thumbnail": thumbSource,
                             "status":    f.status    !== undefined ? f.status : 0,
-                            "resultPath": f.resultPath || ""
+                            "resultPath": f.resultPath || "",
+                            "processedThumbnailId": f.processedThumbnailId || ""
                         })
                     }
                 } else {
@@ -186,22 +197,83 @@ Item {
         id: viewerWindow
         messageMode: true
         property string currentMessageId: ""
-        property var currentShaderParams: null
         
-        shaderEnabled: currentShaderParams !== null && _hasShaderModifications(currentShaderParams)
-        shaderBrightness: currentShaderParams ? currentShaderParams.brightness : 0.0
-        shaderContrast: currentShaderParams ? currentShaderParams.contrast : 1.0
-        shaderSaturation: currentShaderParams ? currentShaderParams.saturation : 1.0
-        shaderHue: currentShaderParams ? currentShaderParams.hue : 0.0
-        shaderSharpness: currentShaderParams ? currentShaderParams.sharpness : 0.0
-        shaderBlur: currentShaderParams ? currentShaderParams.blur : 0.0
-        shaderExposure: currentShaderParams ? currentShaderParams.exposure : 0.0
-        shaderGamma: currentShaderParams ? currentShaderParams.gamma : 1.0
-        shaderTemperature: currentShaderParams ? currentShaderParams.temperature : 0.0
-        shaderTint: currentShaderParams ? currentShaderParams.tint : 0.0
-        shaderVignette: currentShaderParams ? currentShaderParams.vignette : 0.0
-        shaderHighlights: currentShaderParams ? currentShaderParams.highlights : 0.0
-        shaderShadows: currentShaderParams ? currentShaderParams.shadows : 0.0
+        function _openViewer(msgId, fileIndex, msgStatus) {
+            var files = []
+            if (_hasRealModel) {
+                var allFiles = messageModel.getMediaFiles(msgId)
+                
+                for (var i = 0; i < allFiles.length; i++) {
+                    var f = allFiles[i]
+                    var filePath = f.filePath || ""
+                    var resultPath = f.resultPath || ""
+                    
+                    if (f.status === 2) {
+                        var thumbSource = ""
+                        if (f.processedThumbnailId && f.processedThumbnailId !== "") {
+                            thumbSource = "image://thumbnail/" + f.processedThumbnailId
+                        } else if (resultPath && resultPath !== "") {
+                            thumbSource = "image://thumbnail/" + resultPath
+                        } else if (filePath && filePath !== "") {
+                            thumbSource = "image://thumbnail/" + filePath
+                        }
+                        
+                        files.push({
+                            "filePath":  resultPath || filePath,
+                            "fileName":  f.fileName  || "",
+                            "mediaType": f.mediaType !== undefined ? f.mediaType : 0,
+                            "thumbnail": thumbSource,
+                            "resultPath": resultPath,
+                            "originalPath": filePath,
+                            "status": f.status,
+                            "processedThumbnailId": f.processedThumbnailId || ""
+                        })
+                    }
+                }
+            } else {
+                for (var j = 0; j < 10; j++) {
+                    files.push({
+                        "filePath":  "demo://placeholder_" + (j+1) + ".jpg",
+                        "fileName":  "media_" + (j+1) + ".jpg",
+                        "mediaType": 0,
+                        "thumbnail": "",
+                        "resultPath": "",
+                        "originalPath": ""
+                    })
+                }
+            }
+            
+            if (files.length > 0) {
+                viewerWindow.messageId = msgId
+                viewerWindow.currentMessageId = msgId
+                viewerWindow.mediaFiles = files
+                
+                // 获取消息存储的 shader 参数
+                var shaderParams = messageModel.getShaderParams(msgId)
+                
+                // 对于已处理的 Shader 模式文件，Shader 效果已经应用到导出的图像上
+                // 不需要再次应用 Shader 效果，否则会导致效果叠加（如亮度变暗两次）
+                var shaderAlreadyApplied = shaderParams.shaderAlreadyApplied === true
+                viewerWindow.shaderEnabled = !shaderAlreadyApplied
+                
+                viewerWindow.shaderBrightness = shaderParams.brightness || 0.0
+                viewerWindow.shaderContrast = shaderParams.contrast || 1.0
+                viewerWindow.shaderSaturation = shaderParams.saturation || 1.0
+                viewerWindow.shaderHue = shaderParams.hue || 0.0
+                viewerWindow.shaderSharpness = shaderParams.sharpness || 0.0
+                viewerWindow.shaderBlur = shaderParams.blur || 0.0
+                viewerWindow.shaderDenoise = shaderParams.denoise || 0.0
+                viewerWindow.shaderExposure = shaderParams.exposure || 0.0
+                viewerWindow.shaderGamma = shaderParams.gamma || 1.0
+                viewerWindow.shaderTemperature = shaderParams.temperature || 0.0
+                viewerWindow.shaderTint = shaderParams.tint || 0.0
+                viewerWindow.shaderVignette = shaderParams.vignette || 0.0
+                viewerWindow.shaderHighlights = shaderParams.highlights || 0.0
+                viewerWindow.shaderShadows = shaderParams.shadows || 0.0
+                
+                viewerWindow.openAt(Math.min(fileIndex, files.length - 1))
+            }
+        }
         
         onFileRemoved: function(msgId, fileIndex) {
             if (root._hasRealModel) {
@@ -210,21 +282,15 @@ Item {
         }
     }
     
-    function _hasShaderModifications(params) {
-        if (!params) return false
-        return Math.abs(params.brightness) > 0.001 ||
-               Math.abs(params.contrast - 1.0) > 0.001 ||
-               Math.abs(params.saturation - 1.0) > 0.001 ||
-               Math.abs(params.hue) > 0.001 ||
-               Math.abs(params.sharpness) > 0.001 ||
-               Math.abs(params.blur) > 0.001 ||
-               Math.abs(params.exposure) > 0.001 ||
-               Math.abs(params.gamma - 1.0) > 0.001 ||
-               Math.abs(params.temperature) > 0.001 ||
-               Math.abs(params.tint) > 0.001 ||
-               Math.abs(params.vignette) > 0.001 ||
-               Math.abs(params.highlights) > 0.001 ||
-               Math.abs(params.shadows) > 0.001
+    function _getShaderParam(paramName, defaultValue) {
+        var p = root.parent
+        while (p) {
+            if (p.objectName === "AppRoot" || (p[paramName] !== undefined)) {
+                return p[paramName] !== undefined ? p[paramName] : defaultValue
+            }
+            p = p.parent
+        }
+        return defaultValue
     }
     
     // 监听 C++ MessageModel 的 mediaFileRemoved 信号
@@ -277,10 +343,8 @@ Item {
     /** @brief 打开媒体查看器 */
     function _openViewer(msgId, fileIndex, msgStatus) {
         var files = []
-        var shaderParams = null
         if (_hasRealModel) {
             var allFiles = messageModel.getMediaFiles(msgId)
-            shaderParams = messageModel.getShaderParams(msgId)
             
             for (var i = 0; i < allFiles.length; i++) {
                 var f = allFiles[i]
@@ -288,13 +352,24 @@ Item {
                 var resultPath = f.resultPath || ""
                 
                 if (f.status === 2) {
+                    var thumbSource = ""
+                    if (f.processedThumbnailId && f.processedThumbnailId !== "") {
+                        thumbSource = "image://thumbnail/" + f.processedThumbnailId
+                    } else if (resultPath && resultPath !== "") {
+                        thumbSource = "image://thumbnail/" + resultPath
+                    } else if (filePath && filePath !== "") {
+                        thumbSource = "image://thumbnail/" + filePath
+                    }
+                    
                     files.push({
-                        "filePath":  filePath,
+                        "filePath":  resultPath || filePath,
                         "fileName":  f.fileName  || "",
                         "mediaType": f.mediaType !== undefined ? f.mediaType : 0,
-                        "thumbnail": filePath !== "" ? ("image://thumbnail/" + filePath) : "",
+                        "thumbnail": thumbSource,
                         "resultPath": resultPath,
-                        "originalPath": filePath
+                        "originalPath": filePath,
+                        "status": f.status,
+                        "processedThumbnailId": f.processedThumbnailId || ""
                     })
                 }
             }
@@ -314,8 +389,31 @@ Item {
         if (files.length > 0) {
             viewerWindow.messageId = msgId
             viewerWindow.currentMessageId = msgId
-            viewerWindow.currentShaderParams = shaderParams
             viewerWindow.mediaFiles = files
+            
+            // 获取消息存储的 shader 参数
+            var shaderParams = messageModel.getShaderParams(msgId)
+            
+            // 对于已处理的 Shader 模式文件，Shader 效果已经应用到导出的图像上
+            // 不需要再次应用 Shader 效果，否则会导致效果叠加（如亮度变暗两次）
+            var shaderAlreadyApplied = shaderParams.shaderAlreadyApplied === true
+            viewerWindow.shaderEnabled = !shaderAlreadyApplied
+            
+            viewerWindow.shaderBrightness = shaderParams.brightness || 0.0
+            viewerWindow.shaderContrast = shaderParams.contrast || 1.0
+            viewerWindow.shaderSaturation = shaderParams.saturation || 1.0
+            viewerWindow.shaderHue = shaderParams.hue || 0.0
+            viewerWindow.shaderSharpness = shaderParams.sharpness || 0.0
+            viewerWindow.shaderBlur = shaderParams.blur || 0.0
+            viewerWindow.shaderDenoise = shaderParams.denoise || 0.0
+            viewerWindow.shaderExposure = shaderParams.exposure || 0.0
+            viewerWindow.shaderGamma = shaderParams.gamma || 1.0
+            viewerWindow.shaderTemperature = shaderParams.temperature || 0.0
+            viewerWindow.shaderTint = shaderParams.tint || 0.0
+            viewerWindow.shaderVignette = shaderParams.vignette || 0.0
+            viewerWindow.shaderHighlights = shaderParams.highlights || 0.0
+            viewerWindow.shaderShadows = shaderParams.shadows || 0.0
+            
             viewerWindow.openAt(Math.min(fileIndex, files.length - 1))
         }
     }
@@ -331,13 +429,24 @@ Item {
             var resultPath = f.resultPath || ""
             
             if (f.status === 2) {
+                var thumbSource = ""
+                if (f.processedThumbnailId && f.processedThumbnailId !== "") {
+                    thumbSource = "image://thumbnail/" + f.processedThumbnailId
+                } else if (resultPath && resultPath !== "") {
+                    thumbSource = "image://thumbnail/" + resultPath
+                } else if (filePath && filePath !== "") {
+                    thumbSource = "image://thumbnail/" + filePath
+                }
+                
                 files.push({
-                    "filePath":  filePath,
+                    "filePath":  resultPath || filePath,
                     "fileName":  f.fileName  || "",
                     "mediaType": f.mediaType !== undefined ? f.mediaType : 0,
-                    "thumbnail": filePath !== "" ? ("image://thumbnail/" + filePath) : "",
+                    "thumbnail": thumbSource,
                     "resultPath": resultPath,
-                    "originalPath": filePath
+                    "originalPath": filePath,
+                    "status": f.status,
+                    "processedThumbnailId": f.processedThumbnailId || ""
                 })
             }
         }
