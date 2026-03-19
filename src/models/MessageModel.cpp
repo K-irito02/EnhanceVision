@@ -47,8 +47,20 @@ QVariant MessageModel::data(const QModelIndex &index, int role) const
         bool hasShaderModifications = 
             qAbs(message.shaderParams.brightness) > 0.001f ||
             qAbs(message.shaderParams.contrast - 1.0f) > 0.001f ||
-            qAbs(message.shaderParams.saturation - 1.0f) > 0.001f;
+            qAbs(message.shaderParams.saturation - 1.0f) > 0.001f ||
+            qAbs(message.shaderParams.hue) > 0.001f ||
+            qAbs(message.shaderParams.sharpness) > 0.001f ||
+            qAbs(message.shaderParams.blur) > 0.001f ||
+            qAbs(message.shaderParams.denoise) > 0.001f ||
+            qAbs(message.shaderParams.exposure) > 0.001f ||
+            qAbs(message.shaderParams.gamma - 1.0f) > 0.001f ||
+            qAbs(message.shaderParams.temperature) > 0.001f ||
+            qAbs(message.shaderParams.tint) > 0.001f ||
+            qAbs(message.shaderParams.vignette) > 0.001f ||
+            qAbs(message.shaderParams.highlights) > 0.001f ||
+            qAbs(message.shaderParams.shadows) > 0.001f;
         
+                
         for (const MediaFile &file : message.mediaFiles) {
             QVariantMap fileMap;
             fileMap["id"] = file.id;

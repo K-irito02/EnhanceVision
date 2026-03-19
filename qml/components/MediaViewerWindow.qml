@@ -50,15 +50,31 @@ Window {
     property var currentFile: mediaFiles.length > 0 && currentIndex >= 0 && currentIndex < mediaFiles.length
                               ? mediaFiles[currentIndex] : null
     property bool isVideo: currentFile ? (currentFile.mediaType === 1) : false
+    
+    // 是否应用 shader 效果
+    // - 预览区（messageMode=false）：应用 shader（实时预览效果）
+    // - 消息区（messageMode=true）：不应用 shader（图片已处理或查看原图对比）
+    property bool _shouldApplyShader: {
+        if (!shaderEnabled) return false
+        // 消息模式下永远不应用 shader：
+        // - 默认显示已处理图片（shader 已烘焙）
+        // - 查看原图时只显示原图（不应用 shader，用于对比）
+        if (messageMode) return false
+        return true
+    }
+    
     property string currentSource: {
         if (!currentFile) return ""
         
         if (messageMode) {
             if (showOriginal) {
+                // 查看原图：显示原始文件路径
                 return currentFile.originalPath || currentFile.filePath || ""
             }
+            // 默认：显示已处理文件（filePath 已指向 resultPath）
             return currentFile.filePath || currentFile.originalPath || ""
         } else {
+            // 预览模式：显示原始文件，shader 实时应用
             return currentFile.filePath || currentFile.originalPath || ""
         }
     }
@@ -326,7 +342,7 @@ Window {
                 id: imageViewWithShader
                 anchors.fill: imageViewSource
                 source: imageViewSource
-                visible: !isVideo && currentSource !== "" && shaderEnabled && !showOriginal
+                visible: !isVideo && currentSource !== "" && _shouldApplyShader
                 
                 brightness: shaderBrightness
                 contrast: shaderContrast
@@ -373,7 +389,7 @@ Window {
                 id: imageView
                 anchors.fill: parent
                 anchors.margins: 8
-                visible: !isVideo && currentSource !== "" && (!shaderEnabled || showOriginal)
+                visible: !isVideo && currentSource !== "" && !_shouldApplyShader
                 source: {
                     if (isVideo || !currentSource) return ""
                     var src = currentSource

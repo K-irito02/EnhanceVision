@@ -57,20 +57,37 @@ ColumnLayout {
 
     function isCurrentPresetActive() {
         if (!currentPreset) return false
-        return Math.abs(brightness - (currentPreset.brightness || 0)) < 0.001 &&
-               Math.abs(contrast - (currentPreset.contrast || 1)) < 0.001 &&
-               Math.abs(saturation - (currentPreset.saturation || 1)) < 0.001 &&
-               Math.abs(hue - (currentPreset.hue || 0)) < 0.001 &&
-               Math.abs(sharpness - (currentPreset.sharpness || 0)) < 0.001 &&
-               Math.abs(blur - (currentPreset.blur || 0)) < 0.001 &&
-               Math.abs(denoise - (currentPreset.denoise || 0)) < 0.001 &&
-               Math.abs(exposure - (currentPreset.exposure || 0)) < 0.001 &&
-               Math.abs(gamma - (currentPreset.gamma || 1)) < 0.001 &&
-               Math.abs(temperature - (currentPreset.temperature || 0)) < 0.001 &&
-               Math.abs(tint - (currentPreset.tint || 0)) < 0.001 &&
-               Math.abs(vignette - (currentPreset.vignette || 0)) < 0.001 &&
-               Math.abs(highlights - (currentPreset.highlights || 0)) < 0.001 &&
-               Math.abs(shadows - (currentPreset.shadows || 0)) < 0.001
+        
+        // 使用 !== undefined 检查，避免值为 0 时被错误替换为默认值
+        var presetBrightness = currentPreset.brightness !== undefined ? currentPreset.brightness : 0.0
+        var presetContrast = currentPreset.contrast !== undefined ? currentPreset.contrast : 1.0
+        var presetSaturation = currentPreset.saturation !== undefined ? currentPreset.saturation : 1.0
+        var presetHue = currentPreset.hue !== undefined ? currentPreset.hue : 0.0
+        var presetSharpness = currentPreset.sharpness !== undefined ? currentPreset.sharpness : 0.0
+        var presetBlur = currentPreset.blur !== undefined ? currentPreset.blur : 0.0
+        var presetDenoise = currentPreset.denoise !== undefined ? currentPreset.denoise : 0.0
+        var presetExposure = currentPreset.exposure !== undefined ? currentPreset.exposure : 0.0
+        var presetGamma = currentPreset.gamma !== undefined ? currentPreset.gamma : 1.0
+        var presetTemperature = currentPreset.temperature !== undefined ? currentPreset.temperature : 0.0
+        var presetTint = currentPreset.tint !== undefined ? currentPreset.tint : 0.0
+        var presetVignette = currentPreset.vignette !== undefined ? currentPreset.vignette : 0.0
+        var presetHighlights = currentPreset.highlights !== undefined ? currentPreset.highlights : 0.0
+        var presetShadows = currentPreset.shadows !== undefined ? currentPreset.shadows : 0.0
+        
+        return Math.abs(brightness - presetBrightness) < 0.001 &&
+               Math.abs(contrast - presetContrast) < 0.001 &&
+               Math.abs(saturation - presetSaturation) < 0.001 &&
+               Math.abs(hue - presetHue) < 0.001 &&
+               Math.abs(sharpness - presetSharpness) < 0.001 &&
+               Math.abs(blur - presetBlur) < 0.001 &&
+               Math.abs(denoise - presetDenoise) < 0.001 &&
+               Math.abs(exposure - presetExposure) < 0.001 &&
+               Math.abs(gamma - presetGamma) < 0.001 &&
+               Math.abs(temperature - presetTemperature) < 0.001 &&
+               Math.abs(tint - presetTint) < 0.001 &&
+               Math.abs(vignette - presetVignette) < 0.001 &&
+               Math.abs(highlights - presetHighlights) < 0.001 &&
+               Math.abs(shadows - presetShadows) < 0.001
     }
 
     ColumnLayout {
@@ -2177,36 +2194,53 @@ ColumnLayout {
     function applyPreset(preset) {
         currentPreset = preset
         currentPresetName = preset.name
-        brightness = preset.brightness !== undefined ? preset.brightness : 0.0
-        contrast = preset.contrast !== undefined ? preset.contrast : 1.0
-        saturation = preset.saturation !== undefined ? preset.saturation : 1.0
-        sharpness = preset.sharpness !== undefined ? preset.sharpness : 0.0
-        temperature = preset.temperature !== undefined ? preset.temperature : 0.0
-        vignette = preset.vignette !== undefined ? preset.vignette : 0.0
-        hue = preset.hue !== undefined ? preset.hue : 0.0
-        blur = preset.blur !== undefined ? preset.blur : 0.0
-        denoise = preset.denoise !== undefined ? preset.denoise : 0.0
-        exposure = preset.exposure !== undefined ? preset.exposure : 0.0
-        gamma = preset.gamma !== undefined ? preset.gamma : 1.0
-        tint = preset.tint !== undefined ? preset.tint : 0.0
-        highlights = preset.highlights !== undefined ? preset.highlights : 0.0
-        shadows = preset.shadows !== undefined ? preset.shadows : 0.0
         
-        root.paramChanged("brightness", brightness)
-        root.paramChanged("contrast", contrast)
-        root.paramChanged("saturation", saturation)
-        root.paramChanged("hue", hue)
-        root.paramChanged("sharpness", sharpness)
-        root.paramChanged("blur", blur)
-        root.paramChanged("denoise", denoise)
-        root.paramChanged("exposure", exposure)
-        root.paramChanged("gamma", gamma)
-        root.paramChanged("temperature", temperature)
-        root.paramChanged("tint", tint)
-        root.paramChanged("vignette", vignette)
-        root.paramChanged("highlights", highlights)
-        root.paramChanged("shadows", shadows)
-    }
+        var newBrightness = preset.brightness !== undefined ? preset.brightness : 0.0
+        var newContrast = preset.contrast !== undefined ? preset.contrast : 1.0
+        var newSaturation = preset.saturation !== undefined ? preset.saturation : 1.0
+        var newSharpness = preset.sharpness !== undefined ? preset.sharpness : 0.0
+        var newTemperature = preset.temperature !== undefined ? preset.temperature : 0.0
+        var newVignette = preset.vignette !== undefined ? preset.vignette : 0.0
+        var newHue = preset.hue !== undefined ? preset.hue : 0.0
+        var newBlur = preset.blur !== undefined ? preset.blur : 0.0
+        var newDenoise = preset.denoise !== undefined ? preset.denoise : 0.0
+        var newExposure = preset.exposure !== undefined ? preset.exposure : 0.0
+        var newGamma = preset.gamma !== undefined ? preset.gamma : 1.0
+        var newTint = preset.tint !== undefined ? preset.tint : 0.0
+        var newHighlights = preset.highlights !== undefined ? preset.highlights : 0.0
+        var newShadows = preset.shadows !== undefined ? preset.shadows : 0.0
+        
+        root.paramChanged("brightness", newBrightness)
+        root.paramChanged("contrast", newContrast)
+        root.paramChanged("saturation", newSaturation)
+        root.paramChanged("hue", newHue)
+        root.paramChanged("sharpness", newSharpness)
+        root.paramChanged("blur", newBlur)
+        root.paramChanged("denoise", newDenoise)
+        root.paramChanged("exposure", newExposure)
+        root.paramChanged("gamma", newGamma)
+        root.paramChanged("temperature", newTemperature)
+        root.paramChanged("tint", newTint)
+        root.paramChanged("vignette", newVignette)
+        root.paramChanged("highlights", newHighlights)
+        root.paramChanged("shadows", newShadows)
+        
+        brightness = newBrightness
+        contrast = newContrast
+        saturation = newSaturation
+        sharpness = newSharpness
+        temperature = newTemperature
+        vignette = newVignette
+        hue = newHue
+        blur = newBlur
+        denoise = newDenoise
+        exposure = newExposure
+        gamma = newGamma
+        tint = newTint
+        highlights = newHighlights
+        shadows = newShadows
+        
+        }
 
     function resetAll() {
         currentPreset = null

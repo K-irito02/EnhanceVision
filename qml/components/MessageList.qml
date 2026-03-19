@@ -198,83 +198,6 @@ Item {
         messageMode: true
         property string currentMessageId: ""
         
-        function _openViewer(msgId, fileIndex, msgStatus) {
-            var files = []
-            if (_hasRealModel) {
-                var allFiles = messageModel.getMediaFiles(msgId)
-                
-                for (var i = 0; i < allFiles.length; i++) {
-                    var f = allFiles[i]
-                    var filePath = f.filePath || ""
-                    var resultPath = f.resultPath || ""
-                    
-                    if (f.status === 2) {
-                        var thumbSource = ""
-                        if (f.processedThumbnailId && f.processedThumbnailId !== "") {
-                            thumbSource = "image://thumbnail/" + f.processedThumbnailId
-                        } else if (resultPath && resultPath !== "") {
-                            thumbSource = "image://thumbnail/" + resultPath
-                        } else if (filePath && filePath !== "") {
-                            thumbSource = "image://thumbnail/" + filePath
-                        }
-                        
-                        files.push({
-                            "filePath":  resultPath || filePath,
-                            "fileName":  f.fileName  || "",
-                            "mediaType": f.mediaType !== undefined ? f.mediaType : 0,
-                            "thumbnail": thumbSource,
-                            "resultPath": resultPath,
-                            "originalPath": filePath,
-                            "status": f.status,
-                            "processedThumbnailId": f.processedThumbnailId || ""
-                        })
-                    }
-                }
-            } else {
-                for (var j = 0; j < 10; j++) {
-                    files.push({
-                        "filePath":  "demo://placeholder_" + (j+1) + ".jpg",
-                        "fileName":  "media_" + (j+1) + ".jpg",
-                        "mediaType": 0,
-                        "thumbnail": "",
-                        "resultPath": "",
-                        "originalPath": ""
-                    })
-                }
-            }
-            
-            if (files.length > 0) {
-                viewerWindow.messageId = msgId
-                viewerWindow.currentMessageId = msgId
-                viewerWindow.mediaFiles = files
-                
-                // 获取消息存储的 shader 参数
-                var shaderParams = messageModel.getShaderParams(msgId)
-                
-                // 对于已处理的 Shader 模式文件，Shader 效果已经应用到导出的图像上
-                // 不需要再次应用 Shader 效果，否则会导致效果叠加（如亮度变暗两次）
-                var shaderAlreadyApplied = shaderParams.shaderAlreadyApplied === true
-                viewerWindow.shaderEnabled = !shaderAlreadyApplied
-                
-                viewerWindow.shaderBrightness = shaderParams.brightness || 0.0
-                viewerWindow.shaderContrast = shaderParams.contrast || 1.0
-                viewerWindow.shaderSaturation = shaderParams.saturation || 1.0
-                viewerWindow.shaderHue = shaderParams.hue || 0.0
-                viewerWindow.shaderSharpness = shaderParams.sharpness || 0.0
-                viewerWindow.shaderBlur = shaderParams.blur || 0.0
-                viewerWindow.shaderDenoise = shaderParams.denoise || 0.0
-                viewerWindow.shaderExposure = shaderParams.exposure || 0.0
-                viewerWindow.shaderGamma = shaderParams.gamma || 1.0
-                viewerWindow.shaderTemperature = shaderParams.temperature || 0.0
-                viewerWindow.shaderTint = shaderParams.tint || 0.0
-                viewerWindow.shaderVignette = shaderParams.vignette || 0.0
-                viewerWindow.shaderHighlights = shaderParams.highlights || 0.0
-                viewerWindow.shaderShadows = shaderParams.shadows || 0.0
-                
-                viewerWindow.openAt(Math.min(fileIndex, files.length - 1))
-            }
-        }
-        
         onFileRemoved: function(msgId, fileIndex) {
             if (root._hasRealModel) {
                 messageModel.removeMediaFile(msgId, fileIndex)
@@ -392,27 +315,29 @@ Item {
             viewerWindow.mediaFiles = files
             
             // 获取消息存储的 shader 参数
-            var shaderParams = messageModel.getShaderParams(msgId)
+            var shaderParams = _hasRealModel ? messageModel.getShaderParams(msgId) : {}
             
-            // 对于已处理的 Shader 模式文件，Shader 效果已经应用到导出的图像上
-            // 不需要再次应用 Shader 效果，否则会导致效果叠加（如亮度变暗两次）
-            var shaderAlreadyApplied = shaderParams.shaderAlreadyApplied === true
-            viewerWindow.shaderEnabled = !shaderAlreadyApplied
+            // 设置 shaderEnabled 为 true，让 MediaViewerWindow 内部的 _shouldApplyShader 
+            // 逻辑来决定是否真正应用 shader（基于每个文件的处理状态）
+            // 这样可以正确处理：已处理文件显示结果图，查看原图时应用 shader
+            var hasShaderModifications = shaderParams.hasShaderModifications === true
+            viewerWindow.shaderEnabled = hasShaderModifications
             
-            viewerWindow.shaderBrightness = shaderParams.brightness || 0.0
-            viewerWindow.shaderContrast = shaderParams.contrast || 1.0
-            viewerWindow.shaderSaturation = shaderParams.saturation || 1.0
-            viewerWindow.shaderHue = shaderParams.hue || 0.0
-            viewerWindow.shaderSharpness = shaderParams.sharpness || 0.0
-            viewerWindow.shaderBlur = shaderParams.blur || 0.0
-            viewerWindow.shaderDenoise = shaderParams.denoise || 0.0
-            viewerWindow.shaderExposure = shaderParams.exposure || 0.0
-            viewerWindow.shaderGamma = shaderParams.gamma || 1.0
-            viewerWindow.shaderTemperature = shaderParams.temperature || 0.0
-            viewerWindow.shaderTint = shaderParams.tint || 0.0
-            viewerWindow.shaderVignette = shaderParams.vignette || 0.0
-            viewerWindow.shaderHighlights = shaderParams.highlights || 0.0
-            viewerWindow.shaderShadows = shaderParams.shadows || 0.0
+            // 设置 shader 参数（使用正确的默认值）
+            viewerWindow.shaderBrightness = shaderParams.brightness !== undefined ? shaderParams.brightness : 0.0
+            viewerWindow.shaderContrast = shaderParams.contrast !== undefined ? shaderParams.contrast : 1.0
+            viewerWindow.shaderSaturation = shaderParams.saturation !== undefined ? shaderParams.saturation : 1.0
+            viewerWindow.shaderHue = shaderParams.hue !== undefined ? shaderParams.hue : 0.0
+            viewerWindow.shaderSharpness = shaderParams.sharpness !== undefined ? shaderParams.sharpness : 0.0
+            viewerWindow.shaderBlur = shaderParams.blur !== undefined ? shaderParams.blur : 0.0
+            viewerWindow.shaderDenoise = shaderParams.denoise !== undefined ? shaderParams.denoise : 0.0
+            viewerWindow.shaderExposure = shaderParams.exposure !== undefined ? shaderParams.exposure : 0.0
+            viewerWindow.shaderGamma = shaderParams.gamma !== undefined ? shaderParams.gamma : 1.0
+            viewerWindow.shaderTemperature = shaderParams.temperature !== undefined ? shaderParams.temperature : 0.0
+            viewerWindow.shaderTint = shaderParams.tint !== undefined ? shaderParams.tint : 0.0
+            viewerWindow.shaderVignette = shaderParams.vignette !== undefined ? shaderParams.vignette : 0.0
+            viewerWindow.shaderHighlights = shaderParams.highlights !== undefined ? shaderParams.highlights : 0.0
+            viewerWindow.shaderShadows = shaderParams.shadows !== undefined ? shaderParams.shadows : 0.0
             
             viewerWindow.openAt(Math.min(fileIndex, files.length - 1))
         }

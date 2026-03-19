@@ -355,10 +355,8 @@ Rectangle {
 
     // ========== 函数 ==========
     function sendToProcessing() {
-        console.log("发送到处理队列");
 
         if (fileModel.count === 0) {
-            console.warn("请先添加文件");
             return;
         }
 
@@ -382,14 +380,7 @@ Rectangle {
             params.modelIndex = aiModelIndex;
         }
 
-        console.log("处理模式:", displayMode, "参数:", params);
-
         var messageId = processingController.sendToProcessing(displayMode, params);
-        if (messageId) {
-            console.log("任务已添加到队列，消息ID:", messageId);
-        } else {
-            console.warn("添加任务失败");
-        }
     }
 
     function resetAllParams() {
