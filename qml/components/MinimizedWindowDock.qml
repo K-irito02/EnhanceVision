@@ -15,6 +15,8 @@ Rectangle {
     
     // 最小化窗口列表
     property ListModel minimizedWindows: ListModel {}
+    property string currentSessionId: ""  // 当前会话 ID，用于过滤标签
+    property bool showGlobalOnly: false    // 是否只显示全局标签（待处理查看器）
     
     // 信号
     signal restoreWindow(string viewerId)
@@ -60,7 +62,8 @@ Rectangle {
         ListView {
             id: windowList
             Layout.fillWidth: true
-            Layout.fillHeight: true
+            Layout.preferredHeight: 28
+            Layout.alignment: Qt.AlignVCenter
             orientation: ListView.Horizontal
             spacing: 8
             clip: true
@@ -74,8 +77,8 @@ Rectangle {
                 required property string title
                 required property string thumbnail
                 
-                width: itemContent.implicitWidth + 32
-                height: 32
+                width: itemContent.implicitWidth + 24
+                height: 28
                 radius: 6
                 color: itemMouse.containsMouse ? Theme.colors.accent : Theme.colors.muted
                 
@@ -90,13 +93,20 @@ Rectangle {
                     acceptedButtons: Qt.LeftButton
                     
                     onClicked: function(mouse) {
+                        // 检查是否点击在关闭按钮区域
+                        if (closeBtn.visible && mouse.x >= closeBtn.x && mouse.x <= closeBtn.x + closeBtn.width &&
+                            mouse.y >= closeBtn.y && mouse.y <= closeBtn.y + closeBtn.height) {
+                            return
+                        }
                         root.restoreWindow(windowItem.viewerId)
                     }
                 }
                 
-                Row {
+                RowLayout {
                     id: itemContent
-                    anchors.centerIn: parent
+                    anchors.fill: parent
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 12
                     spacing: 8
                     
                     // 缩略图
@@ -106,7 +116,7 @@ Rectangle {
                         radius: 4
                         color: Theme.colors.card
                         clip: true
-                        anchors.verticalCenter: parent.verticalCenter
+                        Layout.alignment: Qt.AlignVCenter
                         
                         Image {
                             anchors.fill: parent
@@ -127,28 +137,30 @@ Rectangle {
                     
                     // 标题
                     Text {
-                        anchors.verticalCenter: parent.verticalCenter
+                        Layout.alignment: Qt.AlignVCenter
                         text: windowItem.title.length > 20 ? windowItem.title.substring(0, 20) + "..." : windowItem.title
                         color: Theme.colors.foreground
                         font.pixelSize: 12
                     }
                     
-                    // 关闭按钮 - 独立的层级
+                    // 关闭按钮
                     Rectangle {
                         id: closeBtn
-                        width: 20
-                        height: 20
-                        radius: 10
-                        anchors.verticalCenter: parent.verticalCenter
-                        color: closeBtnMouse.containsMouse ? Theme.colors.destructive : (itemMouse.containsMouse ? Theme.colors.muted : "transparent")
+                        width: 18
+                        height: 18
+                        radius: 9
+                        Layout.alignment: Qt.AlignVCenter
+                        color: closeBtnMouse.containsMouse ? Theme.colors.destructive : Theme.colors.card
                         visible: itemMouse.containsMouse || closeBtnMouse.containsMouse
+                        z: 10
                         
-                        Image {
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                        
+                        ColoredIcon {
                             anchors.centerIn: parent
-                            width: 10
-                            height: 10
-                            source: "qrc:/icons/" + (Theme.isDark ? "dark" : "light") + "/x.svg"
-                            sourceSize: Qt.size(10, 10)
+                            source: Theme.icon("x")
+                            iconSize: 10
+                            color: closeBtnMouse.containsMouse ? "#FFFFFF" : Theme.colors.foreground
                         }
                         
                         MouseArea {
@@ -167,7 +179,14 @@ Rectangle {
                 
                 ToolTip {
                     visible: itemMouse.containsMouse && !closeBtnMouse.containsMouse
-                    text: windowItem.title
+                    text: {
+                        if (windowItem.viewerId === "pending-viewer") {
+                            return qsTr("待处理文件 - ") + windowItem.title
+                        } else if (windowItem.viewerId === "message-viewer") {
+                            return qsTr("消息文件 - ") + windowItem.title
+                        }
+                        return windowItem.title
+                    }
                     delay: 500
                 }
             }
@@ -236,6 +255,16 @@ Rectangle {
             if (minimizedWindows.get(i).viewerId === viewerId) {
                 minimizedWindows.remove(i)
                 return
+            }
+        }
+    }
+    
+    /** @brief 清理所有消息查看器标签（保留待处理查看器标签） */
+    function clearMessageViewerWindows() {
+        for (var i = minimizedWindows.count - 1; i >= 0; i--) {
+            var viewerId = minimizedWindows.get(i).viewerId
+            if (viewerId === "message-viewer") {
+                minimizedWindows.remove(i)
             }
         }
     }

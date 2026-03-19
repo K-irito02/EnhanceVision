@@ -41,8 +41,9 @@ Item {
     
     readonly property var currentFile: mediaFiles.length > 0 && currentIndex >= 0 && currentIndex < mediaFiles.length ? mediaFiles[currentIndex] : null
     readonly property bool isVideo: currentFile ? (currentFile.mediaType === 1) : false
-    readonly property bool _shouldApplyShader: shaderEnabled && !messageMode
-    readonly property string currentSource: currentFile ? (messageMode && showOriginal ? (currentFile.originalPath || currentFile.filePath || "") : (currentFile.filePath || "")) : ""
+    readonly property bool _shouldApplyShader: shaderEnabled && !messageMode && !showOriginal
+    readonly property bool _hasShaderOrOriginal: (shaderEnabled && !messageMode) || (messageMode && currentFile && currentFile.originalPath)
+    readonly property string currentSource: currentFile ? (showOriginal && currentFile.originalPath ? currentFile.originalPath : currentFile.filePath) : ""
     
     signal fileRemoved(string messageId, int fileIndex)
     signal minimizeRequested(string viewerId, string title, string thumbnail)
@@ -55,9 +56,25 @@ Item {
     function openAt(index) {
         currentIndex = Math.max(0, Math.min(index, mediaFiles.length - 1))
         showOriginal = false
-        isMinimized = false
+        
+        // 如果窗口已最小化，则恢复窗口并移除最小化标签
+        if (isMinimized) {
+            isMinimized = false
+            // 通知移除最小化标签
+            closed()  // 触发closed信号，MainPage会移除最小化标签
+        }
+        
         isOpen = true
+        
+        // 动态提升z-index，确保最后打开的查看器始终在最上层
         if (displayMode === "embedded") {
+            // 使用父级MainPage的全局计数器
+            if (parent && parent.parent && parent.parent.globalZIndexCounter !== undefined) {
+                parent.parent.globalZIndexCounter++
+                root.z = parent.parent.globalZIndexCounter
+            } else {
+                root.z = 1100 + Date.now() % 100
+            }
             embeddedOverlay.visible = true
             embeddedOverlay.forceActiveFocus()
         } else {
@@ -71,6 +88,7 @@ Item {
         isMinimized = false
         embeddedOverlay.visible = false
         detachedWindow.close()
+        root.z = messageMode ? 1000 : 1001  // 重置为基础层级
         if (isVideo && _mediaPlayer) _mediaPlayer.stop()
         closed()
     }
@@ -88,6 +106,13 @@ Item {
     function restore() {
         isMinimized = false
         if (displayMode === "embedded") {
+            // 使用父级MainPage的全局计数器
+            if (parent && parent.parent && parent.parent.globalZIndexCounter !== undefined) {
+                parent.parent.globalZIndexCounter++
+                root.z = parent.parent.globalZIndexCounter
+            } else {
+                root.z = 1100 + Date.now() % 100
+            }
             embeddedOverlay.visible = true
             embeddedOverlay.forceActiveFocus()
         } else {
@@ -127,11 +152,24 @@ Item {
         var p = containerItem.mapToGlobal(0, 0)
         return gx >= p.x && gx <= p.x + containerItem.width && gy >= p.y && gy <= p.y + containerItem.height
     }
+    
+    function _getMinimizedDockHeight() {
+        if (!containerItem) return 0
+        // 查找 MinimizedWindowDock 组件
+        for (var i = 0; i < containerItem.children.length; i++) {
+            var child = containerItem.children[i]
+            if (child.objectName === "minimizedDock" || child.toString().indexOf("MinimizedWindowDock") >= 0) {
+                return child.height
+            }
+        }
+        return 0
+    }
 
     // === 内嵌模式覆盖层 ===
     Rectangle {
         id: embeddedOverlay
         anchors.fill: parent
+        anchors.bottomMargin: _getMinimizedDockHeight()
         visible: false
         color: Theme.colors.background
         z: 1000
@@ -145,7 +183,7 @@ Item {
             Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: Theme.colors.titleBarBorder }
             
             MouseArea {
-                anchors.left: parent.left; anchors.right: btnRow.left; anchors.top: parent.top; anchors.bottom: parent.bottom; anchors.rightMargin: 8
+                anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom; anchors.rightMargin: btnRow.width + 8
                 property real sx: 0; property real sy: 0
                 cursorShape: Qt.OpenHandCursor
                 onPressed: function(m) { sx = m.x; sy = m.y; cursorShape = Qt.ClosedHandCursor }
@@ -169,13 +207,14 @@ Item {
                 Text { text: root.mediaFiles.length > 0 ? (root.currentIndex+1) + "/" + root.mediaFiles.length : ""; color: Theme.colors.mutedForeground; font.pixelSize: 12; Layout.alignment: Qt.AlignVCenter }
                 
                 Rectangle {
-                    visible: root.messageMode && !root.isVideo
+                    id: compareButton
+                    visible: !root.isVideo && root._hasShaderOrOriginal
                     width: cmpRow.implicitWidth + 16; height: 28; radius: 6
                     color: root.showOriginal ? Theme.colors.primary : Theme.colors.muted
                     Layout.alignment: Qt.AlignVCenter
                     Row { id: cmpRow; anchors.centerIn: parent; spacing: 6
                         ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("eye"); iconSize: 14; color: root.showOriginal ? "#FFF" : Theme.colors.foreground }
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: root.showOriginal ? qsTr("结果") : qsTr("原图"); color: root.showOriginal ? "#FFF" : Theme.colors.foreground; font.pixelSize: 12 }
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: root.showOriginal ? qsTr("效果") : qsTr("原图"); color: root.showOriginal ? "#FFF" : Theme.colors.foreground; font.pixelSize: 12 }
                     }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.showOriginal = !root.showOriginal; z: 20 }
                 }
@@ -247,6 +286,10 @@ Item {
                 var globalPos = detBtnRow.mapToItem(detTitle, 0, 0)
                 winHelper.addExcludeRegion(globalPos.x, globalPos.y, detBtnRow.width, detBtnRow.height)
             }
+            if (detCompareButton && detCompareButton.visible && detCompareButton.width > 0) {
+                var globalPos2 = detCompareButton.mapToItem(detTitle, 0, 0)
+                winHelper.addExcludeRegion(globalPos2.x, globalPos2.y, detCompareButton.width, detCompareButton.height)
+            }
         }
         
         onWidthChanged: Qt.callLater(updateExcludeRegions)
@@ -265,6 +308,43 @@ Item {
                 
                 Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: Theme.colors.titleBarBorder }
                 
+                // 全屏状态下拖拽标题栏退出全屏
+                MouseArea {
+                    anchors.fill: parent
+                    z: 1
+                    acceptedButtons: Qt.LeftButton
+                    property point dragStartPos
+                    property bool isDragging: false
+                    
+                    onPressed: function(mouse) {
+                        if (detachedWindow.visibility === Window.FullScreen) {
+                            dragStartPos = Qt.point(mouse.x, mouse.y)
+                            isDragging = false
+                        } else {
+                            mouse.accepted = false
+                        }
+                    }
+                    
+                    onPositionChanged: function(mouse) {
+                        if (detachedWindow.visibility === Window.FullScreen && pressed) {
+                            var dx = mouse.x - dragStartPos.x
+                            var dy = mouse.y - dragStartPos.y
+                            if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+                                isDragging = true
+                                detachedWindow.showNormal()
+                                mouse.accepted = true
+                            }
+                        }
+                    }
+                    
+                    onReleased: function(mouse) {
+                        if (!isDragging && detachedWindow.visibility !== Window.FullScreen) {
+                            mouse.accepted = false
+                        }
+                        isDragging = false
+                    }
+                }
+                
                 
                 RowLayout {
                     anchors.fill: parent
@@ -276,13 +356,14 @@ Item {
                     Text { text: root.mediaFiles.length > 0 ? (root.currentIndex+1) + "/" + root.mediaFiles.length : ""; color: Theme.colors.mutedForeground; font.pixelSize: 12; Layout.alignment: Qt.AlignVCenter }
                     
                     Rectangle {
-                        visible: root.messageMode && !root.isVideo
+                        id: detCompareButton
+                        visible: !root.isVideo && root._hasShaderOrOriginal
                         width: cmpRow2.implicitWidth + 16; height: 28; radius: 6
                         color: root.showOriginal ? Theme.colors.primary : Theme.colors.muted
                         Layout.alignment: Qt.AlignVCenter
                         Row { id: cmpRow2; anchors.centerIn: parent; spacing: 6
                             ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("eye"); iconSize: 14; color: root.showOriginal ? "#FFF" : Theme.colors.foreground }
-                            Text { anchors.verticalCenter: parent.verticalCenter; text: root.showOriginal ? qsTr("结果") : qsTr("原图"); color: root.showOriginal ? "#FFF" : Theme.colors.foreground; font.pixelSize: 12 }
+                            Text { anchors.verticalCenter: parent.verticalCenter; text: root.showOriginal ? qsTr("效果") : qsTr("原图"); color: root.showOriginal ? "#FFF" : Theme.colors.foreground; font.pixelSize: 12 }
                         }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.showOriginal = !root.showOriginal; z: 20 }
                     }
@@ -292,6 +373,7 @@ Item {
                         spacing: 2
                         Layout.alignment: Qt.AlignVCenter
                         IconButton { iconName: "minimize-2"; iconSize: 16; btnSize: 32; tooltip: qsTr("嵌入"); onClicked: root.switchToEmbedded() }
+                        IconButton { iconName: "minus"; iconSize: 16; btnSize: 32; tooltip: qsTr("最小化"); onClicked: root.minimize() }
                         IconButton { iconName: detachedWindow.visibility === Window.FullScreen ? "minimize-2" : "maximize"; iconSize: 16; btnSize: 32; tooltip: detachedWindow.visibility === Window.FullScreen ? qsTr("退出全屏") : qsTr("全屏"); onClicked: { if (detachedWindow.visibility === Window.FullScreen) detachedWindow.showNormal(); else detachedWindow.showFullScreen() } }
                         IconButton { iconName: "x"; iconSize: 16; btnSize: 32; danger: true; tooltip: qsTr("关闭"); onClicked: root.close() }
                     }
@@ -300,6 +382,7 @@ Item {
             
             MediaContentArea {
                 anchors.top: detTitle.bottom; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: detVidCtrl.top
+                anchors.margins: 16
                 viewer: root
                 videoPlayer: vidPlayer
             }
@@ -369,12 +452,40 @@ Item {
         property alias audioOutput: ao
         clip: true
         
-        Image { id: imgSrc; anchors.fill: parent; anchors.margins: 16; visible: false; source: viewer._getSource(viewer.currentSource); fillMode: Image.PreserveAspectFit; asynchronous: true; smooth: true; mipmap: true }
-        FullShaderEffect { anchors.fill: imgSrc; source: imgSrc; visible: !viewer.isVideo && viewer.currentSource && viewer._shouldApplyShader; brightness: viewer.shaderBrightness; contrast: viewer.shaderContrast; saturation: viewer.shaderSaturation; hue: viewer.shaderHue; sharpness: viewer.shaderSharpness; blurAmount: viewer.shaderBlur; denoise: viewer.shaderDenoise; exposure: viewer.shaderExposure; gamma: viewer.shaderGamma; temperature: viewer.shaderTemperature; tint: viewer.shaderTint; vignette: viewer.shaderVignette; highlights: viewer.shaderHighlights; shadows: viewer.shaderShadows }
-        Image { anchors.fill: parent; anchors.margins: 16; visible: !viewer.isVideo && viewer.currentSource && !viewer._shouldApplyShader; source: viewer._getSource(viewer.currentSource); fillMode: Image.PreserveAspectFit; asynchronous: true; smooth: true; mipmap: true }
+        // 导航按钮自动隐藏控制
+        property bool showNavButtons: true
+        
+        Timer {
+            id: navButtonHideTimer
+            interval: 2000
+            repeat: false
+            onTriggered: showNavButtons = false
+        }
+        
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            propagateComposedEvents: true
+            onPositionChanged: {
+                showNavButtons = true
+                navButtonHideTimer.restart()
+            }
+            onEntered: {
+                showNavButtons = true
+                navButtonHideTimer.restart()
+            }
+            onExited: {
+                navButtonHideTimer.stop()
+                showNavButtons = false
+            }
+        }
+        
+        Image { id: imgSrc; anchors.fill: parent; visible: false; source: viewer._getSource(viewer.currentSource); fillMode: Image.PreserveAspectFit; asynchronous: true; smooth: true; mipmap: true }
+        FullShaderEffect { anchors.fill: imgSrc; source: imgSrc; visible: !viewer.isVideo && viewer.currentSource && viewer.shaderEnabled && !viewer.messageMode && !viewer.showOriginal; brightness: viewer.shaderBrightness; contrast: viewer.shaderContrast; saturation: viewer.shaderSaturation; hue: viewer.shaderHue; sharpness: viewer.shaderSharpness; blurAmount: viewer.shaderBlur; denoise: viewer.shaderDenoise; exposure: viewer.shaderExposure; gamma: viewer.shaderGamma; temperature: viewer.shaderTemperature; tint: viewer.shaderTint; vignette: viewer.shaderVignette; highlights: viewer.shaderHighlights; shadows: viewer.shaderShadows }
+        Image { anchors.fill: parent; visible: !viewer.isVideo && viewer.currentSource && (viewer.showOriginal || !viewer.shaderEnabled || viewer.messageMode); source: viewer._getSource(viewer.currentSource); fillMode: Image.PreserveAspectFit; asynchronous: true; smooth: true; mipmap: true }
         
         Item {
-            anchors.fill: parent; anchors.margins: 16; visible: viewer.isVideo
+            anchors.fill: parent; visible: viewer.isVideo
             VideoOutput { id: vo; anchors.fill: parent }
             AudioOutput { id: ao; volume: 0.8 }
             Rectangle {
@@ -386,8 +497,51 @@ Item {
             }
         }
         
-        Rectangle { anchors.left: parent.left; anchors.leftMargin: 16; anchors.verticalCenter: parent.verticalCenter; width: 48; height: 48; radius: 24; color: pma.containsMouse ? Theme.colors.muted : Qt.rgba(0.5,0.5,0.5,0.2); visible: viewer.currentIndex > 0; ColoredIcon { anchors.centerIn: parent; source: Theme.icon("chevron-left"); iconSize: 24; color: Theme.colors.foreground } MouseArea { id: pma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: viewer._prevFile() } }
-        Rectangle { anchors.right: parent.right; anchors.rightMargin: 16; anchors.verticalCenter: parent.verticalCenter; width: 48; height: 48; radius: 24; color: nma.containsMouse ? Theme.colors.muted : Qt.rgba(0.5,0.5,0.5,0.2); visible: viewer.currentIndex < viewer.mediaFiles.length - 1; ColoredIcon { anchors.centerIn: parent; source: Theme.icon("chevron-right"); iconSize: 24; color: Theme.colors.foreground } MouseArea { id: nma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: viewer._nextFile() } }
+        Rectangle { 
+            id: prevBtn
+            anchors.left: parent.left
+            anchors.leftMargin: 16
+            anchors.verticalCenter: parent.verticalCenter
+            width: 48
+            height: 48
+            radius: 24
+            color: pma.containsMouse ? Theme.colors.muted : Qt.rgba(0.5,0.5,0.5,0.2)
+            visible: viewer.currentIndex > 0
+            opacity: showNavButtons ? 1.0 : 0.0
+            Behavior on opacity { NumberAnimation { duration: 200 } }
+            ColoredIcon { anchors.centerIn: parent; source: Theme.icon("chevron-left"); iconSize: 24; color: Theme.colors.foreground }
+            MouseArea { 
+                id: pma
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: viewer._prevFile()
+                onEntered: { showNavButtons = true; navButtonHideTimer.restart() }
+            }
+        }
+        
+        Rectangle { 
+            id: nextBtn
+            anchors.right: parent.right
+            anchors.rightMargin: 16
+            anchors.verticalCenter: parent.verticalCenter
+            width: 48
+            height: 48
+            radius: 24
+            color: nma.containsMouse ? Theme.colors.muted : Qt.rgba(0.5,0.5,0.5,0.2)
+            visible: viewer.currentIndex < viewer.mediaFiles.length - 1
+            opacity: showNavButtons ? 1.0 : 0.0
+            Behavior on opacity { NumberAnimation { duration: 200 } }
+            ColoredIcon { anchors.centerIn: parent; source: Theme.icon("chevron-right"); iconSize: 24; color: Theme.colors.foreground }
+            MouseArea { 
+                id: nma
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: viewer._nextFile()
+                onEntered: { showNavButtons = true; navButtonHideTimer.restart() }
+            }
+        }
         
         ColumnLayout { anchors.centerIn: parent; spacing: 12; visible: !viewer.currentFile; ColoredIcon { Layout.alignment: Qt.AlignHCenter; source: Theme.icon("image"); iconSize: 64; color: Theme.colors.mutedForeground } Text { Layout.alignment: Qt.AlignHCenter; text: qsTr("无媒体文件"); color: Theme.colors.mutedForeground; font.pixelSize: 16 } }
     }

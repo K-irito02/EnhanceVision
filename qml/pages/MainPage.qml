@@ -23,9 +23,26 @@ Rectangle {
     property int processingMode: 0  // 0: Shader, 1: AI
     property bool hasFiles: typeof fileModel !== "undefined" ? fileModel.count > 0 : pendingFilesModel.count > 0
     property bool hasMessages: typeof messageModel !== "undefined" ? messageModel.count > 0 : true
+    property string currentSessionId: typeof sessionController !== "undefined" ? sessionController.activeSessionId : ""
+    
+    // 全局z-index计数器，供所有查看器共享
+    property int globalZIndexCounter: 1100
     
     // ========== 信号 ==========
     signal expandControlPanel()
+    
+    // ========== 会话切换监听 ==========
+    Connections {
+        target: typeof sessionController !== "undefined" ? sessionController : null
+        function onActiveSessionChanged() {
+            // 会话切换时，关闭消息查看器并清理其最小化标签
+            if (messageEmbeddedViewer.isOpen) {
+                messageEmbeddedViewer.close()
+            }
+            // 更新当前会话ID
+            root.currentSessionId = sessionController.activeSessionId
+        }
+    }
     
     // ========== 拖放区域（全页面） ==========
     DropArea {
@@ -258,6 +275,7 @@ Rectangle {
             // ========== 最小化窗口停靠区 ==========
             MinimizedWindowDock {
                 id: pendingMinimizedDock
+                objectName: "minimizedDock"
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
