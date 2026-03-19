@@ -23,6 +23,7 @@ class SubWindowHelper : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(bool maximized READ isMaximized NOTIFY maximizedChanged)
+    Q_PROPERTY(bool isDragging READ isDragging NOTIFY draggingChanged)
     Q_PROPERTY(int minWidth READ minWidth WRITE setMinWidth NOTIFY minSizeChanged)
     Q_PROPERTY(int minHeight READ minHeight WRITE setMinHeight NOTIFY minSizeChanged)
     Q_PROPERTY(int resizeMargin READ resizeMargin WRITE setResizeMargin NOTIFY resizeMarginChanged)
@@ -40,6 +41,8 @@ public:
     Q_INVOKABLE void close();
     Q_INVOKABLE bool isMaximized() const;
     Q_INVOKABLE void startSystemMove();
+    
+    bool isDragging() const { return m_isDragging; }
 
     int minWidth() const { return m_minWidth; }
     int minHeight() const { return m_minHeight; }
@@ -64,6 +67,7 @@ public:
 
 signals:
     void maximizedChanged();
+    void draggingChanged();
     void minSizeChanged();
     void resizeMarginChanged();
     void titleBarHeightChanged();
@@ -75,8 +79,15 @@ private:
     void setupWindowFrame();
     void updateMaximizedState();
 
+public:
+    // Called by SubWindowWndProc
+    void setDragging(bool dragging);
+
+private:
+
     QQuickWindow* m_window = nullptr;
     bool m_isMaximized = false;
+    bool m_isDragging = false;
     int m_minWidth = 400;
     int m_minHeight = 300;
     int m_resizeMargin = 8;

@@ -9,7 +9,7 @@ EnhanceVision 是一个基于 **Qt 6.10.2 + QML** 的桌面端图像与视频画
   - **AI 推理模式**：基于 NCNN 引擎（Vulkan 加速），集成 Real-ESRGAN 等模型实现超分辨率增强
 - **现代化 UI**：Qt Quick (QML) 声明式 UI，深色/浅色主题，中英双语
 - **会话式工作流**：多会话管理，支持固定、重排序、批量文件处理
-- **媒体预览**：内置图片/视频查看器，支持全屏、拖拽、键盘导航、原图对比
+- **媒体预览**：内嵌式媒体查看器（EmbeddedMediaViewer），支持全屏覆盖、拖拽脱离、智能吸附、原图对比
 - **完全离线**：所有处理在本地完成，无需网络连接
 - **高性能**：零拷贝图像传输、GPU 加速渲染、启动快（<1秒）、内存占用低（~100MB）
 
@@ -75,6 +75,7 @@ EnhanceVision/
 │   ├── core/                   # 核心引擎
 │   ├── models/                 # QML 数据模型
 │   ├── providers/              # QML 图像提供者
+│   ├── services/               # 服务层（图像导出等）
 │   └── utils/                  # 工具类
 ├── include/EnhanceVision/      # C++ 头文件
 ├── qml/                        # QML 源码
@@ -86,7 +87,10 @@ EnhanceVision/
 │   └── styles/                 # 样式定义
 ├── resources/                  # Qt 资源
 │   ├── shaders/                # GLSL Shader 文件
-│   ├── icons/                  # SVG 图标
+│   │   ├── full_shader.frag     # 完整 shader（14种效果）
+│   │   └── full_shader.vert     # 完整 shader 顶点着色器
+│   ├── icons/                  # SVG 图标（亮色主题）
+│   ├── icons-dark/             # SVG 图标（暗色主题）
 │   ├── models/                 # AI 模型文件
 │   └── i18n/                   # 翻译文件
 ├── tests/                      # 测试

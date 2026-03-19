@@ -52,9 +52,11 @@
 - **会话管理**：保存处理历史
 
 ### 媒体查看器
-- **全屏模式**：沉浸式查看
-- **原图对比**：一键切换原图/处理效果
-- **视频控制**：播放/暂停、进度、音量、倍速
+- **EmbeddedMediaViewer**：内嵌式双模式查看器，支持全屏覆盖、拖拽脱离、智能吸附
+- **全屏模式**：沉浸式查看体验
+- **原图对比**：一键切换原图/处理效果对比
+- **视频控制**：播放/暂停、进度条、音量、倍速控制
+- **最小化停靠**：支持最小化到容器底部停靠栏
 
 ### 用户界面
 - **深色/浅色主题**：一键切换
@@ -88,15 +90,20 @@ qml/
 │   ├── FileList.qml        # 文件列表
 │   ├── PreviewPane.qml     # 预览面板
 │   ├── ControlPanel.qml    # 控制面板
-│   ├── MediaViewer.qml     # 媒体查看器
+│   ├── MediaViewer.qml     # 媒体查看器（占位组件）
 │   ├── MediaViewerWindow.qml # 媒体查看器独立窗口
-│   ├── DialogTitleBar.qml  # 对话框标题栏组件
-│   └── ShaderParamsPanel.qml # Shader 参数面板
-│   ├── MediaViewerWindow.qml # 媒体查看器独立窗口
+│   ├── EmbeddedMediaViewer.qml # 内嵌式媒体查看器（双模式）
+│   ├── MinimizedWindowDock.qml # 最小化窗口停靠栏
+│   ├── MessageList.qml      # 消息列表
+│   ├── MessageItem.qml      # 单条消息
+│   ├── MediaThumbnailStrip.qml # 缩略图条
+│   ├── FullShaderEffect.qml # 完整 Shader 效果组件
+│   ├── OffscreenShaderRenderer.qml # 离屏 Shader 渲染器
 │   ├── DialogTitleBar.qml  # 对话框标题栏组件
 │   └── ShaderParamsPanel.qml # Shader 参数面板
 ├── controls/               # 自定义控件
 │   ├── IconButton.qml      # 图标按钮
+│   ├── ColoredIcon.qml     # 彩色图标组件
 │   ├── Slider.qml          # 滑块
 │   └── ComboBox.qml        # 下拉框
 ├── shaders/                # ShaderEffect 组件

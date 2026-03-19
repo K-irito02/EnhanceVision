@@ -35,6 +35,14 @@ static LRESULT CALLBACK SubWindowWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
     EnhanceVision::SubWindowHelper* helper = it.value();
 
     switch (msg) {
+    case WM_ENTERSIZEMOVE: {
+        helper->setDragging(true);
+        break;
+    }
+    case WM_EXITSIZEMOVE: {
+        helper->setDragging(false);
+        break;
+    }
     case WM_NCHITTEST: {
         RECT windowRect;
         GetWindowRect(hwnd, &windowRect);
@@ -360,6 +368,14 @@ void SubWindowHelper::startSystemMove()
 #else
         m_window->startSystemMove();
 #endif
+    }
+}
+
+void SubWindowHelper::setDragging(bool dragging)
+{
+    if (m_isDragging != dragging) {
+        m_isDragging = dragging;
+        emit draggingChanged();
     }
 }
 

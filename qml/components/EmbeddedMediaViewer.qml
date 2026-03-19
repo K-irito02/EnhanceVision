@@ -1,0 +1,578 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtQuick.Window
+import QtQuick.Effects
+import QtMultimedia
+import "../styles"
+import "../controls"
+import EnhanceVision.Utils
+
+Item {
+    id: root
+    
+    property var mediaFiles: []
+    property int currentIndex: 0
+    property bool messageMode: false
+    property bool showOriginal: false
+    property string messageId: ""
+    property string viewerId: "viewer-" + Date.now()
+    
+    property bool shaderEnabled: false
+    property real shaderBrightness: 0.0
+    property real shaderContrast: 1.0
+    property real shaderSaturation: 1.0
+    property real shaderHue: 0.0
+    property real shaderSharpness: 0.0
+    property real shaderBlur: 0.0
+    property real shaderDenoise: 0.0
+    property real shaderExposure: 0.0
+    property real shaderGamma: 1.0
+    property real shaderTemperature: 0.0
+    property real shaderTint: 0.0
+    property real shaderVignette: 0.0
+    property real shaderHighlights: 0.0
+    property real shaderShadows: 0.0
+    
+    property Item containerItem: null
+    property string displayMode: "embedded"
+    property bool isOpen: false
+    property bool isMinimized: false
+    
+    readonly property var currentFile: mediaFiles.length > 0 && currentIndex >= 0 && currentIndex < mediaFiles.length ? mediaFiles[currentIndex] : null
+    readonly property bool isVideo: currentFile ? (currentFile.mediaType === 1) : false
+    readonly property bool _shouldApplyShader: shaderEnabled && !messageMode
+    readonly property string currentSource: currentFile ? (messageMode && showOriginal ? (currentFile.originalPath || currentFile.filePath || "") : (currentFile.filePath || "")) : ""
+    
+    signal fileRemoved(string messageId, int fileIndex)
+    signal minimizeRequested(string viewerId, string title, string thumbnail)
+    signal closed()
+    
+    property var _mediaPlayer: null
+    property real _savedW: 800
+    property real _savedH: 600
+    
+    function openAt(index) {
+        currentIndex = Math.max(0, Math.min(index, mediaFiles.length - 1))
+        showOriginal = false
+        isMinimized = false
+        isOpen = true
+        if (displayMode === "embedded") {
+            embeddedOverlay.visible = true
+            embeddedOverlay.forceActiveFocus()
+        } else {
+            detachedWindow.show()
+            detachedWindow.raise()
+        }
+    }
+    
+    function close() {
+        isOpen = false
+        isMinimized = false
+        embeddedOverlay.visible = false
+        detachedWindow.close()
+        if (isVideo && _mediaPlayer) _mediaPlayer.stop()
+        closed()
+    }
+    
+    function minimize() {
+        if (displayMode === "embedded") {
+            isMinimized = true
+            embeddedOverlay.visible = false
+            minimizeRequested(viewerId, currentFile ? currentFile.fileName : "", currentFile ? (currentFile.thumbnail || "") : "")
+        } else {
+            detachedWindow.showMinimized()
+        }
+    }
+    
+    function restore() {
+        isMinimized = false
+        if (displayMode === "embedded") {
+            embeddedOverlay.visible = true
+            embeddedOverlay.forceActiveFocus()
+        } else {
+            detachedWindow.showNormal()
+        }
+    }
+    
+    function switchToDetached(gx, gy) {
+        if (displayMode === "detached") return
+        displayMode = "detached"
+        embeddedOverlay.visible = false
+        detachedWindow.x = gx !== undefined ? gx : Screen.width / 2 - 400
+        detachedWindow.y = gy !== undefined ? gy : Screen.height / 2 - 300
+        detachedWindow.width = _savedW
+        detachedWindow.height = _savedH
+        detachedWindow.show()
+        detachedWindow.raise()
+        detachedWindow.requestActivate()
+    }
+    
+    function switchToEmbedded() {
+        if (displayMode === "embedded") return
+        _savedW = detachedWindow.width
+        _savedH = detachedWindow.height
+        displayMode = "embedded"
+        detachedWindow.hide()
+        embeddedOverlay.visible = true
+    }
+    
+    function _prevFile() { if (currentIndex > 0) currentIndex-- }
+    function _nextFile() { if (currentIndex < mediaFiles.length - 1) currentIndex++ }
+    function _getSource(s) { return !s ? "" : (s.startsWith("file:///") || s.startsWith("qrc:/") ? s : "file:///" + s) }
+    function _formatTime(ms) { var s = Math.floor(ms/1000); return Math.floor(s/60).toString().padStart(2,'0') + ":" + (s%60).toString().padStart(2,'0') }
+    
+    function _isOverContainer(gx, gy) {
+        if (!containerItem) return false
+        var p = containerItem.mapToGlobal(0, 0)
+        return gx >= p.x && gx <= p.x + containerItem.width && gy >= p.y && gy <= p.y + containerItem.height
+    }
+
+    // === 内嵌模式覆盖层 ===
+    Rectangle {
+        id: embeddedOverlay
+        anchors.fill: parent
+        visible: false
+        color: Theme.colors.background
+        z: 1000
+        
+        Rectangle {
+            id: titleBar
+            anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
+            height: 44
+            color: Theme.colors.titleBar
+            
+            Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: Theme.colors.titleBarBorder }
+            
+            MouseArea {
+                anchors.left: parent.left; anchors.right: btnRow.left; anchors.top: parent.top; anchors.bottom: parent.bottom; anchors.rightMargin: 8
+                property real sx: 0; property real sy: 0
+                cursorShape: Qt.OpenHandCursor
+                onPressed: function(m) { sx = m.x; sy = m.y; cursorShape = Qt.ClosedHandCursor }
+                onPositionChanged: function(m) {
+                    if (pressed && Math.sqrt(Math.pow(m.x-sx,2)+Math.pow(m.y-sy,2)) > 60) {
+                        var gp = mapToGlobal(m.x-sx, m.y-sy)
+                        root.switchToDetached(gp.x, gp.y)
+                    }
+                }
+                onReleased: cursorShape = Qt.OpenHandCursor
+            }
+            
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 16
+                anchors.rightMargin: 8
+                spacing: 12
+                z: 10
+                
+                Text { text: root.currentFile ? root.currentFile.fileName : qsTr("媒体查看器"); color: Theme.colors.foreground; font.pixelSize: 14; font.weight: Font.Medium; elide: Text.ElideMiddle; Layout.fillWidth: true; Layout.alignment: Qt.AlignVCenter }
+                Text { text: root.mediaFiles.length > 0 ? (root.currentIndex+1) + "/" + root.mediaFiles.length : ""; color: Theme.colors.mutedForeground; font.pixelSize: 12; Layout.alignment: Qt.AlignVCenter }
+                
+                Rectangle {
+                    visible: root.messageMode && !root.isVideo
+                    width: cmpRow.implicitWidth + 16; height: 28; radius: 6
+                    color: root.showOriginal ? Theme.colors.primary : Theme.colors.muted
+                    Layout.alignment: Qt.AlignVCenter
+                    Row { id: cmpRow; anchors.centerIn: parent; spacing: 6
+                        ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("eye"); iconSize: 14; color: root.showOriginal ? "#FFF" : Theme.colors.foreground }
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: root.showOriginal ? qsTr("结果") : qsTr("原图"); color: root.showOriginal ? "#FFF" : Theme.colors.foreground; font.pixelSize: 12 }
+                    }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.showOriginal = !root.showOriginal; z: 20 }
+                }
+                
+                Row {
+                    id: btnRow; spacing: 2
+                    Layout.alignment: Qt.AlignVCenter
+                    IconButton { iconName: "external-link"; iconSize: 16; btnSize: 32; tooltip: qsTr("独立窗口"); onClicked: root.switchToDetached() }
+                    IconButton { iconName: "minus"; iconSize: 16; btnSize: 32; tooltip: qsTr("最小化"); onClicked: root.minimize() }
+                    IconButton { iconName: "x"; iconSize: 16; btnSize: 32; danger: true; tooltip: qsTr("关闭"); onClicked: root.close() }
+                }
+            }
+        }
+        
+        MediaContentArea {
+            id: contentArea
+            anchors { top: titleBar.bottom; bottom: videoCtrl.visible ? videoCtrl.top : (thumbBar.visible ? thumbBar.top : parent.bottom); left: parent.left; right: parent.right }
+            viewer: root
+            videoPlayer: vidPlayer
+        }
+        
+        VideoControlBar {
+            id: videoCtrl
+            anchors { bottom: thumbBar.visible ? thumbBar.top : parent.bottom; left: parent.left; right: parent.right }
+            visible: root.isVideo
+            viewer: root
+            videoPlayer: vidPlayer
+        }
+        
+        ThumbnailBar {
+            id: thumbBar
+            anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right
+            visible: root.mediaFiles.length > 1 && root.messageMode
+            viewer: root
+        }
+        
+        MediaPlayer {
+            id: vidPlayer
+            videoOutput: contentArea.videoOutput
+            audioOutput: contentArea.audioOutput
+            function togglePlay() { playbackState === MediaPlayer.PlayingState ? pause() : play() }
+            Component.onCompleted: root._mediaPlayer = this
+        }
+        
+        Keys.onPressed: function(e) {
+            if (e.key === Qt.Key_Escape) root.close()
+            else if (e.key === Qt.Key_Left) root._prevFile()
+            else if (e.key === Qt.Key_Right) root._nextFile()
+            else if (e.key === Qt.Key_Space && root.isVideo) vidPlayer.togglePlay()
+        }
+    }
+    
+    // === 独立窗口模式 ===
+    Window {
+        id: detachedWindow
+        width: 800; height: 600; minimumWidth: 480; minimumHeight: 360
+        title: root.currentFile ? root.currentFile.fileName : qsTr("媒体查看器")
+        color: Theme.colors.background
+        flags: Qt.Window | Qt.FramelessWindowHint
+        visible: false
+        
+        SubWindowHelper { id: winHelper; Component.onCompleted: { winHelper.setWindow(detachedWindow); winHelper.setMinWidth(480); winHelper.setMinHeight(360); winHelper.setTitleBarHeight(44) } }
+        
+        property bool _snapHint: false
+        
+        function updateExcludeRegions() {
+            winHelper.clearExcludeRegions()
+            if (detBtnRow && detBtnRow.width > 0) {
+                var globalPos = detBtnRow.mapToItem(detTitle, 0, 0)
+                winHelper.addExcludeRegion(globalPos.x, globalPos.y, detBtnRow.width, detBtnRow.height)
+            }
+        }
+        
+        onWidthChanged: Qt.callLater(updateExcludeRegions)
+        onHeightChanged: Qt.callLater(updateExcludeRegions)
+        onVisibleChanged: if (visible) Qt.callLater(updateExcludeRegions)
+        
+        Rectangle {
+            anchors.fill: parent
+            color: Theme.colors.background
+            
+            Rectangle {
+                id: detTitle
+                anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
+                height: 44
+                color: Theme.colors.titleBar
+                
+                Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: Theme.colors.titleBarBorder }
+                
+                
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 16; anchors.rightMargin: 8
+                    spacing: 12
+                    z: 10
+                    
+                    Text { text: root.currentFile ? root.currentFile.fileName : ""; color: Theme.colors.foreground; font.pixelSize: 14; font.weight: Font.Medium; elide: Text.ElideMiddle; Layout.fillWidth: true; Layout.alignment: Qt.AlignVCenter }
+                    Text { text: root.mediaFiles.length > 0 ? (root.currentIndex+1) + "/" + root.mediaFiles.length : ""; color: Theme.colors.mutedForeground; font.pixelSize: 12; Layout.alignment: Qt.AlignVCenter }
+                    
+                    Rectangle {
+                        visible: root.messageMode && !root.isVideo
+                        width: cmpRow2.implicitWidth + 16; height: 28; radius: 6
+                        color: root.showOriginal ? Theme.colors.primary : Theme.colors.muted
+                        Layout.alignment: Qt.AlignVCenter
+                        Row { id: cmpRow2; anchors.centerIn: parent; spacing: 6
+                            ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("eye"); iconSize: 14; color: root.showOriginal ? "#FFF" : Theme.colors.foreground }
+                            Text { anchors.verticalCenter: parent.verticalCenter; text: root.showOriginal ? qsTr("结果") : qsTr("原图"); color: root.showOriginal ? "#FFF" : Theme.colors.foreground; font.pixelSize: 12 }
+                        }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.showOriginal = !root.showOriginal; z: 20 }
+                    }
+                    
+                    Row {
+                        id: detBtnRow
+                        spacing: 2
+                        Layout.alignment: Qt.AlignVCenter
+                        IconButton { iconName: "minimize-2"; iconSize: 16; btnSize: 32; tooltip: qsTr("嵌入"); onClicked: root.switchToEmbedded() }
+                        IconButton { iconName: detachedWindow.visibility === Window.FullScreen ? "minimize-2" : "maximize"; iconSize: 16; btnSize: 32; tooltip: detachedWindow.visibility === Window.FullScreen ? qsTr("退出全屏") : qsTr("全屏"); onClicked: { if (detachedWindow.visibility === Window.FullScreen) detachedWindow.showNormal(); else detachedWindow.showFullScreen() } }
+                        IconButton { iconName: "x"; iconSize: 16; btnSize: 32; danger: true; tooltip: qsTr("关闭"); onClicked: root.close() }
+                    }
+                }
+            }
+            
+            MediaContentArea {
+                anchors.top: detTitle.bottom; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: detVidCtrl.top
+                viewer: root
+                videoPlayer: vidPlayer
+            }
+            
+            VideoControlBar {
+                id: detVidCtrl
+                anchors.bottom: detThumb.top; anchors.left: parent.left; anchors.right: parent.right
+                visible: root.isVideo
+                viewer: root
+                videoPlayer: vidPlayer
+            }
+            
+            ThumbnailBar {
+                id: detThumb
+                anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right
+                visible: root.mediaFiles.length > 1
+                viewer: root
+            }
+            
+            Rectangle {
+                anchors.fill: parent
+                color: Theme.colors.primary
+                opacity: 0.3
+                visible: detachedWindow._snapHint
+                radius: 8
+                
+                Text { anchors.centerIn: parent; text: qsTr("松开鼠标吸附到消息区域"); color: Theme.colors.foreground; font { pixelSize: 16; weight: Font.Medium } }
+            }
+        }
+        
+        Shortcut { sequence: "Escape"; onActivated: { if (detachedWindow.visibility === Window.FullScreen) detachedWindow.showNormal(); else root.close() } }
+        Shortcut { sequence: "Left"; onActivated: root._prevFile() }
+        Shortcut { sequence: "Right"; onActivated: root._nextFile() }
+        Shortcut { sequence: "Space"; onActivated: if (root.isVideo) vidPlayer.togglePlay() }
+        Shortcut { sequence: "F"; onActivated: { if (detachedWindow.visibility === Window.FullScreen) detachedWindow.showNormal(); else detachedWindow.showFullScreen() } }
+    }
+    
+    Connections {
+        target: detachedWindow
+        function onXChanged() { detachedWindow._snapHint = root._isOverContainer(detachedWindow.x + detachedWindow.width/2, detachedWindow.y + 22) }
+        function onYChanged() { detachedWindow._snapHint = root._isOverContainer(detachedWindow.x + detachedWindow.width/2, detachedWindow.y + 22) }
+    }
+    
+    Connections {
+        target: winHelper
+        function onDraggingChanged() {
+            if (!winHelper.isDragging && detachedWindow._snapHint) {
+                root.switchToEmbedded()
+            }
+        }
+    }
+    
+    Connections {
+        target: root
+        function onCurrentSourceChanged() {
+            if (root.isVideo && root.currentSource) {
+                vidPlayer.source = root._getSource(root.currentSource)
+            }
+        }
+    }
+    
+    
+    component MediaContentArea: Item {
+        property var viewer
+        property var videoPlayer
+        property alias videoOutput: vo
+        property alias audioOutput: ao
+        clip: true
+        
+        Image { id: imgSrc; anchors.fill: parent; anchors.margins: 16; visible: false; source: viewer._getSource(viewer.currentSource); fillMode: Image.PreserveAspectFit; asynchronous: true; smooth: true; mipmap: true }
+        FullShaderEffect { anchors.fill: imgSrc; source: imgSrc; visible: !viewer.isVideo && viewer.currentSource && viewer._shouldApplyShader; brightness: viewer.shaderBrightness; contrast: viewer.shaderContrast; saturation: viewer.shaderSaturation; hue: viewer.shaderHue; sharpness: viewer.shaderSharpness; blurAmount: viewer.shaderBlur; denoise: viewer.shaderDenoise; exposure: viewer.shaderExposure; gamma: viewer.shaderGamma; temperature: viewer.shaderTemperature; tint: viewer.shaderTint; vignette: viewer.shaderVignette; highlights: viewer.shaderHighlights; shadows: viewer.shaderShadows }
+        Image { anchors.fill: parent; anchors.margins: 16; visible: !viewer.isVideo && viewer.currentSource && !viewer._shouldApplyShader; source: viewer._getSource(viewer.currentSource); fillMode: Image.PreserveAspectFit; asynchronous: true; smooth: true; mipmap: true }
+        
+        Item {
+            anchors.fill: parent; anchors.margins: 16; visible: viewer.isVideo
+            VideoOutput { id: vo; anchors.fill: parent }
+            AudioOutput { id: ao; volume: 0.8 }
+            Rectangle {
+                anchors.centerIn: parent; width: 72; height: 72; radius: 36
+                color: Theme.isDark ? Qt.rgba(0,0,0,0.6) : Qt.rgba(1,1,1,0.9)
+                visible: viewer.isVideo && videoPlayer && videoPlayer.playbackState !== MediaPlayer.PlayingState
+                ColoredIcon { anchors.centerIn: parent; source: Theme.icon("play"); iconSize: 32; color: Theme.colors.primary }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (videoPlayer) videoPlayer.togglePlay() }
+            }
+        }
+        
+        Rectangle { anchors.left: parent.left; anchors.leftMargin: 16; anchors.verticalCenter: parent.verticalCenter; width: 48; height: 48; radius: 24; color: pma.containsMouse ? Theme.colors.muted : Qt.rgba(0.5,0.5,0.5,0.2); visible: viewer.currentIndex > 0; ColoredIcon { anchors.centerIn: parent; source: Theme.icon("chevron-left"); iconSize: 24; color: Theme.colors.foreground } MouseArea { id: pma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: viewer._prevFile() } }
+        Rectangle { anchors.right: parent.right; anchors.rightMargin: 16; anchors.verticalCenter: parent.verticalCenter; width: 48; height: 48; radius: 24; color: nma.containsMouse ? Theme.colors.muted : Qt.rgba(0.5,0.5,0.5,0.2); visible: viewer.currentIndex < viewer.mediaFiles.length - 1; ColoredIcon { anchors.centerIn: parent; source: Theme.icon("chevron-right"); iconSize: 24; color: Theme.colors.foreground } MouseArea { id: nma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: viewer._nextFile() } }
+        
+        ColumnLayout { anchors.centerIn: parent; spacing: 12; visible: !viewer.currentFile; ColoredIcon { Layout.alignment: Qt.AlignHCenter; source: Theme.icon("image"); iconSize: 64; color: Theme.colors.mutedForeground } Text { Layout.alignment: Qt.AlignHCenter; text: qsTr("无媒体文件"); color: Theme.colors.mutedForeground; font.pixelSize: 16 } }
+    }
+    
+    component VideoControlBar: Rectangle {
+        property var viewer
+        property var videoPlayer
+        height: 80
+        color: Theme.colors.card
+        Rectangle { anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; height: 1; color: Theme.colors.border }
+        ColumnLayout {
+            anchors.fill: parent; anchors.margins: 12
+            RowLayout {
+                Layout.fillWidth: true; spacing: 8
+                Text { text: viewer._formatTime(videoPlayer ? videoPlayer.position : 0); color: Theme.colors.mutedForeground; font.pixelSize: 12 }
+                Slider { Layout.fillWidth: true; from: 0; to: videoPlayer && videoPlayer.duration > 0 ? videoPlayer.duration : 1; value: videoPlayer ? videoPlayer.position : 0; onMoved: if (videoPlayer) videoPlayer.position = value }
+                Text { text: viewer._formatTime(videoPlayer ? videoPlayer.duration : 0); color: Theme.colors.mutedForeground; font.pixelSize: 12 }
+            }
+            RowLayout {
+                Layout.fillWidth: true; spacing: 8
+                IconButton { iconName: "skip-back"; iconSize: 16; btnSize: 32; tooltip: qsTr("-10s"); onClicked: if (videoPlayer) videoPlayer.position = Math.max(0, videoPlayer.position - 10000) }
+                IconButton { iconName: videoPlayer && videoPlayer.playbackState === MediaPlayer.PlayingState ? "pause" : "play"; iconSize: 16; btnSize: 32; tooltip: qsTr("播放/暂停"); onClicked: if (videoPlayer) videoPlayer.togglePlay() }
+                IconButton { iconName: "skip-forward"; iconSize: 16; btnSize: 32; tooltip: qsTr("+10s"); onClicked: if (videoPlayer) videoPlayer.position = Math.min(videoPlayer.duration, videoPlayer.position + 10000) }
+                Item { width: 8 }
+                Repeater { model: [1.0, 1.5, 2.0]; Rectangle { required property real modelData; width: 32; height: 24; radius: 4; color: videoPlayer && Math.abs(videoPlayer.playbackRate - modelData) < 0.01 ? Theme.colors.primary : Theme.colors.muted; Text { anchors.centerIn: parent; text: modelData + "x"; color: Theme.colors.foreground; font.pixelSize: 11 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (videoPlayer) videoPlayer.playbackRate = modelData } } }
+                Item { Layout.fillWidth: true }
+                ColoredIcon { source: Theme.icon("volume-2"); iconSize: 16; color: Theme.colors.foreground }
+                Slider { implicitWidth: 80; from: 0; to: 1; value: 0.8 }
+            }
+        }
+    }
+    
+    component ThumbnailBar: Rectangle {
+        property var viewer
+        height: 60
+        color: Theme.colors.mediaControlBg
+        
+        Rectangle { anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; height: 1; color: Theme.colors.mediaControlBorder }
+        
+        ListView {
+            id: thumbListView
+            anchors.fill: parent
+            anchors.margins: 6
+            orientation: ListView.Horizontal
+            spacing: 6
+            clip: true
+            model: viewer.mediaFiles.length
+            currentIndex: viewer.currentIndex
+            
+            delegate: Item {
+                required property int index
+                width: 48; height: 48
+                property bool showDeleteBtn: thumbItemMouse.containsMouse || thumbDeleteMouse.containsMouse
+                
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 6
+                    color: "transparent"
+                    border.width: 2
+                    border.color: index === viewer.currentIndex ? Theme.colors.primary : "transparent"
+                    z: 5
+                }
+                
+                Rectangle {
+                    id: thumbRect
+                    anchors.fill: parent
+                    anchors.margins: 2
+                    radius: 6
+                    color: Theme.isDark ? Qt.rgba(1, 1, 1, 0.05) : Qt.rgba(0, 0, 0, 0.03)
+                    clip: true
+                    
+                    Image {
+                        id: thumbImg
+                        anchors.fill: parent
+                        source: {
+                            var f = viewer.mediaFiles[index]
+                            if (!f) return ""
+                            if (f.thumbnail && f.thumbnail !== "") return f.thumbnail
+                            if (f.filePath) return "image://thumbnail/" + f.filePath
+                            return ""
+                        }
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                        smooth: true
+                        sourceSize: Qt.size(96, 96)
+                        visible: status === Image.Ready
+                        layer.enabled: true
+                        layer.effect: MultiEffect {
+                            maskEnabled: true
+                            maskThresholdMin: 0.5
+                            maskSpreadAtMin: 1.0
+                            maskSource: thumbMask
+                        }
+                    }
+                    
+                    Item {
+                        id: thumbMask
+                        visible: false
+                        layer.enabled: true
+                        width: thumbRect.width
+                        height: thumbRect.height
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 6
+                            color: "white"
+                        }
+                    }
+                    
+                    ColoredIcon {
+                        anchors.centerIn: parent
+                        source: {
+                            var f = viewer.mediaFiles[index]
+                            if (!f) return Theme.icon("image")
+                            return f.mediaType === 1 ? Theme.icon("video") : Theme.icon("image")
+                        }
+                        iconSize: 16
+                        color: Theme.colors.mutedForeground
+                        visible: thumbImg.status !== Image.Ready
+                    }
+                    
+                    Rectangle {
+                        visible: {
+                            var f = viewer.mediaFiles[index]
+                            return f && f.mediaType === 1
+                        }
+                        anchors.bottom: parent.bottom
+                        anchors.left: parent.left
+                        anchors.margins: 3
+                        width: 16; height: 12
+                        radius: 2
+                        color: Theme.isDark ? Qt.rgba(0, 0, 0, 0.65) : Qt.rgba(0, 0, 0, 0.5)
+                        ColoredIcon {
+                            anchors.centerIn: parent
+                            source: Theme.icon("play")
+                            iconSize: 8
+                            color: "#FFFFFF"
+                        }
+                    }
+                }
+                
+                MouseArea {
+                    id: thumbItemMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: viewer.currentIndex = index
+                }
+                
+                Rectangle {
+                    id: thumbDeleteBtn
+                    anchors.top: parent.top
+                    anchors.right: parent.right
+                    anchors.margins: 2
+                    width: 14; height: 14
+                    radius: 7
+                    color: thumbDeleteMouse.containsMouse ? Theme.colors.destructive : Qt.rgba(0, 0, 0, 0.7)
+                    visible: showDeleteBtn
+                    z: 10
+                    
+                    Text {
+                        anchors.centerIn: parent
+                        text: "\u00D7"
+                        color: "#FFFFFF"
+                        font.pixelSize: 10
+                        font.weight: Font.Bold
+                    }
+                    
+                    MouseArea {
+                        id: thumbDeleteMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: viewer.fileRemoved(viewer.messageId, index)
+                    }
+                }
+            }
+            
+            MouseArea {
+                anchors.fill: parent
+                z: -1
+                onWheel: function(wheel) {
+                    var delta = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.angleDelta.x
+                    thumbListView.contentX = Math.max(0, Math.min(thumbListView.contentX - delta, thumbListView.contentWidth - thumbListView.width))
+                }
+            }
+        }
+    }
+}

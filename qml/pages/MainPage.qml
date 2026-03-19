@@ -80,6 +80,7 @@ Rectangle {
         
         // ========== (3) 消息展示区 ==========
         Item {
+            id: messageAreaContainer
             Layout.fillWidth: true
             Layout.fillHeight: true
             
@@ -175,9 +176,109 @@ Rectangle {
             
             // 消息列表（有消息时显示）
             MessageList {
+                id: messageListView
                 anchors.fill: parent
                 anchors.margins: 12
+                anchors.bottomMargin: pendingMinimizedDock.height + 12
                 visible: root.hasMessages
+                
+                // 传递容器和查看器引用
+                viewerContainer: messageAreaContainer
+                pendingViewer: pendingEmbeddedViewer
+                messageViewer: messageEmbeddedViewer
+                minimizedDock: pendingMinimizedDock
+            }
+            
+            // ========== 内嵌式媒体查看器（待处理文件） ==========
+            EmbeddedMediaViewer {
+                id: pendingEmbeddedViewer
+                anchors.fill: parent
+                containerItem: messageAreaContainer
+                messageMode: false
+                viewerId: "pending-viewer"
+                
+                shaderEnabled: root.processingMode === 0 && _getShaderParam("hasShaderModifications", false)
+                shaderBrightness: _getShaderParam("shaderBrightness", 0.0)
+                shaderContrast: _getShaderParam("shaderContrast", 1.0)
+                shaderSaturation: _getShaderParam("shaderSaturation", 1.0)
+                shaderHue: _getShaderParam("shaderHue", 0.0)
+                shaderSharpness: _getShaderParam("shaderSharpness", 0.0)
+                shaderBlur: _getShaderParam("shaderBlur", 0.0)
+                shaderDenoise: _getShaderParam("shaderDenoise", 0.0)
+                shaderExposure: _getShaderParam("shaderExposure", 0.0)
+                shaderGamma: _getShaderParam("shaderGamma", 1.0)
+                shaderTemperature: _getShaderParam("shaderTemperature", 0.0)
+                shaderTint: _getShaderParam("shaderTint", 0.0)
+                shaderVignette: _getShaderParam("shaderVignette", 0.0)
+                shaderHighlights: _getShaderParam("shaderHighlights", 0.0)
+                shaderShadows: _getShaderParam("shaderShadows", 0.0)
+                
+                onFileRemoved: function(msgId, fileIndex) {
+                    if (typeof fileController !== "undefined") {
+                        fileController.removeFileAt(fileIndex)
+                    } else {
+                        pendingFilesModel.remove(fileIndex)
+                    }
+                }
+                
+                onMinimizeRequested: function(viewerId, title, thumbnail) {
+                    pendingMinimizedDock.addWindow(viewerId, title, thumbnail)
+                }
+                
+                onClosed: {
+                    pendingMinimizedDock.removeWindow(viewerId)
+                }
+            }
+            
+            // ========== 内嵌式媒体查看器（消息文件） ==========
+            EmbeddedMediaViewer {
+                id: messageEmbeddedViewer
+                anchors.fill: parent
+                containerItem: messageAreaContainer
+                messageMode: true
+                viewerId: "message-viewer"
+                
+                property string currentMessageId: ""
+                
+                onFileRemoved: function(msgId, fileIndex) {
+                    if (typeof messageModel !== "undefined") {
+                        messageModel.removeMediaFile(msgId, fileIndex)
+                    }
+                }
+                
+                onMinimizeRequested: function(viewerId, title, thumbnail) {
+                    pendingMinimizedDock.addWindow(viewerId, title, thumbnail)
+                }
+                
+                onClosed: {
+                    pendingMinimizedDock.removeWindow(viewerId)
+                }
+            }
+            
+            // ========== 最小化窗口停靠区 ==========
+            MinimizedWindowDock {
+                id: pendingMinimizedDock
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                
+                onRestoreWindow: function(viewerId) {
+                    if (viewerId === "pending-viewer") {
+                        pendingEmbeddedViewer.restore()
+                    } else if (viewerId === "message-viewer") {
+                        messageEmbeddedViewer.restore()
+                    }
+                    removeWindow(viewerId)
+                }
+                
+                onCloseWindow: function(viewerId) {
+                    if (viewerId === "pending-viewer") {
+                        pendingEmbeddedViewer.close()
+                    } else if (viewerId === "message-viewer") {
+                        messageEmbeddedViewer.close()
+                    }
+                    removeWindow(viewerId)
+                }
             }
         }
         
@@ -384,34 +485,7 @@ Rectangle {
         }
     }
     
-    // ========== 待处理文件查看器 ==========
-    MediaViewerWindow {
-        id: pendingViewerWindow
-        messageMode: false
-        
-        shaderEnabled: root.processingMode === 0 && _getShaderParam("hasShaderModifications", false)
-        shaderBrightness: _getShaderParam("shaderBrightness", 0.0)
-        shaderContrast: _getShaderParam("shaderContrast", 1.0)
-        shaderSaturation: _getShaderParam("shaderSaturation", 1.0)
-        shaderHue: _getShaderParam("shaderHue", 0.0)
-        shaderSharpness: _getShaderParam("shaderSharpness", 0.0)
-        shaderBlur: _getShaderParam("shaderBlur", 0.0)
-        shaderExposure: _getShaderParam("shaderExposure", 0.0)
-        shaderGamma: _getShaderParam("shaderGamma", 1.0)
-        shaderTemperature: _getShaderParam("shaderTemperature", 0.0)
-        shaderTint: _getShaderParam("shaderTint", 0.0)
-        shaderVignette: _getShaderParam("shaderVignette", 0.0)
-        shaderHighlights: _getShaderParam("shaderHighlights", 0.0)
-        shaderShadows: _getShaderParam("shaderShadows", 0.0)
-        
-        onFileRemoved: function(msgId, fileIndex) {
-            if (typeof fileController !== "undefined") {
-                fileController.removeFileAt(fileIndex)
-            } else {
-                pendingFilesModel.remove(fileIndex)
-            }
-        }
-    }
+    // 待处理文件查看器已移至 messageAreaContainer 内的 EmbeddedMediaViewer
     
     // 监听 fileModel 变化，同步更新查看器窗口
     Connections {
@@ -498,6 +572,7 @@ Rectangle {
                     highlights: _getShaderParam("shaderHighlights", 0.0),
                     shadows: _getShaderParam("shaderShadows", 0.0)
                 }
+                console.log("[MainPage] Sending shader params:", JSON.stringify(params))
             }
             processingController.sendToProcessing(root.processingMode, params)
         }
@@ -537,13 +612,13 @@ Rectangle {
         }
         
         if (files.length > 0) {
-            pendingViewerWindow.mediaFiles = files
-            pendingViewerWindow.openAt(Math.min(index, files.length - 1))
+            pendingEmbeddedViewer.mediaFiles = files
+            pendingEmbeddedViewer.openAt(Math.min(index, files.length - 1))
         }
     }
     
     function _syncPendingViewerWindow() {
-        if (!pendingViewerWindow.visible) return
+        if (!pendingEmbeddedViewer.isOpen) return
         
         var model = typeof fileModel !== "undefined" ? fileModel : pendingFilesModel
         var files = []
@@ -578,13 +653,13 @@ Rectangle {
         }
         
         if (files.length === 0) {
-            pendingViewerWindow.close()
+            pendingEmbeddedViewer.close()
             return
         }
         
-        pendingViewerWindow.mediaFiles = files
-        if (pendingViewerWindow.currentIndex >= files.length) {
-            pendingViewerWindow.currentIndex = Math.max(0, files.length - 1)
+        pendingEmbeddedViewer.mediaFiles = files
+        if (pendingEmbeddedViewer.currentIndex >= files.length) {
+            pendingEmbeddedViewer.currentIndex = Math.max(0, files.length - 1)
         }
     }
     

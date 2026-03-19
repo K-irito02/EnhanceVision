@@ -70,8 +70,9 @@ QtObject {
      * @return 图标 URL
      */
     function icon(name) {
+        // 暗色主题使用淡蓝色图标，亮色主题使用黑色图标
         var iconPath = isDark ? "icons-dark" : "icons"
-        return "qrc:/qt/qml/EnhanceVision/resources/" + iconPath + "/" + name + ".svg"
+        return "qrc:/" + iconPath + "/" + iconPath + "/" + name + ".svg"
     }
 
     // ========== 间距系统 (px) ==========
