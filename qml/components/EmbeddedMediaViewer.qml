@@ -69,9 +69,10 @@ Item {
         // 动态提升z-index，确保最后打开的查看器始终在最上层
         if (displayMode === "embedded") {
             // 使用父级MainPage的全局计数器
-            if (parent && parent.parent && parent.parent.globalZIndexCounter !== undefined) {
-                parent.parent.globalZIndexCounter++
-                root.z = parent.parent.globalZIndexCounter
+            var mainPage = _findMainPage()
+            if (mainPage && mainPage.globalZIndexCounter !== undefined) {
+                mainPage.globalZIndexCounter++
+                root.z = mainPage.globalZIndexCounter
             } else {
                 root.z = 1100 + Date.now() % 100
             }
@@ -81,6 +82,17 @@ Item {
             detachedWindow.show()
             detachedWindow.raise()
         }
+    }
+    
+    function _findMainPage() {
+        var p = parent
+        while (p) {
+            if (p.globalZIndexCounter !== undefined) {
+                return p
+            }
+            p = p.parent
+        }
+        return null
     }
     
     function close() {
@@ -107,9 +119,10 @@ Item {
         isMinimized = false
         if (displayMode === "embedded") {
             // 使用父级MainPage的全局计数器
-            if (parent && parent.parent && parent.parent.globalZIndexCounter !== undefined) {
-                parent.parent.globalZIndexCounter++
-                root.z = parent.parent.globalZIndexCounter
+            var mainPage = _findMainPage()
+            if (mainPage && mainPage.globalZIndexCounter !== undefined) {
+                mainPage.globalZIndexCounter++
+                root.z = mainPage.globalZIndexCounter
             } else {
                 root.z = 1100 + Date.now() % 100
             }
@@ -172,7 +185,7 @@ Item {
         anchors.bottomMargin: _getMinimizedDockHeight()
         visible: false
         color: Theme.colors.background
-        z: 1000
+        z: root.z
         
         Rectangle {
             id: titleBar
@@ -279,6 +292,10 @@ Item {
         SubWindowHelper { id: winHelper; Component.onCompleted: { winHelper.setWindow(detachedWindow); winHelper.setMinWidth(480); winHelper.setMinHeight(360); winHelper.setTitleBarHeight(44) } }
         
         property bool _snapHint: false
+        property real _savedX: 0
+        property real _savedY: 0
+        property real _savedW: 800
+        property real _savedH: 600
         
         function updateExcludeRegions() {
             winHelper.clearExcludeRegions()
@@ -307,43 +324,6 @@ Item {
                 color: Theme.colors.titleBar
                 
                 Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: Theme.colors.titleBarBorder }
-                
-                // 全屏状态下拖拽标题栏退出全屏
-                MouseArea {
-                    anchors.fill: parent
-                    z: 1
-                    acceptedButtons: Qt.LeftButton
-                    property point dragStartPos
-                    property bool isDragging: false
-                    
-                    onPressed: function(mouse) {
-                        if (detachedWindow.visibility === Window.FullScreen) {
-                            dragStartPos = Qt.point(mouse.x, mouse.y)
-                            isDragging = false
-                        } else {
-                            mouse.accepted = false
-                        }
-                    }
-                    
-                    onPositionChanged: function(mouse) {
-                        if (detachedWindow.visibility === Window.FullScreen && pressed) {
-                            var dx = mouse.x - dragStartPos.x
-                            var dy = mouse.y - dragStartPos.y
-                            if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
-                                isDragging = true
-                                detachedWindow.showNormal()
-                                mouse.accepted = true
-                            }
-                        }
-                    }
-                    
-                    onReleased: function(mouse) {
-                        if (!isDragging && detachedWindow.visibility !== Window.FullScreen) {
-                            mouse.accepted = false
-                        }
-                        isDragging = false
-                    }
-                }
                 
                 
                 RowLayout {
@@ -374,22 +354,50 @@ Item {
                         Layout.alignment: Qt.AlignVCenter
                         IconButton { iconName: "minimize-2"; iconSize: 16; btnSize: 32; tooltip: qsTr("嵌入"); onClicked: root.switchToEmbedded() }
                         IconButton { iconName: "minus"; iconSize: 16; btnSize: 32; tooltip: qsTr("最小化"); onClicked: root.minimize() }
-                        IconButton { iconName: detachedWindow.visibility === Window.FullScreen ? "minimize-2" : "maximize"; iconSize: 16; btnSize: 32; tooltip: detachedWindow.visibility === Window.FullScreen ? qsTr("退出全屏") : qsTr("全屏"); onClicked: { if (detachedWindow.visibility === Window.FullScreen) detachedWindow.showNormal(); else detachedWindow.showFullScreen() } }
+                        IconButton { 
+                            iconName: detachedWindow.visibility === Window.FullScreen ? "minimize-2" : "maximize"
+                            iconSize: 16
+                            btnSize: 32
+                            tooltip: detachedWindow.visibility === Window.FullScreen ? qsTr("退出全屏") : qsTr("全屏")
+                            onClicked: { 
+                                if (detachedWindow.visibility === Window.FullScreen) {
+                                    detachedWindow.showNormal()
+                                    detachedWindow.x = detachedWindow._savedX
+                                    detachedWindow.y = detachedWindow._savedY
+                                    detachedWindow.width = detachedWindow._savedW
+                                    detachedWindow.height = detachedWindow._savedH
+                                } else {
+                                    // 保存当前窗口几何信息到 winHelper
+                                    winHelper.saveNormalGeometry()
+                                    // 同时保存到 detachedWindow 属性
+                                    detachedWindow._savedX = detachedWindow.x
+                                    detachedWindow._savedY = detachedWindow.y
+                                    detachedWindow._savedW = detachedWindow.width
+                                    detachedWindow._savedH = detachedWindow.height
+                                    detachedWindow.showFullScreen()
+                                }
+                            }
+                        }
                         IconButton { iconName: "x"; iconSize: 16; btnSize: 32; danger: true; tooltip: qsTr("关闭"); onClicked: root.close() }
                     }
                 }
             }
             
             MediaContentArea {
-                anchors.top: detTitle.bottom; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: detVidCtrl.top
-                anchors.margins: 16
+                id: detContentArea
+                anchors.top: detTitle.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: detVidCtrl.visible ? detVidCtrl.top : (detThumb.visible ? detThumb.top : parent.bottom)
                 viewer: root
                 videoPlayer: vidPlayer
             }
             
             VideoControlBar {
                 id: detVidCtrl
-                anchors.bottom: detThumb.top; anchors.left: parent.left; anchors.right: parent.right
+                anchors.bottom: detThumb.visible ? detThumb.top : parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
                 visible: root.isVideo
                 viewer: root
                 videoPlayer: vidPlayer
@@ -413,11 +421,11 @@ Item {
             }
         }
         
-        Shortcut { sequence: "Escape"; onActivated: { if (detachedWindow.visibility === Window.FullScreen) detachedWindow.showNormal(); else root.close() } }
+        Shortcut { sequence: "Escape"; onActivated: { if (detachedWindow.visibility === Window.FullScreen) { detachedWindow.showNormal(); detachedWindow.x = detachedWindow._savedX; detachedWindow.y = detachedWindow._savedY; detachedWindow.width = detachedWindow._savedW; detachedWindow.height = detachedWindow._savedH } else root.close() } }
         Shortcut { sequence: "Left"; onActivated: root._prevFile() }
         Shortcut { sequence: "Right"; onActivated: root._nextFile() }
         Shortcut { sequence: "Space"; onActivated: if (root.isVideo) vidPlayer.togglePlay() }
-        Shortcut { sequence: "F"; onActivated: { if (detachedWindow.visibility === Window.FullScreen) detachedWindow.showNormal(); else detachedWindow.showFullScreen() } }
+        Shortcut { sequence: "F"; onActivated: { if (detachedWindow.visibility === Window.FullScreen) { detachedWindow.showNormal(); detachedWindow.x = detachedWindow._savedX; detachedWindow.y = detachedWindow._savedY; detachedWindow.width = detachedWindow._savedW; detachedWindow.height = detachedWindow._savedH } else { winHelper.saveNormalGeometry(); detachedWindow._savedX = detachedWindow.x; detachedWindow._savedY = detachedWindow.y; detachedWindow._savedW = detachedWindow.width; detachedWindow._savedH = detachedWindow.height; detachedWindow.showFullScreen() } } }
     }
     
     Connections {
@@ -454,12 +462,14 @@ Item {
         
         // 导航按钮自动隐藏控制
         property bool showNavButtons: true
+        property bool prevButtonHovered: false
+        property bool nextButtonHovered: false
         
         Timer {
             id: navButtonHideTimer
             interval: 2000
             repeat: false
-            onTriggered: showNavButtons = false
+            onTriggered: { if (!prevButtonHovered && !nextButtonHovered) showNavButtons = false }
         }
         
         MouseArea {
@@ -473,10 +483,6 @@ Item {
             onEntered: {
                 showNavButtons = true
                 navButtonHideTimer.restart()
-            }
-            onExited: {
-                navButtonHideTimer.stop()
-                showNavButtons = false
             }
         }
         
@@ -507,7 +513,7 @@ Item {
             radius: 24
             color: pma.containsMouse ? Theme.colors.muted : Qt.rgba(0.5,0.5,0.5,0.2)
             visible: viewer.currentIndex > 0
-            opacity: showNavButtons ? 1.0 : 0.0
+            opacity: showNavButtons || prevButtonHovered ? 1.0 : 0.0
             Behavior on opacity { NumberAnimation { duration: 200 } }
             ColoredIcon { anchors.centerIn: parent; source: Theme.icon("chevron-left"); iconSize: 24; color: Theme.colors.foreground }
             MouseArea { 
@@ -516,7 +522,8 @@ Item {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: viewer._prevFile()
-                onEntered: { showNavButtons = true; navButtonHideTimer.restart() }
+                onEntered: { prevButtonHovered = true; showNavButtons = true; navButtonHideTimer.stop() }
+                onExited: { prevButtonHovered = false; navButtonHideTimer.start() }
             }
         }
         
@@ -530,7 +537,7 @@ Item {
             radius: 24
             color: nma.containsMouse ? Theme.colors.muted : Qt.rgba(0.5,0.5,0.5,0.2)
             visible: viewer.currentIndex < viewer.mediaFiles.length - 1
-            opacity: showNavButtons ? 1.0 : 0.0
+            opacity: showNavButtons || nextButtonHovered ? 1.0 : 0.0
             Behavior on opacity { NumberAnimation { duration: 200 } }
             ColoredIcon { anchors.centerIn: parent; source: Theme.icon("chevron-right"); iconSize: 24; color: Theme.colors.foreground }
             MouseArea { 
@@ -539,7 +546,8 @@ Item {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: viewer._nextFile()
-                onEntered: { showNavButtons = true; navButtonHideTimer.restart() }
+                onEntered: { nextButtonHovered = true; showNavButtons = true; navButtonHideTimer.stop() }
+                onExited: { nextButtonHovered = false; navButtonHideTimer.start() }
             }
         }
         

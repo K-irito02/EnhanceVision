@@ -41,6 +41,8 @@ public:
     Q_INVOKABLE void close();
     Q_INVOKABLE bool isMaximized() const;
     Q_INVOKABLE void startSystemMove();
+    Q_INVOKABLE void prepareRestoreAndMove(int mouseX, int mouseY, int areaWidth, int areaHeight);
+    Q_INVOKABLE void saveNormalGeometry();
     
     bool isDragging() const { return m_isDragging; }
 
@@ -60,10 +62,12 @@ public:
 
     const QVector<QRect>& excludeRegions() const { return m_excludeRegions; }
     bool isWindowMaximized() const { return m_isMaximized; }
+    bool isWindowFullScreen() const;
     int windowResizeMargin() const { return m_resizeMargin; }
     int windowMinWidth() const { return m_minWidth; }
     int windowMinHeight() const { return m_minHeight; }
     int windowTitleBarHeight() const { return m_titleBarHeight; }
+    void handleFullScreenDrag(int mouseX, int mouseY, int areaWidth);
 
 signals:
     void maximizedChanged();

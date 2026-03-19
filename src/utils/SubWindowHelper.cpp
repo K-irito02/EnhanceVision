@@ -11,6 +11,7 @@
 #include <QScreen>
 #include <QCursor>
 #include <QDebug>
+#include <QCoreApplication>
 
 #ifdef Q_OS_WIN
 #include <windowsx.h>
@@ -43,6 +44,23 @@ static LRESULT CALLBACK SubWindowWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
         helper->setDragging(false);
         break;
     }
+    case WM_NCLBUTTONDOWN: {
+        if (wParam == HTCAPTION && helper->isWindowFullScreen()) {
+            RECT windowRect;
+            GetWindowRect(hwnd, &windowRect);
+            
+            int x = GET_X_LPARAM(lParam);
+            int y = GET_Y_LPARAM(lParam);
+            
+            int localX = x - windowRect.left;
+            int localY = y - windowRect.top;
+            int windowWidth = windowRect.right - windowRect.left;
+            
+            helper->handleFullScreenDrag(localX, localY, windowWidth);
+            return 0;
+        }
+        break;
+    }
     case WM_NCHITTEST: {
         RECT windowRect;
         GetWindowRect(hwnd, &windowRect);
@@ -69,7 +87,7 @@ static LRESULT CALLBACK SubWindowWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
             }
 
             if (!inExcludeRegion) {
-                if (!helper->isWindowMaximized()) {
+                if (!helper->isWindowMaximized() && !helper->isWindowFullScreen()) {
                     bool onLeft = localX < margin;
                     bool onRight = localX >= windowWidth - margin;
                     bool onTop = localY < margin;
@@ -84,7 +102,7 @@ static LRESULT CALLBACK SubWindowWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
             }
         }
         
-        if (!helper->isWindowMaximized()) {
+        if (!helper->isWindowMaximized() && !helper->isWindowFullScreen()) {
             bool onLeft = localX < margin;
             bool onRight = localX >= windowWidth - margin;
             bool onTop = localY < margin;
@@ -358,6 +376,56 @@ bool SubWindowHelper::isMaximized() const
     return m_isMaximized;
 }
 
+bool SubWindowHelper::isWindowFullScreen() const
+{
+    if (m_window) {
+        return m_window->windowStates() & Qt::WindowFullScreen;
+    }
+    return false;
+}
+
+void SubWindowHelper::handleFullScreenDrag(int mouseX, int mouseY, int areaWidth)
+{
+    if (m_window && isWindowFullScreen()) {
+#ifdef Q_OS_WIN
+        HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
+        
+        QRect fullScreenGeom = m_window->geometry();
+        QRect normalGeom = m_normalGeometry;
+        
+        if (normalGeom.width() <= 0 || normalGeom.height() <= 0) {
+            normalGeom.setWidth(m_minWidth);
+            normalGeom.setHeight(m_minHeight);
+        }
+        
+        qreal xRatio = static_cast<qreal>(mouseX) / areaWidth;
+        
+        int newWindowX = static_cast<int>(normalGeom.width() * xRatio);
+        
+        normalGeom.moveTopLeft(QPoint(fullScreenGeom.left() + mouseX - newWindowX, fullScreenGeom.top() + mouseY));
+        
+        // 退出全屏
+        m_window->showNormal();
+        
+        // 设置恢复后的窗口几何
+        m_window->setGeometry(normalGeom);
+        
+        QCoreApplication::processEvents();
+        
+        // 启动系统拖拽
+        QPoint cursorPos = QCursor::pos();
+        int lParam = MAKELPARAM(cursorPos.x(), cursorPos.y());
+        
+        ReleaseCapture();
+        SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, lParam);
+#else
+        Q_UNUSED(mouseX)
+        Q_UNUSED(mouseY)
+        Q_UNUSED(areaWidth)
+#endif
+    }
+}
+
 void SubWindowHelper::startSystemMove()
 {
     if (m_window) {
@@ -368,6 +436,63 @@ void SubWindowHelper::startSystemMove()
 #else
         m_window->startSystemMove();
 #endif
+    }
+}
+
+void SubWindowHelper::saveNormalGeometry()
+{
+    if (m_window) {
+        m_normalGeometry = m_window->geometry();
+    }
+}
+
+void SubWindowHelper::prepareRestoreAndMove(int mouseX, int mouseY, int areaWidth, int areaHeight)
+{
+    if (m_window) {
+        bool isFullScreen = m_window->windowStates() & Qt::WindowFullScreen;
+        bool needRestore = m_isMaximized || isFullScreen;
+        
+        if (needRestore) {
+#ifdef Q_OS_WIN
+            HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
+            
+            QRect maxGeom = m_window->geometry();
+            QRect normalGeom = m_normalGeometry;
+            
+            if (normalGeom.width() <= 0 || normalGeom.height() <= 0) {
+                normalGeom.setWidth(m_minWidth);
+                normalGeom.setHeight(m_minHeight);
+            }
+            
+            qreal xRatio = static_cast<qreal>(mouseX) / areaWidth;
+            
+            int newWindowX = static_cast<int>(normalGeom.width() * xRatio);
+            int newWindowY = mouseY;
+            
+            normalGeom.moveTopLeft(QPoint(maxGeom.left() + mouseX - newWindowX, maxGeom.top() + mouseY - newWindowY));
+            
+            if (m_isMaximized) {
+                m_isMaximized = false;
+                emit maximizedChanged();
+            }
+            
+            ShowWindow(hwnd, SW_RESTORE);
+            m_window->setGeometry(normalGeom);
+            
+            QCoreApplication::processEvents();
+            
+            QPoint cursorPos = QCursor::pos();
+            int lParam = MAKELPARAM(cursorPos.x(), cursorPos.y());
+            
+            ReleaseCapture();
+            SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, lParam);
+#else
+            Q_UNUSED(mouseX)
+            Q_UNUSED(mouseY)
+            Q_UNUSED(areaWidth)
+            Q_UNUSED(areaHeight)
+#endif
+        }
     }
 }
 

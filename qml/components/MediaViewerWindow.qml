@@ -657,6 +657,8 @@ Window {
                     if (containsMouse) {
                         hoverActive = true
                         hideButtonsTimer.stop()
+                    } else {
+                        hideButtonsTimer.start()
                     }
                 }
             }
@@ -696,6 +698,8 @@ Window {
                     if (containsMouse) {
                         hoverActive = true
                         hideButtonsTimer.stop()
+                    } else {
+                        hideButtonsTimer.start()
                     }
                 }
             }
