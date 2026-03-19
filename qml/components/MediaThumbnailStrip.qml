@@ -72,7 +72,8 @@ Item {
                         "mediaType": item.mediaType !== undefined ? item.mediaType : 0,
                         "thumbnail": item.thumbnail || "",
                         "status": item.status !== undefined ? item.status : 0,
-                        "resultPath": item.resultPath || ""
+                        "resultPath": item.resultPath || "",
+                        "processedThumbnailId": item.processedThumbnailId || ""
                     })
                 }
             }
@@ -94,7 +95,8 @@ Item {
                         "mediaType": mediaType !== undefined ? mediaType : 0,
                         "thumbnail": thumbnail || "",
                         "status": status !== undefined ? status : 0,
-                        "resultPath": resultPath || ""
+                        "resultPath": resultPath || "",
+                        "processedThumbnailId": ""
                     })
                 }
             }

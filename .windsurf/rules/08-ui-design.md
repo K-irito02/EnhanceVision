@@ -1,8 +1,7 @@
 ---
-name: "ui-design"
 alwaysApply: false
 globs: ['**/qml/styles/**', '**/Theme.qml', '**/Colors.qml']
-description: 'UI design standards - Reference for themes, colors, fonts, spacing, component styling'
+description: 'UI设计规范 - 涉及主题、颜色、字体、间距、组件样式时参考'
 trigger: glob
 ---
 # UI 设计规范
@@ -403,6 +402,103 @@ Rectangle {
     }
 }
 ```
+
+## 图像渲染优化
+
+### 缩略图抗锯齿
+
+```qml
+// 缩略图组件 - 启用抗锯齿
+Image {
+    id: thumbImage
+    anchors.fill: parent
+    source: thumbnailPath
+    fillMode: Image.PreserveAspectCrop
+    asynchronous: true
+    smooth: true                                    // 图像平滑
+    sourceSize: Qt.size(displayWidth * 2, displayHeight * 2)  // 高分辨率源
+    visible: status === Image.Ready
+    layer.enabled: true
+    layer.samples: 4                                // 多重采样抗锯齿
+    layer.effect: MultiEffect {
+        maskEnabled: true
+        maskThresholdMin: 0.5
+        maskSpreadAtMin: 1.0
+        maskSource: thumbMask
+    }
+}
+
+// 圆角遮罩 - 启用几何抗锯齿
+Item {
+    id: thumbMask
+    visible: false
+    layer.enabled: true
+    layer.samples: 4
+    width: thumbRect.width
+    height: thumbRect.height
+
+    Rectangle {
+        anchors.fill: parent
+        radius: Theme.radius.md
+        color: "white"
+        antialiasing: true                          // 几何抗锯齿
+    }
+}
+```
+
+### 大图预览优化
+
+```qml
+// 大图预览 - 启用 mipmap
+Image {
+    source: imagePath
+    fillMode: Image.PreserveAspectFit
+    asynchronous: true
+    smooth: true
+    mipmap: true                                   // 多级纹理，提升缩放质量
+}
+```
+
+### 悬停边框动画
+
+```qml
+// 缩略图悬停效果 - 平滑边框过渡
+Rectangle {
+    id: hoverBorder
+    anchors.fill: parent
+    anchors.margins: 2
+    radius: Theme.radius.md
+    color: "transparent"
+    border.width: 2
+    border.color: mouseArea.containsMouse ? Theme.colors.primary : "transparent"
+    z: 5
+    
+    // 平滑颜色过渡动画
+    Behavior on border.color { 
+        ColorAnimation { duration: Theme.animation.fast } 
+    }
+}
+
+// 卡片悬停效果 - 边框和背景同时变化
+Rectangle {
+    id: card
+    color: mouseArea.containsMouse ? Theme.colors.surfaceHover : Theme.colors.surface
+    border.width: 1
+    border.color: mouseArea.containsMouse ? Theme.colors.primary : Theme.colors.border
+    
+    Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
+    Behavior on border.color { ColorAnimation { duration: Theme.animation.fast } }
+}
+```
+
+### 抗锯齿技术对比
+
+| 技术 | 属性 | 用途 | 性能影响 |
+|------|------|------|---------|
+| 图像平滑 | `smooth: true` | 图像缩放平滑 | 极小（GPU 加速） |
+| 几何抗锯齿 | `antialiasing: true` | 圆角边缘平滑 | 极小 |
+| 多重采样 | `layer.samples: 4` | 遮罩边缘抗锯齿 | 小 |
+| 多级纹理 | `mipmap: true` | 大图缩放质量 | 小 |
 
 ## 响应式布局
 

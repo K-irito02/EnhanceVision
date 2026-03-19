@@ -1,7 +1,6 @@
 ---
-name: "project-overview"
 alwaysApply: true
-description: 'Project overview - Always applies, defines tech stack, directory structure and core constraints'
+description: '项目总览 - 始终生效，定义技术栈、目录结构和核心约束'
 ---
 # 项目总览
 

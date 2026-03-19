@@ -243,7 +243,7 @@ bool ImageUtils::isVideoFile(const QString &filePath)
     return videoExtensions.contains(suffix);
 }
 
-QImage ImageUtils::applyShaderEffects(const QImage &image, 
+QImage ImageUtils::applyShaderEffects(const QImage &image,
                                        float brightness,
                                        float contrast,
                                        float saturation,
@@ -254,20 +254,24 @@ QImage ImageUtils::applyShaderEffects(const QImage &image,
                                        float tint,
                                        float vignette,
                                        float highlights,
-                                       float shadows)
+                                       float shadows,
+                                       float sharpness,
+                                       float blur,
+                                       float denoise)
 {
     if (image.isNull()) {
         return QImage();
     }
-    
+
     QImage result = image.convertToFormat(QImage::Format_ARGB32);
-    
+    QImage original = result.copy();
+
     int width = result.width();
     int height = result.height();
     int centerX = width / 2;
     int centerY = height / 2;
     float maxDist = std::sqrt(centerX * centerX + centerY * centerY);
-    
+
     for (int y = 0; y < height; ++y) {
         QRgb* line = reinterpret_cast<QRgb*>(result.scanLine(y));
         for (int x = 0; x < width; ++x) {
@@ -275,37 +279,32 @@ QImage ImageUtils::applyShaderEffects(const QImage &image,
             float g = qGreen(line[x]) / 255.0f;
             float b = qBlue(line[x]) / 255.0f;
             int a = qAlpha(line[x]);
-            
-            // 曝光
+
             if (qAbs(exposure) > 0.001f) {
                 r = r * std::pow(2.0f, exposure);
                 g = g * std::pow(2.0f, exposure);
                 b = b * std::pow(2.0f, exposure);
             }
-            
-            // 亮度
+
             if (qAbs(brightness) > 0.001f) {
                 r = qBound(0.0f, r + brightness, 1.0f);
                 g = qBound(0.0f, g + brightness, 1.0f);
                 b = qBound(0.0f, b + brightness, 1.0f);
             }
-            
-            // 对比度
+
             if (qAbs(contrast - 1.0f) > 0.001f) {
                 r = qBound(0.0f, (r - 0.5f) * contrast + 0.5f, 1.0f);
                 g = qBound(0.0f, (g - 0.5f) * contrast + 0.5f, 1.0f);
                 b = qBound(0.0f, (b - 0.5f) * contrast + 0.5f, 1.0f);
             }
-            
-            // 饱和度
+
             if (qAbs(saturation - 1.0f) > 0.001f) {
                 float gray = 0.2126f * r + 0.7152f * g + 0.0722f * b;
                 r = qBound(0.0f, gray + saturation * (r - gray), 1.0f);
                 g = qBound(0.0f, gray + saturation * (g - gray), 1.0f);
                 b = qBound(0.0f, gray + saturation * (b - gray), 1.0f);
             }
-            
-            // 色相
+
             if (qAbs(hue) > 0.001f) {
                 float h, s, v;
                 rgbToHsv(r, g, b, h, s, v);
@@ -314,36 +313,23 @@ QImage ImageUtils::applyShaderEffects(const QImage &image,
                 if (h > 1.0f) h -= 1.0f;
                 hsvToRgb(h, s, v, r, g, b);
             }
-            
-            // 伽马
+
             if (qAbs(gamma - 1.0f) > 0.001f) {
                 float invGamma = 1.0f / gamma;
                 r = std::pow(r, invGamma);
                 g = std::pow(g, invGamma);
                 b = std::pow(b, invGamma);
             }
-            
-            // 色温
+
             if (qAbs(temperature) > 0.001f) {
-                if (temperature > 0.0f) {
-                    r = qBound(0.0f, r + temperature * 0.1f, 1.0f);
-                    b = qBound(0.0f, b - temperature * 0.1f, 1.0f);
-                } else {
-                    r = qBound(0.0f, r + temperature * 0.1f, 1.0f);
-                    b = qBound(0.0f, b - temperature * 0.1f, 1.0f);
-                }
+                r = qBound(0.0f, r + temperature * 0.1f, 1.0f);
+                b = qBound(0.0f, b - temperature * 0.1f, 1.0f);
             }
-            
-            // 色调
+
             if (qAbs(tint) > 0.001f) {
-                if (tint > 0.0f) {
-                    g = qBound(0.0f, g + tint * 0.1f, 1.0f);
-                } else {
-                    g = qBound(0.0f, g + tint * 0.1f, 1.0f);
-                }
+                g = qBound(0.0f, g + tint * 0.1f, 1.0f);
             }
-            
-            // 高光
+
             if (qAbs(highlights) > 0.001f) {
                 float luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b;
                 if (luminance > 0.5f) {
@@ -354,8 +340,7 @@ QImage ImageUtils::applyShaderEffects(const QImage &image,
                     b = qBound(0.0f, b + adjustment, 1.0f);
                 }
             }
-            
-            // 阴影
+
             if (qAbs(shadows) > 0.001f) {
                 float luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b;
                 if (luminance < 0.5f) {
@@ -366,8 +351,7 @@ QImage ImageUtils::applyShaderEffects(const QImage &image,
                     b = qBound(0.0f, b + adjustment, 1.0f);
                 }
             }
-            
-            // 晕影
+
             if (vignette > 0.001f) {
                 float dx = x - centerX;
                 float dy = y - centerY;
@@ -378,14 +362,121 @@ QImage ImageUtils::applyShaderEffects(const QImage &image,
                 g *= vignetteFactor;
                 b *= vignetteFactor;
             }
-            
+
             line[x] = qRgba(static_cast<int>(qBound(0.0f, r, 1.0f) * 255),
                            static_cast<int>(qBound(0.0f, g, 1.0f) * 255),
                            static_cast<int>(qBound(0.0f, b, 1.0f) * 255),
                            a);
         }
     }
-    
+
+    if (denoise > 0.01f || blur > 0.01f || sharpness > 0.01f) {
+        QImage temp = result.copy();
+
+        for (int y = 0; y < height; ++y) {
+            QRgb* line = reinterpret_cast<QRgb*>(result.scanLine(y));
+            for (int x = 0; x < width; ++x) {
+                float r = qRed(line[x]) / 255.0f;
+                float g = qGreen(line[x]) / 255.0f;
+                float b = qBlue(line[x]) / 255.0f;
+                int a = qAlpha(line[x]);
+
+                if (denoise > 0.01f) {
+                    QVector<float> reds, greens, blues;
+
+                    for (int dy = -1; dy <= 1; ++dy) {
+                        for (int dx = -1; dx <= 1; ++dx) {
+                            int nx = qBound(0, x + dx, width - 1);
+                            int ny = qBound(0, y + dy, height - 1);
+                            QRgb neighbor = temp.pixel(nx, ny);
+                            reds.append(qRed(neighbor) / 255.0f);
+                            greens.append(qGreen(neighbor) / 255.0f);
+                            blues.append(qBlue(neighbor) / 255.0f);
+                        }
+                    }
+
+                    std::sort(reds.begin(), reds.end());
+                    std::sort(greens.begin(), greens.end());
+                    std::sort(blues.begin(), blues.end());
+
+                    int mid = reds.size() / 2;
+                    float medianR = reds[mid];
+                    float medianG = greens[mid];
+                    float medianB = blues[mid];
+
+                    r = r * (1.0f - denoise * 0.5f) + medianR * denoise * 0.5f;
+                    g = g * (1.0f - denoise * 0.5f) + medianG * denoise * 0.5f;
+                    b = b * (1.0f - denoise * 0.5f) + medianB * denoise * 0.5f;
+                }
+
+                if (blur > 0.01f) {
+                    float sumR = 0, sumG = 0, sumB = 0, sumWeight = 0;
+
+                    for (int dy = -2; dy <= 2; ++dy) {
+                        for (int dx = -2; dx <= 2; ++dx) {
+                            int nx = qBound(0, x + dx, width - 1);
+                            int ny = qBound(0, y + dy, height - 1);
+                            QRgb neighbor = temp.pixel(nx, ny);
+                            float weight = 1.0f - std::sqrt(dx*dx + dy*dy) / 3.0f;
+                            weight = qMax(0.0f, weight);
+                            sumR += qRed(neighbor) / 255.0f * weight;
+                            sumG += qGreen(neighbor) / 255.0f * weight;
+                            sumB += qBlue(neighbor) / 255.0f * weight;
+                            sumWeight += weight;
+                        }
+                    }
+
+                    if (sumWeight > 0) {
+                        float blurR = sumR / sumWeight;
+                        float blurG = sumG / sumWeight;
+                        float blurB = sumB / sumWeight;
+                        r = r * (1.0f - blur * 0.5f) + blurR * blur * 0.5f;
+                        g = g * (1.0f - blur * 0.5f) + blurG * blur * 0.5f;
+                        b = b * (1.0f - blur * 0.5f) + blurB * blur * 0.5f;
+                    }
+                }
+
+                if (sharpness > 0.01f) {
+                    float blurR = 0, blurG = 0, blurB = 0;
+                    blurR += qRed(original.pixel(qBound(0, x - 1, width - 1), y)) / 255.0f;
+                    blurR += qRed(original.pixel(qBound(0, x + 1, width - 1), y)) / 255.0f;
+                    blurR += qRed(original.pixel(x, qBound(0, y - 1, height - 1))) / 255.0f;
+                    blurR += qRed(original.pixel(x, qBound(0, y + 1, height - 1))) / 255.0f;
+                    blurR /= 4.0f;
+
+                    blurG += qGreen(original.pixel(qBound(0, x - 1, width - 1), y)) / 255.0f;
+                    blurG += qGreen(original.pixel(qBound(0, x + 1, width - 1), y)) / 255.0f;
+                    blurG += qGreen(original.pixel(x, qBound(0, y - 1, height - 1))) / 255.0f;
+                    blurG += qGreen(original.pixel(x, qBound(0, y + 1, height - 1))) / 255.0f;
+                    blurG /= 4.0f;
+
+                    blurB += qBlue(original.pixel(qBound(0, x - 1, width - 1), y)) / 255.0f;
+                    blurB += qBlue(original.pixel(qBound(0, x + 1, width - 1), y)) / 255.0f;
+                    blurB += qBlue(original.pixel(x, qBound(0, y - 1, height - 1))) / 255.0f;
+                    blurB += qBlue(original.pixel(x, qBound(0, y + 1, height - 1))) / 255.0f;
+                    blurB /= 4.0f;
+
+                    float origR = qRed(original.pixel(x, y)) / 255.0f;
+                    float origG = qGreen(original.pixel(x, y)) / 255.0f;
+                    float origB = qBlue(original.pixel(x, y)) / 255.0f;
+
+                    float sharpenR = origR - blurR;
+                    float sharpenG = origG - blurG;
+                    float sharpenB = origB - blurB;
+
+                    r = qBound(0.0f, r + sharpness * sharpenR, 1.0f);
+                    g = qBound(0.0f, g + sharpness * sharpenG, 1.0f);
+                    b = qBound(0.0f, b + sharpness * sharpenB, 1.0f);
+                }
+
+                line[x] = qRgba(static_cast<int>(qBound(0.0f, r, 1.0f) * 255),
+                               static_cast<int>(qBound(0.0f, g, 1.0f) * 255),
+                               static_cast<int>(qBound(0.0f, b, 1.0f) * 255),
+                               a);
+            }
+        }
+    }
+
     return result;
 }
 

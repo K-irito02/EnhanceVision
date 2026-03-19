@@ -20,8 +20,14 @@ namespace EnhanceVision {
 
 class MessageModel;
 
-// QueueStatus 已在 DataTypes.h 中定义
-// QueueTask 定义在 DataTypes.h 中
+struct PendingExport {
+    QString taskId;
+    QString messageId;
+    QString fileId;
+    QString originalPath;
+    QString outputPath;
+    QVariantMap shaderParams;
+};
 
 /**
  * @brief 处理控制器
@@ -76,6 +82,16 @@ signals:
     void taskCancelled(const QString& taskId);
     void queuePaused();
     void queueResumed();
+    
+    void requestShaderExport(
+        const QString& exportId,
+        const QString& imagePath,
+        const QVariantMap& shaderParams,
+        const QString& outputPath
+    );
+
+public slots:
+    void onShaderExportCompleted(const QString& exportId, bool success, const QString& outputPath, const QString& error);
 
 private slots:
     void processNextTask();
@@ -91,7 +107,8 @@ private:
     class FileController* m_fileController;
     MessageModel* m_messageModel;
     class SessionController* m_sessionController;
-    QHash<QString, QString> m_taskToMessage;  ///< taskId -> messageId 映射
+    QHash<QString, QString> m_taskToMessage;
+    QHash<QString, PendingExport> m_pendingExports;
 
     QString generateTaskId();
     void syncMessageProgress(const QString& messageId);
@@ -101,6 +118,7 @@ private:
     void updateTaskProgress(const QString& taskId, int progress);
     void completeTask(const QString& taskId, const QString& resultPath);
     void failTask(const QString& taskId, const QString& error);
+    QVariantMap shaderParamsToVariantMap(const ShaderParams& params);
 };
 
 } // namespace EnhanceVision

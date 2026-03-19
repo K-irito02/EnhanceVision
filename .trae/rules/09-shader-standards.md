@@ -13,12 +13,14 @@ trigger: glob
 ```
 resources/shaders/
 ├── basic.vert           # 基础顶点着色器
+├── full_shader.vert     # 完整 shader 顶点着色器
 ├── brightness.frag      # 亮度调整
 ├── contrast.frag        # 对比度调整
 ├── saturation.frag      # 饱和度调整
 ├── hue.frag             # 色相调整
 ├── sharpen.frag         # 锐化
 ├── blur.frag            # 模糊（高斯/双边）
+├── full_shader.frag     # 完整 shader（14种效果）
 └── yuv.frag             # YUV 转换
 ```
 
@@ -314,3 +316,5 @@ qsb --glsl "100 es,120,150" --hlsl 50 --msl 12 -o output.qsb input.frag
 | 颜色错误 | 颜色空间问题 | 确认输入是 RGB |
 | 性能差 | 复杂计算 | 简化算法或降低分辨率 |
 | 闪烁 | 每帧重新编译 | 缓存 ShaderEffect |
+| 效果不一致 | 参数默认值处理错误 | 使用 !== undefined 检查而非 || 操作符 |
+| 风格按钮状态错误 | 参数比较逻辑问题 | 确保所有参数值（包括 0）正确比较 |

@@ -108,6 +108,7 @@ qt_add_executable(EnhanceVision
     src/controllers/SessionController.cpp
     src/controllers/FileController.cpp
     src/controllers/ProcessingController.cpp
+    src/services/ImageExportService.cpp
     # C++ 头文件（MOC 需要）
     include/EnhanceVision/app/Application.h
     include/EnhanceVision/app/MainWindow.h
@@ -131,6 +132,7 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/controllers/SessionController.h
     include/EnhanceVision/controllers/FileController.h
     include/EnhanceVision/controllers/ProcessingController.h
+    include/EnhanceVision/services/ImageExportService.h
     resources/qml.qrc
 )
 
@@ -178,6 +180,8 @@ qt_add_qml_module(EnhanceVision
         qml/components/MediaViewer.qml
         qml/components/MediaThumbnailStrip.qml
         qml/components/MediaViewerWindow.qml
+        qml/components/EmbeddedMediaViewer.qml
+        qml/components/MinimizedWindowDock.qml
         qml/components/SessionList.qml
         qml/components/SessionBatchBar.qml
         qml/components/Card.qml
@@ -188,6 +192,8 @@ qt_add_qml_module(EnhanceVision
         qml/components/ControlPanel.qml
         qml/components/ShaderParamsPanel.qml
         qml/components/DialogTitleBar.qml
+        qml/components/FullShaderEffect.qml
+        qml/components/OffscreenShaderRenderer.qml
         qml/controls/IconButton.qml
         qml/controls/Slider.qml
         qml/controls/ComboBox.qml
@@ -351,9 +357,16 @@ qt_add_qml_module(EnhanceVision
         resources/icons-dark/color-palette.svg
 )
 
-# Shader 资源已包含在 qml.qrc 中，使用 qsb 文件
-# 如需编译 GLSL 到 QSB，请手动运行:
-# qsb --glsl "100 es,120,150" --hlsl 50 --msl 12 -o output.qsb input.frag
+# 编译 Shader 到 QSB 格式
+qt6_add_shaders(EnhanceVision "fullshader"
+    PRECOMPILE
+    OPTIMIZED
+    PREFIX
+        "/"
+    FILES
+        resources/shaders/fullshader.vert
+        resources/shaders/fullshader.frag
+)
 
 # 链接库
 target_link_libraries(EnhanceVision PRIVATE
@@ -420,3 +433,24 @@ if(WIN32)
         )
     endif()
 endif()
+
+# ========== 单元测试 ==========
+enable_testing()
+
+find_package(Qt6 REQUIRED COMPONENTS Test)
+
+add_executable(test_shader_consistency
+    tests/cpp/test_shader_consistency.cpp
+)
+
+target_link_libraries(test_shader_consistency PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Test
+)
+
+target_include_directories(test_shader_consistency PRIVATE
+    ${CMAKE_SOURCE_DIR}/include/EnhanceVision
+)
+
+add_test(NAME TestShaderConsistency COMMAND test_shader_consistency)

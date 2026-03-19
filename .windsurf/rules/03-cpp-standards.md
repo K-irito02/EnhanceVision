@@ -1,8 +1,7 @@
 ---
-name: "cpp-standards"
 alwaysApply: false
 globs: ['**/*.cpp', '**/*.h', '**/*.hpp']
-description: 'C++ coding standards - Reference when writing or reviewing C++ code'
+description: 'C++代码规范 - 编写或审查C++代码时参考'
 trigger: glob
 ---
 # C++ 代码规范

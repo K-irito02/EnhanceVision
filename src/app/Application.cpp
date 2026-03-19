@@ -13,6 +13,7 @@
 #include "EnhanceVision/controllers/FileController.h"
 #include "EnhanceVision/controllers/SessionController.h"
 #include "EnhanceVision/controllers/ProcessingController.h"
+#include "EnhanceVision/services/ImageExportService.h"
 #include "EnhanceVision/providers/PreviewProvider.h"
 #include "EnhanceVision/providers/ThumbnailProvider.h"
 #include "EnhanceVision/utils/WindowHelper.h"
@@ -32,8 +33,8 @@ Application::Application(QObject *parent)
     , m_fileController(std::make_unique<FileController>(this))
     , m_sessionController(std::make_unique<SessionController>(this))
     , m_processingController(std::make_unique<ProcessingController>(this))
+    , m_imageExportService(ImageExportService::instance())
 {
-    // 将 FileController 的 FileModel 替换为我们统一管理的实例
     m_fileController->setFileModel(m_fileModel.get());
 }
 
@@ -141,6 +142,18 @@ void Application::setupQmlContext()
     context->setContextProperty("fileController", m_fileController.get());
     context->setContextProperty("sessionController", m_sessionController.get());
     context->setContextProperty("processingController", m_processingController.get());
+    
+    // 将 ImageExportService 设置为上下文属性，供 QML 访问
+    context->setContextProperty("imageExportService", m_imageExportService);
+    
+    // 设置 ImageExportService 的 QML 根对象引用
+    m_imageExportService->setQmlEngine(m_mainWidget->rootObject());
+    
+    // 连接 ProcessingController 和 ImageExportService
+    connect(m_processingController.get(), &ProcessingController::requestShaderExport,
+            m_imageExportService, &ImageExportService::requestExport);
+    connect(m_imageExportService, &ImageExportService::exportCompleted,
+            m_processingController.get(), &ProcessingController::onShaderExportCompleted);
 }
 
 } // namespace EnhanceVision

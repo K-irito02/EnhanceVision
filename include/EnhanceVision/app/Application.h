@@ -21,6 +21,7 @@ class SettingsController;
 class FileController;
 class SessionController;
 class ProcessingController;
+class ImageExportService;
 
 class Application : public QObject
 {
@@ -59,6 +60,7 @@ private:
     std::unique_ptr<FileController> m_fileController;
     std::unique_ptr<SessionController> m_sessionController;
     std::unique_ptr<ProcessingController> m_processingController;
+    ImageExportService *m_imageExportService;
 };
 
 } // namespace EnhanceVision

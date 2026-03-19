@@ -19,6 +19,12 @@ Item {
     property bool batchMode: false
     property var selectedIds: []
     readonly property bool _hasRealModel: typeof messageModel !== "undefined"
+    
+    // 从 MainPage 传入的引用
+    property Item viewerContainer: null
+    property var pendingViewer: null
+    property var messageViewer: null
+    property var minimizedDock: null
 
     // ========== 消息列表 ==========
     ListView {
@@ -192,18 +198,7 @@ Item {
         }
     }
 
-    // ========== 媒体查看器窗口 ==========
-    MediaViewerWindow {
-        id: viewerWindow
-        messageMode: true
-        property string currentMessageId: ""
-        
-        onFileRemoved: function(msgId, fileIndex) {
-            if (root._hasRealModel) {
-                messageModel.removeMediaFile(msgId, fileIndex)
-            }
-        }
-    }
+    // 媒体查看器已移至 MainPage 中的 EmbeddedMediaViewer
     
     function _getShaderParam(paramName, defaultValue) {
         var p = root.parent
@@ -221,13 +216,15 @@ Item {
         target: root._hasRealModel ? messageModel : null
         enabled: root._hasRealModel
         function onMediaFileRemoved(messageId, fileIndex) {
-            if (viewerWindow.visible && viewerWindow.currentMessageId === messageId) {
+            if (root.messageViewer && root.messageViewer.isOpen && 
+                root.messageViewer.currentMessageId === messageId) {
                 root._syncViewerWindow(messageId, fileIndex)
             }
         }
         function onMessageRemoved(messageId) {
-            if (viewerWindow.visible && viewerWindow.currentMessageId === messageId) {
-                viewerWindow.close()
+            if (root.messageViewer && root.messageViewer.isOpen && 
+                root.messageViewer.currentMessageId === messageId) {
+                root.messageViewer.close()
             }
         }
     }
@@ -265,6 +262,11 @@ Item {
 
     /** @brief 打开媒体查看器 */
     function _openViewer(msgId, fileIndex, msgStatus) {
+        if (!root.messageViewer) {
+            console.warn("[MessageList] messageViewer not available")
+            return
+        }
+        
         var files = []
         if (_hasRealModel) {
             var allFiles = messageModel.getMediaFiles(msgId)
@@ -310,41 +312,41 @@ Item {
         }
         
         if (files.length > 0) {
-            viewerWindow.messageId = msgId
-            viewerWindow.currentMessageId = msgId
-            viewerWindow.mediaFiles = files
+            var viewer = root.messageViewer
+            viewer.messageId = msgId
+            viewer.currentMessageId = msgId
+            viewer.mediaFiles = files
             
             // 获取消息存储的 shader 参数
             var shaderParams = _hasRealModel ? messageModel.getShaderParams(msgId) : {}
             
-            // 设置 shaderEnabled 为 true，让 MediaViewerWindow 内部的 _shouldApplyShader 
-            // 逻辑来决定是否真正应用 shader（基于每个文件的处理状态）
-            // 这样可以正确处理：已处理文件显示结果图，查看原图时应用 shader
             var hasShaderModifications = shaderParams.hasShaderModifications === true
-            viewerWindow.shaderEnabled = hasShaderModifications
+            viewer.shaderEnabled = hasShaderModifications
             
-            // 设置 shader 参数（使用正确的默认值）
-            viewerWindow.shaderBrightness = shaderParams.brightness !== undefined ? shaderParams.brightness : 0.0
-            viewerWindow.shaderContrast = shaderParams.contrast !== undefined ? shaderParams.contrast : 1.0
-            viewerWindow.shaderSaturation = shaderParams.saturation !== undefined ? shaderParams.saturation : 1.0
-            viewerWindow.shaderHue = shaderParams.hue !== undefined ? shaderParams.hue : 0.0
-            viewerWindow.shaderSharpness = shaderParams.sharpness !== undefined ? shaderParams.sharpness : 0.0
-            viewerWindow.shaderBlur = shaderParams.blur !== undefined ? shaderParams.blur : 0.0
-            viewerWindow.shaderDenoise = shaderParams.denoise !== undefined ? shaderParams.denoise : 0.0
-            viewerWindow.shaderExposure = shaderParams.exposure !== undefined ? shaderParams.exposure : 0.0
-            viewerWindow.shaderGamma = shaderParams.gamma !== undefined ? shaderParams.gamma : 1.0
-            viewerWindow.shaderTemperature = shaderParams.temperature !== undefined ? shaderParams.temperature : 0.0
-            viewerWindow.shaderTint = shaderParams.tint !== undefined ? shaderParams.tint : 0.0
-            viewerWindow.shaderVignette = shaderParams.vignette !== undefined ? shaderParams.vignette : 0.0
-            viewerWindow.shaderHighlights = shaderParams.highlights !== undefined ? shaderParams.highlights : 0.0
-            viewerWindow.shaderShadows = shaderParams.shadows !== undefined ? shaderParams.shadows : 0.0
+            // 设置 shader 参数
+            viewer.shaderBrightness = shaderParams.brightness !== undefined ? shaderParams.brightness : 0.0
+            viewer.shaderContrast = shaderParams.contrast !== undefined ? shaderParams.contrast : 1.0
+            viewer.shaderSaturation = shaderParams.saturation !== undefined ? shaderParams.saturation : 1.0
+            viewer.shaderHue = shaderParams.hue !== undefined ? shaderParams.hue : 0.0
+            viewer.shaderSharpness = shaderParams.sharpness !== undefined ? shaderParams.sharpness : 0.0
+            viewer.shaderBlur = shaderParams.blur !== undefined ? shaderParams.blur : 0.0
+            viewer.shaderDenoise = shaderParams.denoise !== undefined ? shaderParams.denoise : 0.0
+            viewer.shaderExposure = shaderParams.exposure !== undefined ? shaderParams.exposure : 0.0
+            viewer.shaderGamma = shaderParams.gamma !== undefined ? shaderParams.gamma : 1.0
+            viewer.shaderTemperature = shaderParams.temperature !== undefined ? shaderParams.temperature : 0.0
+            viewer.shaderTint = shaderParams.tint !== undefined ? shaderParams.tint : 0.0
+            viewer.shaderVignette = shaderParams.vignette !== undefined ? shaderParams.vignette : 0.0
+            viewer.shaderHighlights = shaderParams.highlights !== undefined ? shaderParams.highlights : 0.0
+            viewer.shaderShadows = shaderParams.shadows !== undefined ? shaderParams.shadows : 0.0
             
-            viewerWindow.openAt(Math.min(fileIndex, files.length - 1))
+            viewer.openAt(Math.min(fileIndex, files.length - 1))
         }
     }
     
     /** @brief 同步更新查看器窗口数据 */
     function _syncViewerWindow(messageId, deletedIndex) {
+        if (!root.messageViewer) return
+        
         var files = []
         var allFiles = messageModel.getMediaFiles(messageId)
         
@@ -377,14 +379,14 @@ Item {
         }
         
         if (files.length === 0) {
-            viewerWindow.close()
+            root.messageViewer.close()
             return
         }
         
-        viewerWindow.mediaFiles = files
+        root.messageViewer.mediaFiles = files
         
-        if (viewerWindow.currentIndex >= files.length) {
-            viewerWindow.currentIndex = Math.max(0, files.length - 1)
+        if (root.messageViewer.currentIndex >= files.length) {
+            root.messageViewer.currentIndex = Math.max(0, files.length - 1)
         }
     }
 

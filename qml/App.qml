@@ -29,6 +29,7 @@ FocusScope {
     property alias shaderHue: controlPanel.hue
     property alias shaderSharpness: controlPanel.sharpness
     property alias shaderBlur: controlPanel.blur
+    property alias shaderDenoise: controlPanel.denoise
     property alias shaderExposure: controlPanel.exposure
     property alias shaderGamma: controlPanel.gamma
     property alias shaderTemperature: controlPanel.temperature
@@ -214,5 +215,11 @@ FocusScope {
         onSecondaryButtonClicked: {
             NotificationManager.handleCancel()
         }
+    }
+    
+    // ========== 离屏 Shader 渲染器 ==========
+    OffscreenShaderRenderer {
+        id: offscreenRenderer
+        z: -1
     }
 }

@@ -627,6 +627,11 @@ Image {
     source: "qrc:/icons/file.svg"
 }
 
+// ✅ 正确：使用 Theme.icon() 函数（支持主题切换）
+ColoredIcon {
+    source: Theme.icon("file")
+}
+
 // ✅ 正确：相对路径（在 qrc 中）
 Image {
     source: "../icons/file.svg"
@@ -635,6 +640,22 @@ Image {
 // ❌ 避免：绝对文件系统路径
 Image {
     source: "E:/project/icons/file.svg"  // 不可移植
+}
+```
+
+### 主题相关图标
+
+```qml
+// ✅ 正确：通过 Theme.icon() 获取主题适配的图标
+IconButton {
+    iconName: "external-link"
+    // Theme.icon() 会根据 isDark 属性返回正确的图标路径
+}
+
+// ✅ 正确：直接使用 ColoredIcon
+ColoredIcon {
+    source: Theme.icon("play")
+    color: Theme.colors.primary
 }
 ```
 

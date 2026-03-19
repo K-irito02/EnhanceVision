@@ -73,11 +73,17 @@ public:
     
     /**
      * @brief 应用 Shader 效果到图像
+     * @deprecated 此方法已废弃，请使用 GPU 渲染导出（ImageExportService）。
+     *             GPU 渲染确保预览效果与导出效果完全一致。
+     *             此方法仅作为后备方案保留，未来版本可能移除。
      * @param image 原始图像
      * @param brightness 亮度 (-1.0 ~ 1.0)
      * @param contrast 对比度 (0.0 ~ 2.0)
      * @param saturation 饱和度 (0.0 ~ 2.0)
      * @param hue 色相 (-0.5 ~ 0.5)
+     * @param sharpness 锐度 (0.0 ~ 2.0)
+     * @param blur 模糊 (0.0 ~ 1.0)
+     * @param denoise 降噪 (0.0 ~ 1.0)
      * @param exposure 曝光 (-1.0 ~ 1.0)
      * @param gamma 伽马 (0.5 ~ 2.0)
      * @param temperature 色温 (-0.5 ~ 0.5)
@@ -87,11 +93,15 @@ public:
      * @param shadows 阴影 (-1.0 ~ 1.0)
      * @return 处理后的图像
      */
+    [[deprecated("Use ImageExportService for GPU-accelerated export with consistent preview results")]]
     static QImage applyShaderEffects(const QImage &image, 
                                      float brightness = 0.0f,
                                      float contrast = 1.0f,
                                      float saturation = 1.0f,
                                      float hue = 0.0f,
+                                     float sharpness = 0.0f,
+                                     float blur = 0.0f,
+                                     float denoise = 0.0f,
                                      float exposure = 0.0f,
                                      float gamma = 1.0f,
                                      float temperature = 0.0f,
