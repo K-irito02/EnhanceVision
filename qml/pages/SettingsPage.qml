@@ -1,30 +1,33 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs
+import EnhanceVision.Controllers
 import "../styles"
 import "../controls"
 
-/**
- * @brief 设置页面组件
- * 
- * 提供应用程序设置功能，参考功能设计文档 0.2 节 3.12 设置中心模块
- */
 Rectangle {
     id: root
 
-    // ========== 信号 ==========
     signal goBack()
 
-    // ========== 视觉属性 ==========
     color: Theme.colors.background
 
-    // ========== 内部布局 ==========
+    FolderDialog {
+        id: folderDialog
+        title: qsTr("选择默认保存路径")
+        currentFolder: "file:///" + SettingsController.defaultSavePath
+        onAccepted: {
+            var path = selectedFolder.toString().replace("file:///", "")
+            SettingsController.defaultSavePath = path
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 24
         spacing: 20
 
-        // ========== 顶部：返回按钮和标题 ==========
         RowLayout {
             Layout.fillWidth: true
             spacing: 12
@@ -44,7 +47,6 @@ Rectangle {
             }
         }
 
-        // ========== 设置内容区域 ==========
         ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -61,7 +63,6 @@ Rectangle {
                     when: settingsColumn.parent
                 }
 
-                // ========== 外观设置 ==========
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: appearanceCol.implicitHeight + 32
@@ -84,14 +85,12 @@ Rectangle {
 
                         Rectangle { Layout.fillWidth: true; height: 1; color: Theme.colors.border }
 
-                        // 主题切换
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 12
 
                             Text { text: qsTr("主题"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 100 }
 
-                            // 主题选择按钮组
                             Row {
                                 spacing: 4
 
@@ -107,7 +106,7 @@ Rectangle {
                                         ColoredIcon { anchors.verticalCenter: parent.verticalCenter; iconSize: 14; source: Theme.icon("moon"); color: Theme.isDark ? "#FFFFFF" : Theme.colors.icon }
                                         Text { id: darkLabel; anchors.verticalCenter: parent.verticalCenter; text: qsTr("暗色"); font.pixelSize: 12; font.weight: Font.Medium; color: Theme.isDark ? "#FFFFFF" : Theme.colors.foreground }
                                     }
-                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Theme.setDark(true) }
+                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { Theme.setDark(true); SettingsController.theme = "dark" } }
                                     Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
                                 }
 
@@ -123,13 +122,12 @@ Rectangle {
                                         ColoredIcon { anchors.verticalCenter: parent.verticalCenter; iconSize: 14; source: Theme.icon("sun"); color: !Theme.isDark ? "#FFFFFF" : Theme.colors.icon }
                                         Text { id: lightLabel; anchors.verticalCenter: parent.verticalCenter; text: qsTr("亮色"); font.pixelSize: 12; font.weight: Font.Medium; color: !Theme.isDark ? "#FFFFFF" : Theme.colors.foreground }
                                     }
-                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Theme.setDark(false) }
+                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { Theme.setDark(false); SettingsController.theme = "light" } }
                                     Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
                                 }
                             }
                         }
 
-                        // 语言切换
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 12
@@ -137,17 +135,123 @@ Rectangle {
                             Text { text: qsTr("语言"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 100 }
 
                             ComboBox {
-                                model: ["简体中文", "English"]
-                                currentIndex: Theme.language === "zh_CN" ? 0 : 1
+                                model: [qsTr("简体中文"), "English"]
+                                currentIndex: SettingsController.language === "zh_CN" ? 0 : 1
                                 onCurrentIndexChanged: {
-                                    Theme.setLanguage(currentIndex === 0 ? "zh_CN" : "en_US")
+                                    var lang = currentIndex === 0 ? "zh_CN" : "en_US"
+                                    Theme.setLanguage(lang)
                                 }
                             }
                         }
                     }
                 }
 
-                // ========== 性能设置 ==========
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: behaviorCol.implicitHeight + 32
+                    color: Theme.colors.card
+                    border.width: 1
+                    border.color: Theme.colors.cardBorder
+                    radius: Theme.radius.lg
+
+                    ColumnLayout {
+                        id: behaviorCol
+                        anchors.fill: parent
+                        anchors.margins: 16
+                        spacing: 14
+
+                        RowLayout {
+                            spacing: 8
+                            ColoredIcon { iconSize: 18; source: Theme.icon("folder"); color: Theme.colors.icon }
+                            Text { text: qsTr("行为"); color: Theme.colors.foreground; font.pixelSize: 15; font.weight: Font.DemiBold }
+                        }
+
+                        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.colors.border }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 12
+
+                            Text { text: qsTr("默认保存路径"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 100 }
+
+                            TextField {
+                                id: savePathField
+                                Layout.fillWidth: true
+                                text: SettingsController.defaultSavePath
+                                readOnly: true
+                                size: "sm"
+                            }
+
+                            Button {
+                                text: qsTr("浏览...")
+                                variant: "secondary"
+                                size: "sm"
+                                onClicked: folderDialog.open()
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 12
+
+                            Text { text: qsTr("自动保存结果"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 100 }
+
+                            Switch {
+                                checked: SettingsController.autoSaveResult
+                                onCheckedChanged: SettingsController.autoSaveResult = checked
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: audioCol.implicitHeight + 32
+                    color: Theme.colors.card
+                    border.width: 1
+                    border.color: Theme.colors.cardBorder
+                    radius: Theme.radius.lg
+
+                    ColumnLayout {
+                        id: audioCol
+                        anchors.fill: parent
+                        anchors.margins: 16
+                        spacing: 14
+
+                        RowLayout {
+                            spacing: 8
+                            ColoredIcon { iconSize: 18; source: Theme.icon("volume"); color: Theme.colors.icon }
+                            Text { text: qsTr("音频"); color: Theme.colors.foreground; font.pixelSize: 15; font.weight: Font.DemiBold }
+                        }
+
+                        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.colors.border }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 12
+
+                            Text { text: qsTr("默认音量"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 100 }
+
+                            Slider {
+                                id: volumeSlider
+                                from: 0
+                                to: 100
+                                value: SettingsController.volume
+                                onMoved: SettingsController.volume = Math.round(value)
+                                Layout.fillWidth: true
+                            }
+
+                            Text {
+                                text: SettingsController.volume + "%"
+                                color: Theme.colors.foreground
+                                font.pixelSize: 13
+                                Layout.preferredWidth: 40
+                                horizontalAlignment: Text.AlignRight
+                            }
+                        }
+                    }
+                }
+
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: perfCol.implicitHeight + 32
@@ -170,25 +274,36 @@ Rectangle {
 
                         Rectangle { Layout.fillWidth: true; height: 1; color: Theme.colors.border }
 
-                        // 最大并发任务
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 12
                             Text { text: qsTr("最大并发任务"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 100 }
-                            ComboBox { model: ["1", "2", "3", "4"]; currentIndex: 1 }
+                            ComboBox {
+                                model: ["1", "2", "3", "4"]
+                                currentIndex: SettingsController.maxConcurrentTasks - 1
+                                onCurrentIndexChanged: SettingsController.maxConcurrentTasks = currentIndex + 1
+                            }
                         }
 
-                        // 清除缓存
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 12
                             Text { text: qsTr("缓存管理"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 100 }
-                            Button { text: qsTr("清除缩略图缓存"); variant: "secondary"; size: "sm"; iconName: "trash" }
+                            Button {
+                                text: qsTr("清除缩略图缓存")
+                                variant: "secondary"
+                                size: "sm"
+                                iconName: "trash"
+                                onClicked: {
+                                    var cachePath = Qt.standardPaths(Qt.StandardPaths.CacheLocation) + "/thumbnails"
+                                    fileController.clearCache(cachePath)
+                                    clearCacheToast.show()
+                                }
+                            }
                         }
                     }
                 }
 
-                // ========== 关于 ==========
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: aboutCol.implicitHeight + 32
@@ -214,7 +329,6 @@ Rectangle {
                         RowLayout {
                             spacing: 12
 
-                            // 品牌图标
                             Rectangle {
                                 width: 44; height: 44; radius: 11
                                 gradient: Gradient {
@@ -234,6 +348,44 @@ Rectangle {
                     }
                 }
             }
+        }
+    }
+
+    Rectangle {
+        id: clearCacheToast
+        anchors.bottom: parent.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottomMargin: 24
+        width: toastText.implicitWidth + 32
+        height: 36
+        radius: Theme.radius.md
+        color: Theme.colors.card
+        border.width: 1
+        border.color: Theme.colors.cardBorder
+        opacity: 0
+        visible: opacity > 0
+
+        function show() {
+            opacity = 1
+            toastTimer.restart()
+        }
+
+        Text {
+            id: toastText
+            anchors.centerIn: parent
+            text: qsTr("缓存已清除")
+            color: Theme.colors.foreground
+            font.pixelSize: 13
+        }
+
+        Timer {
+            id: toastTimer
+            interval: 2000
+            onTriggered: clearCacheToast.opacity = 0
+        }
+
+        Behavior on opacity {
+            NumberAnimation { duration: 200 }
         }
     }
 

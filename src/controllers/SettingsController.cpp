@@ -20,6 +20,7 @@ SettingsController::SettingsController(QObject* parent)
     , m_sidebarExpanded(true)
     , m_maxConcurrentTasks(2)
     , m_autoSaveResult(false)
+    , m_volume(80)
 {
     QString configPath = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
     QString settingsFile = QDir(configPath).filePath("EnhanceVision/settings.ini");
@@ -137,6 +138,21 @@ void SettingsController::setAutoSaveResult(bool autoSave)
     }
 }
 
+int SettingsController::volume() const
+{
+    return m_volume;
+}
+
+void SettingsController::setVolume(int volume)
+{
+    int clampedVolume = qBound(0, volume, 100);
+    if (m_volume != clampedVolume) {
+        m_volume = clampedVolume;
+        emit volumeChanged();
+        emit settingsChanged();
+    }
+}
+
 void SettingsController::saveSettings()
 {
     if (!m_settings) return;
@@ -147,6 +163,7 @@ void SettingsController::saveSettings()
     m_settings->setValue("performance/maxConcurrent", m_maxConcurrentTasks);
     m_settings->setValue("behavior/defaultSavePath", m_defaultSavePath);
     m_settings->setValue("behavior/autoSave", m_autoSaveResult);
+    m_settings->setValue("audio/volume", m_volume);
     m_settings->sync();
 }
 
@@ -160,6 +177,7 @@ void SettingsController::loadSettings()
     m_maxConcurrentTasks = m_settings->value("performance/maxConcurrent", 2).toInt();
     m_defaultSavePath = m_settings->value("behavior/defaultSavePath", m_defaultSavePath).toString();
     m_autoSaveResult = m_settings->value("behavior/autoSave", false).toBool();
+    m_volume = m_settings->value("audio/volume", 80).toInt();
 }
 
 void SettingsController::resetToDefaults()
@@ -173,6 +191,7 @@ void SettingsController::resetToDefaults()
     m_defaultSavePath = QDir(picturesPath).filePath("EnhanceVision");
 
     m_autoSaveResult = false;
+    m_volume = 80;
 
     emit themeChanged();
     emit languageChanged();
@@ -180,6 +199,7 @@ void SettingsController::resetToDefaults()
     emit maxConcurrentTasksChanged();
     emit defaultSavePathChanged();
     emit autoSaveResultChanged();
+    emit volumeChanged();
     emit settingsChanged();
 }
 

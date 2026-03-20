@@ -42,6 +42,7 @@ Application::Application(QObject *parent)
 
 Application::~Application()
 {
+    m_sessionController->saveSessions();
     delete m_mainWidget;
     SettingsController::destroyInstance();
 }
@@ -63,6 +64,8 @@ void Application::initialize()
     setupTranslator();
 
     WindowHelper::instance()->setWindow(m_mainWidget);
+
+    m_sessionController->loadSessions();
 
     m_mainWidget->setSource(QUrl(QStringLiteral("qrc:/qt/qml/EnhanceVision/qml/main.qml")));
 

@@ -10,6 +10,8 @@
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <QJsonObject>
+#include <QJsonArray>
 #include "EnhanceVision/models/DataTypes.h"
 #include "EnhanceVision/models/SessionModel.h"
 
@@ -126,6 +128,20 @@ private:
     void loadSessionMessages(const QString& sessionId);
     
     void onMessageCountChanged();
+    
+    QString sessionsFilePath() const;
+    void ensureDataDirectory() const;
+    
+    QJsonObject sessionToJson(const Session& session) const;
+    Session jsonToSession(const QJsonObject& json) const;
+    QJsonObject messageToJson(const Message& message) const;
+    Message jsonToMessage(const QJsonObject& json) const;
+    QJsonObject mediaFileToJson(const MediaFile& file) const;
+    MediaFile jsonToMediaFile(const QJsonObject& json) const;
+    QJsonObject shaderParamsToJson(const ShaderParams& params) const;
+    ShaderParams jsonToShaderParams(const QJsonObject& json) const;
+    QJsonObject parametersToJson(const QVariantMap& params) const;
+    QVariantMap jsonToParameters(const QJsonObject& json) const;
 };
 
 } // namespace EnhanceVision

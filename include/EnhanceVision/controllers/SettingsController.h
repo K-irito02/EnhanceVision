@@ -25,6 +25,7 @@ class SettingsController : public QObject
     Q_PROPERTY(int maxConcurrentTasks READ maxConcurrentTasks WRITE setMaxConcurrentTasks NOTIFY maxConcurrentTasksChanged)
     Q_PROPERTY(QString defaultSavePath READ defaultSavePath WRITE setDefaultSavePath NOTIFY defaultSavePathChanged)
     Q_PROPERTY(bool autoSaveResult READ autoSaveResult WRITE setAutoSaveResult NOTIFY autoSaveResultChanged)
+    Q_PROPERTY(int volume READ volume WRITE setVolume NOTIFY volumeChanged)
 
 public:
     /**
@@ -57,6 +58,9 @@ public:
     bool autoSaveResult() const;
     void setAutoSaveResult(bool autoSave);
 
+    int volume() const;
+    void setVolume(int volume);
+
     // Q_INVOKABLE 方法
     Q_INVOKABLE void saveSettings();
     Q_INVOKABLE void loadSettings();
@@ -71,6 +75,7 @@ signals:
     void maxConcurrentTasksChanged();
     void defaultSavePathChanged();
     void autoSaveResultChanged();
+    void volumeChanged();
     void settingsChanged();
 
 private:
@@ -90,6 +95,7 @@ private:
     int m_maxConcurrentTasks;
     QString m_defaultSavePath;
     bool m_autoSaveResult;
+    int m_volume;
 };
 
 } // namespace EnhanceVision

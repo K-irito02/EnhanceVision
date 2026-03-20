@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Window
 import QtQuick.Effects
 import QtMultimedia
+import EnhanceVision.Controllers
 import "../styles"
 import "../controls"
 import EnhanceVision.Utils
@@ -958,14 +959,24 @@ Window {
                             iconColor: Theme.colors.mediaControlIcon
                             iconHoverColor: Theme.colors.mediaControlIconHover
                             tooltip: qsTr("静音")
-                            onClicked: audioOutput.volume = audioOutput.volume > 0 ? 0 : 0.7
+                            onClicked: {
+                                if (audioOutput.volume > 0) {
+                                    audioOutput.volume = 0
+                                } else {
+                                    audioOutput.volume = SettingsController.volume / 100
+                                }
+                            }
                         }
 
                         Slider {
                             id: volumeSlider
                             width: 80
                             from: 0; to: 1
-                            value: 0.7
+                            value: SettingsController.volume / 100
+
+                            onMoved: {
+                                SettingsController.volume = Math.round(value * 100)
+                            }
 
                             background: Rectangle {
                                 x: volumeSlider.leftPadding

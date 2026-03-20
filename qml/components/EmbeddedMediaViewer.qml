@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Window
 import QtQuick.Effects
 import QtMultimedia
+import EnhanceVision.Controllers
 import "../styles"
 import "../controls"
 import EnhanceVision.Utils
@@ -53,7 +54,7 @@ Item {
     property bool _videoEnded: false
     property real _savedW: 800
     property real _savedH: 600
-    property real sharedVolume: 0.8
+    property real sharedVolume: SettingsController.volume / 100
     
     function openAt(index) {
         currentIndex = Math.max(0, Math.min(index, mediaFiles.length - 1))
@@ -883,9 +884,24 @@ Item {
                     iconSize: 16; btnSize: 28
                     iconColor: Theme.colors.mediaControlIcon
                     tooltip: qsTr("静音")
-                    onClicked: root.sharedVolume = root.sharedVolume > 0 ? 0 : 0.7
+                    onClicked: {
+                        if (root.sharedVolume > 0) {
+                            root.sharedVolume = 0
+                        } else {
+                            root.sharedVolume = SettingsController.volume / 100
+                        }
+                    }
                 }
-                Slider { implicitWidth: 80; from: 0; to: 1; value: root.sharedVolume; onMoved: root.sharedVolume = value }
+                Slider { 
+                    implicitWidth: 80
+                    from: 0
+                    to: 1
+                    value: root.sharedVolume
+                    onMoved: {
+                        root.sharedVolume = value
+                        SettingsController.volume = Math.round(value * 100)
+                    }
+                }
             }
         }
     }
