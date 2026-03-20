@@ -9,6 +9,8 @@
 
 #include <QObject>
 #include <QQuickWidget>
+#include <QTranslator>
+#include <QSharedPointer>
 #include <memory>
 
 namespace EnhanceVision {
@@ -42,15 +44,10 @@ public:
     void show();
 
 private:
-    /**
-     * @brief 注册 QML 类型
-     */
     void registerQmlTypes();
-
-    /**
-     * @brief 设置 QML 上下文属性
-     */
     void setupQmlContext();
+    void setupTranslator();
+    bool switchTranslator(const QString& language);
 
     QQuickWidget *m_mainWidget;
     std::unique_ptr<FileModel> m_fileModel;
@@ -61,6 +58,11 @@ private:
     std::unique_ptr<SessionController> m_sessionController;
     std::unique_ptr<ProcessingController> m_processingController;
     ImageExportService *m_imageExportService;
+    QSharedPointer<QTranslator> m_translator;
+    QSharedPointer<QTranslator> m_qtTranslator;
+
+private slots:
+    void onLanguageChanged();
 };
 
 } // namespace EnhanceVision

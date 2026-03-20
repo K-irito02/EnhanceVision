@@ -1,55 +1,35 @@
 pragma Singleton
 import QtQuick
+import EnhanceVision.Controllers
 
-/**
- * @brief 主题系统单例
- * 管理亮色/深色主题切换，整合颜色、字体、间距、圆角、阴影等系统
- * 参考功能设计文档 11.2-11.5 节
- */
 QtObject {
     id: root
 
-    // ========== 主题设置 ==========
-    /**
-     * @brief 当前是否为暗色主题
-     * 默认值为 true（暗色主题）
-     */
     property bool isDark: true
 
-    /**
-     * @brief 当前语言代码
-     * "zh_CN" 或 "en_US"
-     */
     property string language: "zh_CN"
 
-    /**
-     * @brief 切换主题
-     */
     function toggle() {
         isDark = !isDark
     }
 
-    /**
-     * @brief 设置主题
-     * @param dark 是否为暗色主题
-     */
     function setDark(dark) {
         isDark = dark
     }
 
-    /**
-     * @brief 切换语言
-     */
     function toggleLanguage() {
-        language = (language === "zh_CN") ? "en_US" : "zh_CN"
+        var newLang = (language === "zh_CN") ? "en_US" : "zh_CN"
+        language = newLang
+        SettingsController.language = newLang
     }
 
-    /**
-     * @brief 设置语言
-     * @param lang 语言代码
-     */
     function setLanguage(lang) {
         language = lang
+        SettingsController.language = lang
+    }
+
+    Component.onCompleted: {
+        language = SettingsController.language
     }
 
     // ========== 颜色系统 ==========
@@ -72,7 +52,7 @@ QtObject {
     function icon(name) {
         // 暗色主题使用淡蓝色图标，亮色主题使用黑色图标
         var iconPath = isDark ? "icons-dark" : "icons"
-        return "qrc:/" + iconPath + "/" + iconPath + "/" + name + ".svg"
+        return "qrc:/" + iconPath + "/" + name + ".svg"
     }
 
     // ========== 间距系统 (px) ==========

@@ -20,6 +20,8 @@
 #include "EnhanceVision/utils/SubWindowHelper.h"
 #include <QQmlEngine>
 #include <QQmlContext>
+#include <QCoreApplication>
+#include <QLibraryInfo>
 
 namespace EnhanceVision {
 
@@ -48,27 +50,22 @@ void Application::initialize()
 {
     m_mainWidget->setWindowFlags(Qt::FramelessWindowHint);
     
-    // 注册图像提供者
     QQmlEngine *engine = m_mainWidget->engine();
     engine->addImageProvider(QStringLiteral("preview"), new PreviewProvider());
     engine->addImageProvider(QStringLiteral("thumbnail"), new ThumbnailProvider());
 
-    // 注册 QML 类型
     registerQmlTypes();
 
-    // 设置 QML 引擎属性
     m_mainWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
 
-    // 设置 QML 上下文属性
     setupQmlContext();
 
-    // 设置 WindowHelper 的窗口引用（必须在 show 之前设置，以便设置圆角）
+    setupTranslator();
+
     WindowHelper::instance()->setWindow(m_mainWidget);
 
-    // 加载 QML
     m_mainWidget->setSource(QUrl(QStringLiteral("qrc:/qt/qml/EnhanceVision/qml/main.qml")));
 
-    // 检查 QML 加载错误
     if (m_mainWidget->status() == QQuickWidget::Error) {
         const auto errors = m_mainWidget->errors();
         for (const auto &error : errors) {
@@ -154,6 +151,50 @@ void Application::setupQmlContext()
             m_imageExportService, &ImageExportService::requestExport);
     connect(m_imageExportService, &ImageExportService::exportCompleted,
             m_processingController.get(), &ProcessingController::onShaderExportCompleted);
+}
+
+void Application::setupTranslator()
+{
+    QString language = SettingsController::instance()->language();
+    switchTranslator(language);
+
+    connect(SettingsController::instance(), &SettingsController::languageChanged,
+            this, &Application::onLanguageChanged);
+}
+
+bool Application::switchTranslator(const QString& language)
+{
+    if (m_translator) {
+        QCoreApplication::removeTranslator(m_translator.data());
+    }
+    if (m_qtTranslator) {
+        QCoreApplication::removeTranslator(m_qtTranslator.data());
+    }
+
+    m_translator.reset(new QTranslator);
+    QString qmFile = QString(":/i18n/app_%1.qm").arg(language);
+    if (m_translator->load(qmFile)) {
+        QCoreApplication::installTranslator(m_translator.data());
+    }
+
+    m_qtTranslator.reset(new QTranslator);
+    QString qtQmFile = QString("qtbase_%1").arg(language);
+    QString qtTranslationsPath = QLibraryInfo::path(QLibraryInfo::TranslationsPath);
+    if (m_qtTranslator->load(qtQmFile, qtTranslationsPath)) {
+        QCoreApplication::installTranslator(m_qtTranslator.data());
+    }
+
+    return true;
+}
+
+void Application::onLanguageChanged()
+{
+    QString language = SettingsController::instance()->language();
+    switchTranslator(language);
+
+    if (m_mainWidget && m_mainWidget->engine()) {
+        m_mainWidget->engine()->retranslate();
+    }
 }
 
 } // namespace EnhanceVision
