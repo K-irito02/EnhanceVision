@@ -179,6 +179,71 @@ Item {
         return 0
     }
 
+    // === 拖拽预览窗口 ===
+    Window {
+        id: dragPreviewWindow
+        width: _savedW
+        height: _savedH
+        color: "transparent"
+        flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
+        visible: false
+        
+        property bool _snapHint: false
+        
+        Rectangle {
+            anchors.fill: parent
+            color: Theme.colors.background
+            opacity: 0.85
+            radius: 8
+            border.width: 2
+            border.color: dragPreviewWindow._snapHint ? Theme.colors.primaryLight : Theme.colors.primary
+            
+            Rectangle {
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 44
+                color: Theme.colors.titleBar
+                radius: 8
+                
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: 1
+                    color: Theme.colors.titleBarBorder
+                }
+                
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    height: 8
+                    color: Theme.colors.titleBar
+                    radius: 0
+                }
+                
+                Text {
+                    anchors.centerIn: parent
+                    text: root.currentFile ? root.currentFile.fileName : qsTr("媒体查看器")
+                    color: Theme.colors.foreground
+                    font.pixelSize: 14
+                    font.weight: Font.Medium
+                    elide: Text.ElideMiddle
+                    anchors.horizontalCenterOffset: 0
+                }
+            }
+            
+            Text {
+                anchors.centerIn: parent
+                text: dragPreviewWindow._snapHint ? qsTr("释放鼠标吸附到消息区域") : qsTr("释放鼠标以独立窗口打开")
+                color: dragPreviewWindow._snapHint ? Theme.colors.primaryLight : Theme.colors.mutedForeground
+                font.pixelSize: 14
+                y: parent.height / 2 + 20
+            }
+        }
+    }
+    
     // === 内嵌模式覆盖层 ===
     Rectangle {
         id: embeddedOverlay
@@ -197,17 +262,65 @@ Item {
             Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: Theme.colors.titleBarBorder }
             
             MouseArea {
+                id: titleDragArea
                 anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom; anchors.rightMargin: btnRow.width + 8
-                property real sx: 0; property real sy: 0
+                property real startX: 0
+                property real startY: 0
+                property bool isDraggingOut: false
+                
                 cursorShape: Qt.OpenHandCursor
-                onPressed: function(m) { sx = m.x; sy = m.y; cursorShape = Qt.ClosedHandCursor }
+                onPressed: function(m) {
+                    startX = m.x
+                    startY = m.y
+                    cursorShape = Qt.ClosedHandCursor
+                }
                 onPositionChanged: function(m) {
-                    if (pressed && Math.sqrt(Math.pow(m.x-sx,2)+Math.pow(m.y-sy,2)) > 60) {
-                        var gp = mapToGlobal(m.x-sx, m.y-sy)
-                        root.switchToDetached(gp.x, gp.y)
+                    if (!pressed) return
+                    
+                    var dx = m.x - startX
+                    var dy = m.y - startY
+                    var distance = Math.sqrt(dx * dx + dy * dy)
+                    
+                    if (distance > 10 && !isDraggingOut) {
+                        isDraggingOut = true
+                        var globalPos = mapToGlobal(m.x, m.y)
+                        dragPreviewWindow.x = globalPos.x - startX
+                        dragPreviewWindow.y = globalPos.y - startY
+                        dragPreviewWindow.width = _savedW
+                        dragPreviewWindow.height = _savedH
+                        dragPreviewWindow.show()
+                    }
+                    
+                    if (isDraggingOut) {
+                        var globalPos = mapToGlobal(m.x, m.y)
+                        dragPreviewWindow.x = globalPos.x - startX
+                        dragPreviewWindow.y = globalPos.y - startY
+                        
+                        var previewCenterX = dragPreviewWindow.x + dragPreviewWindow.width / 2
+                        var previewCenterY = dragPreviewWindow.y + 22
+                        dragPreviewWindow._snapHint = root._isOverContainer(previewCenterX, previewCenterY)
                     }
                 }
-                onReleased: cursorShape = Qt.OpenHandCursor
+                onReleased: {
+                    cursorShape = Qt.OpenHandCursor
+                    
+                    if (isDraggingOut) {
+                        isDraggingOut = false
+                        var finalX = dragPreviewWindow.x
+                        var finalY = dragPreviewWindow.y
+                        var shouldSnap = dragPreviewWindow._snapHint
+                        dragPreviewWindow.hide()
+                        
+                        if (shouldSnap) {
+                            root.switchToEmbedded()
+                        } else {
+                            root.switchToDetached(finalX, finalY)
+                            Qt.callLater(function() {
+                                winHelper.startSystemMove()
+                            })
+                        }
+                    }
+                }
             }
             
             RowLayout {
@@ -498,12 +611,15 @@ Item {
             }
         }
         
-        Image { id: imgSrc; anchors.fill: parent; visible: false; source: viewer._getSource(viewer.currentSource); fillMode: Image.PreserveAspectFit; asynchronous: true; smooth: true; mipmap: true }
+        Image { id: imgSrc; anchors.fill: parent; visible: false; source: !viewer.isVideo ? viewer._getSource(viewer.currentSource) : ""; fillMode: Image.PreserveAspectFit; asynchronous: true; smooth: true; mipmap: true }
         FullShaderEffect { anchors.fill: imgSrc; source: imgSrc; visible: !viewer.isVideo && viewer.currentSource && viewer.shaderEnabled && !viewer.messageMode && !viewer.showOriginal; brightness: viewer.shaderBrightness; contrast: viewer.shaderContrast; saturation: viewer.shaderSaturation; hue: viewer.shaderHue; sharpness: viewer.shaderSharpness; blurAmount: viewer.shaderBlur; denoise: viewer.shaderDenoise; exposure: viewer.shaderExposure; gamma: viewer.shaderGamma; temperature: viewer.shaderTemperature; tint: viewer.shaderTint; vignette: viewer.shaderVignette; highlights: viewer.shaderHighlights; shadows: viewer.shaderShadows }
         Image { anchors.fill: parent; visible: !viewer.isVideo && viewer.currentSource && (viewer.showOriginal || !viewer.shaderEnabled || viewer.messageMode); source: viewer._getSource(viewer.currentSource); fillMode: Image.PreserveAspectFit; asynchronous: true; smooth: true; mipmap: true }
         
         Item {
             anchors.fill: parent; visible: viewer.isVideo
+            
+            // 是否应用视频Shader效果（消息模式下也需要应用，因为视频已经处理过）
+            property bool _applyVideoShader: viewer.shaderEnabled && !viewer.showOriginal
             
             Image {
                 id: videoPreviewFrame
@@ -518,6 +634,14 @@ Item {
                 
                 source: {
                     if (!viewer.isVideo || !viewer.currentSource || viewer.currentSource === "") return ""
+                    
+                    // 消息模式下，优先使用处理后的缩略图
+                    if (viewer.messageMode && viewer.currentFile && viewer.currentFile.status === 2) {
+                        if (viewer.currentFile.processedThumbnailId && viewer.currentFile.processedThumbnailId !== "") {
+                            return "image://thumbnail/" + viewer.currentFile.processedThumbnailId
+                        }
+                    }
+                    
                     var src = viewer.currentSource
                     if (src.startsWith("file:///")) src = src.substring(8)
                     return "image://thumbnail/" + src
@@ -534,7 +658,56 @@ Item {
                 Behavior on opacity { NumberAnimation { duration: 200 } }
             }
             
-            VideoOutput { id: vo; anchors.fill: parent; z: 0 }
+            // VideoOutput接收视频流
+            VideoOutput { 
+                id: vo
+                anchors.fill: parent
+                z: 0
+                // 当应用Shader时隐藏原始输出，由ShaderEffectSource捕获
+                visible: !parent._applyVideoShader
+            }
+            
+            // ShaderEffectSource捕获VideoOutput内容
+            ShaderEffectSource {
+                id: videoShaderSource
+                sourceItem: vo
+                sourceRect: Qt.rect(0, 0, 0, 0)  // 自动使用源项的完整尺寸
+                live: true
+                hideSource: parent._applyVideoShader
+                visible: false
+            }
+            
+            // 应用Shader效果的视频显示
+            ShaderEffect {
+                id: videoShaderEffect
+                anchors.fill: parent
+                visible: parent._applyVideoShader
+                z: 0
+                
+                property var source: videoShaderSource
+                property real brightness: viewer.shaderBrightness
+                property real contrast: viewer.shaderContrast
+                property real saturation: viewer.shaderSaturation
+                property real hue: viewer.shaderHue
+                property real sharpness: viewer.shaderSharpness
+                property real blurAmount: viewer.shaderBlur
+                property real denoise: viewer.shaderDenoise
+                property real exposure: viewer.shaderExposure
+                property real gamma: viewer.shaderGamma
+                property real temperature: viewer.shaderTemperature
+                property real tint: viewer.shaderTint
+                property real vignette: viewer.shaderVignette
+                property real highlights: viewer.shaderHighlights
+                property real shadows: viewer.shaderShadows
+                property size imgSize: Qt.size(vo.sourceRect.width > 0 ? vo.sourceRect.width : vo.width,
+                                               vo.sourceRect.height > 0 ? vo.sourceRect.height : vo.height)
+                
+                vertexShader: "qrc:///resources/shaders/fullshader.vert.qsb"
+                fragmentShader: "qrc:///resources/shaders/fullshader.frag.qsb"
+                
+                supportsAtlasTextures: true
+            }
+            
             AudioOutput { id: ao; volume: 0.8 }
             Rectangle {
                 anchors.centerIn: parent; width: 72; height: 72; radius: 36
@@ -758,13 +931,34 @@ Item {
                         source: {
                             var f = viewer.mediaFiles[index]
                             if (!f) return ""
-                            if (f.thumbnail && f.thumbnail !== "") return f.thumbnail
-                            if (f.filePath) return "image://thumbnail/" + f.filePath
-                            return ""
+                            
+                            var result = ""
+                            
+                            // 消息模式下，优先使用处理后的缩略图
+                            if (viewer.messageMode && f.status === 2) {
+                                if (f.processedThumbnailId && f.processedThumbnailId !== "") {
+                                    result = "image://thumbnail/" + f.processedThumbnailId
+                                } else if (f.resultPath && f.resultPath !== "") {
+                                    result = "image://thumbnail/" + f.resultPath
+                                } else if (f.thumbnail && f.thumbnail !== "") {
+                                    result = f.thumbnail
+                                } else if (f.filePath) {
+                                    result = "image://thumbnail/" + f.filePath
+                                }
+                            } else {
+                                if (f.thumbnail && f.thumbnail !== "") {
+                                    result = f.thumbnail
+                                } else if (f.filePath) {
+                                    result = "image://thumbnail/" + f.filePath
+                                }
+                            }
+                            
+                            return result
                         }
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                         smooth: true
+                        cache: false
                         sourceSize: Qt.size(96, 96)
                         visible: status === Image.Ready
                         layer.enabled: true
