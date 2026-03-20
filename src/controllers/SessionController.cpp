@@ -5,7 +5,9 @@
  */
 
 #include "EnhanceVision/controllers/SessionController.h"
+#include "EnhanceVision/controllers/ProcessingController.h"
 #include "EnhanceVision/models/MessageModel.h"
+#include "EnhanceVision/core/TaskCoordinator.h"
 #include <QUuid>
 #include <QDebug>
 
@@ -68,6 +70,11 @@ void SessionController::setMessageModel(MessageModel* model)
     if (m_messageModel) {
         connect(m_messageModel, &MessageModel::countChanged, this, &SessionController::onMessageCountChanged);
     }
+}
+
+void SessionController::setProcessingController(ProcessingController* controller)
+{
+    m_processingController = controller;
 }
 
 void SessionController::onMessageCountChanged()
@@ -169,22 +176,22 @@ void SessionController::deleteSession(const QString& sessionId)
     QString activeId = m_sessionModel->activeSessionId();
     bool isActiveSession = (sessionId == activeId);
     
-    // 先删除会话（SessionModel 会自动切换到相邻会话）
+    if (m_processingController) {
+        m_processingController->cancelSessionTasks(sessionId);
+        m_processingController->waitForSessionCancellation(sessionId, 3000);
+    }
+    
     m_sessionModel->deleteSession(sessionId);
     
-    // 如果删除的是当前活动会话，需要处理消息模型
     if (isActiveSession) {
-        // 获取新的活动会话ID
         QString newActiveId = m_sessionModel->activeSessionId();
         
         if (newActiveId.isEmpty()) {
-            // 没有剩余会话，清空消息模型
             if (m_messageModel) {
                 m_messageModel->clear();
                 m_messageModel->setCurrentSessionId("");
             }
         } else {
-            // 切换到了新会话，加载新会话的消息
             m_activeSessionId = newActiveId;
             loadSessionMessages(newActiveId);
         }
@@ -196,10 +203,13 @@ void SessionController::deleteSession(const QString& sessionId)
 
 void SessionController::clearSession(const QString& sessionId)
 {
-    // 清空 Session 中的消息
+    if (m_processingController) {
+        m_processingController->cancelSessionTasks(sessionId);
+        m_processingController->waitForSessionCancellation(sessionId, 3000);
+    }
+    
     m_sessionModel->clearSession(sessionId);
     
-    // 如果清空的是当前活动会话，同步清空消息模型
     if (sessionId == m_sessionModel->activeSessionId() && m_messageModel) {
         m_messageModel->clear();
     }
@@ -229,22 +239,34 @@ void SessionController::deleteSelectedSessions()
 {
     QString activeId = m_sessionModel->activeSessionId();
     
-    // 检查当前活动会话是否被选中
     bool activeSessionDeleted = false;
     Session* activeSession = getSession(activeId);
     if (activeSession && activeSession->isSelected) {
         activeSessionDeleted = true;
     }
     
-    // 删除选中的会话
+    QList<QString> selectedIds;
+    for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
+        Session session = m_sessionModel->sessionAt(i);
+        if (session.isSelected) {
+            selectedIds.append(session.id);
+        }
+    }
+    
+    if (m_processingController) {
+        for (const QString& sessionId : selectedIds) {
+            m_processingController->cancelSessionTasks(sessionId);
+        }
+        for (const QString& sessionId : selectedIds) {
+            m_processingController->waitForSessionCancellation(sessionId, 2000);
+        }
+    }
+    
     int count = m_sessionModel->deleteSelectedSessions();
     if (count > 0) {
         emit sessionCountChanged();
         emit selectionChanged();
         
-        // 如果当前活动会话被删除，SessionModel 会自动切换到相邻会话
-        // activeSessionChanged 信号会触发消息模型的更新
-        // 但如果没有剩余会话，需要手动清空消息模型
         if (activeSessionDeleted && m_sessionModel->activeSessionId().isEmpty() && m_messageModel) {
             m_messageModel->clear();
             m_activeSessionId.clear();
@@ -258,17 +280,31 @@ void SessionController::clearSelectedSessions()
 {
     QString activeId = m_sessionModel->activeSessionId();
     
-    // 检查当前活动会话是否被选中
     bool activeSessionCleared = false;
     Session* activeSession = getSession(activeId);
     if (activeSession && activeSession->isSelected) {
         activeSessionCleared = true;
     }
     
-    // 清空选中的会话
+    QList<QString> selectedIds;
+    for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
+        Session session = m_sessionModel->sessionAt(i);
+        if (session.isSelected) {
+            selectedIds.append(session.id);
+        }
+    }
+    
+    if (m_processingController) {
+        for (const QString& sessionId : selectedIds) {
+            m_processingController->cancelSessionTasks(sessionId);
+        }
+        for (const QString& sessionId : selectedIds) {
+            m_processingController->waitForSessionCancellation(sessionId, 2000);
+        }
+    }
+    
     m_sessionModel->clearSelectedSessions();
     
-    // 如果当前活动会话被清空，同步清空消息模型
     if (activeSessionCleared && m_messageModel) {
         m_messageModel->clear();
     }

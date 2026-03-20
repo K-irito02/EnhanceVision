@@ -97,12 +97,13 @@ Item {
                         }
                         
                         _cachedMedia.append({
-                            "filePath":  f.filePath  || "",
+                            "filePath":  (f.status === 2 && f.resultPath) ? f.resultPath : (f.filePath || ""),
                             "fileName":  f.fileName  || "",
                             "mediaType": f.mediaType !== undefined ? f.mediaType : 0,
                             "thumbnail": thumbSource,
                             "status":    f.status    !== undefined ? f.status : 0,
                             "resultPath": f.resultPath || "",
+                            "originalPath": f.filePath || "",
                             "processedThumbnailId": f.processedThumbnailId || ""
                         })
                     }
@@ -139,8 +140,6 @@ Item {
             onDeleteMediaFile: function(idx) {
                 if (root._hasRealModel) {
                     messageModel.removeMediaFile(model.id, idx)
-                } else {
-                    console.log("删除文件（demo模式）:", model.id, "索引:", idx)
                 }
             }
             onSelectionToggled: function(isSelected) {
@@ -263,7 +262,6 @@ Item {
     /** @brief 打开媒体查看器 */
     function _openViewer(msgId, fileIndex, msgStatus) {
         if (!root.messageViewer) {
-            console.warn("[MessageList] messageViewer not available")
             return
         }
         
@@ -395,7 +393,6 @@ Item {
         if (_hasRealModel && typeof fileController !== "undefined") {
             var completedFiles = messageModel.getCompletedFiles(msgId)
             if (completedFiles.length === 0) {
-                console.log("没有已完成的文件可下载:", msgId)
                 return
             }
             var paths = []
@@ -404,11 +401,8 @@ Item {
                 if (rp && rp !== "") paths.push(rp)
             }
             if (paths.length > 0) {
-                var count = fileController.downloadCompletedFiles(paths)
-                console.log("已保存", count, "个文件")
+                fileController.downloadCompletedFiles(paths)
             }
-        } else {
-            console.log("下载已完成文件（demo模式）:", msgId)
         }
     }
 
@@ -423,14 +417,10 @@ Item {
                     fileController.saveFileTo(path)
                 }
             }
-        } else {
-            console.log("保存文件（demo模式）:", msgId, "索引:", fileIndex)
         }
     }
 
-    /** @brief 打开编辑对话框 */
     function _openEditDialog(msgId) {
-        console.log("编辑消息:", msgId)
     }
 
     /** @brief 填充演示数据 */

@@ -85,7 +85,6 @@ include_directories(
 
 # 可执行文件
 qt_add_executable(EnhanceVision
-    # C++ 源文件
     src/main.cpp
     src/app/Application.cpp
     src/app/MainWindow.cpp
@@ -94,6 +93,8 @@ qt_add_executable(EnhanceVision
     src/core/VideoProcessor.cpp
     src/core/ImageProcessor.cpp
     src/core/FrameCache.cpp
+    src/core/TaskCoordinator.cpp
+    src/core/ResourceManager.cpp
     src/models/SessionModel.cpp
     src/models/FileModel.cpp
     src/models/ProcessingModel.cpp
@@ -109,7 +110,6 @@ qt_add_executable(EnhanceVision
     src/controllers/FileController.cpp
     src/controllers/ProcessingController.cpp
     src/services/ImageExportService.cpp
-    # C++ 头文件（MOC 需要）
     include/EnhanceVision/app/Application.h
     include/EnhanceVision/app/MainWindow.h
     include/EnhanceVision/core/AIEngine.h
@@ -117,6 +117,8 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/core/VideoProcessor.h
     include/EnhanceVision/core/ImageProcessor.h
     include/EnhanceVision/core/FrameCache.h
+    include/EnhanceVision/core/TaskCoordinator.h
+    include/EnhanceVision/core/ResourceManager.h
     include/EnhanceVision/models/SessionModel.h
     include/EnhanceVision/models/FileModel.h
     include/EnhanceVision/models/ProcessingModel.h

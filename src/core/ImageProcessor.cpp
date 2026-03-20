@@ -7,10 +7,10 @@
 #include "EnhanceVision/core/ImageProcessor.h"
 #include <QColor>
 #include <QFile>
-#include <QImage>
 #include <QtConcurrent/QtConcurrent>
 #include <QFuture>
 #include <QCoreApplication>
+#include <QThread>
 
 namespace EnhanceVision {
 
@@ -24,6 +24,7 @@ ImageProcessor::ImageProcessor(QObject *parent)
 ImageProcessor::~ImageProcessor()
 {
     cancel();
+    interrupt();
 }
 
 QImage ImageProcessor::applyShader(const QImage& input, const ShaderParams& params)
@@ -34,7 +35,6 @@ QImage ImageProcessor::applyShader(const QImage& input, const ShaderParams& para
 
     QImage result = input.convertToFormat(QImage::Format_RGB32);
 
-    // 应用各个滤镜
     if (qAbs(params.brightness) > 0.001f) {
         applyBrightness(result, params.brightness);
     }
@@ -68,6 +68,18 @@ void ImageProcessor::processImageAsync(const QString& inputPath,
                                        ProgressCallback progressCallback,
                                        FinishCallback finishCallback)
 {
+    processImageAsyncWithTokens(inputPath, outputPath, params, 
+                                nullptr, nullptr, progressCallback, finishCallback);
+}
+
+void ImageProcessor::processImageAsyncWithTokens(const QString& inputPath,
+                                                  const QString& outputPath,
+                                                  const ShaderParams& params,
+                                                  std::shared_ptr<std::atomic<bool>> cancelToken,
+                                                  std::shared_ptr<std::atomic<bool>> pauseToken,
+                                                  ProgressCallback progressCallback,
+                                                  FinishCallback finishCallback)
+{
     if (m_isProcessing) {
         if (finishCallback) {
             finishCallback(false, QString(), tr("已有处理任务正在进行"));
@@ -78,45 +90,44 @@ void ImageProcessor::processImageAsync(const QString& inputPath,
 
     m_isProcessing = true;
     m_cancelled = false;
+    m_cancelToken = cancelToken;
+    m_pauseToken = pauseToken;
 
-    QtConcurrent::run([this, inputPath, outputPath, params, progressCallback, finishCallback]() {
+    QtConcurrent::run([this, inputPath, outputPath, params, progressCallback, finishCallback, cancelToken]() {
         bool success = false;
         QString error;
         QString resultPath;
 
         try {
-            // 读取图像
+            if (!shouldContinue()) {
+                throw std::runtime_error(tr("处理已取消").toStdString());
+            }
+
             if (progressCallback) {
                 progressCallback(10, tr("正在读取图像..."));
             }
             emit progressChanged(10, tr("正在读取图像..."));
-
-            if (m_cancelled) {
-                throw std::runtime_error(tr("处理已取消").toStdString());
-            }
 
             QImage inputImage(inputPath);
             if (inputImage.isNull()) {
                 throw std::runtime_error(tr("无法读取图像文件").toStdString());
             }
 
-            // 应用滤镜
+            if (!shouldContinue()) {
+                throw std::runtime_error(tr("处理已取消").toStdString());
+            }
+
             if (progressCallback) {
                 progressCallback(30, tr("正在应用滤镜..."));
             }
             emit progressChanged(30, tr("正在应用滤镜..."));
 
-            if (m_cancelled) {
-                throw std::runtime_error(tr("处理已取消").toStdString());
-            }
-
             QImage resultImage = applyShader(inputImage, params);
 
-            if (m_cancelled) {
+            if (!shouldContinue()) {
                 throw std::runtime_error(tr("处理已取消").toStdString());
             }
 
-            // 保存结果
             if (progressCallback) {
                 progressCallback(80, tr("正在保存结果..."));
             }
@@ -140,22 +151,65 @@ void ImageProcessor::processImageAsync(const QString& inputPath,
         }
 
         m_isProcessing = false;
+        m_cancelToken.reset();
+        m_pauseToken.reset();
 
-        if (finishCallback) {
-            finishCallback(success, resultPath, error);
+        if (m_cancelled || (cancelToken && cancelToken->load())) {
+            emit cancelled();
+            if (finishCallback) {
+                finishCallback(false, QString(), tr("处理已取消"));
+            }
+            emit finished(false, QString(), tr("处理已取消"));
+        } else {
+            if (finishCallback) {
+                finishCallback(success, resultPath, error);
+            }
+            emit finished(success, resultPath, error);
         }
-        emit finished(success, resultPath, error);
     });
 }
 
 void ImageProcessor::cancel()
 {
     m_cancelled = true;
+    if (m_cancelToken) {
+        m_cancelToken->store(true);
+    }
+}
+
+void ImageProcessor::interrupt()
+{
+    cancel();
 }
 
 bool ImageProcessor::isProcessing() const
 {
     return m_isProcessing;
+}
+
+bool ImageProcessor::shouldContinue() const
+{
+    if (m_cancelled) {
+        return false;
+    }
+    
+    if (m_cancelToken && m_cancelToken->load()) {
+        return false;
+    }
+    
+    const_cast<ImageProcessor*>(this)->waitIfPaused();
+    
+    return !m_cancelled && !(m_cancelToken && m_cancelToken->load());
+}
+
+void ImageProcessor::waitIfPaused()
+{
+    if (m_pauseToken && m_pauseToken->load()) {
+        while (m_pauseToken->load() && !(m_cancelToken && m_cancelToken->load()) && !m_cancelled) {
+            QThread::msleep(100);
+            QCoreApplication::processEvents();
+        }
+    }
 }
 
 void ImageProcessor::applyBrightness(QImage& image, float brightness)
@@ -281,7 +335,6 @@ void ImageProcessor::applyDenoise(QImage& image, float denoise)
 
     QImage result = image.copy();
     int radius = qBound(1, qRound(denoise * 3), 3);
-    int kernelSize = radius * 2 + 1;
 
     for (int y = radius; y < image.height() - radius; ++y) {
         for (int x = radius; x < image.width() - radius; ++x) {
@@ -302,7 +355,6 @@ void ImageProcessor::applyDenoise(QImage& image, float denoise)
             int g = sumG / count;
             int b = sumB / count;
 
-            // 混合原始像素和模糊像素
             QRgb original = image.pixel(x, y);
             r = qRound(qRed(original) * (1 - denoise) + r * denoise);
             g = qRound(qGreen(original) * (1 - denoise) + g * denoise);

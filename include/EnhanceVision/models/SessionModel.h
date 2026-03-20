@@ -150,6 +150,8 @@ public:
      */
     Session sessionById(const QString &sessionId) const;
 
+    Session sessionAt(int index) const;
+
     /**
      * @brief 添加会话（外部调用）
      * @param session 会话对象

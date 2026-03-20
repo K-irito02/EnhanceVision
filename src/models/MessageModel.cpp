@@ -5,9 +5,13 @@
  */
 
 #include "EnhanceVision/models/MessageModel.h"
+#include "EnhanceVision/controllers/ProcessingController.h"
+#include "EnhanceVision/core/TaskCoordinator.h"
 #include <QUuid>
 #include <QDateTime>
 #include <QtMath>
+#include <QCoreApplication>
+#include <QElapsedTimer>
 
 namespace EnhanceVision {
 
@@ -234,6 +238,11 @@ bool MessageModel::removeMessage(const QString &messageId)
         return false;
     }
 
+    if (m_processingController) {
+        m_processingController->cancelMessageTasks(messageId);
+        m_processingController->waitForMessageCancellation(messageId, 2000);
+    }
+
     beginRemoveRows(QModelIndex(), index, index);
     m_messages.removeAt(index);
     endRemoveRows();
@@ -271,18 +280,34 @@ int MessageModel::removeSelectedMessages()
     int deletedCount = 0;
     QList<QString> toDelete;
 
-    // 收集要删除的消息ID
     for (const Message &message : m_messages) {
         if (message.isSelected) {
             toDelete.append(message.id);
         }
     }
 
-    // 删除消息（从后往前删，避免索引问题）
+    if (m_processingController) {
+        for (const QString& messageId : toDelete) {
+            m_processingController->cancelMessageTasks(messageId);
+        }
+        for (const QString& messageId : toDelete) {
+            m_processingController->waitForMessageCancellation(messageId, 2000);
+        }
+    }
+
     for (auto it = toDelete.rbegin(); it != toDelete.rend(); ++it) {
-        if (removeMessage(*it)) {
+        int index = findMessageIndex(*it);
+        if (index >= 0) {
+            beginRemoveRows(QModelIndex(), index, index);
+            m_messages.removeAt(index);
+            endRemoveRows();
+            emit messageRemoved(*it);
             deletedCount++;
         }
+    }
+
+    if (deletedCount > 0) {
+        emit countChanged();
     }
 
     return deletedCount;
@@ -294,10 +319,20 @@ void MessageModel::clear()
         return;
     }
 
+    if (m_processingController && !m_currentSessionId.isEmpty()) {
+        m_processingController->cancelSessionTasks(m_currentSessionId);
+        m_processingController->waitForSessionCancellation(m_currentSessionId, 3000);
+    }
+
     beginResetModel();
     m_messages.clear();
     endResetModel();
     emit countChanged();
+}
+
+void MessageModel::setProcessingController(ProcessingController* controller)
+{
+    m_processingController = controller;
 }
 
 void MessageModel::setCurrentSessionId(const QString& sessionId)

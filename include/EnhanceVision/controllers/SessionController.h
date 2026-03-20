@@ -16,6 +16,7 @@
 namespace EnhanceVision {
 
 class MessageModel;
+class ProcessingController;
 
 class SessionController : public QObject
 {
@@ -41,6 +42,8 @@ public:
      * @param model 消息模型指针
      */
     void setMessageModel(MessageModel* model);
+    
+    void setProcessingController(ProcessingController* controller);
 
     /**
      * @brief 创建新会话（不自动选中）
@@ -110,6 +113,7 @@ private:
     QString m_activeSessionId;
     SessionModel* m_sessionModel;
     MessageModel* m_messageModel;
+    ProcessingController* m_processingController = nullptr;
     bool m_batchSelectionMode;
     int m_sessionCounter;
     bool m_autoSaveEnabled;

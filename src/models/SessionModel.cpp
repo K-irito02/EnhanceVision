@@ -279,6 +279,14 @@ Session SessionModel::sessionById(const QString &sessionId) const
     return Session();
 }
 
+Session SessionModel::sessionAt(int index) const
+{
+    if (index >= 0 && index < m_sessions.size()) {
+        return m_sessions.at(index);
+    }
+    return Session();
+}
+
 void SessionModel::addSession(const Session &session)
 {
     beginInsertRows(QModelIndex(), m_sessions.size(), m_sessions.size());

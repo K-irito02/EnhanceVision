@@ -128,7 +128,6 @@ Rectangle {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: console.log("选中文件:", model.fileName)
                     }
                     
                     ColumnLayout {

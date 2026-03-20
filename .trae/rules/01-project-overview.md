@@ -33,7 +33,9 @@ EnhanceVision/
 │   │   ├── ProcessingEngine.cpp # 处理引擎调度
 │   │   ├── VideoProcessor.cpp  # 视频处理器
 │   │   ├── ImageProcessor.cpp  # 图像处理器
-│   │   └── FrameCache.cpp      # 帧缓存管理
+│   │   ├── FrameCache.cpp      # 帧缓存管理
+│   │   ├── TaskCoordinator.cpp # 任务协调器
+│   │   └── ResourceManager.cpp # 资源管理器
 │   ├── models/                 # QML 数据模型
 │   │   ├── SessionModel.cpp    # 会话列表模型
 │   │   ├── FileModel.cpp       # 文件列表模型

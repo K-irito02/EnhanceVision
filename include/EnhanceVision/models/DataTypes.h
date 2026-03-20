@@ -13,7 +13,12 @@
 #include <QImage>
 #include <QVariantMap>
 #include <QList>
+#include <QHash>
+#include <QSet>
+#include <QMutex>
 #include <functional>
+#include <memory>
+#include <atomic>
 
 namespace EnhanceVision {
 
@@ -51,6 +56,76 @@ enum class ProcessingMode {
 enum class QueueStatus {
     Running,   ///< 运行中
     Paused     ///< 已暂停
+};
+
+/**
+ * @brief 任务状态枚举（扩展）
+ */
+enum class TaskState {
+    Pending,        ///< 队列等待
+    Preparing,      ///< 准备资源
+    Running,        ///< 处理中
+    Pausing,        ///< 暂停中
+    Paused,         ///< 已暂停
+    Cancelling,     ///< 取消中
+    Cancelled,      ///< 已取消
+    Completed,      ///< 已完成
+    Failed,         ///< 失败
+    Orphaned        ///< 孤儿任务（关联的消息/会话已删除）
+};
+
+/**
+ * @brief 任务优先级枚举
+ */
+enum class TaskPriority {
+    UserInteractive = 0,  ///< 用户当前关注的会话
+    UserInitiated = 1,    ///< 用户主动发起
+    Utility = 2,          ///< 后台任务
+    Background = 3        ///< 低优先级
+};
+
+/**
+ * @brief 资源配额结构
+ */
+struct ResourceQuota {
+    int maxConcurrentTasks = 4;      ///< 最大并发任务数
+    qint64 maxMemoryMB = 4096;       ///< 最大内存使用（MB）
+    qint64 maxGpuMemoryMB = 2048;    ///< 最大 GPU 显存使用（MB）
+    int maxTasksPerSession = 100;    ///< 每个会话最大任务数
+    int taskTimeoutMs = 300000;      ///< 任务超时时间（毫秒），默认 5 分钟
+    int cancelTimeoutMs = 5000;      ///< 取消等待超时（毫秒）
+};
+
+/**
+ * @brief 任务上下文结构
+ */
+struct TaskContext {
+    QString taskId;                  ///< 任务唯一标识
+    QString messageId;               ///< 关联消息 ID
+    QString sessionId;               ///< 关联会话 ID
+    QString fileId;                  ///< 关联文件 ID
+    
+    qint64 estimatedMemoryMB = 0;    ///< 预估内存使用（MB）
+    qint64 estimatedGpuMemoryMB = 0; ///< 预估 GPU 显存使用（MB）
+    
+    TaskState state = TaskState::Pending;  ///< 任务状态
+    TaskPriority priority = TaskPriority::UserInitiated; ///< 任务优先级
+    bool isCancellable = true;       ///< 是否可取消
+    bool isPausable = true;          ///< 是否可暂停
+    
+    std::shared_ptr<std::atomic<bool>> cancelToken;  ///< 取消令牌
+    std::shared_ptr<std::atomic<bool>> pauseToken;   ///< 暂停令牌
+    
+    TaskContext() = default;
+    
+    TaskContext(const QString& tid, const QString& mid, const QString& sid, const QString& fid)
+        : taskId(tid)
+        , messageId(mid)
+        , sessionId(sid)
+        , fileId(fid)
+        , cancelToken(std::make_shared<std::atomic<bool>>(false))
+        , pauseToken(std::make_shared<std::atomic<bool>>(false))
+    {}
 };
 
 

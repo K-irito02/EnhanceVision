@@ -12,11 +12,13 @@
 #include "EnhanceVision/services/ImageExportService.h"
 #include "EnhanceVision/providers/ThumbnailProvider.h"
 #include "EnhanceVision/utils/ImageUtils.h"
+#include "EnhanceVision/core/TaskCoordinator.h"
+#include "EnhanceVision/core/ResourceManager.h"
 #include <QUuid>
-#include <QDebug>
 #include <QTimer>
 #include <QStandardPaths>
 #include <QDir>
+#include <QCoreApplication>
 #include <algorithm>
 
 namespace EnhanceVision {
@@ -31,8 +33,10 @@ ProcessingController::ProcessingController(QObject* parent)
     , m_fileController(nullptr)
     , m_messageModel(nullptr)
     , m_sessionController(nullptr)
+    , m_taskCoordinator(TaskCoordinator::instance())
+    , m_resourceManager(ResourceManager::instance())
+    , m_resourcePressure(0)
 {
-    // 从设置中获取最大并发数
     m_maxConcurrentTasks = SettingsController::instance()->maxConcurrentTasks();
     m_threadPool->setMaxThreadCount(m_maxConcurrentTasks);
 
@@ -40,8 +44,20 @@ ProcessingController::ProcessingController(QObject* parent)
             this, [this]() {
         m_maxConcurrentTasks = SettingsController::instance()->maxConcurrentTasks();
         m_threadPool->setMaxThreadCount(m_maxConcurrentTasks);
+        m_resourceManager->setMaxConcurrentTasks(m_maxConcurrentTasks);
         emit maxConcurrentTasksChanged();
     });
+    
+    connect(m_taskCoordinator, &TaskCoordinator::taskOrphaned,
+            this, &ProcessingController::onTaskOrphaned);
+    
+    connect(m_resourceManager, &ResourceManager::resourcePressureChanged,
+            this, &ProcessingController::onResourcePressureChanged);
+    
+    connect(m_resourceManager, &ResourceManager::resourceExhausted,
+            this, &ProcessingController::resourceExhausted);
+    
+    m_resourceManager->startMonitoring(2000);
 }
 
 ProcessingController::~ProcessingController()
@@ -197,7 +213,8 @@ void ProcessingController::cancelAllTasks()
 
 QString ProcessingController::addTask(const Message& message)
 {
-    // 为每个媒体文件创建一个任务
+    QString sessionId = m_sessionController ? m_sessionController->activeSessionId() : QString();
+    
     for (const auto& mediaFile : message.mediaFiles) {
         QueueTask task;
         task.taskId = generateTaskId();
@@ -211,6 +228,9 @@ QString ProcessingController::addTask(const Message& message)
         m_tasks.append(task);
         m_processingModel->addTask(task);
         m_taskToMessage[task.taskId] = message.id;
+        
+        qint64 estimatedMemory = estimateMemoryUsage(mediaFile.filePath, mediaFile.type);
+        registerTaskContext(task.taskId, message.id, sessionId, mediaFile.id, estimatedMemory);
 
         emit taskAdded(task.taskId);
     }
@@ -218,7 +238,6 @@ QString ProcessingController::addTask(const Message& message)
     updateQueuePositions();
     emit queueSizeChanged();
 
-    // 开始处理
     processNextTask();
 
     return message.id;
@@ -289,7 +308,6 @@ void ProcessingController::processNextTask()
     }
 
     while (m_currentProcessingCount < m_maxConcurrentTasks) {
-        // 查找下一个待处理的任务
         QueueTask* nextTask = nullptr;
         for (auto& task : m_tasks) {
             if (task.status == ProcessingStatus::Pending) {
@@ -299,10 +317,12 @@ void ProcessingController::processNextTask()
         }
 
         if (!nextTask) {
-            break; // 没有更多待处理任务
+            break;
         }
 
-        startTask(*nextTask);
+        if (!tryStartTask(*nextTask)) {
+            break;
+        }
     }
 }
 
@@ -328,45 +348,13 @@ void ProcessingController::startTask(QueueTask& task)
     emit currentProcessingCountChanged();
     m_processingModel->updateTasks(m_tasks);
 
-    // 查找该任务所属的消息，判断处理模式
-    ProcessingMode mode = ProcessingMode::Shader;
-    for (const auto& t : m_tasks) {
-        if (t.taskId == task.taskId) {
-            break;
-        }
-    }
-
-    // Shader 模式：快速完成（模拟 GPU 实时处理）
-    // AI 模式：较慢（模拟 AI 推理）
-    int delayMs = (mode == ProcessingMode::Shader) ? 50 : 200;
-    int progressStep = (mode == ProcessingMode::Shader) ? 25 : 10;
-    int progressInterval = (mode == ProcessingMode::Shader) ? 20 : 200;
-
-    qDebug() << "[ProcessingController] Starting task:" << task.taskId
-             << "mode:" << (mode == ProcessingMode::Shader ? "Shader" : "AI")
-             << "delay:" << delayMs << "ms";
-
     QString taskId = task.taskId;
-
-    // 模拟任务处理 - 使用值捕获避免悬垂引用
-    QTimer::singleShot(delayMs, this, [this, taskId, progressStep, progressInterval]() {
-        QTimer* progressTimer = new QTimer(this);
-        // 使用指针存储进度，避免引用悬垂
-        int* progress = new int(0);
-
-        connect(progressTimer, &QTimer::timeout, this, [this, progressTimer, taskId, progressStep, progress]() {
-            *progress += progressStep;
-            if (*progress >= 100) {
-                progressTimer->stop();
-                progressTimer->deleteLater();
-                delete progress;
-                completeTask(taskId, "");
-            } else {
-                updateTaskProgress(taskId, *progress);
-            }
-        });
-
-        progressTimer->start(progressInterval);
+    
+    // 直接完成任务，实际处理在 completeTask 中进行
+    // Shader 模式使用 GPU 实时渲染，无需预处理
+    // AI 模式的实际处理逻辑待集成
+    QTimer::singleShot(10, this, [this, taskId]() {
+        completeTask(taskId, "");
     });
 }
 
@@ -393,7 +381,11 @@ void ProcessingController::completeTask(const QString& taskId, const QString& re
             QString fileId = m_tasks[i].fileId;
 
             if (m_tasks[i].status == ProcessingStatus::Cancelled) {
+                cleanupTask(taskId);
                 emit taskCancelled(taskId);
+            } else if (m_taskCoordinator->isOrphaned(taskId)) {
+                handleOrphanedTask(taskId);
+                return;
             } else {
                 m_tasks[i].status = ProcessingStatus::Completed;
                 m_tasks[i].progress = 100;
@@ -416,19 +408,60 @@ void ProcessingController::completeTask(const QString& taskId, const QString& re
                             pending.outputPath = processedPath;
                             pending.shaderParams = shaderParamsToVariantMap(msg.shaderParams);
                             
+                            if (m_taskContexts.contains(taskId)) {
+                                pending.estimatedMemoryMB = m_taskContexts[taskId].estimatedMemoryMB;
+                                pending.estimatedGpuMemoryMB = m_taskContexts[taskId].estimatedGpuMemoryMB;
+                            }
+                            
                             m_pendingExports[taskId] = pending;
-                            
-                            qDebug() << "[ProcessingController] Requesting GPU export for task:" << taskId
-                                     << "image:" << mf.filePath
-                                     << "output:" << processedPath;
-                            
                             emit requestShaderExport(taskId, mf.filePath, pending.shaderParams, processedPath);
+                        } else if (msg.mode == ProcessingMode::Shader && ImageUtils::isVideoFile(mf.filePath)) {
+                            QString processedDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/processed";
+                            QDir().mkpath(processedDir);
+                            
+                            QString tempFramePath = processedDir + "/" + QUuid::createUuid().toString(QUuid::WithoutBraces) + "_frame.png";
+                            QImage firstFrame = ImageUtils::generateVideoThumbnail(mf.filePath, QSize(1920, 1080));
+                            
+                            if (!firstFrame.isNull() && firstFrame.save(tempFramePath)) {
+                                QString processedThumbPath = processedDir + "/" + QUuid::createUuid().toString(QUuid::WithoutBraces) + "_thumb.png";
+                                
+                                PendingExport pending;
+                                pending.taskId = taskId;
+                                pending.messageId = messageId;
+                                pending.fileId = fileId;
+                                pending.originalPath = mf.filePath;
+                                pending.outputPath = processedThumbPath;
+                                pending.shaderParams = shaderParamsToVariantMap(msg.shaderParams);
+                                pending.isVideoThumbnail = true;
+                                pending.tempFramePath = tempFramePath;
+                                
+                                if (m_taskContexts.contains(taskId)) {
+                                    pending.estimatedMemoryMB = m_taskContexts[taskId].estimatedMemoryMB;
+                                    pending.estimatedGpuMemoryMB = m_taskContexts[taskId].estimatedGpuMemoryMB;
+                                }
+                                
+                                m_pendingExports[taskId] = pending;
+                                emit requestShaderExport(taskId, tempFramePath, pending.shaderParams, processedThumbPath);
+                            } else {
+                                if (m_messageModel) {
+                                    m_messageModel->updateFileStatus(messageId, fileId,
+                                        static_cast<int>(ProcessingStatus::Completed), mf.filePath);
+                                }
+                                cleanupTask(taskId);
+                                m_currentProcessingCount--;
+                                emit currentProcessingCountChanged();
+                                m_processingModel->updateTasks(m_tasks);
+                                syncMessageProgress(messageId);
+                                syncMessageStatus(messageId);
+                                processNextTask();
+                            }
                         } else {
                             if (m_messageModel) {
                                 m_messageModel->updateFileStatus(messageId, fileId,
                                     static_cast<int>(ProcessingStatus::Completed), mf.filePath);
                             }
                             
+                            cleanupTask(taskId);
                             m_currentProcessingCount--;
                             emit currentProcessingCountChanged();
                             m_processingModel->updateTasks(m_tasks);
@@ -448,37 +481,41 @@ void ProcessingController::completeTask(const QString& taskId, const QString& re
 
 void ProcessingController::onShaderExportCompleted(const QString& exportId, bool success, const QString& outputPath, const QString& error)
 {
-    qDebug() << "[ProcessingController] Shader export completed:" << exportId
-             << "success:" << success
-             << "output:" << outputPath
-             << "error:" << error;
-    
     if (!m_pendingExports.contains(exportId)) {
-        qWarning() << "[ProcessingController] Unknown export ID:" << exportId;
         return;
     }
     
     PendingExport pending = m_pendingExports.take(exportId);
     
+    if (pending.isVideoThumbnail && !pending.tempFramePath.isEmpty()) {
+        QFile::remove(pending.tempFramePath);
+    }
+    
     if (success) {
-        QImage processedThumb = ImageUtils::generateThumbnail(outputPath, QSize(256, 256));
+        QImage processedThumb = ImageUtils::generateThumbnail(outputPath, QSize(512, 512));
         QString thumbId = "processed_" + pending.fileId;
         if (ThumbnailProvider::instance() && !processedThumb.isNull()) {
             ThumbnailProvider::instance()->setThumbnail(thumbId, processedThumb);
         }
         
-        if (m_messageModel) {
+        if (m_messageModel && !m_taskCoordinator->isOrphaned(exportId)) {
+            QString resultPath = pending.isVideoThumbnail ? pending.originalPath : outputPath;
             m_messageModel->updateFileStatus(pending.messageId, pending.fileId,
-                static_cast<int>(ProcessingStatus::Completed), outputPath);
+                static_cast<int>(ProcessingStatus::Completed), resultPath);
+        }
+        
+        if (pending.isVideoThumbnail) {
+            QFile::remove(outputPath);
         }
     } else {
-        if (m_messageModel) {
+        if (m_messageModel && !m_taskCoordinator->isOrphaned(exportId)) {
             m_messageModel->updateFileStatus(pending.messageId, pending.fileId,
                 static_cast<int>(ProcessingStatus::Failed), QString());
             m_messageModel->updateErrorMessage(pending.messageId, error);
         }
     }
     
+    cleanupTask(exportId);
     m_currentProcessingCount--;
     emit currentProcessingCountChanged();
     m_processingModel->updateTasks(m_tasks);
@@ -518,22 +555,21 @@ void ProcessingController::failTask(const QString& taskId, const QString& error)
 
             task.status = ProcessingStatus::Failed;
             emit taskFailed(taskId, error);
+            
+            cleanupTask(taskId);
             m_currentProcessingCount--;
             emit currentProcessingCountChanged();
             m_processingModel->updateTasks(m_tasks);
 
-            // 更新消息中对应文件的状态
-            if (m_messageModel) {
+            if (m_messageModel && !m_taskCoordinator->isOrphaned(taskId)) {
                 m_messageModel->updateFileStatus(messageId, fileId,
                     static_cast<int>(ProcessingStatus::Failed), QString());
                 m_messageModel->updateErrorMessage(messageId, error);
             }
 
-            // 同步消息整体进度和状态
             syncMessageProgress(messageId);
             syncMessageStatus(messageId);
 
-            // 继续处理下一个任务
             processNextTask();
             break;
         }
@@ -548,13 +584,11 @@ void ProcessingController::setFileController(FileController* fileController)
 QString ProcessingController::sendToProcessing(int mode, const QVariantMap& params)
 {
     if (!m_fileController) {
-        qWarning() << "FileController not set!";
         return QString();
     }
 
     QList<MediaFile> files = m_fileController->getAllFiles();
     if (files.isEmpty()) {
-        qWarning() << "No files to process!";
         return QString();
     }
 
@@ -598,9 +632,6 @@ QString ProcessingController::sendToProcessing(int mode, const QVariantMap& para
 
     // 清空文件列表（文件已转入消息）
     m_fileController->clearFiles();
-
-    qDebug() << "Sending message to processing queue:" << message.id
-             << "with" << files.size() << "files";
     return addTask(message);
 }
 
@@ -659,7 +690,6 @@ void ProcessingController::syncMessageStatus(const QString& messageId)
 
     ProcessingStatus newStatus;
     if (finishedTasks == totalTasks) {
-        // 所有任务结束
         if (failedTasks > 0 && completedTasks == 0) {
             newStatus = ProcessingStatus::Failed;
         } else if (cancelledTasks == totalTasks) {
@@ -675,7 +705,6 @@ void ProcessingController::syncMessageStatus(const QString& messageId)
 
     m_messageModel->updateStatus(messageId, static_cast<int>(newStatus));
 
-    // 更新队列位置
     int queuePos = 0;
     for (const auto& task : m_tasks) {
         if (task.messageId == messageId && task.status == ProcessingStatus::Pending) {
@@ -684,6 +713,223 @@ void ProcessingController::syncMessageStatus(const QString& messageId)
         }
     }
     m_messageModel->updateQueuePosition(messageId, queuePos);
+}
+
+int ProcessingController::resourcePressure() const
+{
+    return m_resourcePressure;
+}
+
+void ProcessingController::cancelMessageTasks(const QString& messageId)
+{
+    m_taskCoordinator->cancelMessageTasks(messageId);
+    
+    for (int i = m_tasks.size() - 1; i >= 0; --i) {
+        if (m_tasks[i].messageId == messageId) {
+            if (m_tasks[i].status == ProcessingStatus::Pending) {
+                m_tasks[i].status = ProcessingStatus::Cancelled;
+                cleanupTask(m_tasks[i].taskId);
+                m_tasks.removeAt(i);
+            } else if (m_tasks[i].status == ProcessingStatus::Processing) {
+                gracefulCancel(m_tasks[i].taskId);
+            }
+        }
+    }
+    
+    updateQueuePositions();
+    m_processingModel->updateTasks(m_tasks);
+    emit queueSizeChanged();
+    
+    if (m_messageModel) {
+        m_messageModel->updateStatus(messageId, static_cast<int>(ProcessingStatus::Cancelled));
+    }
+    
+    emit messageTasksCancelled(messageId);
+    processNextTask();
+}
+
+void ProcessingController::cancelSessionTasks(const QString& sessionId)
+{
+    m_taskCoordinator->cancelSessionTasks(sessionId);
+    
+    QSet<QString> messageIds;
+    
+    for (int i = m_tasks.size() - 1; i >= 0; --i) {
+        QString taskId = m_tasks[i].taskId;
+        TaskContext ctx = m_taskCoordinator->getTaskContext(taskId);
+        
+        if (ctx.sessionId == sessionId) {
+            messageIds.insert(m_tasks[i].messageId);
+            
+            if (m_tasks[i].status == ProcessingStatus::Pending) {
+                m_tasks[i].status = ProcessingStatus::Cancelled;
+                cleanupTask(taskId);
+                m_tasks.removeAt(i);
+            } else if (m_tasks[i].status == ProcessingStatus::Processing) {
+                gracefulCancel(taskId);
+            }
+        }
+    }
+    
+    updateQueuePositions();
+    m_processingModel->updateTasks(m_tasks);
+    emit queueSizeChanged();
+    
+    for (const QString& messageId : messageIds) {
+        if (m_messageModel) {
+            m_messageModel->updateStatus(messageId, static_cast<int>(ProcessingStatus::Cancelled));
+        }
+    }
+    
+    emit sessionTasksCancelled(sessionId);
+    processNextTask();
+}
+
+bool ProcessingController::waitForMessageCancellation(const QString& messageId, int timeoutMs)
+{
+    return m_taskCoordinator->waitForAllMessageTasksCancelled(messageId, timeoutMs);
+}
+
+bool ProcessingController::waitForSessionCancellation(const QString& sessionId, int timeoutMs)
+{
+    return m_taskCoordinator->waitForAllSessionTasksCancelled(sessionId, timeoutMs);
+}
+
+void ProcessingController::pauseSessionTasks(const QString& sessionId)
+{
+    QSet<QString> taskIds = m_taskCoordinator->sessionTaskIds(sessionId);
+    for (const QString& taskId : taskIds) {
+        m_taskCoordinator->triggerPause(taskId, true);
+    }
+}
+
+void ProcessingController::resumeSessionTasks(const QString& sessionId)
+{
+    QSet<QString> taskIds = m_taskCoordinator->sessionTaskIds(sessionId);
+    for (const QString& taskId : taskIds) {
+        m_taskCoordinator->triggerPause(taskId, false);
+    }
+}
+
+void ProcessingController::onSessionChanging(const QString& oldSessionId, const QString& newSessionId)
+{
+    Q_UNUSED(newSessionId)
+    
+    QSet<QString> taskIds = m_taskCoordinator->sessionTaskIds(oldSessionId);
+    for (const QString& taskId : taskIds) {
+        TaskContext ctx = m_taskCoordinator->getTaskContext(taskId);
+        ctx.priority = TaskPriority::Background;
+        m_taskCoordinator->updateTaskState(taskId, ctx.state);
+    }
+}
+
+void ProcessingController::setMaxConcurrentTasks(int max)
+{
+    if (m_maxConcurrentTasks != max) {
+        m_maxConcurrentTasks = max;
+        m_threadPool->setMaxThreadCount(max);
+        m_resourceManager->setMaxConcurrentTasks(max);
+        emit maxConcurrentTasksChanged();
+    }
+}
+
+void ProcessingController::setResourceQuota(const ResourceQuota& quota)
+{
+    m_resourceManager->setQuota(quota);
+    m_maxConcurrentTasks = quota.maxConcurrentTasks;
+    m_threadPool->setMaxThreadCount(m_maxConcurrentTasks);
+    emit maxConcurrentTasksChanged();
+}
+
+void ProcessingController::onTaskOrphaned(const QString& taskId)
+{
+    handleOrphanedTask(taskId);
+}
+
+void ProcessingController::onResourcePressureChanged(int pressureLevel)
+{
+    m_resourcePressure = pressureLevel;
+    emit resourcePressureChanged();
+    
+    if (pressureLevel == 2) {
+        pauseQueue();
+    } else if (pressureLevel == 0 && m_queueStatus == QueueStatus::Paused) {
+        resumeQueue();
+    }
+}
+
+bool ProcessingController::tryStartTask(QueueTask& task)
+{
+    if (m_taskCoordinator->isOrphaned(task.taskId)) {
+        handleOrphanedTask(task.taskId);
+        return false;
+    }
+    
+    TaskContext ctx = m_taskCoordinator->getTaskContext(task.taskId);
+    
+    if (!m_resourceManager->canStartNewTask(ctx.estimatedMemoryMB, ctx.estimatedGpuMemoryMB)) {
+        return false;
+    }
+    
+    if (!m_resourceManager->tryAcquire(task.taskId, ctx.estimatedMemoryMB, ctx.estimatedGpuMemoryMB)) {
+        return false;
+    }
+    
+    startTask(task);
+    return true;
+}
+
+void ProcessingController::gracefulCancel(const QString& taskId, int timeoutMs)
+{
+    m_taskCoordinator->triggerCancellation(taskId);
+    
+    if (!m_taskCoordinator->waitForCancellation(taskId, timeoutMs)) {
+        qWarning() << "Task" << taskId << "did not cancel gracefully within timeout";
+    }
+    
+    cleanupTask(taskId);
+}
+
+void ProcessingController::handleOrphanedTask(const QString& taskId)
+{
+    cleanupTask(taskId);
+    
+    for (int i = m_tasks.size() - 1; i >= 0; --i) {
+        if (m_tasks[i].taskId == taskId) {
+            m_tasks[i].status = ProcessingStatus::Cancelled;
+            m_tasks.removeAt(i);
+            break;
+        }
+    }
+    
+    updateQueuePositions();
+    m_processingModel->updateTasks(m_tasks);
+    emit queueSizeChanged();
+}
+
+void ProcessingController::cleanupTask(const QString& taskId)
+{
+    m_resourceManager->release(taskId);
+    m_taskCoordinator->unregisterTask(taskId);
+    m_pendingExports.remove(taskId);
+    m_taskContexts.remove(taskId);
+}
+
+qint64 ProcessingController::estimateMemoryUsage(const QString& filePath, MediaType type) const
+{
+    return m_resourceManager->estimateMemoryUsage(filePath, type);
+}
+
+void ProcessingController::registerTaskContext(const QString& taskId, const QString& messageId,
+                                                const QString& sessionId, const QString& fileId,
+                                                qint64 estimatedMemoryMB)
+{
+    TaskContext ctx(taskId, messageId, sessionId, fileId);
+    ctx.estimatedMemoryMB = estimatedMemoryMB;
+    ctx.state = TaskState::Pending;
+    
+    m_taskContexts[taskId] = ctx;
+    m_taskCoordinator->registerTask(ctx);
 }
 
 } // namespace EnhanceVision

@@ -12,6 +12,8 @@
 
 namespace EnhanceVision {
 
+class ProcessingController;
+
 class MessageModel : public QAbstractListModel
 {
     Q_OBJECT
@@ -212,6 +214,8 @@ public:
      * @param sessionId 会话ID
      */
     void setCurrentSessionId(const QString& sessionId);
+    
+    void setProcessingController(ProcessingController* controller);
 
     /**
      * @brief 获取指定ID的消息
@@ -295,6 +299,7 @@ private:
 
     QList<Message> m_messages;  ///< 消息列表
     QString m_currentSessionId; ///< 当前会话ID
+    ProcessingController* m_processingController = nullptr; ///< 处理控制器引用
 };
 
 } // namespace EnhanceVision
