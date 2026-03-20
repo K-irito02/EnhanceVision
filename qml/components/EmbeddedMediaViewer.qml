@@ -53,6 +53,7 @@ Item {
     property bool _videoEnded: false
     property real _savedW: 800
     property real _savedH: 600
+    property real sharedVolume: 0.8
     
     function openAt(index) {
         currentIndex = Math.max(0, Math.min(index, mediaFiles.length - 1))
@@ -335,13 +336,13 @@ Item {
                 
                 Rectangle {
                     id: compareButton
-                    visible: !root.isVideo && root._hasShaderOrOriginal
+                    visible: root._hasShaderOrOriginal
                     width: cmpRow.implicitWidth + 16; height: 28; radius: 6
                     color: root.showOriginal ? Theme.colors.primary : Theme.colors.muted
                     Layout.alignment: Qt.AlignVCenter
                     Row { id: cmpRow; anchors.centerIn: parent; spacing: 6
                         ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("eye"); iconSize: 14; color: root.showOriginal ? "#FFF" : Theme.colors.foreground }
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: root.showOriginal ? qsTr("效果") : qsTr("原图"); color: root.showOriginal ? "#FFF" : Theme.colors.foreground; font.pixelSize: 12 }
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: root.showOriginal ? qsTr("成果") : qsTr("源件"); color: root.showOriginal ? "#FFF" : Theme.colors.foreground; font.pixelSize: 12 }
                     }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.showOriginal = !root.showOriginal; z: 20 }
                 }
@@ -369,6 +370,7 @@ Item {
             visible: root.isVideo
             viewer: root
             videoPlayer: vidPlayer
+            audioOutput: contentArea.audioOutput
         }
         
         ThumbnailBar {
@@ -462,13 +464,13 @@ Item {
                     
                     Rectangle {
                         id: detCompareButton
-                        visible: !root.isVideo && root._hasShaderOrOriginal
+                        visible: root._hasShaderOrOriginal
                         width: cmpRow2.implicitWidth + 16; height: 28; radius: 6
                         color: root.showOriginal ? Theme.colors.primary : Theme.colors.muted
                         Layout.alignment: Qt.AlignVCenter
                         Row { id: cmpRow2; anchors.centerIn: parent; spacing: 6
                             ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("eye"); iconSize: 14; color: root.showOriginal ? "#FFF" : Theme.colors.foreground }
-                            Text { anchors.verticalCenter: parent.verticalCenter; text: root.showOriginal ? qsTr("效果") : qsTr("原图"); color: root.showOriginal ? "#FFF" : Theme.colors.foreground; font.pixelSize: 12 }
+                            Text { anchors.verticalCenter: parent.verticalCenter; text: root.showOriginal ? qsTr("成果") : qsTr("源件"); color: root.showOriginal ? "#FFF" : Theme.colors.foreground; font.pixelSize: 12 }
                         }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.showOriginal = !root.showOriginal; z: 20 }
                     }
@@ -526,6 +528,7 @@ Item {
                 visible: root.isVideo
                 viewer: root
                 videoPlayer: vidPlayer
+                audioOutput: detContentArea.audioOutput
             }
             
             ThumbnailBar {
@@ -708,7 +711,7 @@ Item {
                 supportsAtlasTextures: true
             }
             
-            AudioOutput { id: ao; volume: 0.8 }
+            AudioOutput { id: ao; volume: root.sharedVolume }
             Rectangle {
                 anchors.centerIn: parent; width: 72; height: 72; radius: 36
                 color: Theme.isDark ? Qt.rgba(0,0,0,0.6) : Qt.rgba(1,1,1,0.9)
@@ -794,6 +797,7 @@ Item {
     component VideoControlBar: Rectangle {
         property var viewer
         property var videoPlayer
+        property var audioOutput
         height: 80
         color: Theme.colors.card
         Rectangle { anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; height: 1; color: Theme.colors.border }
@@ -875,13 +879,13 @@ Item {
                 }
                 Item { Layout.fillWidth: true }
                 IconButton { 
-                    iconName: contentArea.audioOutput.volume > 0 ? "volume-2" : "volume-x"
+                    iconName: audioOutput && audioOutput.volume > 0 ? "volume-2" : "volume-x"
                     iconSize: 16; btnSize: 28
                     iconColor: Theme.colors.mediaControlIcon
                     tooltip: qsTr("静音")
-                    onClicked: contentArea.audioOutput.volume = contentArea.audioOutput.volume > 0 ? 0 : 0.7
+                    onClicked: root.sharedVolume = root.sharedVolume > 0 ? 0 : 0.7
                 }
-                Slider { implicitWidth: 80; from: 0; to: 1; value: contentArea.audioOutput.volume; onMoved: contentArea.audioOutput.volume = value }
+                Slider { implicitWidth: 80; from: 0; to: 1; value: root.sharedVolume; onMoved: root.sharedVolume = value }
             }
         }
     }

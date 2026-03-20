@@ -276,7 +276,7 @@ Window {
                         }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: showOriginal ? qsTr("查看修改") : qsTr("查看原图")
+                            text: showOriginal ? qsTr("查看成果") : qsTr("查看源件")
                             color: Theme.colors.foreground
                             font.pixelSize: 12
                         }
@@ -435,6 +435,9 @@ Window {
                 anchors.fill: parent
                 anchors.margins: 8
                 visible: isVideo
+                
+                // 是否应用视频Shader效果（消息模式下也需要应用）
+                property bool _applyVideoShader: shaderEnabled && !showOriginal
 
                 Image {
                     id: videoPreviewFrame
@@ -449,6 +452,14 @@ Window {
                     
                     source: {
                         if (!isVideo || !currentSource || currentSource === "") return ""
+                        
+                        // 消息模式下，优先使用处理后的缩略图
+                        if (messageMode && currentFile && currentFile.status === 2) {
+                            if (currentFile.processedThumbnailId && currentFile.processedThumbnailId !== "") {
+                                return "image://thumbnail/" + currentFile.processedThumbnailId
+                            }
+                        }
+                        
                         var src = currentSource
                         if (src.startsWith("file:///")) {
                             src = src.substring(8)
@@ -480,10 +491,54 @@ Window {
                     Behavior on opacity { NumberAnimation { duration: 200 } }
                 }
 
+                // VideoOutput接收视频流
                 VideoOutput {
                     id: videoOutput
                     anchors.fill: parent
                     z: 0
+                    // 当应用Shader时隐藏原始输出
+                    visible: !videoContainer._applyVideoShader
+                }
+                
+                // ShaderEffectSource捕获VideoOutput内容
+                ShaderEffectSource {
+                    id: videoShaderSource
+                    sourceItem: videoOutput
+                    sourceRect: Qt.rect(0, 0, 0, 0)
+                    live: true
+                    hideSource: videoContainer._applyVideoShader
+                    visible: false
+                }
+                
+                // 应用Shader效果的视频显示
+                ShaderEffect {
+                    id: videoShaderEffect
+                    anchors.fill: parent
+                    visible: videoContainer._applyVideoShader
+                    z: 0
+                    
+                    property var source: videoShaderSource
+                    property real brightness: shaderBrightness
+                    property real contrast: shaderContrast
+                    property real saturation: shaderSaturation
+                    property real hue: shaderHue
+                    property real sharpness: shaderSharpness
+                    property real blurAmount: shaderBlur
+                    property real denoise: shaderDenoise
+                    property real exposure: shaderExposure
+                    property real gamma: shaderGamma
+                    property real temperature: shaderTemperature
+                    property real tint: shaderTint
+                    property real vignette: shaderVignette
+                    property real highlights: shaderHighlights
+                    property real shadows: shaderShadows
+                    property size imgSize: Qt.size(videoOutput.sourceRect.width > 0 ? videoOutput.sourceRect.width : videoOutput.width,
+                                                   videoOutput.sourceRect.height > 0 ? videoOutput.sourceRect.height : videoOutput.height)
+                    
+                    vertexShader: "qrc:///resources/shaders/fullshader.vert.qsb"
+                    fragmentShader: "qrc:///resources/shaders/fullshader.frag.qsb"
+                    
+                    supportsAtlasTextures: true
                 }
 
                 AudioOutput {
