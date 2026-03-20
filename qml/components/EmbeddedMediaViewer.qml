@@ -50,6 +50,7 @@ Item {
     signal closed()
     
     property var _mediaPlayer: null
+    property bool _videoEnded: false
     property real _savedW: 800
     property real _savedH: 600
     
@@ -266,9 +267,20 @@ Item {
         
         MediaPlayer {
             id: vidPlayer
-            videoOutput: contentArea.videoOutput
-            audioOutput: contentArea.audioOutput
+            videoOutput: displayMode === "embedded" ? contentArea.videoOutput : detContentArea.videoOutput
+            audioOutput: displayMode === "embedded" ? contentArea.audioOutput : detContentArea.audioOutput
             function togglePlay() { playbackState === MediaPlayer.PlayingState ? pause() : play() }
+            
+            onPlaybackStateChanged: {
+                if (playbackState === MediaPlayer.StoppedState) {
+                    if (position > 0 && duration > 0 && position >= duration - 500) {
+                        root._videoEnded = true
+                    }
+                } else if (playbackState === MediaPlayer.PlayingState) {
+                    root._videoEnded = false
+                }
+            }
+            
             Component.onCompleted: root._mediaPlayer = this
         }
         
@@ -492,14 +504,66 @@ Item {
         
         Item {
             anchors.fill: parent; visible: viewer.isVideo
-            VideoOutput { id: vo; anchors.fill: parent }
+            
+            Image {
+                id: videoPreviewFrame
+                anchors.fill: parent
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+                smooth: true
+                mipmap: true
+                visible: viewer.isVideo && videoPlayer && (videoPlayer.playbackState === MediaPlayer.StoppedState || viewer._videoEnded)
+                opacity: visible ? 1.0 : 0.0
+                z: 1
+                
+                source: {
+                    if (!viewer.isVideo || !viewer.currentSource || viewer.currentSource === "") return ""
+                    var src = viewer.currentSource
+                    if (src.startsWith("file:///")) src = src.substring(8)
+                    return "image://thumbnail/" + src
+                }
+                
+                ColoredIcon {
+                    anchors.centerIn: parent
+                    source: Theme.icon("video")
+                    iconSize: 64
+                    color: Theme.colors.mutedForeground
+                    visible: parent.status === Image.Error || parent.status === Image.Null
+                }
+                
+                Behavior on opacity { NumberAnimation { duration: 200 } }
+            }
+            
+            VideoOutput { id: vo; anchors.fill: parent; z: 0 }
             AudioOutput { id: ao; volume: 0.8 }
             Rectangle {
                 anchors.centerIn: parent; width: 72; height: 72; radius: 36
                 color: Theme.isDark ? Qt.rgba(0,0,0,0.6) : Qt.rgba(1,1,1,0.9)
                 visible: viewer.isVideo && videoPlayer && videoPlayer.playbackState !== MediaPlayer.PlayingState
+                z: 10
                 ColoredIcon { anchors.centerIn: parent; source: Theme.icon("play"); iconSize: 32; color: Theme.colors.primary }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (videoPlayer) videoPlayer.togglePlay() }
+            }
+            
+            MouseArea {
+                id: videoClickArea
+                anchors.fill: parent
+                hoverEnabled: true
+                propagateComposedEvents: true
+                acceptedButtons: Qt.LeftButton
+                z: 2
+                
+                onContainsMouseChanged: {
+                    if (containsMouse) {
+                        showNavButtons = true
+                        navButtonHideTimer.restart()
+                    }
+                }
+                
+                onClicked: function(mouse) {
+                    if (videoPlayer) videoPlayer.togglePlay()
+                    mouse.accepted = false
+                }
             }
         }
         
@@ -574,10 +638,77 @@ Item {
                 IconButton { iconName: videoPlayer && videoPlayer.playbackState === MediaPlayer.PlayingState ? "pause" : "play"; iconSize: 16; btnSize: 32; tooltip: qsTr("播放/暂停"); onClicked: if (videoPlayer) videoPlayer.togglePlay() }
                 IconButton { iconName: "skip-forward"; iconSize: 16; btnSize: 32; tooltip: qsTr("+10s"); onClicked: if (videoPlayer) videoPlayer.position = Math.min(videoPlayer.duration, videoPlayer.position + 10000) }
                 Item { width: 8 }
-                Repeater { model: [1.0, 1.5, 2.0]; Rectangle { required property real modelData; width: 32; height: 24; radius: 4; color: videoPlayer && Math.abs(videoPlayer.playbackRate - modelData) < 0.01 ? Theme.colors.primary : Theme.colors.muted; Text { anchors.centerIn: parent; text: modelData + "x"; color: Theme.colors.foreground; font.pixelSize: 11 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (videoPlayer) videoPlayer.playbackRate = modelData } } }
+                Row {
+                    spacing: 4
+                    Repeater {
+                            model: [0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
+                            Rectangle {
+                                required property real modelData
+                                width: speedBtnText.implicitWidth + 12
+                                height: 26
+                                radius: 5
+                                color: {
+                                    var currentRate = videoPlayer ? videoPlayer.playbackRate : 1.0
+                                    if (Math.abs(currentRate - modelData) < 0.01) {
+                                        if (modelData === 0.5) return "#87CEFA"
+                                        if (modelData === 1.0) return "#4989f0ff"
+                                        if (modelData === 1.5) return "#2d6bf1ff"
+                                        if (modelData === 2.0) return "#055bccff"
+                                        if (modelData === 2.5) return "#053885ff"
+                                        return "#0A2864"
+                                    }
+                                    return Theme.isDark 
+                                           ? (speedBtnMouse.containsMouse ? Qt.rgba(1,1,1,0.12) : Qt.rgba(1,1,1,0.06))
+                                           : (speedBtnMouse.containsMouse ? Qt.rgba(0,0,0,0.08) : Qt.rgba(0,0,0,0.03))
+                                }
+                                border.width: 1
+                                border.color: {
+                                    var currentRate = videoPlayer ? videoPlayer.playbackRate : 1.0
+                                    if (Math.abs(currentRate - modelData) < 0.01) {
+                                        return "transparent"
+                                    }
+                                    return Theme.colors.mediaControlBorder
+                                }
+
+                                Text {
+                                    id: speedBtnText
+                                    anchors.centerIn: parent
+                                    text: modelData.toFixed(1) + "x"
+                                    color: {
+                                        var currentRate = videoPlayer ? videoPlayer.playbackRate : 1.0
+                                        if (Math.abs(currentRate - modelData) < 0.01) {
+                                            return Theme.colors.primaryForeground
+                                        }
+                                        return Theme.colors.mediaControlTextMuted
+                                    }
+                                    font.pixelSize: 11
+                                    font.weight: {
+                                        var currentRate = videoPlayer ? videoPlayer.playbackRate : 1.0
+                                        return Math.abs(currentRate - modelData) < 0.01 ? Font.Bold : Font.Normal
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: speedBtnMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: if (videoPlayer) videoPlayer.playbackRate = modelData
+                                }
+
+                                Behavior on color { ColorAnimation { duration: 100 } }
+                            }
+                        }
+                }
                 Item { Layout.fillWidth: true }
-                ColoredIcon { source: Theme.icon("volume-2"); iconSize: 16; color: Theme.colors.foreground }
-                Slider { implicitWidth: 80; from: 0; to: 1; value: 0.8 }
+                IconButton { 
+                    iconName: contentArea.audioOutput.volume > 0 ? "volume-2" : "volume-x"
+                    iconSize: 16; btnSize: 28
+                    iconColor: Theme.colors.mediaControlIcon
+                    tooltip: qsTr("静音")
+                    onClicked: contentArea.audioOutput.volume = contentArea.audioOutput.volume > 0 ? 0 : 0.7
+                }
+                Slider { implicitWidth: 80; from: 0; to: 1; value: contentArea.audioOutput.volume; onMoved: contentArea.audioOutput.volume = value }
             }
         }
     }
