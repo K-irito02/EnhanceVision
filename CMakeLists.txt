@@ -202,6 +202,7 @@ qt_add_qml_module(EnhanceVision
         qml/controls/ColoredIcon.qml
         qml/controls/ParamSlider.qml
         qml/controls/ParamGroup.qml
+        qml/controls/Tooltip.qml
         qml/shaders/BrightnessContrast.qml
         qml/shaders/SaturationHue.qml
         qml/shaders/SharpenBlur.qml

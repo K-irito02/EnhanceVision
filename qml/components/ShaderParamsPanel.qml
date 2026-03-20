@@ -165,9 +165,33 @@ ColumnLayout {
                         onClicked: addCategoryDialog.show()
                     }
 
-                    ToolTip.visible: addCategoryMouse.containsMouse
-                    ToolTip.text: qsTr("新建类别")
-                    ToolTip.delay: 500
+                    Tooltip {
+                        id: addCategoryTooltip
+                        text: qsTr("新建类别")
+                    }
+
+                    Timer {
+                        id: addCategoryTooltipTimer
+                        interval: Theme.tooltip.delay
+                        repeat: false
+                        onTriggered: {
+                            if (addCategoryMouse.containsMouse) {
+                                addCategoryTooltip.show(addCategoryBtn)
+                            }
+                        }
+                    }
+
+                    Connections {
+                        target: addCategoryMouse
+                        function onContainsMouseChanged() {
+                            if (addCategoryMouse.containsMouse) {
+                                addCategoryTooltipTimer.start()
+                            } else {
+                                addCategoryTooltipTimer.stop()
+                                addCategoryTooltip.close()
+                            }
+                        }
+                    }
 
                     Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
                 }
@@ -209,9 +233,33 @@ ColumnLayout {
                         onClicked: savePresetDialog.show()
                     }
 
-                    ToolTip.visible: saveMouse.containsMouse
-                    ToolTip.text: qsTr("保存风格")
-                    ToolTip.delay: 500
+                    Tooltip {
+                        id: saveTooltip
+                        text: qsTr("保存风格")
+                    }
+
+                    Timer {
+                        id: saveTooltipTimer
+                        interval: Theme.tooltip.delay
+                        repeat: false
+                        onTriggered: {
+                            if (saveMouse.containsMouse) {
+                                saveTooltip.show(saveStyleBtn)
+                            }
+                        }
+                    }
+
+                    Connections {
+                        target: saveMouse
+                        function onContainsMouseChanged() {
+                            if (saveMouse.containsMouse) {
+                                saveTooltipTimer.start()
+                            } else {
+                                saveTooltipTimer.stop()
+                                saveTooltip.close()
+                            }
+                        }
+                    }
 
                     Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
                 }

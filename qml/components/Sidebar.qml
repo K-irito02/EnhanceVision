@@ -133,11 +133,33 @@ Rectangle {
                         }
                     }
                 }
-                
-                ToolTip {
-                    visible: batchMouse.containsMouse
+
+                Tooltip {
+                    id: batchTooltip
                     text: root.batchMode ? qsTr("取消批量") : qsTr("批量操作")
-                    delay: 500
+                }
+
+                Timer {
+                    id: batchTooltipTimer
+                    interval: Theme.tooltip.delay
+                    repeat: false
+                    onTriggered: {
+                        if (batchMouse.containsMouse) {
+                            batchTooltip.show(batchBtn)
+                        }
+                    }
+                }
+
+                Connections {
+                    target: batchMouse
+                    function onContainsMouseChanged() {
+                        if (batchMouse.containsMouse) {
+                            batchTooltipTimer.start()
+                        } else {
+                            batchTooltipTimer.stop()
+                            batchTooltip.close()
+                        }
+                    }
                 }
             }
             
@@ -187,11 +209,33 @@ Rectangle {
                         }
                     }
                 }
-                
-                ToolTip {
-                    visible: newMouse.containsMouse
+
+                Tooltip {
+                    id: newTooltip
                     text: qsTr("新建会话")
-                    delay: 500
+                }
+
+                Timer {
+                    id: newTooltipTimer
+                    interval: Theme.tooltip.delay
+                    repeat: false
+                    onTriggered: {
+                        if (newMouse.containsMouse) {
+                            newTooltip.show(newBtn)
+                        }
+                    }
+                }
+
+                Connections {
+                    target: newMouse
+                    function onContainsMouseChanged() {
+                        if (newMouse.containsMouse) {
+                            newTooltipTimer.start()
+                        } else {
+                            newTooltipTimer.stop()
+                            newTooltip.close()
+                        }
+                    }
                 }
             }
         }
@@ -229,11 +273,33 @@ Rectangle {
                         }
                     }
                 }
-                
-                ToolTip {
-                    visible: selectAllMouse.containsMouse
+
+                Tooltip {
+                    id: selectAllTooltip
                     text: root.selectedCount === root.totalCount && root.totalCount > 0 ? qsTr("取消全选") : qsTr("全选")
-                    delay: 500
+                }
+
+                Timer {
+                    id: selectAllTooltipTimer
+                    interval: Theme.tooltip.delay
+                    repeat: false
+                    onTriggered: {
+                        if (selectAllMouse.containsMouse) {
+                            selectAllTooltip.show(parent.parent)
+                        }
+                    }
+                }
+
+                Connections {
+                    target: selectAllMouse
+                    function onContainsMouseChanged() {
+                        if (selectAllMouse.containsMouse) {
+                            selectAllTooltipTimer.start()
+                        } else {
+                            selectAllTooltipTimer.stop()
+                            selectAllTooltip.close()
+                        }
+                    }
                 }
             }
             
@@ -283,11 +349,33 @@ Rectangle {
                     enabled: root.selectedCount > 0
                     onClicked: root.clearSelected()
                 }
-                
-                ToolTip {
-                    visible: clearMouse.containsMouse && root.selectedCount > 0
+
+                Tooltip {
+                    id: clearTooltip
                     text: qsTr("清空选中会话")
-                    delay: 500
+                }
+
+                Timer {
+                    id: clearTooltipTimer
+                    interval: Theme.tooltip.delay
+                    repeat: false
+                    onTriggered: {
+                        if (clearMouse.containsMouse && root.selectedCount > 0) {
+                            clearTooltip.show(parent.parent)
+                        }
+                    }
+                }
+
+                Connections {
+                    target: clearMouse
+                    function onContainsMouseChanged() {
+                        if (clearMouse.containsMouse && root.selectedCount > 0) {
+                            clearTooltipTimer.start()
+                        } else {
+                            clearTooltipTimer.stop()
+                            clearTooltip.close()
+                        }
+                    }
                 }
             }
             
@@ -318,11 +406,33 @@ Rectangle {
                     enabled: root.selectedCount > 0
                     onClicked: root.deleteSelected()
                 }
-                
-                ToolTip {
-                    visible: deleteMouse.containsMouse && root.selectedCount > 0
+
+                Tooltip {
+                    id: deleteTooltip
                     text: qsTr("删除选中会话")
-                    delay: 500
+                }
+
+                Timer {
+                    id: deleteTooltipTimer
+                    interval: Theme.tooltip.delay
+                    repeat: false
+                    onTriggered: {
+                        if (deleteMouse.containsMouse && root.selectedCount > 0) {
+                            deleteTooltip.show(parent.parent)
+                        }
+                    }
+                }
+
+                Connections {
+                    target: deleteMouse
+                    function onContainsMouseChanged() {
+                        if (deleteMouse.containsMouse && root.selectedCount > 0) {
+                            deleteTooltipTimer.start()
+                        } else {
+                            deleteTooltipTimer.stop()
+                            deleteTooltip.close()
+                        }
+                    }
                 }
             }
         }

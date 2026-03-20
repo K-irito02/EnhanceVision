@@ -38,6 +38,9 @@
         <file>../qml/controls/Slider.qml</file>
         <file>../qml/controls/TextField.qml</file>
         <file>../qml/controls/ParamSlider.qml</file>
+        <file>../qml/controls/Tooltip.qml</file>
+        <file>../qml/controls/ColoredIcon.qml</file>
+        <file>../qml/controls/ParamGroup.qml</file>
         
         <!-- Shader 效果组件 -->
         <file>../qml/shaders/BrightnessContrast.qml</file>

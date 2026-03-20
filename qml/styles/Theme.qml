@@ -134,4 +134,13 @@ QtObject {
         // 当前主题的渐变
         readonly property var current: isDark ? dark : light
     }
+
+    // ========== Tooltip 配置 ==========
+    readonly property var tooltip: QtObject {
+        readonly property int delay: 500
+        readonly property int maxWidth: 280
+        readonly property int padding: 8
+        readonly property int arrowSize: 6
+        readonly property int offset: 4
+    }
 }

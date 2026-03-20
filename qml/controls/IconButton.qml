@@ -2,63 +2,47 @@ import QtQuick
 import QtQuick.Controls
 import "../styles"
 
-/**
- * @brief 现代化图标按钮控件
- * 支持 SVG 图标加载，带悬浮/按下动效
- */
 Button {
     id: root
 
-    // ========== 属性 ==========
-    /**
-     * @brief 图标名称（对应 resources/icons/ 下的 SVG 文件名，不含扩展名）
-     */
     property string iconName: ""
-
-    /**
-     * @brief 备用：直接传文本字符作为图标
-     */
     property string iconText: ""
-
-    /**
-     * @brief 图标颜色
-     */
     property color iconColor: Theme.colors.icon
-
-    /**
-     * @brief 悬浮时图标颜色
-     */
     property color iconHoverColor: Theme.colors.iconHover
-
-    /**
-     * @brief 图标尺寸
-     */
     property int iconSize: 18
-
-    /**
-     * @brief 提示文本
-     */
     property string tooltip: ""
-
-    /**
-     * @brief 按钮尺寸
-     */
     property int btnSize: 32
-
-    /**
-     * @brief 是否为危险操作按钮
-     */
     property bool danger: false
 
-    // ========== 基础设置 ==========
     width: btnSize
     height: btnSize
     flat: true
     padding: 0
 
-    ToolTip.text: tooltip
-    ToolTip.visible: hovered && tooltip !== ""
-    ToolTip.delay: 600
+    Tooltip {
+        id: customTooltip
+        text: root.tooltip
+    }
+
+    Timer {
+        id: showTooltipTimer
+        interval: 500
+        repeat: false
+        onTriggered: {
+            if (root.hovered && root.tooltip !== "") {
+                customTooltip.show(root)
+            }
+        }
+    }
+
+    onHoveredChanged: {
+        if (hovered && tooltip !== "") {
+            showTooltipTimer.start()
+        } else {
+            showTooltipTimer.stop()
+            customTooltip.close()
+        }
+    }
 
     // ========== 背景 ==========
     background: Rectangle {

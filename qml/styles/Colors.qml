@@ -110,6 +110,11 @@ QtObject {
         readonly property color mediaControlTextMuted: "#5A6A85"
         readonly property color mediaControlOverlay: Qt.rgba(255, 255, 255, 0.85)
         readonly property color mediaControlOverlayHover: Qt.rgba(240, 244, 250, 0.92)
+
+        // Tooltip 提示框
+        readonly property color tooltip: "#FFFFFF"
+        readonly property color tooltipForeground: "#0A1628"
+        readonly property color tooltipBorder: "#D0DAE8"
     }
 
     // ========== 暗色主题 (Dark Theme) - 克莱因蓝深色系 ==========
@@ -215,5 +220,10 @@ QtObject {
         readonly property color mediaControlTextMuted: "#7A8BA8"
         readonly property color mediaControlOverlay: Qt.rgba(10, 20, 40, 0.88)
         readonly property color mediaControlOverlayHover: Qt.rgba(15, 32, 64, 0.92)
+
+        // Tooltip 提示框 - 淡蓝色背景
+        readonly property color tooltip: "#1E3A5F"
+        readonly property color tooltipForeground: "#E8EDF5"
+        readonly property color tooltipBorder: "#2A5080"
     }
 }

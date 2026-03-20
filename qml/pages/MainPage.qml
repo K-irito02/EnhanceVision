@@ -336,7 +336,6 @@ Rectangle {
                     _openPendingFileViewer(index)
                 }
                 onSaveFile: function(index) {
-                    console.log("保存待处理文件:", index)
                 }
                 onDeleteFile: function(index) {
                     if (typeof fileController !== "undefined")
@@ -567,7 +566,6 @@ Rectangle {
     }
     
     function _sendForProcessing() {
-        console.log("发送处理任务，模式:", root.processingMode === 0 ? "Shader" : "AI")
         if (typeof sessionController !== "undefined") {
             sessionController.ensureActiveSession()
         }
@@ -590,7 +588,6 @@ Rectangle {
                     highlights: _getShaderParam("shaderHighlights", 0.0),
                     shadows: _getShaderParam("shaderShadows", 0.0)
                 }
-                console.log("[MainPage] Sending shader params:", JSON.stringify(params))
             }
             processingController.sendToProcessing(root.processingMode, params)
         }
@@ -682,24 +679,19 @@ Rectangle {
     }
     
     function _addDemoFiles(urls) {
-        console.log("[MainPage] Adding demo files, count:", urls.length)
         for (var i = 0; i < urls.length; i++) {
             var url = urls[i]
             var path = url.toString()
-            console.log("[MainPage] Adding file:", i, "raw path:", path)
             
-            // 转换 URL 为本地文件路径
             var localPath = url.toLocalFile ? url.toLocalFile() : path
             var name = localPath.split(/[/\\]/).pop()
             var isVideo = /\.(mp4|avi|mkv|mov|flv)$/i.test(name)
-            
-            console.log("[MainPage] File details - localPath:", localPath, "name:", name, "isVideo:", isVideo)
             
             pendingFilesModel.append({
                 "filePath": localPath,
                 "fileName": name,
                 "mediaType": isVideo ? 1 : 0,
-                "thumbnail": "",  // 留空让 MediaThumbnailStrip 通过 provider 加载
+                "thumbnail": "",
                 "status": 0,
                 "resultPath": ""
             })
