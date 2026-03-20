@@ -61,7 +61,7 @@
         <file>../qml/utils/Helpers.js</file>
     </qresource>
     
-    <qresource prefix="/icons">
+    <qresource prefix="/">
         <!-- 图标资源 -->
         <file>icons/home.svg</file>
         <file>icons/settings.svg</file>
@@ -126,7 +126,7 @@
         <file>icons/folder-plus.svg</file>
     </qresource>
     
-    <qresource prefix="/icons-dark">
+    <qresource prefix="/">
         <!-- 暗色主题图标资源 -->
         <file>icons-dark/home.svg</file>
         <file>icons-dark/settings.svg</file>
@@ -189,6 +189,12 @@
         <file>icons-dark/grid.svg</file>
         <file>icons-dark/folder-plus.svg</file>
         <file>icons-dark/external-link.svg</file>
+        <file>icons-dark/color-palette.svg</file>
+        <file>icons-dark/detail-enhance.svg</file>
+        <file>icons-dark/light-shadow.svg</file>
+        <file>icons-dark/adjust-basic.svg</file>
+        <file>icons-dark/list-select.svg</file>
+        <file>icons-dark/eraser.svg</file>
     </qresource>
     
     <qresource prefix="/shaders">

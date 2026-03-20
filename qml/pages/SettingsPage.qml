@@ -78,7 +78,7 @@ Rectangle {
 
                         RowLayout {
                             spacing: 8
-                            Image { width: 18; height: 18; source: Theme.icon("monitor"); sourceSize: Qt.size(18, 18); smooth: true }
+                            ColoredIcon { iconSize: 18; source: Theme.icon("monitor"); color: Theme.colors.icon }
                             Text { text: qsTr("外观"); color: Theme.colors.foreground; font.pixelSize: 15; font.weight: Font.DemiBold }
                         }
 
@@ -104,7 +104,7 @@ Rectangle {
 
                                     Row {
                                         anchors.centerIn: parent; spacing: 6
-                                        Image { anchors.verticalCenter: parent.verticalCenter; width: 14; height: 14; source: Theme.icon("moon"); sourceSize: Qt.size(14, 14); smooth: true }
+                                        ColoredIcon { anchors.verticalCenter: parent.verticalCenter; iconSize: 14; source: Theme.icon("moon"); color: Theme.isDark ? "#FFFFFF" : Theme.colors.icon }
                                         Text { id: darkLabel; anchors.verticalCenter: parent.verticalCenter; text: qsTr("暗色"); font.pixelSize: 12; font.weight: Font.Medium; color: Theme.isDark ? "#FFFFFF" : Theme.colors.foreground }
                                     }
                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Theme.setDark(true) }
@@ -120,7 +120,7 @@ Rectangle {
 
                                     Row {
                                         anchors.centerIn: parent; spacing: 6
-                                        Image { anchors.verticalCenter: parent.verticalCenter; width: 14; height: 14; source: Theme.icon("sun"); sourceSize: Qt.size(14, 14); smooth: true }
+                                        ColoredIcon { anchors.verticalCenter: parent.verticalCenter; iconSize: 14; source: Theme.icon("sun"); color: !Theme.isDark ? "#FFFFFF" : Theme.colors.icon }
                                         Text { id: lightLabel; anchors.verticalCenter: parent.verticalCenter; text: qsTr("亮色"); font.pixelSize: 12; font.weight: Font.Medium; color: !Theme.isDark ? "#FFFFFF" : Theme.colors.foreground }
                                     }
                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Theme.setDark(false) }
@@ -164,7 +164,7 @@ Rectangle {
 
                         RowLayout {
                             spacing: 8
-                            Image { width: 18; height: 18; source: Theme.icon("cpu"); sourceSize: Qt.size(18, 18); smooth: true }
+                            ColoredIcon { iconSize: 18; source: Theme.icon("cpu"); color: Theme.colors.icon }
                             Text { text: qsTr("性能"); color: Theme.colors.foreground; font.pixelSize: 15; font.weight: Font.DemiBold }
                         }
 
@@ -205,7 +205,7 @@ Rectangle {
 
                         RowLayout {
                             spacing: 8
-                            Image { width: 18; height: 18; source: Theme.icon("info"); sourceSize: Qt.size(18, 18); smooth: true }
+                            ColoredIcon { iconSize: 18; source: Theme.icon("info"); color: Theme.colors.icon }
                             Text { text: qsTr("关于"); color: Theme.colors.foreground; font.pixelSize: 15; font.weight: Font.DemiBold }
                         }
 
