@@ -127,6 +127,13 @@
         <file>icons/skip-back.svg</file>
         <file>icons/grid.svg</file>
         <file>icons/folder-plus.svg</file>
+        <file>icons/volume.svg</file>
+        <file>icons/color-palette.svg</file>
+        <file>icons/light-shadow.svg</file>
+        <file>icons/detail-enhance.svg</file>
+        <file>icons/adjust-basic.svg</file>
+        <file>icons/eraser.svg</file>
+        <file>icons/list-select.svg</file>
     </qresource>
     
     <qresource prefix="/">
@@ -198,6 +205,7 @@
         <file>icons-dark/adjust-basic.svg</file>
         <file>icons-dark/list-select.svg</file>
         <file>icons-dark/eraser.svg</file>
+        <file>icons-dark/volume.svg</file>
     </qresource>
     
     <qresource prefix="/shaders">

@@ -87,22 +87,41 @@ Window {
     property bool _wasMaximized: false
     property var mediaPlayer: null
 
-    property bool hoverActive: true
-    property bool _prevButtonHovered: false
-    property bool _nextButtonHovered: false
-    property bool _buttonsHovered: _prevButtonHovered || _nextButtonHovered
+    // ========== 导航按钮状态管理 ==========
+    property bool navButtonsVisible: false
+    property bool prevBtnHovered: false
+    property bool nextBtnHovered: false
 
     signal fileRemoved(string messageId, int fileIndex)
 
+    // 2秒后自动隐藏定时器
     Timer {
-        id: hideButtonsTimer
+        id: autoHideTimer
         interval: 2000
-        running: false
         repeat: false
         onTriggered: {
-            if (!_buttonsHovered) {
-                hoverActive = false
+            // 只要鼠标不在按钮上就隐藏
+            if (!prevBtnHovered && !nextBtnHovered) {
+                navButtonsVisible = false
             }
+        }
+    }
+    
+    // 显示导航按钮并重置定时器
+    function showNavButtonsAndResetTimer() {
+        navButtonsVisible = true
+        autoHideTimer.restart()
+    }
+    
+    // 停止自动隐藏（当悬停在按钮上时）
+    function stopAutoHide() {
+        autoHideTimer.stop()
+    }
+    
+    // 启动自动隐藏（当离开按钮时）
+    function startAutoHideIfNeeded() {
+        if (!prevBtnHovered && !nextBtnHovered) {
+            autoHideTimer.restart()
         }
     }
 
@@ -369,15 +388,14 @@ Window {
 
                     onContainsMouseChanged: {
                         if (containsMouse) {
-                            root.hoverActive = true
-                            hideButtonsTimer.stop()
-                        } else if (!root._buttonsHovered) {
-                            hideButtonsTimer.restart()
+                            root.showNavButtonsAndResetTimer()
+                        } else {
+                            root.startAutoHideIfNeeded()
                         }
                     }
-
-                    onClicked: {
-                        root.hoverActive = !root.hoverActive
+                    
+                    onPositionChanged: {
+                        root.showNavButtonsAndResetTimer()
                     }
 
                     onDoubleClicked: {
@@ -414,15 +432,14 @@ Window {
 
                     onContainsMouseChanged: {
                         if (containsMouse) {
-                            root.hoverActive = true
-                            hideButtonsTimer.stop()
-                        } else if (!root._buttonsHovered) {
-                            hideButtonsTimer.restart()
+                            root.showNavButtonsAndResetTimer()
+                        } else {
+                            root.startAutoHideIfNeeded()
                         }
                     }
-
-                    onClicked: {
-                        root.hoverActive = !root.hoverActive
+                    
+                    onPositionChanged: {
+                        root.showNavButtonsAndResetTimer()
                     }
 
                     onDoubleClicked: {
@@ -638,15 +655,21 @@ Window {
                     hoverEnabled: true
                     propagateComposedEvents: true
                     acceptedButtons: Qt.LeftButton
-                    z: 2
+                    z: 3
 
                     onContainsMouseChanged: {
+                        root._mouseInContentArea = containsMouse
                         if (containsMouse) {
                             root.hoverActive = true
                             hideButtonsTimer.stop()
                         } else if (!root._buttonsHovered) {
                             hideButtonsTimer.restart()
                         }
+                    }
+                    
+                    onPositionChanged: {
+                        root.hoverActive = true
+                        hideButtonsTimer.restart()
                     }
 
                     onClicked: function(mouse) {
@@ -685,21 +708,45 @@ Window {
         Rectangle {
             id: prevButton
             anchors.left: parent.left
-            anchors.leftMargin: 12
+            anchors.leftMargin: 16
             anchors.verticalCenter: contentArea.verticalCenter
-            width: 40; height: 40; radius: 20
-            color: Theme.isDark 
-                   ? (prevMouse.containsMouse ? Qt.rgba(1,1,1,0.2) : Qt.rgba(1,1,1,0.08))
-                   : (prevMouse.containsMouse ? Qt.rgba(0,0,0,0.12) : Qt.rgba(0,0,0,0.05))
+            width: 44; height: 44; radius: 22
             visible: currentIndex > 0
-            opacity: hoverActive || prevMouse.containsMouse ? 1.0 : 0.0
+            opacity: navButtonsVisible ? 1.0 : 0.0
             z: 50
+            
+            // 悬停状态
+            property bool isHovered: prevMouse.containsMouse
+            // 按下状态
+            property bool isPressed: prevMouse.pressed
+            
+            // 背景颜色：根据状态变化
+            color: {
+                if (isPressed) {
+                    // 按下时：更深的颜色
+                    return Theme.isDark ? Qt.rgba(1, 1, 1, 0.45) : Qt.rgba(0, 0, 0, 0.25)
+                } else if (isHovered) {
+                    // 悬停时：较亮的颜色
+                    return Theme.isDark ? Qt.rgba(1, 1, 1, 0.3) : Qt.rgba(0, 0, 0, 0.15)
+                } else {
+                    // 默认：半透明
+                    return Theme.isDark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.08)
+                }
+            }
+            
+            // 缩放动画：悬停放大，按下缩小
+            scale: isPressed ? 0.9 : (isHovered ? 1.15 : 1.0)
+            
+            // 平滑动画
+            Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
 
             ColoredIcon {
                 anchors.centerIn: parent
                 source: Theme.icon("chevron-left")
-                iconSize: 20
-                color: Theme.colors.mediaControlIcon
+                iconSize: 22
+                color: Theme.isDark ? "#FFFFFF" : Theme.colors.foreground
             }
 
             MouseArea {
@@ -708,39 +755,59 @@ Window {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: _prevFile()
-                onContainsMouseChanged: {
-                    root._prevButtonHovered = containsMouse
-                    if (containsMouse) {
-                        hoverActive = true
-                        hideButtonsTimer.stop()
-                    } else {
-                        hideButtonsTimer.start()
-                    }
+                onEntered: {
+                    root.prevBtnHovered = true
+                    root.stopAutoHide()
+                }
+                onExited: {
+                    root.prevBtnHovered = false
+                    root.startAutoHideIfNeeded()
                 }
             }
-
-            Behavior on color { ColorAnimation { duration: 150 } }
-            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
         }
 
         Rectangle {
             id: nextButton
             anchors.right: parent.right
-            anchors.rightMargin: 12
+            anchors.rightMargin: 16
             anchors.verticalCenter: contentArea.verticalCenter
-            width: 40; height: 40; radius: 20
-            color: Theme.isDark 
-                   ? (nextMouse.containsMouse ? Qt.rgba(1,1,1,0.2) : Qt.rgba(1,1,1,0.08))
-                   : (nextMouse.containsMouse ? Qt.rgba(0,0,0,0.12) : Qt.rgba(0,0,0,0.05))
+            width: 44; height: 44; radius: 22
             visible: currentIndex < mediaFiles.length - 1
-            opacity: hoverActive || nextMouse.containsMouse ? 1.0 : 0.0
+            opacity: navButtonsVisible ? 1.0 : 0.0
             z: 50
+            
+            // 悬停状态
+            property bool isHovered: nextMouse.containsMouse
+            // 按下状态
+            property bool isPressed: nextMouse.pressed
+            
+            // 背景颜色：根据状态变化
+            color: {
+                if (isPressed) {
+                    // 按下时：更深的颜色
+                    return Theme.isDark ? Qt.rgba(1, 1, 1, 0.45) : Qt.rgba(0, 0, 0, 0.25)
+                } else if (isHovered) {
+                    // 悬停时：较亮的颜色
+                    return Theme.isDark ? Qt.rgba(1, 1, 1, 0.3) : Qt.rgba(0, 0, 0, 0.15)
+                } else {
+                    // 默认：半透明
+                    return Theme.isDark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.08)
+                }
+            }
+            
+            // 缩放动画：悬停放大，按下缩小
+            scale: isPressed ? 0.9 : (isHovered ? 1.15 : 1.0)
+            
+            // 平滑动画
+            Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
 
             ColoredIcon {
                 anchors.centerIn: parent
                 source: Theme.icon("chevron-right")
-                iconSize: 20
-                color: Theme.colors.mediaControlIcon
+                iconSize: 22
+                color: Theme.isDark ? "#FFFFFF" : Theme.colors.foreground
             }
 
             MouseArea {
@@ -749,19 +816,15 @@ Window {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: _nextFile()
-                onContainsMouseChanged: {
-                    root._nextButtonHovered = containsMouse
-                    if (containsMouse) {
-                        hoverActive = true
-                        hideButtonsTimer.stop()
-                    } else {
-                        hideButtonsTimer.start()
-                    }
+                onEntered: {
+                    root.nextBtnHovered = true
+                    root.stopAutoHide()
+                }
+                onExited: {
+                    root.nextBtnHovered = false
+                    root.startAutoHideIfNeeded()
                 }
             }
-
-            Behavior on color { ColorAnimation { duration: 150 } }
-            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
         }
 
         Rectangle {
@@ -895,44 +958,45 @@ Window {
                         Repeater {
                             model: [0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
                             Rectangle {
+                                id: speedBtnRect
                                 required property real modelData
+                                required property int index
                                 width: speedBtnText.implicitWidth + 12
                                 height: 26
                                 radius: 5
-                                color: {
+                                
+                                // 计算渐变颜色：从浅蓝到深蓝
+                                function getSpeedColor() {
+                                    var colors = ["#7CB9E8", "#5B9BD5", "#3A7FC2", "#1E5FAF", "#0D4A9C", "#002FA7"]
+                                    return colors[index]
+                                }
+                                
+                                property bool isSelected: {
                                     var currentRate = mediaPlayer ? mediaPlayer.playbackRate : 1.0
-                                    if (Math.abs(currentRate - modelData) < 0.01) {
-                                        return Theme.colors.primary
+                                    return Math.abs(currentRate - modelData) < 0.01
+                                }
+                                
+                                color: {
+                                    if (isSelected) {
+                                        return getSpeedColor()
+                                    }
+                                    if (speedBtnMouse.pressed) {
+                                        return Theme.isDark ? Qt.rgba(1,1,1,0.18) : Qt.rgba(0,0,0,0.12)
                                     }
                                     return Theme.isDark 
                                            ? (speedBtnMouse.containsMouse ? Qt.rgba(1,1,1,0.12) : Qt.rgba(1,1,1,0.06))
-                                           : (speedBtnMouse.containsMouse ? Qt.rgba(0,0,0,0.08) : Qt.rgba(0,0,0,0.03))
+                                           : (speedBtnMouse.containsMouse ? Qt.rgba(0,0,0,0.08) : Qt.rgba(0,0,0,0.04))
                                 }
                                 border.width: 1
-                                border.color: {
-                                    var currentRate = mediaPlayer ? mediaPlayer.playbackRate : 1.0
-                                    if (Math.abs(currentRate - modelData) < 0.01) {
-                                        return "transparent"
-                                    }
-                                    return Theme.colors.mediaControlBorder
-                                }
+                                border.color: isSelected ? "transparent" : Theme.colors.mediaControlBorder
 
                                 Text {
                                     id: speedBtnText
                                     anchors.centerIn: parent
-                                    text: modelData.toFixed(1) + "x"
-                                    color: {
-                                        var currentRate = mediaPlayer ? mediaPlayer.playbackRate : 1.0
-                                        if (Math.abs(currentRate - modelData) < 0.01) {
-                                            return Theme.colors.primaryForeground
-                                        }
-                                        return Theme.colors.mediaControlTextMuted
-                                    }
+                                    text: speedBtnRect.modelData.toFixed(1) + "x"
+                                    color: speedBtnRect.isSelected ? "#FFFFFF" : Theme.colors.mediaControlTextMuted
                                     font.pixelSize: 11
-                                    font.weight: {
-                                        var currentRate = mediaPlayer ? mediaPlayer.playbackRate : 1.0
-                                        return Math.abs(currentRate - modelData) < 0.01 ? Font.Bold : Font.Normal
-                                    }
+                                    font.weight: speedBtnRect.isSelected ? Font.Bold : Font.Normal
                                 }
 
                                 MouseArea {
@@ -940,7 +1004,7 @@ Window {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: if (mediaPlayer) mediaPlayer.playbackRate = modelData
+                                    onClicked: if (mediaPlayer) mediaPlayer.playbackRate = speedBtnRect.modelData
                                 }
 
                                 Behavior on color { ColorAnimation { duration: 100 } }

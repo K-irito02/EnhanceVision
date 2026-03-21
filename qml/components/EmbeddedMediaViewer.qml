@@ -589,35 +589,64 @@ Item {
         property alias audioOutput: ao
         clip: true
         
-        // 导航按钮自动隐藏控制
-        property bool showNavButtons: true
-        property bool prevButtonHovered: false
-        property bool nextButtonHovered: false
+        // ========== 导航按钮状态管理 ==========
+        property bool navButtonsVisible: false
+        property bool prevBtnHovered: false
+        property bool nextBtnHovered: false
         
+        // 2秒后自动隐藏定时器
         Timer {
-            id: navButtonHideTimer
+            id: autoHideTimer
             interval: 2000
             repeat: false
-            onTriggered: { if (!prevButtonHovered && !nextButtonHovered) showNavButtons = false }
+            onTriggered: {
+                // 只要鼠标不在按钮上就隐藏
+                if (!prevBtnHovered && !nextBtnHovered) {
+                    navButtonsVisible = false
+                }
+            }
         }
         
-        MouseArea {
-            anchors.fill: parent
-            hoverEnabled: true
-            propagateComposedEvents: true
-            onPositionChanged: {
-                showNavButtons = true
-                navButtonHideTimer.restart()
-            }
-            onEntered: {
-                showNavButtons = true
-                navButtonHideTimer.restart()
+        // 显示导航按钮并重置定时器
+        function showNavButtonsAndResetTimer() {
+            navButtonsVisible = true
+            autoHideTimer.restart()
+        }
+        
+        // 停止自动隐藏（当悬停在按钮上时）
+        function stopAutoHide() {
+            autoHideTimer.stop()
+        }
+        
+        // 启动自动隐藏（当离开按钮时）
+        function startAutoHideIfNeeded() {
+            if (!prevBtnHovered && !nextBtnHovered) {
+                autoHideTimer.restart()
             }
         }
         
         Image { id: imgSrc; anchors.fill: parent; visible: false; source: !viewer.isVideo ? viewer._getSource(viewer.currentSource) : ""; fillMode: Image.PreserveAspectFit; asynchronous: true; smooth: true; mipmap: true }
         FullShaderEffect { anchors.fill: imgSrc; source: imgSrc; visible: !viewer.isVideo && viewer.currentSource && viewer.shaderEnabled && !viewer.messageMode && !viewer.showOriginal; brightness: viewer.shaderBrightness; contrast: viewer.shaderContrast; saturation: viewer.shaderSaturation; hue: viewer.shaderHue; sharpness: viewer.shaderSharpness; blurAmount: viewer.shaderBlur; denoise: viewer.shaderDenoise; exposure: viewer.shaderExposure; gamma: viewer.shaderGamma; temperature: viewer.shaderTemperature; tint: viewer.shaderTint; vignette: viewer.shaderVignette; highlights: viewer.shaderHighlights; shadows: viewer.shaderShadows }
-        Image { anchors.fill: parent; visible: !viewer.isVideo && viewer.currentSource && (viewer.showOriginal || !viewer.shaderEnabled || viewer.messageMode); source: viewer._getSource(viewer.currentSource); fillMode: Image.PreserveAspectFit; asynchronous: true; smooth: true; mipmap: true }
+        Image { anchors.fill: parent; visible: !viewer.isVideo && viewer.currentSource && (viewer.showOriginal || !viewer.shaderEnabled || viewer.messageMode); source: !viewer.isVideo ? viewer._getSource(viewer.currentSource) : ""; fillMode: Image.PreserveAspectFit; asynchronous: true; smooth: true; mipmap: true }
+        
+        // 图片区域的鼠标检测
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            propagateComposedEvents: true
+            acceptedButtons: Qt.NoButton
+            z: 10
+            
+            onPositionChanged: {
+                showNavButtonsAndResetTimer()
+            }
+            onEntered: {
+                showNavButtonsAndResetTimer()
+            }
+            onExited: {
+                startAutoHideIfNeeded()
+            }
+        }
         
         Item {
             anchors.fill: parent; visible: viewer.isVideo
@@ -730,10 +759,14 @@ Item {
                 acceptedButtons: Qt.LeftButton
                 z: 2
                 
+                onPositionChanged: {
+                    showNavButtonsAndResetTimer()
+                }
                 onContainsMouseChanged: {
                     if (containsMouse) {
-                        showNavButtons = true
-                        navButtonHideTimer.restart()
+                        showNavButtonsAndResetTimer()
+                    } else {
+                        startAutoHideIfNeeded()
                     }
                 }
                 
@@ -749,22 +782,61 @@ Item {
             anchors.left: parent.left
             anchors.leftMargin: 16
             anchors.verticalCenter: parent.verticalCenter
-            width: 48
-            height: 48
-            radius: 24
-            color: pma.containsMouse ? Theme.colors.muted : Qt.rgba(0.5,0.5,0.5,0.2)
+            width: 44
+            height: 44
+            radius: 22
             visible: viewer.currentIndex > 0
-            opacity: showNavButtons || prevButtonHovered ? 1.0 : 0.0
-            Behavior on opacity { NumberAnimation { duration: 200 } }
-            ColoredIcon { anchors.centerIn: parent; source: Theme.icon("chevron-left"); iconSize: 24; color: Theme.colors.foreground }
+            opacity: navButtonsVisible ? 1.0 : 0.0
+            z: 50
+            
+            // 悬停状态
+            property bool isHovered: pma.containsMouse
+            // 按下状态
+            property bool isPressed: pma.pressed
+            
+            // 背景颜色：根据状态变化
+            color: {
+                if (isPressed) {
+                    // 按下时：更深的颜色
+                    return Theme.isDark ? Qt.rgba(1, 1, 1, 0.45) : Qt.rgba(0, 0, 0, 0.25)
+                } else if (isHovered) {
+                    // 悬停时：较亮的颜色
+                    return Theme.isDark ? Qt.rgba(1, 1, 1, 0.3) : Qt.rgba(0, 0, 0, 0.15)
+                } else {
+                    // 默认：半透明
+                    return Theme.isDark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.08)
+                }
+            }
+            
+            // 缩放动画：悬停放大，按下缩小
+            scale: isPressed ? 0.9 : (isHovered ? 1.15 : 1.0)
+            
+            // 平滑动画
+            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+            Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+            
+            ColoredIcon { 
+                anchors.centerIn: parent
+                source: Theme.icon("chevron-left")
+                iconSize: 22
+                color: Theme.isDark ? "#FFFFFF" : Theme.colors.foreground
+            }
+            
             MouseArea { 
                 id: pma
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: viewer._prevFile()
-                onEntered: { prevButtonHovered = true; showNavButtons = true; navButtonHideTimer.stop() }
-                onExited: { prevButtonHovered = false; navButtonHideTimer.start() }
+                onEntered: {
+                    prevBtnHovered = true
+                    stopAutoHide()
+                }
+                onExited: {
+                    prevBtnHovered = false
+                    startAutoHideIfNeeded()
+                }
             }
         }
         
@@ -773,22 +845,61 @@ Item {
             anchors.right: parent.right
             anchors.rightMargin: 16
             anchors.verticalCenter: parent.verticalCenter
-            width: 48
-            height: 48
-            radius: 24
-            color: nma.containsMouse ? Theme.colors.muted : Qt.rgba(0.5,0.5,0.5,0.2)
+            width: 44
+            height: 44
+            radius: 22
             visible: viewer.currentIndex < viewer.mediaFiles.length - 1
-            opacity: showNavButtons || nextButtonHovered ? 1.0 : 0.0
-            Behavior on opacity { NumberAnimation { duration: 200 } }
-            ColoredIcon { anchors.centerIn: parent; source: Theme.icon("chevron-right"); iconSize: 24; color: Theme.colors.foreground }
+            opacity: navButtonsVisible ? 1.0 : 0.0
+            z: 50
+            
+            // 悬停状态
+            property bool isHovered: nma.containsMouse
+            // 按下状态
+            property bool isPressed: nma.pressed
+            
+            // 背景颜色：根据状态变化
+            color: {
+                if (isPressed) {
+                    // 按下时：更深的颜色
+                    return Theme.isDark ? Qt.rgba(1, 1, 1, 0.45) : Qt.rgba(0, 0, 0, 0.25)
+                } else if (isHovered) {
+                    // 悬停时：较亮的颜色
+                    return Theme.isDark ? Qt.rgba(1, 1, 1, 0.3) : Qt.rgba(0, 0, 0, 0.15)
+                } else {
+                    // 默认：半透明
+                    return Theme.isDark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.08)
+                }
+            }
+            
+            // 缩放动画：悬停放大，按下缩小
+            scale: isPressed ? 0.9 : (isHovered ? 1.15 : 1.0)
+            
+            // 平滑动画
+            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+            Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+            
+            ColoredIcon { 
+                anchors.centerIn: parent
+                source: Theme.icon("chevron-right")
+                iconSize: 22
+                color: Theme.isDark ? "#FFFFFF" : Theme.colors.foreground
+            }
+            
             MouseArea { 
                 id: nma
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: viewer._nextFile()
-                onEntered: { nextButtonHovered = true; showNavButtons = true; navButtonHideTimer.stop() }
-                onExited: { nextButtonHovered = false; navButtonHideTimer.start() }
+                onEntered: {
+                    nextBtnHovered = true
+                    stopAutoHide()
+                }
+                onExited: {
+                    nextBtnHovered = false
+                    startAutoHideIfNeeded()
+                }
             }
         }
         
@@ -821,49 +932,46 @@ Item {
                     Repeater {
                             model: [0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
                             Rectangle {
+                                id: speedBtnRect
                                 required property real modelData
+                                required property int index
                                 width: speedBtnText.implicitWidth + 12
                                 height: 26
                                 radius: 5
-                                color: {
+                                
+                                // 计算渐变颜色：从浅蓝到深蓝
+                                function getSpeedColor() {
+                                    // 0.5x -> 浅蓝, 3.0x -> 深蓝
+                                    var colors = ["#7CB9E8", "#5B9BD5", "#3A7FC2", "#1E5FAF", "#0D4A9C", "#002FA7"]
+                                    return colors[index]
+                                }
+                                
+                                property bool isSelected: {
                                     var currentRate = videoPlayer ? videoPlayer.playbackRate : 1.0
-                                    if (Math.abs(currentRate - modelData) < 0.01) {
-                                        if (modelData === 0.5) return "#87CEFA"
-                                        if (modelData === 1.0) return "#4989f0ff"
-                                        if (modelData === 1.5) return "#2d6bf1ff"
-                                        if (modelData === 2.0) return "#055bccff"
-                                        if (modelData === 2.5) return "#053885ff"
-                                        return "#0A2864"
+                                    return Math.abs(currentRate - modelData) < 0.01
+                                }
+                                
+                                color: {
+                                    if (isSelected) {
+                                        return getSpeedColor()
+                                    }
+                                    if (speedBtnMouse.pressed) {
+                                        return Theme.isDark ? Qt.rgba(1,1,1,0.18) : Qt.rgba(0,0,0,0.12)
                                     }
                                     return Theme.isDark 
                                            ? (speedBtnMouse.containsMouse ? Qt.rgba(1,1,1,0.12) : Qt.rgba(1,1,1,0.06))
-                                           : (speedBtnMouse.containsMouse ? Qt.rgba(0,0,0,0.08) : Qt.rgba(0,0,0,0.03))
+                                           : (speedBtnMouse.containsMouse ? Qt.rgba(0,0,0,0.08) : Qt.rgba(0,0,0,0.04))
                                 }
                                 border.width: 1
-                                border.color: {
-                                    var currentRate = videoPlayer ? videoPlayer.playbackRate : 1.0
-                                    if (Math.abs(currentRate - modelData) < 0.01) {
-                                        return "transparent"
-                                    }
-                                    return Theme.colors.mediaControlBorder
-                                }
+                                border.color: isSelected ? "transparent" : Theme.colors.mediaControlBorder
 
                                 Text {
                                     id: speedBtnText
                                     anchors.centerIn: parent
-                                    text: modelData.toFixed(1) + "x"
-                                    color: {
-                                        var currentRate = videoPlayer ? videoPlayer.playbackRate : 1.0
-                                        if (Math.abs(currentRate - modelData) < 0.01) {
-                                            return Theme.colors.primaryForeground
-                                        }
-                                        return Theme.colors.mediaControlTextMuted
-                                    }
+                                    text: speedBtnRect.modelData.toFixed(1) + "x"
+                                    color: speedBtnRect.isSelected ? "#FFFFFF" : Theme.colors.mediaControlTextMuted
                                     font.pixelSize: 11
-                                    font.weight: {
-                                        var currentRate = videoPlayer ? videoPlayer.playbackRate : 1.0
-                                        return Math.abs(currentRate - modelData) < 0.01 ? Font.Bold : Font.Normal
-                                    }
+                                    font.weight: speedBtnRect.isSelected ? Font.Bold : Font.Normal
                                 }
 
                                 MouseArea {
@@ -871,7 +979,7 @@ Item {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: if (videoPlayer) videoPlayer.playbackRate = modelData
+                                    onClicked: if (videoPlayer) videoPlayer.playbackRate = speedBtnRect.modelData
                                 }
 
                                 Behavior on color { ColorAnimation { duration: 100 } }
