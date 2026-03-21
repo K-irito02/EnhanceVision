@@ -19,6 +19,7 @@ Rectangle {
     property string titleText: ""
     property var windowRef: null
     property bool showDivider: true
+    property alias closeButton: closeButton
 
     signal closeClicked()
 
@@ -40,7 +41,6 @@ Rectangle {
         anchors.leftMargin: 16
         anchors.rightMargin: 8
         spacing: 8
-        z: 2
 
         Text {
             text: root.titleText
@@ -53,6 +53,16 @@ Rectangle {
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
+            
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.LeftButton
+                onPressed: function(mouse) {
+                    if (root.windowRef) {
+                        root.windowRef.startSystemMove()
+                    }
+                }
+            }
         }
 
         IconButton {
@@ -63,7 +73,6 @@ Rectangle {
             danger: true
             tooltip: qsTr("关闭")
             Layout.alignment: Qt.AlignVCenter
-            z: 3
             onClicked: {
                 if (root.windowRef) {
                     root.windowRef.close()
@@ -74,15 +83,17 @@ Rectangle {
     }
 
     MouseArea {
-        id: dragArea
-        anchors.fill: parent
-        anchors.rightMargin: 44
+        anchors.right: parent.right
+        anchors.rightMargin: 8
+        anchors.verticalCenter: parent.verticalCenter
+        width: 32
+        height: 32
         acceptedButtons: Qt.LeftButton
-        z: 1
-        onPressed: function(mouse) {
+        onClicked: {
             if (root.windowRef) {
-                root.windowRef.startSystemMove()
+                root.windowRef.close()
             }
+            root.closeClicked()
         }
     }
 }

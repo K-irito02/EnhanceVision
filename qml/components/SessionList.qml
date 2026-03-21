@@ -153,13 +153,6 @@ Item {
                     color: Theme.colors.primary
                     opacity: 0.8
                 }
-                
-                Behavior on color {
-                    ColorAnimation { 
-                        duration: Theme.animation.fast
-                        easing.type: Easing.OutCubic 
-                    }
-                }
 
                 Behavior on border.width {
                     NumberAnimation { duration: 100 }
