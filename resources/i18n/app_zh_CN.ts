@@ -988,6 +988,36 @@
     </message>
     <message>
         <location filename="../../qml/pages/SettingsPage.qml" line="168"/>
+        <source>行为</source>
+        <translation >行为</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="177"/>
+        <source>默认保存路径</source>
+        <translation >默认保存路径</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="188"/>
+        <source>浏览...</source>
+        <translation >浏览...</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="199"/>
+        <source>自动保存结果</source>
+        <translation >自动保存结果</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="226"/>
+        <source>音频</source>
+        <translation >音频</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="235"/>
+        <source>默认音量</source>
+        <translation >默认音量</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="274"/>
         <source>性能</source>
         <translation >性能</translation>
     </message>
@@ -1867,6 +1897,62 @@
         <location filename="../../src/core/VideoProcessor.cpp" line="285"/>
         <source>处理完成</source>
         <translation ></translation>
+    </message>
+</context>
+<context>
+    <name>AIModelPanel</name>
+    <message>
+        <location filename="../../qml/components/AIModelPanel.qml" line="36"/>
+        <source>AI 模型类别</source>
+        <translation>AI 模型类别</translation>
+    </message>
+    <message>
+        <location filename="../../qml/components/AIModelPanel.qml" line="111"/>
+        <source>请选择一个模型类别</source>
+        <translation>请选择一个模型类别</translation>
+    </message>
+</context>
+<context>
+    <name>AIParamsPanel</name>
+    <message>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="70"/>
+        <source>选中模型</source>
+        <translation>选中模型</translation>
+    </message>
+    <message>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="139"/>
+        <source>GPU 加速</source>
+        <translation>GPU 加速</translation>
+    </message>
+    <message>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="163"/>
+        <source>可用</source>
+        <translation>可用</translation>
+    </message>
+    <message>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="163"/>
+        <source>不可用</source>
+        <translation>不可用</translation>
+    </message>
+    <message>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="181"/>
+        <source>分块大小</source>
+        <translation>分块大小</translation>
+    </message>
+    <message>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="189"/>
+        <source>自动</source>
+        <translation>自动</translation>
+    </message>
+    <message>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="208"/>
+        <source>较小的分块占用更少显存，但处理更慢。0 = 自动。</source>
+        <translation>较小的分块占用更少显存，但处理更慢。0 = 自动。</translation>
+    </message>
+    <message>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="229"/>
+        <source>模型参数</source>
+        <translation>模型参数</translation>
     </message>
 </context>
 </TS>

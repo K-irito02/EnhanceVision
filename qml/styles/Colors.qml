@@ -57,6 +57,8 @@ QtObject {
         // 开关
         readonly property color switchBackground: "#C0CDE0"
         readonly property color switchChecked: "#002FA7"
+        readonly property color switchOn: "#5B8DEF"
+        readonly property color switchOff: "#A8B8D0"
 
         // 焦点环
         readonly property color ring: "#002FA7"
@@ -167,6 +169,8 @@ QtObject {
         // 开关
         readonly property color switchBackground: "#1E3060"
         readonly property color switchChecked: "#1E56D0"
+        readonly property color switchOn: "#3B82F6"
+        readonly property color switchOff: "#4A5568"
 
         // 焦点环
         readonly property color ring: "#1E56D0"

@@ -89,6 +89,7 @@ qt_add_executable(EnhanceVision
     src/app/Application.cpp
     src/app/MainWindow.cpp
     src/core/AIEngine.cpp
+    src/core/ModelRegistry.cpp
     src/core/ProcessingEngine.cpp
     src/core/VideoProcessor.cpp
     src/core/ImageProcessor.cpp
@@ -113,6 +114,7 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/app/Application.h
     include/EnhanceVision/app/MainWindow.h
     include/EnhanceVision/core/AIEngine.h
+    include/EnhanceVision/core/ModelRegistry.h
     include/EnhanceVision/core/ProcessingEngine.h
     include/EnhanceVision/core/VideoProcessor.h
     include/EnhanceVision/core/ImageProcessor.h
@@ -191,8 +193,9 @@ qt_add_qml_module(EnhanceVision
         qml/components/MessageList.qml
         qml/components/Toast.qml
         qml/components/Dialog.qml
-        qml/components/ControlPanel.qml
         qml/components/ShaderParamsPanel.qml
+        qml/components/AIModelPanel.qml
+        qml/components/AIParamsPanel.qml
         qml/components/DialogTitleBar.qml
         qml/components/FullShaderEffect.qml
         qml/components/OffscreenShaderRenderer.qml
@@ -205,6 +208,7 @@ qt_add_qml_module(EnhanceVision
         qml/controls/ParamSlider.qml
         qml/controls/ParamGroup.qml
         qml/controls/Tooltip.qml
+        qml/controls/Switch.qml
         qml/shaders/BrightnessContrast.qml
         qml/shaders/SaturationHue.qml
         qml/shaders/SharpenBlur.qml

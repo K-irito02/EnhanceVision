@@ -350,7 +350,6 @@ Rectangle {
             
             // 状态标签
             Rectangle {
-                width: statusLabelRow.implicitWidth + 12
                 height: 22
                 radius: Theme.radius.sm
                 color: {
@@ -363,12 +362,14 @@ Rectangle {
                         default: return Theme.colors.muted
                     }
                 }
-                
+                Layout.minimumWidth: statusLabelRow.implicitWidth + 16
+                Layout.preferredWidth: statusLabelRow.implicitWidth + 16
+
                 Row {
                     id: statusLabelRow
                     anchors.centerIn: parent
                     spacing: 4
-                    
+
                     Rectangle { 
                         anchors.verticalCenter: parent.verticalCenter
                         width: 6; height: 6; radius: 3; color: statusColor 
@@ -385,16 +386,17 @@ Rectangle {
             
             // 模式标签
             Rectangle {
-                width: modeLabelRow.implicitWidth + 10
                 height: 22
                 radius: Theme.radius.sm
                 color: mode === 0 ? Theme.colors.primarySubtle : Theme.colors.accent
-                
+                Layout.minimumWidth: modeLabelRow.implicitWidth + 14
+                Layout.preferredWidth: modeLabelRow.implicitWidth + 14
+
                 Row {
                     id: modeLabelRow
                     anchors.centerIn: parent
                     spacing: 4
-                    
+
                     ColoredIcon {
                         anchors.verticalCenter: parent.verticalCenter
                         source: Theme.icon(modeIconName)

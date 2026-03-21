@@ -36,7 +36,8 @@ Rectangle {
     property real highlights: 0.0
     property real shadows: 0.0
 
-    property int aiModelIndex: 0
+    property string aiSelectedModelId: ""
+    property string aiSelectedCategory: ""
     property bool collapsed: false
     
     readonly property bool hasShaderModifications: {
@@ -279,75 +280,40 @@ Rectangle {
 
                 // ===== AI 推理模式参数 =====
                 ColumnLayout {
+                    id: aiContentLayout
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
                     spacing: 10
 
-                    // AI 模型选择
-                    RowLayout {
+                    Components.AIModelPanel {
+                        id: aiModelPanel
                         Layout.fillWidth: true
-                        spacing: 6
+                        Layout.fillHeight: true
 
-                        ColoredIcon {
-                            source: Theme.icon("cpu")
-                            iconSize: 14
-                            color: Theme.colors.foreground
-                        }
+                        selectedModelId: root.aiSelectedModelId
+                        selectedCategory: root.aiSelectedCategory
 
-                        Text {
-                            text: qsTr("AI 模型")
-                            color: Theme.colors.foreground
-                            font.pixelSize: 12
-                            font.weight: Font.DemiBold
+                        onModelSelected: function(modelId, category) {
+                            root.aiSelectedModelId = modelId
+                            root.aiSelectedCategory = category
+                            aiParamsPanel.modelId = modelId
                         }
                     }
 
-                    ComboBox {
-                        id: aiModelComboBox
-                        Layout.fillWidth: true
-                        model: [qsTr("Real-ESRGAN (4x)"), qsTr("Real-ESRGAN Anime"), qsTr("CBDNet (去噪)")]
-                        currentIndex: root.aiModelIndex
-                        onCurrentIndexChanged: root.aiModelIndex = currentIndex
-                    }
-
-                    // 模型说明卡片
                     Rectangle {
                         Layout.fillWidth: true
-                        height: modelDescCol.implicitHeight + 16
-                        radius: Theme.radius.md
-                        color: Theme.colors.primarySubtle
-                        border.width: 1
-                        border.color: Theme.colors.border
-
-                        ColumnLayout {
-                            id: modelDescCol
-                            anchors.fill: parent
-                            anchors.margins: 8
-                            spacing: 3
-
-                            Text {
-                                text: qsTr("模型说明")
-                                color: Theme.colors.foreground
-                                font.pixelSize: 10
-                                font.weight: Font.DemiBold
-                            }
-
-                            Text {
-                                text: {
-                                    switch (aiModelComboBox.currentIndex) {
-                                        case 0: return qsTr("通用场景超分辨率，4倍放大");
-                                        case 1: return qsTr("动漫插画专用优化");
-                                        case 2: return qsTr("通用图像降噪");
-                                        default: return "";
-                                    }
-                                }
-                                color: Theme.colors.mutedForeground
-                                font.pixelSize: 11
-                                wrapMode: Text.WordWrap
-                                Layout.fillWidth: true
-                            }
-                        }
+                        height: 1
+                        color: Theme.colors.border
+                        visible: root.aiSelectedModelId !== ""
                     }
 
-                    Item { Layout.fillHeight: true }
+                    Components.AIParamsPanel {
+                        id: aiParamsPanel
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: aiParamsPanel.implicitHeight
+                        visible: root.aiSelectedModelId !== ""
+                        modelId: root.aiSelectedModelId
+                    }
                 }
             }
         }
@@ -377,7 +343,7 @@ Rectangle {
             params.highlights = highlights;
             params.shadows = shadows;
         } else {
-            params.modelIndex = aiModelIndex;
+            params = aiParamsPanel.getParams();
         }
 
         var messageId = processingController.sendToProcessing(displayMode, params);
