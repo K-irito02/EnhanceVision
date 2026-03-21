@@ -51,6 +51,8 @@ QVariant SessionModel::data(const QModelIndex &index, int role) const
         return session.messages.size();
     case IsPinnedRole:
         return session.isPinned;
+    case IsProcessingRole:
+        return session.isProcessing;
     case SortIndexRole:
         return session.sortIndex;
     default:
@@ -69,6 +71,7 @@ QHash<int, QByteArray> SessionModel::roleNames() const
     roles[IsSelectedRole] = "isSelected";
     roles[MessageCountRole] = "messageCount";
     roles[IsPinnedRole] = "isPinned";
+    roles[IsProcessingRole] = "isProcessing";
     roles[SortIndexRole] = "sortIndex";
     return roles;
 }
@@ -379,6 +382,22 @@ void SessionModel::pinSession(const QString &sessionId, bool pinned)
     sortSessions();
 
     emit sessionPinned(sessionId, pinned);
+}
+
+void SessionModel::setSessionProcessing(const QString &sessionId, bool processing)
+{
+    int index = findSessionIndex(sessionId);
+    if (index < 0) {
+        return;
+    }
+
+    if (m_sessions[index].isProcessing == processing) {
+        return;
+    }
+
+    m_sessions[index].isProcessing = processing;
+    QModelIndex modelIndex = createIndex(index, 0);
+    emit dataChanged(modelIndex, modelIndex, {IsProcessingRole});
 }
 
 void SessionModel::moveSession(int fromIndex, int toIndex)

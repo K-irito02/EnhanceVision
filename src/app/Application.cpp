@@ -66,6 +66,7 @@ void Application::initialize()
     WindowHelper::instance()->setWindow(m_mainWidget);
 
     m_sessionController->loadSessions();
+    m_sessionController->restoreThumbnails();
 
     m_mainWidget->setSource(QUrl(QStringLiteral("qrc:/qt/qml/EnhanceVision/qml/main.qml")));
 

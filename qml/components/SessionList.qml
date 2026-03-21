@@ -305,17 +305,23 @@ Item {
                     Layout.alignment: Qt.AlignVCenter
 
                     Rectangle {
-                        visible: model.isPinned
+                        id: processingIndicator
+                        visible: model.isProcessing && !root.batchMode
                         anchors.top: parent.top
                         anchors.right: parent.right
                         anchors.topMargin: -2
                         anchors.rightMargin: -2
-                        width: 10
-                        height: 10
-                        radius: 5
-                        color: Theme.colors.primary
-                        border.width: 2
-                        border.color: delegateRoot.isActive ? Theme.colors.primary : Theme.colors.accent
+                        width: 8
+                        height: 8
+                        radius: 4
+                        color: "#F59E0B"
+
+                        SequentialAnimation on opacity {
+                            running: processingIndicator.visible
+                            loops: Animation.Infinite
+                            NumberAnimation { from: 0.5; to: 1.0; duration: 800 }
+                            NumberAnimation { from: 1.0; to: 0.5; duration: 800 }
+                        }
                     }
 
                     ColoredIcon {

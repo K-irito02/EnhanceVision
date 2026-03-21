@@ -95,6 +95,12 @@ public:
     
     Q_INVOKABLE void saveSessions();
     Q_INVOKABLE void loadSessions();
+    
+    /**
+     * @brief 恢复已处理文件的缩略图
+     * 在加载会话后调用，为已完成的文件从 resultPath 重新生成缩略图
+     */
+    void restoreThumbnails();
 
 signals:
     void autoSaveEnabledChanged();

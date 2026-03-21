@@ -444,31 +444,37 @@ void ProcessingController::completeTask(const QString& taskId, const QString& re
                                 emit requestShaderExport(taskId, tempFramePath, pending.shaderParams, processedThumbPath);
                             } else {
                                 if (m_messageModel) {
-                                    m_messageModel->updateFileStatus(messageId, fileId,
-                                        static_cast<int>(ProcessingStatus::Completed), mf.filePath);
-                                }
-                                cleanupTask(taskId);
-                                m_currentProcessingCount--;
-                                emit currentProcessingCountChanged();
-                                m_processingModel->updateTasks(m_tasks);
-                                syncMessageProgress(messageId);
-                                syncMessageStatus(messageId);
-                                processNextTask();
-                            }
-                        } else {
-                            if (m_messageModel) {
                                 m_messageModel->updateFileStatus(messageId, fileId,
                                     static_cast<int>(ProcessingStatus::Completed), mf.filePath);
                             }
-                            
                             cleanupTask(taskId);
                             m_currentProcessingCount--;
                             emit currentProcessingCountChanged();
                             m_processingModel->updateTasks(m_tasks);
-                            
                             syncMessageProgress(messageId);
                             syncMessageStatus(messageId);
+                            if (m_sessionController) {
+                                m_sessionController->syncCurrentMessagesToSession();
+                            }
                             processNextTask();
+                            }
+                        } else {
+                            if (m_messageModel) {
+                            m_messageModel->updateFileStatus(messageId, fileId,
+                                static_cast<int>(ProcessingStatus::Completed), mf.filePath);
+                        }
+                        
+                        cleanupTask(taskId);
+                        m_currentProcessingCount--;
+                        emit currentProcessingCountChanged();
+                        m_processingModel->updateTasks(m_tasks);
+                        
+                        syncMessageProgress(messageId);
+                        syncMessageStatus(messageId);
+                        if (m_sessionController) {
+                            m_sessionController->syncCurrentMessagesToSession();
+                        }
+                        processNextTask();
                         }
                         break;
                     }
@@ -522,6 +528,9 @@ void ProcessingController::onShaderExportCompleted(const QString& exportId, bool
     
     syncMessageProgress(pending.messageId);
     syncMessageStatus(pending.messageId);
+    if (m_sessionController) {
+        m_sessionController->syncCurrentMessagesToSession();
+    }
     
     processNextTask();
 }

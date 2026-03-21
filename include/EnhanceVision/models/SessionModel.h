@@ -31,6 +31,7 @@ public:
         IsSelectedRole,
         MessageCountRole,
         IsPinnedRole,
+        IsProcessingRole,
         SortIndexRole
     };
 
@@ -106,6 +107,13 @@ public:
      * @param pinned 是否置顶
      */
     Q_INVOKABLE void pinSession(const QString &sessionId, bool pinned);
+
+    /**
+     * @brief 设置会话的处理状态
+     * @param sessionId 会话ID
+     * @param processing 是否正在处理
+     */
+    Q_INVOKABLE void setSessionProcessing(const QString &sessionId, bool processing);
 
     /**
      * @brief 移动会话位置（拖拽排序）

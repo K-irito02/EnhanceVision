@@ -8,6 +8,8 @@
 #include "EnhanceVision/controllers/ProcessingController.h"
 #include "EnhanceVision/models/MessageModel.h"
 #include "EnhanceVision/core/TaskCoordinator.h"
+#include "EnhanceVision/providers/ThumbnailProvider.h"
+#include "EnhanceVision/utils/ImageUtils.h"
 #include <QUuid>
 #include <QDebug>
 #include <QStandardPaths>
@@ -509,6 +511,10 @@ void SessionController::saveCurrentSessionMessages()
 void SessionController::syncCurrentMessagesToSession()
 {
     saveCurrentSessionMessages();
+    
+    if (m_autoSaveEnabled) {
+        saveSessions();
+    }
 }
 
 void SessionController::loadSessionMessages(const QString& sessionId)
@@ -723,6 +729,50 @@ QVariantMap SessionController::jsonToParameters(const QJsonObject& json) const
         params[it.key()] = it.value().toVariant();
     }
     return params;
+}
+
+void SessionController::restoreThumbnails()
+{
+    ThumbnailProvider* thumbnailProvider = ThumbnailProvider::instance();
+    if (!thumbnailProvider) {
+        qWarning() << "ThumbnailProvider not available for thumbnail restoration";
+        return;
+    }
+    
+    int restoredCount = 0;
+    
+    for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
+        Session session = m_sessionModel->sessionAt(i);
+        
+        for (const Message& message : session.messages) {
+            for (const MediaFile& file : message.mediaFiles) {
+                if (file.status == ProcessingStatus::Completed && !file.resultPath.isEmpty()) {
+                    QFileInfo resultFileInfo(file.resultPath);
+                    if (resultFileInfo.exists()) {
+                        QString thumbId = "processed_" + file.id;
+                        QImage thumbnail;
+                        
+                        if (file.type == MediaType::Video) {
+                            thumbnail = ImageUtils::generateVideoThumbnail(file.resultPath, QSize(512, 512));
+                        } else {
+                            thumbnail = ImageUtils::generateThumbnail(file.resultPath, QSize(512, 512));
+                        }
+                        
+                        if (!thumbnail.isNull()) {
+                            thumbnailProvider->setThumbnail(thumbId, thumbnail);
+                            restoredCount++;
+                        }
+                    }
+                }
+                
+                if (!file.thumbnail.isNull()) {
+                    thumbnailProvider->setThumbnail(file.filePath, file.thumbnail);
+                }
+            }
+        }
+    }
+    
+    qDebug() << "Restored" << restoredCount << "processed thumbnails";
 }
 
 } // namespace EnhanceVision

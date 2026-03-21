@@ -228,12 +228,14 @@ struct Session {
     bool isActive;           ///< 是否为当前活动会话
     bool isSelected;         ///< 是否被选中（批量操作模式）
     bool isPinned;           ///< 是否置顶
+    bool isProcessing;       ///< 是否有正在处理的消息
     int sortIndex;           ///< 排序索引（用于拖拽排序）
 
     Session()
         : isActive(false)
         , isSelected(false)
         , isPinned(false)
+        , isProcessing(false)
         , sortIndex(0)
     {}
 };
