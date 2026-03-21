@@ -89,38 +89,40 @@ Rectangle {
                             Layout.fillWidth: true
                             spacing: 12
 
-                            Text { text: qsTr("主题"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 100 }
+                            Text { text: qsTr("主题"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.minimumWidth: 80 }
 
                             Row {
                                 spacing: 4
 
                                 Rectangle {
-                                    width: darkLabel.implicitWidth + 24; height: 32
+                                    width: darkRow.implicitWidth + 24; height: 32
                                     radius: Theme.radius.md
                                     color: Theme.isDark ? Theme.colors.primary : "transparent"
                                     border.width: Theme.isDark ? 0 : 1
                                     border.color: Theme.colors.border
 
                                     Row {
+                                        id: darkRow
                                         anchors.centerIn: parent; spacing: 6
                                         ColoredIcon { anchors.verticalCenter: parent.verticalCenter; iconSize: 14; source: Theme.icon("moon"); color: Theme.isDark ? "#FFFFFF" : Theme.colors.icon }
-                                        Text { id: darkLabel; anchors.verticalCenter: parent.verticalCenter; text: qsTr("暗色"); font.pixelSize: 12; font.weight: Font.Medium; color: Theme.isDark ? "#FFFFFF" : Theme.colors.foreground }
+                                        Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("暗色"); font.pixelSize: 12; font.weight: Font.Medium; color: Theme.isDark ? "#FFFFFF" : Theme.colors.foreground }
                                     }
                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { Theme.setDark(true); SettingsController.theme = "dark" } }
                                     Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
                                 }
 
                                 Rectangle {
-                                    width: lightLabel.implicitWidth + 24; height: 32
+                                    width: lightRow.implicitWidth + 24; height: 32
                                     radius: Theme.radius.md
                                     color: !Theme.isDark ? Theme.colors.primary : "transparent"
                                     border.width: !Theme.isDark ? 0 : 1
                                     border.color: Theme.colors.border
 
                                     Row {
+                                        id: lightRow
                                         anchors.centerIn: parent; spacing: 6
                                         ColoredIcon { anchors.verticalCenter: parent.verticalCenter; iconSize: 14; source: Theme.icon("sun"); color: !Theme.isDark ? "#FFFFFF" : Theme.colors.icon }
-                                        Text { id: lightLabel; anchors.verticalCenter: parent.verticalCenter; text: qsTr("亮色"); font.pixelSize: 12; font.weight: Font.Medium; color: !Theme.isDark ? "#FFFFFF" : Theme.colors.foreground }
+                                        Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("亮色"); font.pixelSize: 12; font.weight: Font.Medium; color: !Theme.isDark ? "#FFFFFF" : Theme.colors.foreground }
                                     }
                                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { Theme.setDark(false); SettingsController.theme = "light" } }
                                     Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
@@ -132,13 +134,14 @@ Rectangle {
                             Layout.fillWidth: true
                             spacing: 12
 
-                            Text { text: qsTr("语言"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 100 }
+                            Text { text: qsTr("语言"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.minimumWidth: 80 }
 
                             ComboBox {
                                 model: [qsTr("简体中文"), "English"]
                                 currentIndex: SettingsController.language === "zh_CN" ? 0 : 1
                                 onCurrentIndexChanged: {
                                     var lang = currentIndex === 0 ? "zh_CN" : "en_US"
+                                    SettingsController.language = lang
                                     Theme.setLanguage(lang)
                                 }
                             }
@@ -172,7 +175,7 @@ Rectangle {
                             Layout.fillWidth: true
                             spacing: 12
 
-                            Text { text: qsTr("默认保存路径"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 100 }
+                            Text { text: qsTr("默认保存路径"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.minimumWidth: 80 }
 
                             TextField {
                                 id: savePathField
@@ -194,7 +197,7 @@ Rectangle {
                             Layout.fillWidth: true
                             spacing: 12
 
-                            Text { text: qsTr("自动保存结果"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 100 }
+                            Text { text: qsTr("自动保存结果"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.minimumWidth: 80 }
 
                             Switch {
                                 checked: SettingsController.autoSaveResult
@@ -230,7 +233,7 @@ Rectangle {
                             Layout.fillWidth: true
                             spacing: 12
 
-                            Text { text: qsTr("默认音量"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 100 }
+                            Text { text: qsTr("默认音量"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.minimumWidth: 80 }
 
                             Slider {
                                 id: volumeSlider
@@ -277,7 +280,7 @@ Rectangle {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 12
-                            Text { text: qsTr("最大并发任务"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 100 }
+                            Text { text: qsTr("最大并发任务"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 120 }
                             ComboBox {
                                 model: ["1", "2", "3", "4"]
                                 currentIndex: SettingsController.maxConcurrentTasks - 1
@@ -288,7 +291,7 @@ Rectangle {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 12
-                            Text { text: qsTr("缓存管理"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 100 }
+                            Text { text: qsTr("缓存管理"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 120 }
                             Button {
                                 text: qsTr("清除缩略图缓存")
                                 variant: "secondary"

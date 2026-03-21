@@ -11,10 +11,12 @@ QtObject {
 
     function toggle() {
         isDark = !isDark
+        SettingsController.theme = isDark ? "dark" : "light"
     }
 
     function setDark(dark) {
         isDark = dark
+        SettingsController.theme = dark ? "dark" : "light"
     }
 
     function toggleLanguage() {
@@ -30,6 +32,7 @@ QtObject {
 
     Component.onCompleted: {
         language = SettingsController.language
+        isDark = (SettingsController.theme === "dark")
     }
 
     // ========== 颜色系统 ==========

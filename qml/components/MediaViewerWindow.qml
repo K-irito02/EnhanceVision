@@ -1026,6 +1026,7 @@ Window {
                             onClicked: {
                                 if (audioOutput.volume > 0) {
                                     audioOutput.volume = 0
+                                    SettingsController.volume = 0
                                 } else {
                                     audioOutput.volume = SettingsController.volume / 100
                                 }

@@ -65,6 +65,7 @@ void SettingsController::setTheme(const QString& theme)
         m_theme = theme;
         emit themeChanged();
         emit settingsChanged();
+        saveSettings();
     }
 }
 
@@ -79,6 +80,7 @@ void SettingsController::setLanguage(const QString& language)
         m_language = language;
         emit languageChanged();
         emit settingsChanged();
+        saveSettings();
     }
 }
 
@@ -150,6 +152,7 @@ void SettingsController::setVolume(int volume)
         m_volume = clampedVolume;
         emit volumeChanged();
         emit settingsChanged();
+        saveSettings();
     }
 }
 

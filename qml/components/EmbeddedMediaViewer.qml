@@ -995,6 +995,7 @@ Item {
                     onClicked: {
                         if (root.sharedVolume > 0) {
                             root.sharedVolume = 0
+                            SettingsController.volume = 0
                         } else {
                             root.sharedVolume = SettingsController.volume / 100
                         }
