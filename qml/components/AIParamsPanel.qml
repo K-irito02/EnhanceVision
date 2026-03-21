@@ -27,14 +27,42 @@ ColumnLayout {
     // 内部：当前模型详情
     property var currentModelInfo: registry && modelId !== "" ? registry.getModelInfoMap(modelId) : null
 
+    // 内部：用于平滑过渡的参数缓存
+    property var _pendingParams: ({})
+    property bool _isModelSwitching: false
+
+    // 本地化辅助函数：根据当前语言选择正确的文本
+    function localizedText(param, zhField, enField) {
+        if (!param) return ""
+        var isEnglish = Theme.language === "en_US"
+        if (isEnglish && param[enField] !== undefined && param[enField] !== "") {
+            return param[enField]
+        }
+        return param[zhField] !== undefined ? param[zhField] : ""
+    }
+
+    // 获取参数标签（本地化）
+    function getParamLabel(param) {
+        return localizedText(param, "label", "label_en") || param.key || ""
+    }
+
+    // 获取参数描述（本地化）
+    function getParamDescription(param) {
+        return localizedText(param, "description", "description_en")
+    }
+
     onModelIdChanged: {
         if (registry && modelId !== "") {
+            _isModelSwitching = true
             currentModelInfo = registry.getModelInfoMap(modelId)
             // 重置为模型默认分块
             if (currentModelInfo && currentModelInfo.tileSize) {
                 tileSize = currentModelInfo.tileSize
             }
+            // 延迟重置参数，避免控件跳动
+            _pendingParams = {}
             modelParams = {}
+            _isModelSwitching = false
         }
     }
 
@@ -242,9 +270,14 @@ ColumnLayout {
 
     // ========== 模型特定参数 ==========
     ColumnLayout {
+        id: modelParamsSection
         Layout.fillWidth: true
         spacing: 6
         visible: currentModelInfo !== null && Object.keys(currentModelInfo.supportedParams || {}).length > 0
+
+        Behavior on opacity {
+            NumberAnimation { duration: Theme.animation.fast }
+        }
 
         Rectangle {
             Layout.fillWidth: true
@@ -260,29 +293,46 @@ ColumnLayout {
         }
 
         Repeater {
+            id: paramsRepeater
             model: {
-                if (!currentModelInfo || !currentModelInfo.supportedParams) return []
+                if (!currentModelInfo || !currentModelInfo.supportedParams) {
+                    return []
+                }
                 var params = currentModelInfo.supportedParams
                 var keys = Object.keys(params)
                 var items = []
                 for (var i = 0; i < keys.length; i++) {
                     var key = keys[i]
                     var param = params[key]
-                    param.key = key
-                    items.push(param)
+                    // 深拷贝参数对象，确保 key 被正确设置
+                    var paramCopy = JSON.parse(JSON.stringify(param))
+                    paramCopy.key = key
+                    items.push(paramCopy)
                 }
                 return items
             }
 
-            ColumnLayout {
+            delegate: ColumnLayout {
+                id: paramDelegate
                 Layout.fillWidth: true
                 spacing: 4
 
+                // 平滑过渡动画
+                opacity: root._isModelSwitching ? 0.5 : 1.0
+                Behavior on opacity {
+                    NumberAnimation { duration: Theme.animation.fast }
+                }
+
+                property string paramKey: modelData.key
+                property string paramType: modelData.type || "float"
+                property var paramDefault: modelData["default"]
+
+                // 参数标签行
                 RowLayout {
                     Layout.fillWidth: true
 
                     Text {
-                        text: modelData.name || modelData.key
+                        text: root.getParamLabel(modelData)
                         color: Theme.colors.foreground
                         font.pixelSize: 11
                     }
@@ -291,8 +341,12 @@ ColumnLayout {
 
                     Text {
                         text: {
-                            var val = root.modelParams[modelData.key]
-                            return val !== undefined ? val.toString() : (modelData["default"] !== undefined ? modelData["default"].toString() : "")
+                            var val = root.modelParams[paramKey]
+                            var displayVal = val !== undefined ? val : paramDefault
+                            if (paramType === "bool") {
+                                return displayVal ? qsTr("开启") : qsTr("关闭")
+                            }
+                            return displayVal !== undefined ? displayVal.toString() : ""
                         }
                         color: Theme.colors.mutedForeground
                         font.pixelSize: 11
@@ -301,18 +355,26 @@ ColumnLayout {
 
                 // 滑块参数
                 Controls.Slider {
+                    id: sliderControl
                     Layout.fillWidth: true
-                    visible: modelData.type === "int" || modelData.type === "float"
+                    visible: paramType === "int" || paramType === "float"
                     from: modelData.min !== undefined ? modelData.min : 0
                     to: modelData.max !== undefined ? modelData.max : 100
-                    stepSize: modelData.type === "int" ? 1 : 0.1
+                    stepSize: paramType === "int" ? 1 : (modelData.step || 0.1)
+
+                    // 使用 Behavior 实现平滑过渡
                     value: {
-                        var val = root.modelParams[modelData.key]
-                        return val !== undefined ? val : (modelData["default"] !== undefined ? modelData["default"] : from)
+                        var val = root.modelParams[paramKey]
+                        return val !== undefined ? val : (paramDefault !== undefined ? paramDefault : from)
                     }
+                    Behavior on value {
+                        enabled: !sliderControl.pressed
+                        NumberAnimation { duration: Theme.animation.fast; easing.type: Easing.OutCubic }
+                    }
+
                     onMoved: {
-                        var newParams = root.modelParams
-                        newParams[modelData.key] = value
+                        var newParams = JSON.parse(JSON.stringify(root.modelParams))
+                        newParams[paramKey] = value
                         root.modelParams = newParams
                         root.paramsChanged()
                     }
@@ -320,24 +382,90 @@ ColumnLayout {
 
                 // 下拉选择参数
                 ComboBox {
+                    id: comboBoxControl
                     Layout.fillWidth: true
-                    visible: modelData.type === "enum"
+                    visible: paramType === "enum"
                     model: modelData.values || []
+                    textRole: ""
+
                     currentIndex: {
-                        var val = root.modelParams[modelData.key]
-                        if (val === undefined) val = modelData["default"]
+                        var val = root.modelParams[paramKey]
+                        if (val === undefined) val = paramDefault
                         var values = modelData.values || []
                         return Math.max(0, values.indexOf(val))
                     }
+
                     onCurrentIndexChanged: {
-                        var values = modelData.values || []
-                        if (currentIndex >= 0 && currentIndex < values.length) {
-                            var newParams = root.modelParams
-                            newParams[modelData.key] = values[currentIndex]
+                        if (visible && !root._isModelSwitching) {
+                            var values = modelData.values || []
+                            if (currentIndex >= 0 && currentIndex < values.length) {
+                                var newParams = JSON.parse(JSON.stringify(root.modelParams))
+                                newParams[paramKey] = values[currentIndex]
+                                root.modelParams = newParams
+                                root.paramsChanged()
+                            }
+                        }
+                    }
+                }
+
+                // 布尔开关参数
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: paramType === "bool"
+                    spacing: 8
+
+                    Controls.Switch {
+                        id: boolSwitch
+                        checked: {
+                            var val = root.modelParams[paramKey]
+                            return val !== undefined ? val : (paramDefault !== undefined ? paramDefault : false)
+                        }
+
+                        onToggled: {
+                            var newParams = JSON.parse(JSON.stringify(root.modelParams))
+                            newParams[paramKey] = checked
                             root.modelParams = newParams
                             root.paramsChanged()
                         }
                     }
+
+                    Text {
+                        text: boolSwitch.checked ? qsTr("开启") : qsTr("关闭")
+                        color: Theme.colors.mutedForeground
+                        font.pixelSize: 11
+                    }
+
+                    Item { Layout.fillWidth: true }
+                }
+
+                // 文本输入参数
+                TextField {
+                    id: textFieldControl
+                    Layout.fillWidth: true
+                    visible: paramType === "string"
+                    placeholderText: modelData.placeholder || ""
+
+                    text: {
+                        var val = root.modelParams[paramKey]
+                        return val !== undefined ? val : (paramDefault !== undefined ? paramDefault : "")
+                    }
+
+                    onEditingFinished: {
+                        var newParams = JSON.parse(JSON.stringify(root.modelParams))
+                        newParams[paramKey] = text
+                        root.modelParams = newParams
+                        root.paramsChanged()
+                    }
+                }
+
+                // 参数描述提示（本地化）
+                Text {
+                    Layout.fillWidth: true
+                    text: root.getParamDescription(modelData)
+                    color: Theme.colors.mutedForeground
+                    font.pixelSize: 10
+                    wrapMode: Text.WordWrap
+                    visible: text !== ""
                 }
             }
         }
@@ -350,6 +478,17 @@ ColumnLayout {
             if (registry && modelId !== "") {
                 currentModelInfo = registry.getModelInfoMap(modelId)
             }
+            // 强制刷新 Repeater 以更新本地化文本
+            paramsRepeater.model = paramsRepeater.model
+        }
+    }
+
+    // 监听 Theme.language 变化
+    Connections {
+        target: Theme
+        function onLanguageChanged() {
+            // 刷新 Repeater 以更新本地化文本
+            paramsRepeater.model = paramsRepeater.model
         }
     }
 

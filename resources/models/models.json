@@ -1,0 +1,992 @@
+{
+    "version": "1.1",
+    "description": "EnhanceVision AI Model Registry",
+    "models": [
+        {
+            "id": "realesrgan_x4plus",
+            "name": "Real-ESRGAN x4plus",
+            "description": "通用真实图像4倍超分辨率，效果最佳",
+            "description_en": "General real-world image 4x super-resolution, best quality",
+            "category": "super_resolution",
+            "paramFile": "super_resolution/Real-ESRGAN/realesrgan-x4plus.param",
+            "binFile": "super_resolution/Real-ESRGAN/realesrgan-x4plus.bin",
+            "inputBlob": "data",
+            "outputBlob": "output",
+            "scaleFactor": 4,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 200,
+            "tilePadding": 10,
+            "supportedParams": {
+                "outscale": {
+                    "type": "float",
+                    "min": 1.0,
+                    "max": 4.0,
+                    "default": 4.0,
+                    "step": 0.5,
+                    "label": "输出放大倍数",
+                    "label_en": "Output Scale",
+                    "description": "最终输出的放大倍数",
+                    "description_en": "Final output scale factor"
+                },
+                "face_enhance": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "人脸增强",
+                    "label_en": "Face Enhancement",
+                    "description": "使用 GFPGAN 增强人脸细节",
+                    "description_en": "Use GFPGAN to enhance face details"
+                }
+            }
+        },
+        {
+            "id": "realesrgan_x4plus_anime",
+            "name": "Real-ESRGAN Anime",
+            "description": "动漫图像4倍超分辨率",
+            "description_en": "Anime image 4x super-resolution",
+            "category": "super_resolution",
+            "paramFile": "super_resolution/Real-ESRGAN/realesrgan-x4plus-anime.param",
+            "binFile": "super_resolution/Real-ESRGAN/realesrgan-x4plus-anime.bin",
+            "inputBlob": "data",
+            "outputBlob": "output",
+            "scaleFactor": 4,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 200,
+            "tilePadding": 10,
+            "supportedParams": {
+                "outscale": {
+                    "type": "float",
+                    "min": 1.0,
+                    "max": 4.0,
+                    "default": 4.0,
+                    "step": 0.5,
+                    "label": "输出放大倍数",
+                    "label_en": "Output Scale"
+                }
+            }
+        },
+        {
+            "id": "realesr_animevideov3_x2",
+            "name": "RealESR AnimeVideo v3 (2x)",
+            "description": "动漫视频2倍超分辨率，轻量快速",
+            "description_en": "Anime video 2x super-resolution, lightweight and fast",
+            "category": "super_resolution",
+            "paramFile": "super_resolution/Real-ESRGAN/realesr-animevideov3-x2.param",
+            "binFile": "super_resolution/Real-ESRGAN/realesr-animevideov3-x2.bin",
+            "inputBlob": "data",
+            "outputBlob": "output",
+            "scaleFactor": 2,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 200,
+            "tilePadding": 10,
+            "supportedParams": {
+                "outscale": {
+                    "type": "float",
+                    "min": 1.0,
+                    "max": 2.0,
+                    "default": 2.0,
+                    "step": 0.5,
+                    "label": "输出放大倍数",
+                    "label_en": "Output Scale"
+                }
+            }
+        },
+        {
+            "id": "realesr_animevideov3_x3",
+            "name": "RealESR AnimeVideo v3 (3x)",
+            "description": "动漫视频3倍超分辨率，轻量快速",
+            "description_en": "Anime video 3x super-resolution, lightweight and fast",
+            "category": "super_resolution",
+            "paramFile": "super_resolution/Real-ESRGAN/realesr-animevideov3-x3.param",
+            "binFile": "super_resolution/Real-ESRGAN/realesr-animevideov3-x3.bin",
+            "inputBlob": "data",
+            "outputBlob": "output",
+            "scaleFactor": 3,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 200,
+            "tilePadding": 10,
+            "supportedParams": {
+                "outscale": {
+                    "type": "float",
+                    "min": 1.0,
+                    "max": 3.0,
+                    "default": 3.0,
+                    "step": 0.5,
+                    "label": "输出放大倍数",
+                    "label_en": "Output Scale"
+                }
+            }
+        },
+        {
+            "id": "realesr_animevideov3_x4",
+            "name": "RealESR AnimeVideo v3 (4x)",
+            "description": "动漫视频4倍超分辨率，轻量快速",
+            "description_en": "Anime video 4x super-resolution, lightweight and fast",
+            "category": "super_resolution",
+            "paramFile": "super_resolution/Real-ESRGAN/realesr-animevideov3-x4.param",
+            "binFile": "super_resolution/Real-ESRGAN/realesr-animevideov3-x4.bin",
+            "inputBlob": "data",
+            "outputBlob": "output",
+            "scaleFactor": 4,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 200,
+            "tilePadding": 10,
+            "supportedParams": {
+                "outscale": {
+                    "type": "float",
+                    "min": 1.0,
+                    "max": 4.0,
+                    "default": 4.0,
+                    "step": 0.5,
+                    "label": "输出放大倍数",
+                    "label_en": "Output Scale"
+                }
+            }
+        },
+        {
+            "id": "waifu2x_cunet_noise0_scale2x",
+            "name": "Waifu2x CUNet (2x No Denoise)",
+            "description": "动漫图像2倍放大，CUNet高质量架构",
+            "description_en": "Anime image 2x upscaling, CUNet high-quality architecture",
+            "category": "super_resolution",
+            "paramFile": "super_resolution/Waifu2x/models-cunet/noise0_scale2.0x_model.param",
+            "binFile": "super_resolution/Waifu2x/models-cunet/noise0_scale2.0x_model.bin",
+            "inputBlob": "data",
+            "outputBlob": "output",
+            "scaleFactor": 2,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 400,
+            "tilePadding": 10,
+            "supportedParams": {
+                "tta_mode": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "TTA 模式",
+                    "label_en": "TTA Mode",
+                    "description": "通过多次处理并合并结果来提升画质，但处理时间会增加约8倍",
+                    "description_en": "Process multiple times and merge results for better quality, but takes ~8x longer"
+                }
+            }
+        },
+        {
+            "id": "waifu2x_cunet_noise1_scale2x",
+            "name": "Waifu2x CUNet (2x Light Denoise)",
+            "description": "动漫图像2倍放大+轻度去噪",
+            "description_en": "Anime image 2x upscaling + light denoising",
+            "category": "super_resolution",
+            "paramFile": "super_resolution/Waifu2x/models-cunet/noise1_scale2.0x_model.param",
+            "binFile": "super_resolution/Waifu2x/models-cunet/noise1_scale2.0x_model.bin",
+            "inputBlob": "data",
+            "outputBlob": "output",
+            "scaleFactor": 2,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 400,
+            "tilePadding": 10,
+            "supportedParams": {
+                "tta_mode": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "TTA 模式",
+                    "label_en": "TTA Mode",
+                    "description": "通过多次处理并合并结果来提升画质，但处理时间会增加约8倍",
+                    "description_en": "Process multiple times and merge results for better quality, but takes ~8x longer"
+                }
+            }
+        },
+        {
+            "id": "waifu2x_cunet_noise2_scale2x",
+            "name": "Waifu2x CUNet (2x Medium Denoise)",
+            "description": "动漫图像2倍放大+中度去噪，推荐",
+            "description_en": "Anime image 2x upscaling + medium denoising, recommended",
+            "category": "super_resolution",
+            "paramFile": "super_resolution/Waifu2x/models-cunet/noise2_scale2.0x_model.param",
+            "binFile": "super_resolution/Waifu2x/models-cunet/noise2_scale2.0x_model.bin",
+            "inputBlob": "data",
+            "outputBlob": "output",
+            "scaleFactor": 2,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 400,
+            "tilePadding": 10,
+            "supportedParams": {
+                "tta_mode": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "TTA 模式",
+                    "label_en": "TTA Mode",
+                    "description": "通过多次处理并合并结果来提升画质，但处理时间会增加约8倍",
+                    "description_en": "Process multiple times and merge results for better quality, but takes ~8x longer"
+                }
+            }
+        },
+        {
+            "id": "waifu2x_cunet_noise3_scale2x",
+            "name": "Waifu2x CUNet (2x Strong Denoise)",
+            "description": "动漫图像2倍放大+强力去噪",
+            "description_en": "Anime image 2x upscaling + strong denoising",
+            "category": "super_resolution",
+            "paramFile": "super_resolution/Waifu2x/models-cunet/noise3_scale2.0x_model.param",
+            "binFile": "super_resolution/Waifu2x/models-cunet/noise3_scale2.0x_model.bin",
+            "inputBlob": "data",
+            "outputBlob": "output",
+            "scaleFactor": 2,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 400,
+            "tilePadding": 10,
+            "supportedParams": {
+                "tta_mode": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "TTA 模式",
+                    "label_en": "TTA Mode",
+                    "description": "通过多次处理并合并结果来提升画质，但处理时间会增加约8倍",
+                    "description_en": "Process multiple times and merge results for better quality, but takes ~8x longer"
+                }
+            }
+        },
+        {
+            "id": "waifu2x_cunet_scale2x",
+            "name": "Waifu2x CUNet (2x Only)",
+            "description": "动漫图像仅2倍放大，无去噪",
+            "description_en": "Anime image 2x upscaling only, no denoising",
+            "category": "super_resolution",
+            "paramFile": "super_resolution/Waifu2x/models-cunet/scale2.0x_model.param",
+            "binFile": "super_resolution/Waifu2x/models-cunet/scale2.0x_model.bin",
+            "inputBlob": "data",
+            "outputBlob": "output",
+            "scaleFactor": 2,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 400,
+            "tilePadding": 10,
+            "supportedParams": {
+                "tta_mode": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "TTA 模式",
+                    "label_en": "TTA Mode"
+                }
+            }
+        },
+        {
+            "id": "srmd_x2",
+            "name": "SRMD (2x Denoise)",
+            "description": "2倍超分+去噪，支持多种退化",
+            "description_en": "2x super-resolution + denoising, supports various degradations",
+            "category": "super_resolution",
+            "paramFile": "super_resolution/SRMD/models-srmd/srmd_x2.param",
+            "binFile": "super_resolution/SRMD/models-srmd/srmd_x2.bin",
+            "inputBlob": "data",
+            "outputBlob": "output",
+            "scaleFactor": 2,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 400,
+            "tilePadding": 10,
+            "supportedParams": {
+                "noise_level": {
+                    "type": "int",
+                    "min": -1,
+                    "max": 10,
+                    "default": 3,
+                    "label": "噪声级别",
+                    "label_en": "Noise Level",
+                    "description": "去除噪点的强度，-1表示不去噪，数值越大去噪越强",
+                    "description_en": "Denoising strength, -1 means no denoising, higher values mean stronger denoising"
+                },
+                "tta_mode": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "TTA 模式",
+                    "label_en": "TTA Mode",
+                    "description": "通过多次处理并合并结果来提升画质，但处理时间会增加约8倍",
+                    "description_en": "Process multiple times and merge results for better quality, but takes ~8x longer"
+                }
+            }
+        },
+        {
+            "id": "srmd_x3",
+            "name": "SRMD (3x Denoise)",
+            "description": "3倍超分+去噪",
+            "description_en": "3x super-resolution + denoising",
+            "category": "super_resolution",
+            "paramFile": "super_resolution/SRMD/models-srmd/srmd_x3.param",
+            "binFile": "super_resolution/SRMD/models-srmd/srmd_x3.bin",
+            "inputBlob": "data",
+            "outputBlob": "output",
+            "scaleFactor": 3,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 400,
+            "tilePadding": 10,
+            "supportedParams": {
+                "noise_level": {
+                    "type": "int",
+                    "min": -1,
+                    "max": 10,
+                    "default": 3,
+                    "label": "噪声级别",
+                    "label_en": "Noise Level",
+                    "description": "去除噪点的强度，-1表示不去噪，数值越大去噪越强",
+                    "description_en": "Denoising strength, -1 means no denoising, higher values mean stronger denoising"
+                },
+                "tta_mode": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "TTA 模式",
+                    "label_en": "TTA Mode",
+                    "description": "通过多次处理并合并结果来提升画质，但处理时间会增加约8倍",
+                    "description_en": "Process multiple times and merge results for better quality, but takes ~8x longer"
+                }
+            }
+        },
+        {
+            "id": "srmd_x4",
+            "name": "SRMD (4x Denoise)",
+            "description": "4倍超分+去噪",
+            "description_en": "4x super-resolution + denoising",
+            "category": "super_resolution",
+            "paramFile": "super_resolution/SRMD/models-srmd/srmd_x4.param",
+            "binFile": "super_resolution/SRMD/models-srmd/srmd_x4.bin",
+            "inputBlob": "data",
+            "outputBlob": "output",
+            "scaleFactor": 4,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 400,
+            "tilePadding": 10,
+            "supportedParams": {
+                "noise_level": {
+                    "type": "int",
+                    "min": -1,
+                    "max": 10,
+                    "default": 3,
+                    "label": "噪声级别",
+                    "label_en": "Noise Level",
+                    "description": "去除噪点的强度，-1表示不去噪，数值越大去噪越强",
+                    "description_en": "Denoising strength, -1 means no denoising, higher values mean stronger denoising"
+                },
+                "tta_mode": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "TTA 模式",
+                    "label_en": "TTA Mode",
+                    "description": "通过多次处理并合并结果来提升画质，但处理时间会增加约8倍",
+                    "description_en": "Process multiple times and merge results for better quality, but takes ~8x longer"
+                }
+            }
+        },
+        {
+            "id": "srmdnf_x2",
+            "name": "SRMD NF (2x No Denoise)",
+            "description": "2倍超分，无去噪版本",
+            "description_en": "2x super-resolution, no denoising version",
+            "category": "super_resolution",
+            "paramFile": "super_resolution/SRMD/models-srmd/srmdnf_x2.param",
+            "binFile": "super_resolution/SRMD/models-srmd/srmdnf_x2.bin",
+            "inputBlob": "data",
+            "outputBlob": "output",
+            "scaleFactor": 2,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 400,
+            "tilePadding": 10,
+            "supportedParams": {
+                "tta_mode": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "TTA 模式",
+                    "label_en": "TTA Mode",
+                    "description": "通过多次处理并合并结果来提升画质，但处理时间会增加约8倍",
+                    "description_en": "Process multiple times and merge results for better quality, but takes ~8x longer"
+                }
+            }
+        },
+        {
+            "id": "srmdnf_x4",
+            "name": "SRMD NF (4x No Denoise)",
+            "description": "4倍超分，无去噪版本",
+            "description_en": "4x super-resolution, no denoising version",
+            "category": "super_resolution",
+            "paramFile": "super_resolution/SRMD/models-srmd/srmdnf_x4.param",
+            "binFile": "super_resolution/SRMD/models-srmd/srmdnf_x4.bin",
+            "inputBlob": "data",
+            "outputBlob": "output",
+            "scaleFactor": 4,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 400,
+            "tilePadding": 10,
+            "supportedParams": {
+                "tta_mode": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "TTA 模式",
+                    "label_en": "TTA Mode",
+                    "description": "通过多次处理并合并结果来提升画质，但处理时间会增加约8倍",
+                    "description_en": "Process multiple times and merge results for better quality, but takes ~8x longer"
+                }
+            }
+        },
+        {
+            "id": "scunet_color_real_psnr",
+            "name": "SCUNet",
+            "description": "真实世界盲图像去噪，Swin-Conv-UNet架构",
+            "description_en": "Real-world blind image denoising, Swin-Conv-UNet architecture",
+            "category": "denoising",
+            "paramFile": "denoising/SCUNet/scunet_color_real_psnr.param",
+            "binFile": "denoising/SCUNet/scunet_color_real_psnr.bin",
+            "inputBlob": "input",
+            "outputBlob": "output",
+            "scaleFactor": 1,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 256,
+            "tilePadding": 16,
+            "supportedParams": {
+                "noise_threshold": {
+                    "type": "float",
+                    "min": 0.0,
+                    "max": 100.0,
+                    "default": 50.0,
+                    "step": 5.0,
+                    "label": "噪声阈值",
+                    "label_en": "Noise Threshold",
+                    "description": "数值越大去噪效果越强，但可能丢失细节。建议从50开始调整",
+                    "description_en": "Higher values mean stronger denoising but may lose details. Start from 50"
+                }
+            }
+        },
+        {
+            "id": "nafnet_denoise",
+            "name": "NAFNet",
+            "description": "SOTA去噪模型，ECCV 2022，效果极佳",
+            "description_en": "SOTA denoising model, ECCV 2022, excellent results",
+            "category": "denoising",
+            "paramFile": "denoising/NAFNet/nafnet_denoise.param",
+            "binFile": "denoising/NAFNet/nafnet_denoise.bin",
+            "inputBlob": "input",
+            "outputBlob": "output",
+            "scaleFactor": 1,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 256,
+            "tilePadding": 16,
+            "supportedParams": {
+                "noise_threshold": {
+                    "type": "float",
+                    "min": 0.0,
+                    "max": 100.0,
+                    "default": 50.0,
+                    "step": 5.0,
+                    "label": "噪声阈值",
+                    "label_en": "Noise Threshold",
+                    "description": "数值越大去噪效果越强，但可能丢失细节。建议从50开始调整",
+                    "description_en": "Higher values mean stronger denoising but may lose details. Start from 50"
+                }
+            }
+        },
+        {
+            "id": "mprnet_deblur",
+            "name": "MPRNet",
+            "description": "多阶段渐进图像去模糊，CVPR 2021",
+            "description_en": "Multi-stage progressive image deblurring, CVPR 2021",
+            "category": "deblurring",
+            "paramFile": "deblurring/MPRNet/mprnet.param",
+            "binFile": "deblurring/MPRNet/mprnet.bin",
+            "inputBlob": "input",
+            "outputBlob": "output",
+            "scaleFactor": 1,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 256,
+            "tilePadding": 16,
+            "supportedParams": {
+                "deblur_strength": {
+                    "type": "float",
+                    "min": 0.5,
+                    "max": 2.0,
+                    "default": 1.0,
+                    "step": 0.1,
+                    "label": "去模糊强度",
+                    "label_en": "Deblur Strength",
+                    "description": "数值越大去模糊效果越强，但可能导致图像过度平滑",
+                    "description_en": "Higher values mean stronger deblurring, but may over-smooth the image"
+                }
+            }
+        },
+        {
+            "id": "ffanet_dehaze",
+            "name": "FFA-Net",
+            "description": "单图像去雾，特征融合注意力网络，AAAI 2020",
+            "description_en": "Single image dehazing, Feature Fusion Attention Network, AAAI 2020",
+            "category": "dehazing",
+            "paramFile": "dehazing/FFA-Net/ffanet.param",
+            "binFile": "dehazing/FFA-Net/ffanet.bin",
+            "inputBlob": "input",
+            "outputBlob": "output",
+            "scaleFactor": 1,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 256,
+            "tilePadding": 16,
+            "supportedParams": {
+                "dehaze_strength": {
+                    "type": "float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 1.0,
+                    "step": 0.1,
+                    "label": "去雾强度",
+                    "label_en": "Dehaze Strength",
+                    "description": "数值越大去雾效果越强，1.0表示完全去雾",
+                    "description_en": "Higher values mean stronger dehazing, 1.0 means full dehazing"
+                }
+            }
+        },
+        {
+            "id": "deoldify_colorize",
+            "name": "DeOldify",
+            "description": "黑白图像自动上色，基于GAN",
+            "description_en": "Automatic black & white image colorization, GAN-based",
+            "category": "colorization",
+            "paramFile": "colorization/DeOldify/deoldify.256.param",
+            "binFile": "colorization/DeOldify/deoldify.256.bin",
+            "inputBlob": "input",
+            "outputBlob": "output",
+            "scaleFactor": 1,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 256,
+            "tilePadding": 0,
+            "supportedParams": {
+                "render_factor": {
+                    "type": "int",
+                    "min": 10,
+                    "max": 50,
+                    "default": 35,
+                    "label": "渲染质量",
+                    "label_en": "Render Quality",
+                    "description": "数值越大颜色越丰富细腻，但处理速度会变慢。推荐35",
+                    "description_en": "Higher values produce richer colors but slower. Recommended: 35"
+                },
+                "artistic_mode": {
+                    "type": "bool",
+                    "default": true,
+                    "label": "艺术模式",
+                    "label_en": "Artistic Mode",
+                    "description": "开启后颜色更鲜艳丰富，关闭则更自然真实",
+                    "description_en": "Enable for richer, more vibrant colors; disable for more natural results"
+                }
+            }
+        },
+        {
+            "id": "zerodce_plus",
+            "name": "Zero-DCE++",
+            "description": "低光照增强，超轻量仅50KB",
+            "description_en": "Low-light enhancement, ultra-lightweight only 50KB",
+            "category": "low_light",
+            "paramFile": "low_light/Zero-DCE/zerodce_plus.param",
+            "binFile": "low_light/Zero-DCE/zerodce_plus.bin",
+            "inputBlob": "input",
+            "outputBlob": "output",
+            "scaleFactor": 1,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 0,
+            "tilePadding": 0,
+            "supportedParams": {
+                "enhancement_strength": {
+                    "type": "float",
+                    "min": 0.0,
+                    "max": 2.0,
+                    "default": 1.0,
+                    "step": 0.1,
+                    "label": "增强强度",
+                    "label_en": "Enhancement Strength",
+                    "description": "低光增强强度，1.0为标准增强",
+                    "description_en": "Low-light enhancement strength, 1.0 is standard"
+                },
+                "exposure_correction": {
+                    "type": "bool",
+                    "default": true,
+                    "label": "曝光校正",
+                    "label_en": "Exposure Correction",
+                    "description": "自动校正曝光水平",
+                    "description_en": "Automatically correct exposure level"
+                }
+            }
+        },
+        {
+            "id": "rife_v46",
+            "name": "RIFE v4.6",
+            "description": "视频帧插值，最新稳定版，通用场景",
+            "description_en": "Video frame interpolation, latest stable version, general purpose",
+            "category": "frame_interpolation",
+            "paramFile": "frame_interpolation/RIFE/rife-v4.6/flownet.param",
+            "binFile": "frame_interpolation/RIFE/rife-v4.6/flownet.bin",
+            "inputBlob": "input",
+            "outputBlob": "output",
+            "scaleFactor": 1,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 0,
+            "tilePadding": 0,
+            "supportedParams": {
+                "time_step": {
+                    "type": "float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.5,
+                    "step": 0.1,
+                    "label": "插帧位置",
+                    "label_en": "Frame Position",
+                    "description": "新帧在两帧之间的位置，0.5表示正中间。通常无需调整",
+                    "description_en": "Position of new frame between two frames, 0.5 means middle. Usually no need to change"
+                },
+                "uhd_mode": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "超高清模式",
+                    "label_en": "UHD Mode",
+                    "description": "针对4K及以上分辨率视频优化，可减少显存占用",
+                    "description_en": "Optimized for 4K+ resolution videos, reduces memory usage"
+                },
+                "tta_spatial": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "空间增强",
+                    "label_en": "Spatial Enhancement",
+                    "description": "通过多次空间处理提升画质，但速度会降低约4倍",
+                    "description_en": "Process multiple times spatially for better quality, but ~4x slower"
+                },
+                "tta_temporal": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "时间增强",
+                    "label_en": "Temporal Enhancement",
+                    "description": "通过多次时间处理提升流畅度，但速度会降低约2倍",
+                    "description_en": "Process multiple times temporally for smoother results, but ~2x slower"
+                }
+            }
+        },
+        {
+            "id": "rife_hd",
+            "name": "RIFE HD",
+            "description": "视频帧插值，高清优化版，适合1080p+",
+            "description_en": "Video frame interpolation, HD optimized, for 1080p+",
+            "category": "frame_interpolation",
+            "paramFile": "frame_interpolation/RIFE/rife-HD/flownet.param",
+            "binFile": "frame_interpolation/RIFE/rife-HD/flownet.bin",
+            "inputBlob": "input",
+            "outputBlob": "output",
+            "scaleFactor": 1,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 0,
+            "tilePadding": 0,
+            "supportedParams": {
+                "time_step": {
+                    "type": "float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.5,
+                    "step": 0.1,
+                    "label": "插帧位置",
+                    "label_en": "Frame Position",
+                    "description": "新帧在两帧之间的位置，0.5表示正中间",
+                    "description_en": "Position of new frame between two frames, 0.5 means middle"
+                },
+                "tta_spatial": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "空间增强",
+                    "label_en": "Spatial Enhancement",
+                    "description": "通过多次空间处理提升画质，但速度会降低约4倍",
+                    "description_en": "Process multiple times spatially for better quality, but ~4x slower"
+                },
+                "tta_temporal": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "时间增强",
+                    "label_en": "Temporal Enhancement",
+                    "description": "通过多次时间处理提升流畅度，但速度会降低约2倍",
+                    "description_en": "Process multiple times temporally for smoother results, but ~2x slower"
+                }
+            }
+        },
+        {
+            "id": "rife_uhd",
+            "name": "RIFE UHD",
+            "description": "视频帧插值，超高清优化版，适合4K",
+            "description_en": "Video frame interpolation, UHD optimized, for 4K",
+            "category": "frame_interpolation",
+            "paramFile": "frame_interpolation/RIFE/rife-UHD/flownet.param",
+            "binFile": "frame_interpolation/RIFE/rife-UHD/flownet.bin",
+            "inputBlob": "input",
+            "outputBlob": "output",
+            "scaleFactor": 1,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 0,
+            "tilePadding": 0,
+            "supportedParams": {
+                "time_step": {
+                    "type": "float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.5,
+                    "step": 0.1,
+                    "label": "插帧位置",
+                    "label_en": "Frame Position",
+                    "description": "新帧在两帧之间的位置，0.5表示正中间",
+                    "description_en": "Position of new frame between two frames, 0.5 means middle"
+                },
+                "tta_spatial": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "空间增强",
+                    "label_en": "Spatial Enhancement",
+                    "description": "通过多次空间处理提升画质，但速度会降低约4倍",
+                    "description_en": "Process multiple times spatially for better quality, but ~4x slower"
+                },
+                "tta_temporal": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "时间增强",
+                    "label_en": "Temporal Enhancement",
+                    "description": "通过多次时间处理提升流畅度，但速度会降低约2倍",
+                    "description_en": "Process multiple times temporally for smoother results, but ~2x slower"
+                }
+            }
+        },
+        {
+            "id": "rife_anime",
+            "name": "RIFE Anime",
+            "description": "视频帧插值，动漫优化版",
+            "description_en": "Video frame interpolation, anime optimized",
+            "category": "frame_interpolation",
+            "paramFile": "frame_interpolation/RIFE/rife-anime/flownet.param",
+            "binFile": "frame_interpolation/RIFE/rife-anime/flownet.bin",
+            "inputBlob": "input",
+            "outputBlob": "output",
+            "scaleFactor": 1,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [0.00392157, 0.00392157, 0.00392157],
+            "denormScale": [255.0, 255.0, 255.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 0,
+            "tilePadding": 0,
+            "supportedParams": {
+                "time_step": {
+                    "type": "float",
+                    "min": 0.0,
+                    "max": 1.0,
+                    "default": 0.5,
+                    "step": 0.1,
+                    "label": "插帧位置",
+                    "label_en": "Frame Position",
+                    "description": "新帧在两帧之间的位置，0.5表示正中间",
+                    "description_en": "Position of new frame between two frames, 0.5 means middle"
+                },
+                "tta_spatial": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "空间增强",
+                    "label_en": "Spatial Enhancement",
+                    "description": "通过多次空间处理提升画质，但速度会降低约4倍",
+                    "description_en": "Process multiple times spatially for better quality, but ~4x slower"
+                },
+                "tta_temporal": {
+                    "type": "bool",
+                    "default": false,
+                    "label": "时间增强",
+                    "label_en": "Temporal Enhancement",
+                    "description": "通过多次时间处理提升流畅度，但速度会降低约2倍",
+                    "description_en": "Process multiple times temporally for smoother results, but ~2x slower"
+                }
+            }
+        },
+        {
+            "id": "opencv_inpaint_telea",
+            "name": "OpenCV Telea Inpaint",
+            "description": "基于快速行进法的图像修复，速度快",
+            "description_en": "Fast marching method based image inpainting, fast",
+            "category": "inpainting",
+            "paramFile": "",
+            "binFile": "",
+            "inputBlob": "",
+            "outputBlob": "",
+            "scaleFactor": 1,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [1.0, 1.0, 1.0],
+            "denormScale": [1.0, 1.0, 1.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 0,
+            "tilePadding": 0,
+            "engine": "opencv",
+            "supportedParams": {
+                "inpaint_radius": {
+                    "type": "int",
+                    "min": 1,
+                    "max": 20,
+                    "default": 3,
+                    "label": "修复范围",
+                    "label_en": "Repair Range",
+                    "description": "修复算法影响的像素范围，数值越大修复区域越广，但可能模糊边缘",
+                    "description_en": "Pixel range affected by repair algorithm, larger values mean wider repair but may blur edges"
+                }
+            }
+        },
+        {
+            "id": "opencv_inpaint_ns",
+            "name": "OpenCV Navier-Stokes Inpaint",
+            "description": "基于流体动力学的图像修复，纹理保留更好",
+            "description_en": "Fluid dynamics based image inpainting, better texture preservation",
+            "category": "inpainting",
+            "paramFile": "",
+            "binFile": "",
+            "inputBlob": "",
+            "outputBlob": "",
+            "scaleFactor": 1,
+            "inputChannels": 3,
+            "outputChannels": 3,
+            "normMean": [0.0, 0.0, 0.0],
+            "normScale": [1.0, 1.0, 1.0],
+            "denormScale": [1.0, 1.0, 1.0],
+            "denormMean": [0.0, 0.0, 0.0],
+            "tileSize": 0,
+            "tilePadding": 0,
+            "engine": "opencv",
+            "supportedParams": {
+                "inpaint_radius": {
+                    "type": "int",
+                    "min": 1,
+                    "max": 20,
+                    "default": 3,
+                    "label": "修复范围",
+                    "label_en": "Repair Range",
+                    "description": "修复算法影响的像素范围，数值越大修复区域越广，但可能模糊边缘",
+                    "description_en": "Pixel range affected by repair algorithm, larger values mean wider repair but may blur edges"
+                }
+            }
+        }
+    ],
+    "categories": {
+        "super_resolution": {"name": "超分辨率", "name_en": "Super Resolution", "icon": "maximize", "order": 0},
+        "denoising": {"name": "去噪", "name_en": "Denoising", "icon": "sparkles", "order": 1},
+        "deblurring": {"name": "去模糊", "name_en": "Deblurring", "icon": "zap", "order": 2},
+        "dehazing": {"name": "去雾", "name_en": "Dehazing", "icon": "cloud-off", "order": 3},
+        "colorization": {"name": "上色", "name_en": "Colorization", "icon": "palette", "order": 4},
+        "low_light": {"name": "低光增强", "name_en": "Low-Light Enhancement", "icon": "sun", "order": 5},
+        "frame_interpolation": {"name": "视频插帧", "name_en": "Frame Interpolation", "icon": "film", "order": 6},
+        "inpainting": {"name": "图像修复", "name_en": "Inpainting", "icon": "eraser", "order": 7}
+    }
+}
