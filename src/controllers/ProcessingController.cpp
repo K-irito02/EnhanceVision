@@ -58,6 +58,49 @@ ProcessingController::ProcessingController(QObject* parent)
             this, &ProcessingController::resourceExhausted);
     
     m_resourceManager->startMonitoring(2000);
+
+    // 初始化 AI 推理引擎和模型注册表
+    m_modelRegistry = new ModelRegistry(this);
+    m_aiEngine = new AIEngine(this);
+
+    QString modelsPath = QCoreApplication::applicationDirPath() + "/models";
+    if (!QDir(modelsPath).exists()) {
+        modelsPath = QCoreApplication::applicationDirPath() + "/../resources/models";
+    }
+    if (!QDir(modelsPath).exists()) {
+        modelsPath = QCoreApplication::applicationDirPath() + "/resources/models";
+    }
+    if (!QDir(modelsPath).exists()) {
+        modelsPath = QDir(QCoreApplication::applicationDirPath()).filePath("../../resources/models");
+    }
+    m_modelRegistry->initialize(modelsPath);
+    m_aiEngine->setModelRegistry(m_modelRegistry);
+
+    // 连接 AI 推理信号
+    connect(m_aiEngine, &AIEngine::progressChanged, this, [this](double progress) {
+        // 找到正在处理的 AI 任务并更新进度
+        for (auto& task : m_tasks) {
+            if (task.status == ProcessingStatus::Processing) {
+                updateTaskProgress(task.taskId, static_cast<int>(progress * 100));
+                break;
+            }
+        }
+    });
+
+    connect(m_aiEngine, &AIEngine::processFileCompleted, this,
+            [this](bool success, const QString& resultPath, const QString& error) {
+        // 找到正在处理的 AI 任务并完成/失败
+        for (auto& task : m_tasks) {
+            if (task.status == ProcessingStatus::Processing) {
+                if (success) {
+                    completeTask(task.taskId, resultPath);
+                } else {
+                    failTask(task.taskId, error);
+                }
+                break;
+            }
+        }
+    });
 }
 
 ProcessingController::~ProcessingController()
@@ -73,6 +116,16 @@ ProcessingModel* ProcessingController::processingModel() const
 QueueStatus ProcessingController::queueStatus() const
 {
     return m_queueStatus;
+}
+
+ModelRegistry* ProcessingController::modelRegistry() const
+{
+    return m_modelRegistry;
+}
+
+AIEngine* ProcessingController::aiEngine() const
+{
+    return m_aiEngine;
 }
 
 int ProcessingController::queueSize() const
@@ -228,6 +281,7 @@ QString ProcessingController::addTask(const Message& message)
         m_tasks.append(task);
         m_processingModel->addTask(task);
         m_taskToMessage[task.taskId] = message.id;
+        m_taskMessages[task.taskId] = message;
         
         qint64 estimatedMemory = estimateMemoryUsage(mediaFile.filePath, mediaFile.type);
         registerTaskContext(task.taskId, message.id, sessionId, mediaFile.id, estimatedMemory);
@@ -350,9 +404,62 @@ void ProcessingController::startTask(QueueTask& task)
 
     QString taskId = task.taskId;
     
-    // 直接完成任务，实际处理在 completeTask 中进行
+    // 检查是否为 AI 推理模式
+    if (m_taskMessages.contains(taskId)) {
+        const Message& message = m_taskMessages[taskId];
+        if (message.mode == ProcessingMode::AIInference) {
+            // AI 推理模式：使用 AIEngine 处理
+            QString modelId = message.aiParams.modelId;
+            if (modelId.isEmpty()) {
+                failTask(taskId, tr("未指定AI模型"));
+                return;
+            }
+
+            // 找到对应的媒体文件
+            QString inputPath;
+            for (const auto& file : message.mediaFiles) {
+                for (const auto& t : m_tasks) {
+                    if (t.taskId == taskId && t.fileId == file.id) {
+                        inputPath = file.filePath;
+                        break;
+                    }
+                }
+                if (!inputPath.isEmpty()) break;
+            }
+
+            if (inputPath.isEmpty()) {
+                failTask(taskId, tr("未找到媒体文件"));
+                return;
+            }
+
+            // 生成输出路径
+            QFileInfo fileInfo(inputPath);
+            QString outputPath = fileInfo.absolutePath() + "/" +
+                                 fileInfo.completeBaseName() + "_ai_enhanced." + fileInfo.suffix();
+
+            // 加载模型并推理
+            if (!m_aiEngine->loadModel(modelId)) {
+                failTask(taskId, tr("模型加载失败: %1").arg(modelId));
+                return;
+            }
+
+            // 设置参数
+            m_aiEngine->setUseGpu(message.aiParams.useGpu);
+            if (message.aiParams.tileSize > 0) {
+                m_aiEngine->setParameter("tileSize", message.aiParams.tileSize);
+            }
+            for (auto it = message.aiParams.modelParams.begin();
+                 it != message.aiParams.modelParams.end(); ++it) {
+                m_aiEngine->setParameter(it.key(), it.value());
+            }
+
+            // 异步推理
+            m_aiEngine->processAsync(inputPath, outputPath);
+            return;
+        }
+    }
+
     // Shader 模式使用 GPU 实时渲染，无需预处理
-    // AI 模式的实际处理逻辑待集成
     QTimer::singleShot(10, this, [this, taskId]() {
         completeTask(taskId, "");
     });
@@ -610,6 +717,39 @@ QString ProcessingController::sendToProcessing(int mode, const QVariantMap& para
     message.parameters = params;
     message.status = ProcessingStatus::Pending;
     message.progress = 0;
+
+    // 设置 AI 参数
+    if (mode == 1) {
+        message.aiParams.modelId = params.value("modelId").toString();
+        message.aiParams.useGpu = params.value("useGpu", true).toBool();
+        message.aiParams.tileSize = params.value("tileSize", 0).toInt();
+
+        QString categoryStr = params.value("category").toString();
+        if (!categoryStr.isEmpty()) {
+            static const QMap<QString, ModelCategory> catMap = {
+                {"super_resolution", ModelCategory::SuperResolution},
+                {"denoising", ModelCategory::Denoising},
+                {"deblurring", ModelCategory::Deblurring},
+                {"dehazing", ModelCategory::Dehazing},
+                {"colorization", ModelCategory::Colorization},
+                {"low_light", ModelCategory::LowLight},
+                {"frame_interpolation", ModelCategory::FrameInterpolation},
+                {"inpainting", ModelCategory::Inpainting}
+            };
+            message.aiParams.category = catMap.value(categoryStr, ModelCategory::SuperResolution);
+        }
+
+        // 收集模型特定参数
+        QVariantMap modelParams;
+        for (auto it = params.begin(); it != params.end(); ++it) {
+            if (it.key() != "modelId" && it.key() != "useGpu" &&
+                it.key() != "tileSize" && it.key() != "category" &&
+                it.key() != "modelIndex") {
+                modelParams[it.key()] = it.value();
+            }
+        }
+        message.aiParams.modelParams = modelParams;
+    }
 
     // 设置 Shader 参数
     if (mode == 0) {

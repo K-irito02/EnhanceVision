@@ -7,6 +7,7 @@ EnhanceVision 是一个基于 **Qt 6.10.2 + QML** 的桌面端图像与视频画
 - **双模式处理**：
   - **Shader 模式**：基于 Qt RHI / GLSL Shader，实时调整亮度、对比度、饱和度、色相、模糊、锐化
   - **AI 推理模式**：基于 NCNN 引擎（Vulkan 加速），集成 Real-ESRGAN 等模型实现超分辨率增强
+- **GPU 视频导出**：视频缩略图使用 GPU Shader 处理，确保与播放效果完全一致
 - **现代化 UI**：Qt Quick (QML) 声明式 UI，深色/浅色主题，中英双语
 - **会话式工作流**：多会话管理，支持固定、重排序、批量文件处理
 - **媒体预览**：内嵌式媒体查看器（EmbeddedMediaViewer），支持全屏覆盖、拖拽脱离、智能吸附、原图对比、窗口层级管理、导航按钮自动隐藏
@@ -49,6 +50,7 @@ EnhanceVision 是一个基于 **Qt 6.10.2 + QML** 的桌面端图像与视频画
 - **零拷贝图像传输**：通过 QQuickImageProvider 直接访问 C++ 图像数据
 - **GPU 加速渲染**：Qt Scene Graph 自动使用 GPU 渲染
 - **实时 Shader 滤镜**：ShaderEffect 直接在 GPU 上处理图像
+- **效果一致性保证**：视频缩略图和播放使用相同的 GPU Shader 管线
 
 ## 技术栈
 

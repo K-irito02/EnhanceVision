@@ -771,8 +771,6 @@ void SessionController::restoreThumbnails()
             }
         }
     }
-    
-    qDebug() << "Restored" << restoredCount << "processed thumbnails";
 }
 
 } // namespace EnhanceVision

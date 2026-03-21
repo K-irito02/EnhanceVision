@@ -13,6 +13,8 @@
 #include "EnhanceVision/models/DataTypes.h"
 #include "EnhanceVision/core/ImageProcessor.h"
 #include "EnhanceVision/core/VideoProcessor.h"
+#include "EnhanceVision/core/AIEngine.h"
+#include "EnhanceVision/core/ModelRegistry.h"
 
 namespace EnhanceVision {
 
@@ -154,6 +156,16 @@ private slots:
      */
     void onVideoFinished(bool success, const QString& resultPath, const QString& error);
 
+    /**
+     * @brief AI 推理进度回调
+     */
+    void onAIProgressChanged(double progress);
+
+    /**
+     * @brief AI 推理完成回调
+     */
+    void onAIFinished(bool success, const QString& resultPath, const QString& error);
+
 private:
     /**
      * @brief 开始处理任务
@@ -172,6 +184,8 @@ private:
 
     ImageProcessor* m_imageProcessor;
     VideoProcessor* m_videoProcessor;
+    AIEngine* m_aiEngine;
+    ModelRegistry* m_modelRegistry;
     QString m_currentTaskId;
 };
 

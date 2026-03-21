@@ -131,6 +131,47 @@ signals:
     void activeSessionChanged();
     void sessionsChanged();
 };
+
+// 处理控制器 - 管理处理队列和任务
+class ProcessingController : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(ProcessingModel* processingModel READ processingModel CONSTANT)
+    Q_PROPERTY(QueueStatus queueStatus READ queueStatus NOTIFY queueStatusChanged)
+    Q_PROPERTY(int queueSize READ queueSize NOTIFY queueSizeChanged)
+    
+public:
+    Q_INVOKABLE QString sendToProcessing(int mode, const QVariantMap& params);
+    Q_INVOKABLE void pauseQueue();
+    Q_INVOKABLE void resumeQueue();
+    
+signals:
+    void requestShaderExport(const QString& exportId, const QString& imagePath, 
+                           const QVariantMap& shaderParams, const QString& outputPath);
+    
+private slots:
+    void onShaderExportCompleted(const QString& exportId, bool success, 
+                               const QString& outputPath, const QString& error);
+};
+```
+
+#### Services（服务层）
+
+```cpp
+// 图像导出服务 - GPU 处理和导出
+class ImageExportService : public QObject {
+    Q_OBJECT
+    
+public:
+    static ImageExportService* instance();
+    void requestExport(const QString& exportId, const QString& imagePath,
+                      const QVariantMap& shaderParams, const QString& outputPath);
+    
+signals:
+    void exportRequested(const QString& exportId, const QString& imagePath,
+                        const QVariantMap& shaderParams, const QString& outputPath);
+    void exportCompleted(const QString& exportId, bool success, 
+                        const QString& outputPath, const QString& error);
+};
 ```
 
 ### 第三层：C++ 核心引擎层

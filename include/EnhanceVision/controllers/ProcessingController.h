@@ -16,6 +16,8 @@
 #include <QElapsedTimer>
 #include "EnhanceVision/models/DataTypes.h"
 #include "EnhanceVision/models/ProcessingModel.h"
+#include "EnhanceVision/core/AIEngine.h"
+#include "EnhanceVision/core/ModelRegistry.h"
 
 namespace EnhanceVision {
 
@@ -49,6 +51,8 @@ class ProcessingController : public QObject
     Q_PROPERTY(int currentProcessingCount READ currentProcessingCount NOTIFY currentProcessingCountChanged)
     Q_PROPERTY(int maxConcurrentTasks READ maxConcurrentTasks NOTIFY maxConcurrentTasksChanged)
     Q_PROPERTY(int resourcePressure READ resourcePressure NOTIFY resourcePressureChanged)
+    Q_PROPERTY(EnhanceVision::ModelRegistry* modelRegistry READ modelRegistry CONSTANT)
+    Q_PROPERTY(EnhanceVision::AIEngine* aiEngine READ aiEngine CONSTANT)
 
 public:
     explicit ProcessingController(QObject* parent = nullptr);
@@ -64,6 +68,8 @@ public:
     int currentProcessingCount() const;
     int maxConcurrentTasks() const;
     int resourcePressure() const;
+    ModelRegistry* modelRegistry() const;
+    AIEngine* aiEngine() const;
 
     Q_INVOKABLE void pauseQueue();
     Q_INVOKABLE void resumeQueue();
@@ -143,6 +149,10 @@ private:
     ResourceManager* m_resourceManager;
     QHash<QString, TaskContext> m_taskContexts;
     int m_resourcePressure;
+
+    AIEngine* m_aiEngine;
+    ModelRegistry* m_modelRegistry;
+    QHash<QString, Message> m_taskMessages;
 
     QString generateTaskId();
     void syncMessageProgress(const QString& messageId);

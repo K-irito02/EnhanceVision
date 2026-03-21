@@ -20,6 +20,23 @@ ProcessingEngine::ProcessingEngine(QObject *parent)
 {
     m_imageProcessor = new ImageProcessor(this);
     m_videoProcessor = new VideoProcessor(this);
+    m_aiEngine = new AIEngine(this);
+    m_modelRegistry = new ModelRegistry(this);
+
+    // 初始化模型注册表
+    QString modelsPath = QCoreApplication::applicationDirPath() + "/models";
+    if (!QDir(modelsPath).exists()) {
+        modelsPath = QCoreApplication::applicationDirPath() + "/../resources/models";
+    }
+    if (!QDir(modelsPath).exists()) {
+        modelsPath = QCoreApplication::applicationDirPath() + "/resources/models";
+    }
+    if (!QDir(modelsPath).exists()) {
+        // 开发模式：从源码目录查找
+        modelsPath = QDir(QCoreApplication::applicationDirPath()).filePath("../../resources/models");
+    }
+    m_modelRegistry->initialize(modelsPath);
+    m_aiEngine->setModelRegistry(m_modelRegistry);
 
     // 连接图像处理信号
     connect(m_imageProcessor, &ImageProcessor::progressChanged,
@@ -32,6 +49,12 @@ ProcessingEngine::ProcessingEngine(QObject *parent)
             this, &ProcessingEngine::onVideoProgressChanged);
     connect(m_videoProcessor, &VideoProcessor::finished,
             this, &ProcessingEngine::onVideoFinished);
+
+    // 连接 AI 推理信号
+    connect(m_aiEngine, &AIEngine::progressChanged,
+            this, &ProcessingEngine::onAIProgressChanged);
+    connect(m_aiEngine, &AIEngine::processFileCompleted,
+            this, &ProcessingEngine::onAIFinished);
 }
 
 ProcessingEngine::~ProcessingEngine()
@@ -81,6 +104,9 @@ void ProcessingEngine::cancelTask(const QString& taskId)
             }
             if (m_videoProcessor->isProcessing() && m_currentTaskId == taskId) {
                 m_videoProcessor->cancel();
+            }
+            if (m_aiEngine->isProcessing() && m_currentTaskId == taskId) {
+                m_aiEngine->cancelProcess();
             }
 
             QueueTask task = m_processingTasks[i].first;
@@ -226,15 +252,37 @@ void ProcessingEngine::startTask(const QueueTask& task, const Message& message)
     QString extension = fileInfo.suffix();
     outputPath = fileInfo.absolutePath() + "/" + baseName + "_enhanced." + extension;
 
-    if (mediaFile.type == MediaType::Image) {
-        // 图像处理
+    if (message.mode == ProcessingMode::AIInference) {
+        // AI 推理模式
+        QString modelId = message.aiParams.modelId;
+        if (modelId.isEmpty()) {
+            emit taskFinished(task, false, QString(), tr("未指定AI模型"));
+            return;
+        }
+
+        // 加载模型
+        if (!m_aiEngine->loadModel(modelId)) {
+            emit taskFinished(task, false, QString(), tr("模型加载失败: %1").arg(modelId));
+            return;
+        }
+
+        // 设置模型参数
+        for (auto it = message.aiParams.modelParams.begin();
+             it != message.aiParams.modelParams.end(); ++it) {
+            m_aiEngine->setParameter(it.key(), it.value());
+        }
+
+        // 异步推理
+        m_aiEngine->processAsync(mediaFile.filePath, outputPath);
+    } else if (mediaFile.type == MediaType::Image) {
+        // Shader 图像处理
         m_imageProcessor->processImageAsync(
             mediaFile.filePath,
             outputPath,
             message.shaderParams
         );
     } else {
-        // 视频处理
+        // Shader 视频处理
         m_videoProcessor->processVideoAsync(
             mediaFile.filePath,
             outputPath,
@@ -300,6 +348,34 @@ void ProcessingEngine::onVideoFinished(bool success, const QString& resultPath, 
     locker.unlock();
 
     // 继续处理下一个任务
+    processNextTask();
+}
+
+void ProcessingEngine::onAIProgressChanged(double progress)
+{
+    emit taskProgressChanged(m_currentTaskId, static_cast<int>(progress * 100), tr("AI推理中..."));
+}
+
+void ProcessingEngine::onAIFinished(bool success, const QString& resultPath, const QString& error)
+{
+    QMutexLocker locker(&m_mutex);
+
+    for (int i = 0; i < m_processingTasks.size(); ++i) {
+        if (m_processingTasks[i].first.taskId == m_currentTaskId) {
+            QueueTask task = m_processingTasks[i].first;
+            task.status = success ? ProcessingStatus::Completed : ProcessingStatus::Failed;
+            task.progress = success ? 100 : 0;
+
+            emit taskFinished(task, success, resultPath, error);
+            m_processingTasks.removeAt(i);
+            break;
+        }
+    }
+
+    m_currentTaskId.clear();
+
+    locker.unlock();
+
     processNextTask();
 }
 

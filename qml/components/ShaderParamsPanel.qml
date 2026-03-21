@@ -127,34 +127,25 @@ ColumnLayout {
                     color: Theme.colors.foreground
                 }
 
-                Item { Layout.fillWidth: true; Layout.minimumWidth: 10 }
+                Item { Layout.fillWidth: true; Layout.minimumWidth: 4 }
 
+                // 新建类别按钮 - 纯图标设计
                 Rectangle {
                     id: addCategoryBtn
-                    width: addCategoryRow.implicitWidth + 12
-                    height: 24
+                    width: 28
+                    height: 28
                     radius: Theme.radius.sm
-                    color: addCategoryMouse.containsMouse ? Qt.rgba(0.12, 0.34, 0.82, 0.15) : "transparent"
+                    color: addCategoryMouse.containsMouse 
+                           ? (Theme.isDark ? Qt.rgba(1,1,1,0.1) : Qt.rgba(0.12, 0.34, 0.82, 0.12))
+                           : "transparent"
                     border.width: 1
                     border.color: addCategoryMouse.containsMouse ? Theme.colors.primary : Theme.colors.border
 
-                    Row {
-                        id: addCategoryRow
+                    ColoredIcon {
                         anchors.centerIn: parent
-                        spacing: 3
-
-                        ColoredIcon {
-                            source: Theme.icon("folder-plus")
-                            iconSize: 11
-                            color: addCategoryMouse.containsMouse ? Theme.colors.primary : Theme.colors.foreground
-                        }
-
-                        Text {
-                            text: qsTr("类别")
-                            font.pixelSize: 11
-                            font.weight: Font.Medium
-                            color: addCategoryMouse.containsMouse ? Theme.colors.primary : Theme.colors.foreground
-                        }
+                        source: Theme.icon("folder-plus")
+                        iconSize: 14
+                        color: addCategoryMouse.containsMouse ? Theme.colors.primary : Theme.colors.mutedForeground
                     }
 
                     MouseArea {
@@ -196,33 +187,24 @@ ColumnLayout {
                     Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
                 }
 
+                Item { Layout.preferredWidth: 4 }
+
+                // 保存风格按钮 - 纯图标设计
                 Rectangle {
                     id: saveStyleBtn
-                    width: saveRow.implicitWidth + 12
-                    height: 24
+                    width: 28
+                    height: 28
                     radius: Theme.radius.sm
                     color: saveMouse.containsMouse ? Theme.colors.primary : "transparent"
                     border.width: 1
                     border.color: saveMouse.containsMouse ? Theme.colors.primary : Theme.colors.border
                     visible: true
 
-                    Row {
-                        id: saveRow
+                    ColoredIcon {
                         anchors.centerIn: parent
-                        spacing: 3
-
-                        ColoredIcon {
-                            source: Theme.icon("plus")
-                            iconSize: 11
-                            color: saveMouse.containsMouse ? "#FFFFFF" : Theme.colors.foreground
-                        }
-
-                        Text {
-                            text: qsTr("风格")
-                            font.pixelSize: 11
-                            font.weight: Font.Medium
-                            color: saveMouse.containsMouse ? "#FFFFFF" : Theme.colors.foreground
-                        }
+                        source: Theme.icon("plus")
+                        iconSize: 14
+                        color: saveMouse.containsMouse ? "#FFFFFF" : Theme.colors.mutedForeground
                     }
 
                     MouseArea {

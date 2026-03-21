@@ -41,10 +41,11 @@
 
 ## 核心功能
 
-### 图像处理
+### 图像/视频处理
 - **Shader 模式**：实时亮度、对比度、饱和度、色相、模糊、锐化调整
 - **AI 推理模式**：Real-ESRGAN 超分辨率增强
 - **实时预览**：参数调整即时生效
+- **GPU 视频导出**：视频缩略图使用 GPU Shader 处理，确保与播放效果完全一致
 
 ### 文件管理
 - **多媒体文件支持**：图片（JPG/PNG/BMP/WebP）、视频（MP4/MKV/AVI）
@@ -98,7 +99,7 @@ qml/
 │   ├── MessageItem.qml      # 单条消息
 │   ├── MediaThumbnailStrip.qml # 缩略图条
 │   ├── FullShaderEffect.qml # 完整 Shader 效果组件
-│   ├── OffscreenShaderRenderer.qml # 离屏 Shader 渲染器
+│   ├── OffscreenShaderRenderer.qml # 离屏 Shader 渲染器（用于 GPU 导出）
 │   ├── DialogTitleBar.qml  # 对话框标题栏组件
 │   └── ShaderParamsPanel.qml # Shader 参数面板
 ├── controls/               # 自定义控件

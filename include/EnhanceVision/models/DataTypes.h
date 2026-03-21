@@ -51,6 +51,63 @@ enum class ProcessingMode {
 };
 
 /**
+ * @brief AI 模型类别枚举
+ */
+enum class ModelCategory {
+    SuperResolution,      ///< 超分辨率
+    Denoising,            ///< 去噪
+    Deblurring,           ///< 去模糊
+    Dehazing,             ///< 去雾
+    Colorization,         ///< 上色
+    LowLight,             ///< 低光增强
+    FrameInterpolation,   ///< 视频插帧
+    Inpainting            ///< 图像修复
+};
+
+/**
+ * @brief AI 模型信息结构
+ */
+struct ModelInfo {
+    QString id;                ///< 模型唯一标识
+    QString name;              ///< 显示名称
+    QString description;       ///< 模型描述（中文）
+    QString descriptionEn;     ///< 模型描述（英文）
+    ModelCategory category;    ///< 模型类别
+    QString paramPath;         ///< .param 文件路径
+    QString binPath;           ///< .bin 文件路径
+    QString inputBlobName;     ///< NCNN 输入节点名
+    QString outputBlobName;    ///< NCNN 输出节点名
+    int scaleFactor = 1;       ///< 放大倍数（超分专用）
+    int inputChannels = 3;     ///< 输入通道数
+    int outputChannels = 3;    ///< 输出通道数
+    float normMean[3] = {0.f, 0.f, 0.f};   ///< 归一化均值
+    float normScale[3] = {1/255.f, 1/255.f, 1/255.f}; ///< 归一化缩放
+    float denormScale[3] = {255.f, 255.f, 255.f};      ///< 反归一化缩放
+    float denormMean[3] = {0.f, 0.f, 0.f};             ///< 反归一化均值
+    int tileSize = 0;          ///< 分块大小（0=不分块）
+    int tilePadding = 10;      ///< 分块重叠像素
+    qint64 sizeBytes = 0;      ///< 模型文件大小
+    bool isAvailable = false;  ///< 文件是否存在
+    bool isLoaded = false;     ///< 是否已加载到内存
+    QVariantMap supportedParams; ///< 支持的可调参数及范围
+
+    ModelInfo() : category(ModelCategory::SuperResolution) {}
+};
+
+/**
+ * @brief AI 推理参数结构
+ */
+struct AIParams {
+    QString modelId;           ///< 选择的模型 ID
+    ModelCategory category;    ///< 模型类别
+    bool useGpu = true;        ///< 是否使用 GPU
+    int tileSize = 0;          ///< 自定义分块大小（0=自动）
+    QVariantMap modelParams;   ///< 模型特定参数（如去噪等级等）
+
+    AIParams() : category(ModelCategory::SuperResolution) {}
+};
+
+/**
  * @brief 队列状态枚举
  */
 enum class QueueStatus {
@@ -200,6 +257,7 @@ struct Message {
     QList<MediaFile> mediaFiles;  ///< 媒体文件列表
     QVariantMap parameters;        ///< 处理参数
     ShaderParams shaderParams;     ///< Shader 参数
+    AIParams aiParams;             ///< AI 推理参数
     ProcessingStatus status;       ///< 处理状态
     QString errorMessage;          ///< 错误信息（失败时）
     bool isSelected;               ///< 是否被选中（批量操作）

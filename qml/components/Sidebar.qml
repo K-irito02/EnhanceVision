@@ -118,7 +118,7 @@ Rectangle {
                     anchors.centerIn: parent
                     source: Theme.icon("list-select")
                     iconSize: 16
-                    color: root.batchMode ? Theme.colors.primary : Theme.colors.mutedForeground
+                    color: root.batchMode ? "#FFFFFF" : (Theme.isDark ? "#FFFFFF" : Theme.colors.icon)
                 }
                 
                 MouseArea {
@@ -195,7 +195,7 @@ Rectangle {
                     anchors.centerIn: parent
                     source: Theme.icon("plus")
                     iconSize: 16
-                    color: "#FFFFFF"
+                    color: Theme.isDark ? "#FFFFFF" : Theme.colors.icon
                 }
                 
                 MouseArea {

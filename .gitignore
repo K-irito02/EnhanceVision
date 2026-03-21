@@ -66,8 +66,8 @@ ShaderStackTrace*
 .qmake.files
 
 # Logs
-logs/
-*.log
+# logs/
+# *.log
 
 # Temporary files
 *.tmp
@@ -79,3 +79,6 @@ logs/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# 资源
+resources/models/
