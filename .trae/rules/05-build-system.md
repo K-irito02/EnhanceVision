@@ -1,73 +1,207 @@
 ---
 alwaysApply: false
-globs: ['**/CMakeLists.txt', '**/CMakePresets.json', '**/*.qrc']
-description: '构建系统 - 涉及 CMake 配置、QML 资源、第三方库管理时参考'
+globs: ['**/CMakeLists.txt', '**/CMakePresets.json', '**/*.cmake']
+description: '构建系统 - CMake 配置、依赖管理、构建预设'
 trigger: glob
 ---
 # 构建系统
 
-## 构建流程
+## 构建环境
 
-```
-CMake 配置 → C++ 编译 → QML 资源打包 → 链接 → 部署 Qt 依赖
+### 必需工具
+
+| 工具 | 版本 | 路径 |
+|------|------|------|
+| CMake | 3.20+ | `C:\Program Files\CMake\bin\cmake.exe` |
+| Qt | 6.10.2 | `E:\Qt\6.10.2\msvc2022_64` |
+| MSVC | 2022 (VS 17) | Visual Studio 17 2022 |
+
+### 编译器配置
+
+- **Generator**: `Visual Studio 17 2022`
+- **Architecture**: `x64`
+- **C++ Standard**: `C++20`
+
+## CMake 预设
+
+项目使用 `CMakePresets.json` 管理构建配置：
+
+```json
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "windows-msvc-2022-base",
+            "hidden": true,
+            "generator": "Visual Studio 17 2022",
+            "architecture": "x64",
+            "binaryDir": "${sourceDir}/build/msvc2022/${presetName}",
+            "cacheVariables": {
+                "CMAKE_CXX_STANDARD": "20",
+                "CMAKE_CXX_STANDARD_REQUIRED": "ON",
+                "CMAKE_AUTOMOC": "ON",
+                "CMAKE_AUTORCC": "ON",
+                "CMAKE_AUTOUIC": "ON",
+                "CMAKE_PREFIX_PATH": "E:/Qt/6.10.2/msvc2022_64"
+            }
+        },
+        {
+            "name": "windows-msvc-2022-debug",
+            "displayName": "Debug",
+            "inherits": "windows-msvc-2022-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "windows-msvc-2022-release",
+            "displayName": "Release",
+            "inherits": "windows-msvc-2022-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "windows-msvc-2022-debug",
+            "configurePreset": "windows-msvc-2022-debug",
+            "configuration": "Debug"
+        },
+        {
+            "name": "windows-msvc-2022-release",
+            "configurePreset": "windows-msvc-2022-release",
+            "configuration": "Release"
+        }
+    ]
+}
 ```
 
-## CMake 主配置
+## 构建命令
+
+### 配置项目
+
+```powershell
+# Debug 配置
+cmake --preset windows-msvc-2022-debug
+
+# Release 配置
+cmake --preset windows-msvc-2022-release
+```
+
+### 编译项目
+
+```powershell
+# Debug 构建
+cmake --build --preset windows-msvc-2022-debug
+
+# Release 构建
+cmake --build --preset windows-msvc-2022-release
+
+# 并行编译（指定作业数）
+cmake --build --preset windows-msvc-2022-release -- -j 8
+```
+
+### 清理构建
+
+```powershell
+# 清理构建产物
+cmake --build --preset windows-msvc-2022-release --target clean
+
+# 完全清理（删除 build 目录）
+Remove-Item -Path "build\msvc2022" -Recurse -Force
+```
+
+## CMakeLists.txt 结构
+
+### 主 CMakeLists.txt
 
 ```cmake
 cmake_minimum_required(VERSION 3.20)
-project(EnhanceVision VERSION 0.1.0 LANGUAGES CXX)
+
+project(EnhanceVision VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-# Qt 模块
+# Qt 路径
+set(CMAKE_PREFIX_PATH "E:/Qt/6.10.2/msvc2022_64")
+
+# 查找 Qt 模块
 find_package(Qt6 REQUIRED COMPONENTS
     Core
     Gui
-    Widgets
     Quick
     QuickControls2
-    Concurrent
+    Widgets
     Multimedia
-    Network
     ShaderTools
     LinguistTools
 )
 
-# 第三方库
-set(THIRD_PARTY_DIR "${CMAKE_SOURCE_DIR}/third_party")
+# 添加子目录
+add_subdirectory(third_party/ncnn)
 
-# NCNN
-add_subdirectory("${THIRD_PARTY_DIR}/ncnn")
-
-# FFmpeg
-set(FFMPEG_INCLUDE_DIR "${THIRD_PARTY_DIR}/ffmpeg/include")
-set(FFMPEG_LIB_DIR "${THIRD_PARTY_DIR}/ffmpeg/lib")
-set(FFMPEG_LIBS
-    avcodec avformat avutil swscale swresample
-)
-
-# OpenCV
-find_package(OpenCV REQUIRED)
-
-# 可执行文件
-qt_add_executable(EnhanceVision
+# 源文件
+set(SOURCES
     src/main.cpp
     src/app/Application.cpp
     src/app/MainWindow.cpp
-    src/core/AIEngine.cpp
+    src/controllers/FileController.cpp
+    src/controllers/ProcessingController.cpp
+    src/controllers/SessionController.cpp
+    src/controllers/SettingsController.cpp
+    src/core/ProcessingEngine.cpp
     src/core/ImageProcessor.cpp
     src/core/VideoProcessor.cpp
+    src/core/FrameCache.cpp
+    src/core/TaskCoordinator.cpp
+    src/core/ResourceManager.cpp
+    src/core/AIEngine.cpp
+    src/core/ModelRegistry.cpp
     src/models/SessionModel.cpp
     src/models/FileModel.cpp
+    src/models/ProcessingModel.cpp
+    src/models/MessageModel.cpp
     src/providers/PreviewProvider.cpp
     src/providers/ThumbnailProvider.cpp
+    src/services/ImageExportService.cpp
+    src/utils/FileUtils.cpp
+    src/utils/ImageUtils.cpp
+    src/utils/SubWindowHelper.cpp
+    src/utils/WindowHelper.cpp
+)
+
+# 头文件
+set(HEADERS
+    include/EnhanceVision/app/Application.h
+    include/EnhanceVision/app/MainWindow.h
+    include/EnhanceVision/controllers/FileController.h
+    include/EnhanceVision/controllers/ProcessingController.h
+    include/EnhanceVision/controllers/SessionController.h
+    include/EnhanceVision/controllers/SettingsController.h
+    include/EnhanceVision/core/ProcessingEngine.h
+    include/EnhanceVision/core/ImageProcessor.h
+    include/EnhanceVision/core/VideoProcessor.h
+    include/EnhanceVision/core/FrameCache.h
+    include/EnhanceVision/core/TaskCoordinator.h
+    include/EnhanceVision/core/ResourceManager.h
+    include/EnhanceVision/core/AIEngine.h
+    include/EnhanceVision/core/ModelRegistry.h
+    include/EnhanceVision/models/SessionModel.h
+    include/EnhanceVision/models/FileModel.h
+    include/EnhanceVision/models/ProcessingModel.h
+    include/EnhanceVision/models/MessageModel.h
+    include/EnhanceVision/providers/PreviewProvider.h
+    include/EnhanceVision/providers/ThumbnailProvider.h
+    include/EnhanceVision/services/ImageExportService.h
+    include/EnhanceVision/utils/FileUtils.h
+    include/EnhanceVision/utils/ImageUtils.h
+    include/EnhanceVision/utils/SubWindowHelper.h
+    include/EnhanceVision/utils/WindowHelper.h
 )
 
 # QML 模块
@@ -84,367 +218,312 @@ qt_add_qml_module(EnhanceVision
         qml/components/FileList.qml
         qml/components/PreviewPane.qml
         qml/components/ControlPanel.qml
-        qml/components/MediaViewer.qml
+        qml/components/EmbeddedMediaViewer.qml
+        qml/components/FullShaderEffect.qml
+        qml/components/OffscreenShaderRenderer.qml
         qml/controls/IconButton.qml
         qml/controls/Slider.qml
-        qml/shaders/BrightnessContrast.qml
         qml/styles/Theme.qml
         qml/styles/Colors.qml
     RESOURCES
-        resources/icons/file.svg
-        resources/icons/folder.svg
-        resources/icons/settings.svg
+        resources/icons/...
+        resources/shaders/full_shader.frag
+        resources/shaders/full_shader.vert
 )
 
-# Shader 资源
-qt_add_shaders(EnhanceVision "shaders"
-    PREFIX "/shaders"
-    BASE "${CMAKE_SOURCE_DIR}/resources/shaders"
-    FILES
-        "basic.vert"
-        "brightness.frag"
-        "contrast.frag"
-        "saturation.frag"
-        "sharpen.frag"
-        "blur.frag"
+# 可执行文件
+add_executable(EnhanceVision
+    ${SOURCES}
+    ${HEADERS}
+)
+
+# 包含目录
+target_include_directories(EnhanceVision PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/EnhanceVision
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 # 链接库
 target_link_libraries(EnhanceVision PRIVATE
     Qt6::Core
     Qt6::Gui
-    Qt6::Widgets
     Qt6::Quick
     Qt6::QuickControls2
-    Qt6::Concurrent
+    Qt6::Widgets
     Qt6::Multimedia
-    Qt6::Network
-    Qt6::ShaderTools
-    ${OpenCV_LIBS}
     ncnn
 )
 
+# 编译选项
+target_compile_options(EnhanceVision PRIVATE
+    /W4           # 警告级别 4
+    /WX           # 警告视为错误
+    /MP           # 多进程编译
+)
+
+# 定义
+target_compile_definitions(EnhanceVision PRIVATE
+    QT_DISABLE_DEPRECATED_BEFORE=0x060000
+    QT_NO_KEYWORDS
+)
+
+# 安装规则
+install(TARGETS EnhanceVision
+    RUNTIME DESTINATION bin
+)
+```
+
+## 依赖管理
+
+### Qt 模块
+
+| 模块 | 用途 |
+|------|------|
+| `Core` | 核心功能、QObject、信号槽 |
+| `Gui` | 图像处理、QImage |
+| `Quick` | QML 引擎 |
+| `QuickControls2` | Qt Quick Controls 2 |
+| `Widgets` | QApplication、主窗口 |
+| `Multimedia` | 视频播放 |
+| `ShaderTools` | Shader 编译 |
+| `LinguistTools` | 国际化 |
+
+### 第三方库
+
+| 库 | 用途 | 集成方式 |
+|-----|------|----------|
+| NCNN | AI 推理 | `add_subdirectory` |
+| FFmpeg | 视频解码/编码 | 预编译库 |
+
+### NCNN 集成
+
+```cmake
+# third_party/ncnn/CMakeLists.txt
+add_subdirectory(ncnn)
+
+target_include_directories(ncnn PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/ncnn/src
+)
+```
+
+### FFmpeg 集成
+
+```cmake
+# FFmpeg 预编译库
+set(FFMPEG_ROOT "${CMAKE_SOURCE_DIR}/third_party/ffmpeg")
+
 target_include_directories(EnhanceVision PRIVATE
-    "${CMAKE_SOURCE_DIR}/include"
-    "${FFMPEG_INCLUDE_DIR}"
+    ${FFMPEG_ROOT}/include
 )
 
 target_link_directories(EnhanceVision PRIVATE
-    "${FFMPEG_LIB_DIR}"
+    ${FFMPEG_ROOT}/lib
 )
 
-foreach(lib ${FFMPEG_LIBS})
-    target_link_libraries(EnhanceVision PRIVATE "${lib}")
-endforeach()
-
-# Windows 部署
-if(WIN32)
-    add_custom_command(TARGET EnhanceVision POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${THIRD_PARTY_DIR}/ffmpeg/bin"
-            "$<TARGET_FILE_DIR:EnhanceVision>"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_SOURCE_DIR}/resources/models"
-            "$<TARGET_FILE_DIR:EnhanceVision>/models"
-    )
-    
-    find_program(WINDEPLOYQT windeployqt PATHS "${Qt6_DIR}/../../../bin")
-    if(WINDEPLOYQT)
-        add_custom_command(TARGET EnhanceVision POST_BUILD
-            COMMAND "${WINDEPLOYQT}" "$<TARGET_FILE:EnhanceVision>"
-        )
-    endif()
-endif()
-```
-
-## CMake Presets
-
-```json
-{
-    "version": 3,
-    "configurePresets": [
-        {
-            "name": "windows-msvc-2022-base",
-            "hidden": true,
-            "generator": "Visual Studio 17 2022",
-            "architecture": "x64",
-            "toolchainFile": "",
-            "cacheVariables": {
-                "CMAKE_PREFIX_PATH": "E:/Qt/6.10.2/msvc2022_64",
-                "CMAKE_CXX_COMPILER": "cl"
-            }
-        },
-        {
-            "name": "windows-msvc-2022-debug",
-            "displayName": "Debug",
-            "inherits": "windows-msvc-2022-base",
-            "binaryDir": "${sourceDir}/build/msvc2022/Debug",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug"
-            }
-        },
-        {
-            "name": "windows-msvc-2022-release",
-            "displayName": "Release",
-            "inherits": "windows-msvc-2022-base",
-            "binaryDir": "${sourceDir}/build/msvc2022/Release",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release"
-            }
-        },
-        {
-            "name": "windows-msvc-2022-relwithdebinfo",
-            "displayName": "RelWithDebInfo",
-            "inherits": "windows-msvc-2022-base",
-            "binaryDir": "${sourceDir}/build/msvc2022/RelWithDebInfo",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
-            }
-        }
-    ],
-    "buildPresets": [
-        {
-            "name": "windows-msvc-2022-debug",
-            "configurePreset": "windows-msvc-2022-debug",
-            "configuration": "Debug"
-        },
-        {
-            "name": "windows-msvc-2022-release",
-            "configurePreset": "windows-msvc-2022-release",
-            "configuration": "Release"
-        },
-        {
-            "name": "windows-msvc-2022-relwithdebinfo",
-            "configurePreset": "windows-msvc-2022-relwithdebinfo",
-            "configuration": "RelWithDebInfo"
-        }
-    ]
-}
-```
-
-## QML 资源管理
-
-### qt_add_qml_module
-
-```cmake
-qt_add_qml_module(EnhanceVision
-    URI EnhanceVision          # QML 导入名称
-    VERSION 1.0                # 模块版本
-    QML_FILES                  # QML 源文件
-        qml/main.qml
-        qml/App.qml
-        # ...
-    RESOURCES                  # 其他资源
-        resources/icons/file.svg
-        resources/images/logo.png
-    OUTPUT_DIRECTORY           # 输出目录
-        ${CMAKE_BINARY_DIR}/qml
+target_link_libraries(EnhanceVision PRIVATE
+    avcodec
+    avformat
+    avutil
+    swscale
+    swresample
 )
 ```
 
-### 资源文件引用
+## 资源管理
 
-```qml
-// QML 中引用资源
-import QtQuick
-import EnhanceVision 1.0  // 导入自定义模块
+### Qt 资源文件 (.qrc)
 
-Image {
-    source: "qrc:/icons/file.svg"  // 资源路径
-}
-
-// 或使用相对路径（同一 qrc 中）
-Image {
-    source: "../icons/file.svg"
-}
+```xml
+<!-- resources/qml.qrc -->
+<RCC>
+    <qresource prefix="/">
+        <file>icons/add.svg</file>
+        <file>icons/remove.svg</file>
+        <file>icons-dark/add.svg</file>
+        <file>icons-dark/remove.svg</file>
+        <file>shaders/full_shader.frag</file>
+        <file>shaders/full_shader.vert</file>
+        <file>models/RealESRGAN_x4plus.param</file>
+        <file>models/RealESRGAN_x4plus.bin</file>
+    </qresource>
+</RCC>
 ```
 
-## Shader 编译
-
-### qt_add_shaders
+### Shader 编译
 
 ```cmake
+# 编译 GLSL 到 QSB
 qt_add_shaders(EnhanceVision "shaders"
-    PREFIX "/shaders"                           # 资源前缀
-    BASE "${CMAKE_SOURCE_DIR}/resources/shaders" # 基础路径
+    PREFIX "/shaders"
     FILES
-        "basic.vert"
-        "brightness.frag"
-        "contrast.frag"
-        "saturation.frag"
-        "sharpen.frag"
-        "blur.frag"
-    OUTPUT_DIR "${CMAKE_BINARY_DIR}/shaders"    # 输出目录
+        resources/shaders/full_shader.frag
+        resources/shaders/full_shader.vert
 )
 ```
 
-### Shader 使用
-
-```qml
-ShaderEffect {
-    vertexShader: "qrc:/shaders/basic.vert.qsb"
-    fragmentShader: "qrc:/shaders/brightness.frag.qsb"
-    
-    property real brightness: 0.0
-}
-```
-
-## 国际化构建
+## 国际化
 
 ### 翻译文件生成
 
 ```cmake
-find_package(Qt6 REQUIRED COMPONENTS LinguistTools)
-
-set(TS_FILES
-    "${CMAKE_SOURCE_DIR}/resources/i18n/app_zh_CN.ts"
-    "${CMAKE_SOURCE_DIR}/resources/i18n/app_en_US.ts"
+# 生成 .ts 文件
+qt_add_lrelease(EnhanceVision
+    TS_FILES
+        resources/i18n/app_zh_CN.ts
+        resources/i18n/app_en_US.ts
 )
 
-qt_add_translations(EnhanceVision
-    TS_FILES ${TS_FILES}
-    LUPDATE_OPTIONS -no-obsolete
-    LRELEASE_OPTIONS -compress
+# 更新翻译
+add_custom_target(lupdate
+    COMMAND ${Qt6_LUPDATE_EXECUTABLE}
+        ${SOURCES}
+        ${HEADERS}
+        ${QML_FILES}
+        -ts resources/i18n/app_zh_CN.ts
+        resources/i18n/app_en_US.ts
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 ```
 
-### 更新翻译
+## 构建产物
 
-```powershell
-# 生成/更新 .ts 文件
-cmake --build . --target EnhanceVision_lupdate
+### 输出目录
 
-# 编译 .ts 为 .qm
-cmake --build . --target EnhanceVision_lrelease
+```
+build/
+└── msvc2022/
+    ├── Debug/
+    │   ├── EnhanceVision.exe
+    │   └── ...
+    └── Release/
+        ├── EnhanceVision.exe
+        └── ...
 ```
 
-## 构建命令
-
-### 配置
+### 部署
 
 ```powershell
-# Debug 构建（开发调试）
-cmake --preset windows-msvc-2022-debug
-
-# Release 构建（性能测试）
-cmake --preset windows-msvc-2022-release
+# 使用 windeployqt 部署 Qt 依赖
+& "E:\Qt\6.10.2\msvc2022_64\bin\windeployqt.exe" `
+    "build\msvc2022\Release\Release\EnhanceVision.exe" `
+    --release `
+    --qmldir "qml"
 ```
 
-### 编译
+## 常见构建问题
 
-```powershell
-# Debug 构建
-cmake --build --preset windows-msvc-2022-debug
+### Qt 路径错误
 
-# Release 构建
-cmake --build --preset windows-msvc-2022-release
-
-# 并行编译（加速）
-cmake --build --preset windows-msvc-2022-release -- /m
+```
+CMake Error: Could not find Qt6
 ```
 
-### 运行
-
-```powershell
-# Debug 版本
-.\build\msvc2022\Debug\EnhanceVision.exe
-
-# Release 版本
-.\build\msvc2022\Release\EnhanceVision.exe
-```
-
-## 第三方库管理
-
-| 库 | 管理方式 | 路径 |
-|----|----------|------|
-| NCNN | add_subdirectory | `third_party/ncnn/` |
-| FFmpeg | 预编译库 | `third_party/ffmpeg/` |
-| OpenCV | FetchContent | 自动下载 |
-
-### OpenCV FetchContent
+**解决方案**：
 
 ```cmake
-include(FetchContent)
-
-FetchContent_Declare(
-    opencv
-    GIT_REPOSITORY https://github.com/opencv/opencv.git
-    GIT_TAG 4.5.5
-)
-
-FetchContent_MakeAvailable(opencv)
+set(CMAKE_PREFIX_PATH "E:/Qt/6.10.2/msvc2022_64")
 ```
 
-## 构建后处理
+### MOC 错误
 
-### 自动复制 DLL
-
-```cmake
-add_custom_command(TARGET EnhanceVision POST_BUILD
-    # 复制 FFmpeg DLL
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${THIRD_PARTY_DIR}/ffmpeg/bin"
-        "$<TARGET_FILE_DIR:EnhanceVision>"
-    
-    # 复制 AI 模型
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_SOURCE_DIR}/resources/models"
-        "$<TARGET_FILE_DIR:EnhanceVision>/models"
-    
-    # 复制翻译文件
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_BINARY_DIR}/resources/i18n"
-        "$<TARGET_FILE_DIR:EnhanceVision>/i18n"
-)
+```
+Error: Undefined reference to vtable
 ```
 
-### windeployqt
+**解决方案**：
 
 ```cmake
-find_program(WINDEPLOYQT windeployqt 
-    PATHS "${Qt6_DIR}/../../../bin"
-)
+set(CMAKE_AUTOMOC ON)
+```
 
-if(WINDEPLOYQT)
-    add_custom_command(TARGET EnhanceVision POST_BUILD
-        COMMAND "${WINDEPLOYQT}" 
-            "$<TARGET_FILE:EnhanceVision>"
-            --qmldir "${CMAKE_SOURCE_DIR}/qml"
+### QML 模块未找到
+
+```
+module "QtQuick" is not installed
+```
+
+**解决方案**：
+
+```powershell
+# 确保 QML 导入路径正确
+set QML2_IMPORT_PATH=E:\Qt\6.10.2\msvc2022_64\qml
+```
+
+### 链接错误
+
+```
+LNK2019: unresolved external symbol
+```
+
+**解决方案**：
+
+1. 检查源文件是否添加到 `SOURCES`
+2. 检查库是否链接
+3. 检查库路径是否正确
+
+## 构建优化
+
+### 预编译头
+
+```cmake
+if(MSVC)
+    target_precompile_headers(EnhanceVision PRIVATE
+        <memory>
+        <string>
+        <vector>
+        <QObject>
+        <QImage>
     )
 endif()
 ```
 
-## 常见问题
-
-### 找不到 Qt
-
-```powershell
-# 设置 Qt 路径
-cmake --preset windows-msvc-2022-debug -DCMAKE_PREFIX_PATH=E:/Qt/6.10.2/msvc2022_64
-```
-
-### QML 模块找不到
+### 多进程编译
 
 ```cmake
-# 确保 QML_FILES 路径正确
-qt_add_qml_module(EnhanceVision
-    URI EnhanceVision
-    VERSION 1.0
-    QML_FILES
-        qml/main.qml  # 相对于 CMakeLists.txt
-)
+target_compile_options(EnhanceVision PRIVATE /MP)
 ```
 
-### Shader 编译失败
+### 增量链接
+
+```cmake
+if(MSVC)
+    set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} /INCREMENTAL")
+endif()
+```
+
+## 构建脚本
+
+### 完整构建脚本
 
 ```powershell
-# 检查 ShaderTools 模块
-find_package(Qt6 REQUIRED COMPONENTS ShaderTools)
+# build.ps1
+param(
+    [string]$Config = "Release",
+    [int]$Jobs = 8
+)
 
-# 手动编译 shader
-qsb --glsl "100 es,120,150" --hlsl 50 --msl 12 -o shader.frag.qsb shader.frag
+$ErrorActionPreference = "Stop"
+
+Write-Host "构建 EnhanceVision ($Config)..."
+
+# 配置
+cmake --preset "windows-msvc-2022-$Config"
+if ($LASTEXITCODE -ne 0) { exit 1 }
+
+# 编译
+cmake --build "build/msvc2022/$Config" --config $Config -j $Jobs
+if ($LASTEXITCODE -ne 0) { exit 1 }
+
+Write-Host "构建成功！"
+Write-Host "输出: build\msvc2022\$Config\$Config\EnhanceVision.exe"
 ```
 
-### Debug 构建性能问题
+### 运行脚本
 
-Debug 构建禁用优化，性能比 Release 慢 2-10x。性能测试必须使用 Release 构建。
+```powershell
+# Debug 构建
+.\build.ps1 -Config Debug
+
+# Release 构建
+.\build.ps1 -Config Release -Jobs 16
+```

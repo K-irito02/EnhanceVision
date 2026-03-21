@@ -1,22 +1,64 @@
 ---
 name: "qt-build-and-fix"
-description: "自动化 EnhanceVision 项目构建、运行和修复。当用户要求构建项目、运行测试、检查代码质量或解决编译问题时调用此技能。"
+description: "Qt 项目构建和调试专家 - 自动化 EnhanceVision 项目（Qt Quick + C++ + NCNN）的构建、运行、调试和修复。当用户要求构建项目、运行程序、解决编译错误、调试运行时问题、检查代码质量、配置环境或任何与构建相关的问题时，必须使用此技能。即使只是简单的构建请求，也应使用此技能确保遵循项目构建规范。"
 ---
 
 # Qt Build and Fix Skill
 
-自动化 EnhanceVision 项目（Qt Quick + C++）的构建、运行和修复生命周期管理。
+自动化 EnhanceVision 项目（Qt Quick + C++ + NCNN）的构建、运行和修复生命周期管理。
+
+## 核心原则
+
+1. **增量构建优先** - 不删除 build 目录，除非必要
+2. **日志驱动诊断** - 所有操作记录日志便于分析
+3. **构建后验证** - 每次成功构建后运行程序验证
+4. **错误循环修复** - 持续修复直到零错误零警告
 
 ## 项目架构
 
-| 层级 | 技术 |
-|------|------|
-| UI 框架 | Qt Quick (QML) + Qt Widgets |
-| 图形渲染 | Qt Scene Graph + RHI |
-| C++ 后端 | Core 引擎 + Controllers + Models |
-| AI 推理 | NCNN (Vulkan 加速) |
-| 多媒体 | FFmpeg 7.1 + Qt Multimedia |
-| 构建系统 | CMake 3.20+ |
+| 层级 | 技术 | 版本 |
+|------|------|------|
+| UI 框架 | Qt Quick (QML) + Qt Widgets | Qt 6.10.2 |
+| 图形渲染 | Qt Scene Graph + RHI | Vulkan/D3D11/Metal |
+| C++ 后端 | Core 引擎 + Controllers + Models | C++20 |
+| AI 推理 | NCNN (Vulkan 加速) | latest |
+| 多媒体 | FFmpeg 7.1 + Qt Multimedia | 预编译库 |
+| 构建系统 | CMake | 3.20+ |
+| 编译器 | MSVC 2022 | VS 17 |
+
+## 环境配置
+
+### 必需环境
+
+| 工具 | 路径 | 验证命令 |
+|------|------|----------|
+| CMake | `C:\Program Files\CMake\bin\cmake.exe` | `cmake --version` |
+| Qt 6.10.2 | `E:\Qt\6.10.2\msvc2022_64` | `E:\Qt\6.10.2\msvc2022_64\bin\qmake.exe --version` |
+| MSVC 2022 | Visual Studio 17 2022 | `cl` (在 Developer Command Prompt) |
+
+### 环境验证脚本
+
+```powershell
+# 验证 CMake
+if (-not (Test-Path "C:\Program Files\CMake\bin\cmake.exe")) {
+    Write-Error "CMake 未找到，请安装 CMake 3.20+"
+    exit 1
+}
+
+# 验证 Qt
+if (-not (Test-Path "E:\Qt\6.10.2\msvc2022_64")) {
+    Write-Error "Qt 6.10.2 未找到，请检查安装路径"
+    exit 1
+}
+
+# 验证项目文件
+if (-not (Test-Path "CMakeLists.txt")) {
+    Write-Error "CMakeLists.txt 未找到，请在项目根目录执行"
+    exit 1
+}
+
+Write-Host "环境验证通过"
+```
 
 ## 执行流程
 
@@ -32,126 +74,574 @@ if (Test-Path "logs") {
 }
 ```
 
-### 2. 环境检查
-
-确认以下环境：
-- CMake: `C:\Program Files\CMake\bin\cmake.exe`
-- Qt 6.10.2: `E:\Qt\6.10.2\msvc2022_64`
-- MSVC 2022: Visual Studio 17 2022
-- 项目文件: `CMakeLists.txt`, `CMakePresets.json`
-
-### 3. CMake 配置
-
-使用 CMake Presets：
+### 2. CMake 配置
 
 ```powershell
-# 清理旧构建（可选，首次构建或遇到问题时执行）
-Remove-Item -Path "build\msvc2022" -Recurse -Force -ErrorAction SilentlyContinue
-
-# 配置（Release 模式）
+# 首次构建或配置变更时执行
 & "C:\Program Files\CMake\bin\cmake.exe" --preset windows-msvc-2022-release 2>&1 | Tee-Object -FilePath "logs/cmake_configure.log"
 ```
 
-### 4. 编译项目
+### 3. 编译项目
 
 ```powershell
+# 增量构建（推荐）
 & "C:\Program Files\CMake\bin\cmake.exe" --build build/msvc2022/Release --config Release -j 8 2>&1 | Tee-Object -FilePath "logs/build_output.log"
 ```
 
-### 5. 分析与修复
-
-读取编译日志，分析错误和警告：
+### 4. 分析编译结果
 
 ```powershell
 # 检查错误
-Select-String -Path "logs\build_output.log" -Pattern "error C\d+" | Select-Object -Unique
+$errors = Select-String -Path "logs\build_output.log" -Pattern "error C\d+" | Select-Object -Unique
+$warnings = Select-String -Path "logs\build_output.log" -Pattern "warning C\d+" | Select-Object -Unique
 
-# 检查警告
-Select-String -Path "logs\build_output.log" -Pattern "warning C\d+" | Select-Object -Unique
-```
+if ($errors) {
+    Write-Host "发现 $($errors.Count) 个错误"
+    $errors | ForEach-Object { Write-Host $_.Line }
+}
 
-常见错误修复：
-
-| 错误类型 | 原因 | 解决方案 |
-|---------|------|---------|
-| `C1083: 无法打开包括文件` | 头文件路径错误或模块未添加 | 检查 CMakeLists.txt 中是否添加了对应的 Qt 模块 |
-| `C2011: 重定义` | 类型重复定义 | 移除重复定义，使用前置声明 |
-| `C2027: 使用了未定义类型` | 缺少头文件包含 | 添加正确的 `#include` |
-| `C2039: 不是类的成员` | 方法未声明/实现 | 在头文件和实现文件中添加方法 |
-| `Q_ENUM 宏错误` | 宏不在 Q_OBJECT 类内 | 将 Q_ENUM 移到类定义内部 |
-
-### 6. Qt DLL 自动部署
-
-项目已配置 `windeployqt` 自动部署。构建完成后会自动复制所有 Qt 依赖 DLL。
-
-如需手动部署：
-
-```powershell
-& "E:\Qt\6.10.2\msvc2022_64\bin\windeployqt.exe" `
-    "build\msvc2022\Release\Release\EnhanceVision.exe" `
-    --release --qmldir "qml"
-```
-
-### 7. 运行验证
-
-**重要**：每次构建编译成功后，必须运行程序进行验证。
-
-#### 7.1 检查并关闭已运行的程序
-
-在启动新程序前，必须先检查并关闭已运行的相同程序：
-
-```powershell
-# 检查并关闭已运行的 EnhanceVision 程序
-Get-Process | Where-Object { $_.Name -like "*EnhanceVision*" } | Stop-Process -Force -ErrorAction SilentlyContinue
-
-# 等待进程完全关闭
-Start-Sleep -Seconds 2
-```
-
-#### 7.2 启动应用程序
-
-```powershell
-Start-Process -FilePath "build\msvc2022\Release\Release\EnhanceVision.exe"
-```
-
-#### 7.3 完整的构建-运行流程
-
-```powershell
-# 1. 关闭已运行的程序
-Get-Process | Where-Object { $_.Name -like "*EnhanceVision*" } | Stop-Process -Force -ErrorAction SilentlyContinue
-Start-Sleep -Seconds 2
-
-# 2. 构建项目
-& "C:\Program Files\CMake\bin\cmake.exe" --build build/msvc2022/Release --config Release -j 8 2>&1 | Tee-Object -FilePath "logs/build_output.log"
-
-# 3. 检查构建结果
-if ($LASTEXITCODE -eq 0) {
-    # 4. 构建成功，启动程序
-    Start-Process -FilePath "build\msvc2022\Release\Release\EnhanceVision.exe"
-} else {
-    Write-Host "构建失败，请检查日志: logs\build_output.log"
+if ($warnings) {
+    Write-Host "发现 $($warnings.Count) 个警告"
 }
 ```
 
-### 8. 查看运行时日志
+### 5. 运行验证
 
-程序运行后，所有控制台输出会写入日志文件：
+**重要**：每次构建编译成功后，必须运行程序进行验证。
 
 ```powershell
-# 查看运行时日志
+# 关闭已运行的程序
+Get-Process | Where-Object { $_.Name -like "*EnhanceVision*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
+
+# 启动程序
+if ($LASTEXITCODE -eq 0) {
+    Start-Process -FilePath "build\msvc2022\Release\Release\EnhanceVision.exe"
+}
+```
+
+### 6. 查看运行时日志
+
+```powershell
+# 查看最近 100 行日志
 Get-Content -Path "logs\runtime_output.log" -Tail 100
 
 # 实时监控日志
 Get-Content -Path "logs\runtime_output.log" -Wait
 ```
 
+## 常见错误解决方案
+
+### C++ 编译错误
+
+#### C1083: 无法打开包括文件
+
+**原因**：头文件路径错误或模块未添加
+
+**解决方案**：
+
+1. 检查 CMakeLists.txt 中是否添加了对应的 Qt 模块：
+
+```cmake
+find_package(Qt6 REQUIRED COMPONENTS 
+    Core 
+    Gui 
+    Quick 
+    Widgets
+    Multimedia  # 确保包含所需模块
+)
+```
+
+2. 检查头文件路径：
+
+```cmake
+target_include_directories(EnhanceVision PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/EnhanceVision
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+```
+
+3. 检查 Qt 模块链接：
+
+```cmake
+target_link_libraries(EnhanceVision PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Quick
+    Qt6::Widgets
+    Qt6::Multimedia
+)
+```
+
+#### C2011: 重定义
+
+**原因**：类型重复定义，通常是由于头文件重复包含
+
+**解决方案**：
+
+1. 添加头文件保护：
+
+```cpp
+#ifndef CLASS_NAME_H
+#define CLASS_NAME_H
+
+// 类定义
+
+#endif // CLASS_NAME_H
+```
+
+2. 或使用 `#pragma once`：
+
+```cpp
+#pragma once
+
+// 类定义
+```
+
+3. 检查是否有循环依赖，使用前置声明：
+
+```cpp
+// 前置声明
+class OtherClass;
+
+class MyClass {
+    OtherClass* m_other;  // 使用指针，无需完整定义
+};
+```
+
+#### C2027: 使用了未定义类型
+
+**原因**：缺少头文件包含或前置声明不完整
+
+**解决方案**：
+
+1. 在 `.cpp` 文件中包含完整头文件：
+
+```cpp
+// MyClass.h
+class OtherClass;  // 前置声明
+
+class MyClass {
+    void doSomething(OtherClass* other);
+};
+
+// MyClass.cpp
+#include "OtherClass.h"  // 包含完整定义
+
+void MyClass::doSomething(OtherClass* other) {
+    other->method();  // 现在可以使用
+}
+```
+
+#### C2039: 不是类的成员
+
+**原因**：方法未声明或实现
+
+**解决方案**：
+
+1. 检查头文件中是否声明：
+
+```cpp
+class MyClass {
+public:
+    void myMethod();  // 确保声明
+};
+```
+
+2. 检查实现文件中是否定义：
+
+```cpp
+void MyClass::myMethod() {
+    // 实现
+}
+```
+
+3. 检查 `const` 修饰符是否一致：
+
+```cpp
+// 头文件
+void myMethod() const;
+
+// 实现文件
+void MyClass::myMethod() const {  // 必须一致
+    // 实现
+}
+```
+
+#### C2440: 类型转换错误
+
+**原因**：类型不兼容
+
+**解决方案**：
+
+```cpp
+// 错误：const char* 到 QString
+QString str = "hello";  // C++11 前
+
+// 正确
+QString str = QStringLiteral("hello");
+QString str = QLatin1String("hello");
+QString str = QString::fromUtf8("hello");
+```
+
+#### C2664/C2672: 函数参数不匹配
+
+**原因**：参数类型或数量不匹配
+
+**解决方案**：
+
+1. 检查函数签名：
+
+```cpp
+// 声明
+void process(const QString& name, int value);
+
+// 调用
+process("test", 42);  // 正确，const char* 可隐式转换
+process(42, "test");  // 错误，参数顺序错误
+```
+
+2. 使用 `qOverload` 解决重载歧义：
+
+```cpp
+connect(obj, qOverload<int>(&QComboBox::currentIndexChanged), 
+        this, &MyClass::onIndexChanged);
+```
+
+### Qt MOC 错误
+
+#### Q_ENUM 宏错误
+
+**原因**：宏不在 Q_OBJECT 类内
+
+**解决方案**：
+
+```cpp
+// 错误
+class MyClass {
+public:
+    enum class Status { OK, Error };
+};
+Q_ENUM(MyClass::Status)  // 错误位置
+
+// 正确
+class MyClass : public QObject {
+    Q_OBJECT
+public:
+    enum class Status { OK, Error };
+    Q_ENUM(Status)  // 必须在类内
+};
+```
+
+#### 未定义的 vtable
+
+**原因**：Q_OBJECT 宏但未运行 MOC
+
+**解决方案**：
+
+1. 确保 CMakeLists.txt 中包含头文件：
+
+```cmake
+set(HEADERS
+    include/EnhanceVision/core/MyClass.h
+)
+
+target_sources(EnhanceVision PRIVATE
+    ${HEADERS}
+    ${SOURCES}
+)
+```
+
+2. 或使用 `AUTOMOC`：
+
+```cmake
+set(CMAKE_AUTOMOC ON)
+```
+
+#### 信号槽连接失败
+
+**原因**：签名不匹配或对象问题
+
+**解决方案**：
+
+```cpp
+// 检查连接返回值
+bool connected = connect(sender, &Sender::signal, 
+                         receiver, &Receiver::slot);
+if (!connected) {
+    qWarning() << "连接失败";
+}
+
+// 使用新式连接（编译时检查）
+connect(sender, &Sender::signal, 
+        receiver, &Receiver::slot);
+
+// 处理重载信号
+connect(comboBox, qOverload<int>(&QComboBox::currentIndexChanged),
+        this, &MyClass::onIndexChanged);
+
+// Lambda 连接
+connect(button, &QPushButton::clicked, this, [this]() {
+    // 处理
+});
+```
+
+### QML 错误
+
+#### QML 模块未找到
+
+**原因**：QML 文件未注册
+
+**解决方案**：
+
+```cmake
+qt_add_qml_module(EnhanceVision
+    URI EnhanceVision
+    VERSION 1.0
+    QML_FILES
+        qml/main.qml
+        qml/App.qml
+        qml/pages/MainPage.qml
+        qml/components/Sidebar.qml
+    RESOURCES
+        resources/icons/...
+)
+```
+
+#### QML 类型未定义
+
+**原因**：缺少 import 或注册
+
+**解决方案**：
+
+```qml
+// 检查 import
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import EnhanceVision  // 自定义模块
+
+// C++ 注册类型
+qmlRegisterType<MyClass>("EnhanceVision", 1, 0, "MyClass");
+
+// 或使用 QML_ELEMENT
+class MyClass : public QObject {
+    Q_OBJECT
+    QML_ELEMENT
+    // ...
+};
+```
+
+#### 属性绑定失败
+
+**原因**：属性未正确暴露
+
+**解决方案**：
+
+```cpp
+// C++ 暴露属性
+class MyClass : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(QString name READ name WRITE setName NOTIFY nameChanged)
+    
+public:
+    QString name() const { return m_name; }
+    void setName(const QString& name) {
+        if (m_name != name) {
+            m_name = name;
+            emit nameChanged();
+        }
+    }
+    
+signals:
+    void nameChanged();
+    
+private:
+    QString m_name;
+};
+```
+
+```qml
+// QML 使用
+MyClass {
+    name: "test"  // 绑定
+}
+```
+
+### 链接错误
+
+#### LNK2019: 无法解析的外部符号
+
+**原因**：库未链接或实现缺失
+
+**解决方案**：
+
+1. 检查库链接：
+
+```cmake
+target_link_libraries(EnhanceVision PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    # 添加缺失的库
+)
+```
+
+2. 检查实现文件是否包含在构建中：
+
+```cmake
+set(SOURCES
+    src/core/MyClass.cpp  # 确保包含
+)
+```
+
+3. 检查第三方库路径：
+
+```cmake
+target_link_directories(EnhanceVision PRIVATE
+    ${CMAKE_SOURCE_DIR}/third_party/lib
+)
+```
+
+#### LNK2001: 无法解析的外部符号
+
+**原因**：静态成员未定义
+
+**解决方案**：
+
+```cpp
+// 头文件
+class MyClass {
+    static int s_count;  // 声明
+};
+
+// 实现文件
+int MyClass::s_count = 0;  // 定义
+```
+
+### 运行时错误
+
+#### 程序启动崩溃
+
+**诊断步骤**：
+
+```powershell
+# 查看运行时日志
+Get-Content -Path "logs\runtime_output.log"
+
+# 检查 DLL 依赖
+dumpbin /dependents build\msvc2022\Release\Release\EnhanceVision.exe
+```
+
+**常见原因和解决方案**：
+
+1. **Qt DLL 缺失**：
+
+```powershell
+# 运行 windeployqt
+& "E:\Qt\6.10.2\msvc2022_64\bin\windeployqt.exe" `
+    "build\msvc2022\Release\Release\EnhanceVision.exe" `
+    --release --qmldir "qml"
+```
+
+2. **QML 文件未找到**：
+
+```cpp
+// 检查 QML 资源路径
+QQmlApplicationEngine engine;
+engine.addImportPath("qrc:/qml");
+engine.loadFromModule("EnhanceVision", "Main");
+```
+
+3. **插件未加载**：
+
+```cpp
+// main.cpp
+#include <QtPlugin>
+Q_IMPORT_PLUGIN(QWindowsVistaStylePlugin);
+```
+
+#### 内存泄漏
+
+**诊断工具**：
+
+1. **Visual Studio 诊断工具**：
+   - 调试 → 性能探查器 → 内存使用
+
+2. **VLD (Visual Leak Detector)**：
+
+```cmake
+# CMakeLists.txt
+find_package(VLD REQUIRED)
+target_link_libraries(EnhanceVision PRIVATE VLD::VLD)
+```
+
+```cpp
+// main.cpp
+#include <vld.h>
+```
+
+3. **Qt 对象树检查**：
+
+```cpp
+// 检查对象父子关系
+QObject* obj = new QObject(parent);  // 父对象会自动删除
+QObject* obj = new QObject();  // 需要手动删除
+```
+
+#### 性能问题
+
+**诊断方法**：
+
+```cpp
+// 使用 QElapsedTimer 测量
+QElapsedTimer timer;
+timer.start();
+// ... 代码 ...
+qDebug() << "耗时:" << timer.elapsed() << "ms";
+
+// 使用 Qt 性能分析器
+// Qt Creator → Analyze → QML Profiler
+```
+
+**常见优化**：
+
+1. **UI 线程阻塞**：
+
+```cpp
+// 错误：在主线程执行耗时操作
+void onClicked() {
+    processLargeData();  // 阻塞 UI
+}
+
+// 正确：使用工作线程
+void onClicked() {
+    QtConcurrent::run([this]() {
+        processLargeData();
+    });
+}
+```
+
+2. **频繁重绘**：
+
+```qml
+// 错误：频繁更新
+Timer {
+    interval: 16
+    running: true
+    onTriggered: model.update()  // 每帧更新
+}
+
+// 正确：按需更新
+Timer {
+    interval: 100  // 降低更新频率
+    running: true
+    onTriggered: model.update()
+}
+```
+
 ## 构建优化
 
-项目已集成以下构建优化措施：
-
-### 1. 预编译头 (PCH)
-
-CMakeLists.txt 中已配置预编译头，可显著减少编译时间：
+### 预编译头 (PCH)
 
 ```cmake
 if(USE_PRECOMPILED_HEADERS AND MSVC)
@@ -161,106 +651,176 @@ if(USE_PRECOMPILED_HEADERS AND MSVC)
         <vector>
         <QObject>
         <QAbstractListModel>
-        ...
+        <QImage>
+        <QDebug>
     )
 endif()
 ```
 
-### 2. 多进程编译
-
-MSVC 已启用 `/MP` 选项，并行编译多个源文件：
+### 多进程编译
 
 ```cmake
 target_compile_options(EnhanceVision PRIVATE /MP)
 ```
 
-### 3. 编译缓存支持
-
-支持 ccache/sccache 编译缓存（需安装）：
+### 编译缓存
 
 ```powershell
-# 安装 sccache（推荐）
+# 安装 sccache
 cargo install sccache
 
-# 或安装 ccache
-choco install ccache
+# 配置环境变量
+$env:CC = "sccache cl"
+$env:CXX = "sccache cl"
 ```
 
-### 4. 增量构建
+### 增量构建最佳实践
 
-- **不要每次都删除 build 目录**：增量构建只编译修改过的文件
-- **仅在遇到构建问题时清理**：`Remove-Item -Path "build\msvc2022" -Recurse -Force`
+| 场景 | 操作 |
+|------|------|
+| 修改少量源文件 | 直接增量构建 |
+| 修改头文件 | 可能需要重新编译依赖文件 |
+| 修改 CMakeLists.txt | 重新配置后增量构建 |
+| 遇到奇怪错误 | 清理后重新构建 |
 
-### 5. NCNN 预编译
+```powershell
+# 清理构建（仅在必要时）
+Remove-Item -Path "build\msvc2022" -Recurse -Force -ErrorAction SilentlyContinue
 
-NCNN 首次构建后会缓存，后续构建会复用。
+# 重新配置
+& "C:\Program Files\CMake\bin\cmake.exe" --preset windows-msvc-2022-release
 
-### 构建时间参考
+# 重新构建
+& "C:\Program Files\CMake\bin\cmake.exe" --build build/msvc2022/Release --config Release -j 8
+```
 
-| 场景 | 预计时间 |
-|------|---------|
-| 首次完整构建 | 3-5 分钟 |
-| 增量构建（修改少量文件） | 10-30 秒 |
-| 仅修改 QML 文件 | 5-10 秒 |
+## 日志系统
 
-## 日志文件
+### 日志文件
 
 | 文件 | 内容 | 写入方式 |
-|------|------|---------|
+|------|------|----------|
 | `cmake_configure.log` | CMake 配置输出 | 覆盖 |
 | `build_output.log` | 编译输出 | 覆盖 |
-| `runtime_output.log` | 程序运行时日志（qDebug/qWarning 等） | 覆盖 |
+| `runtime_output.log` | 程序运行时日志 | 覆盖 |
 
-## 日志系统说明
+### 日志格式
 
-### 运行时日志
-
-程序启动时会自动创建 `logs/runtime_output.log` 文件，所有 `qDebug()`、`qWarning()`、`qCritical()` 输出都会写入该文件。
-
-日志格式：
 ```
 [2026-03-15 10:30:45.123] [DEBUG] 消息内容
 [2026-03-15 10:30:45.124] [WARN] 警告内容
 [2026-03-15 10:30:45.125] [CRIT] 错误内容
 ```
 
-### 日志文件位置
+### 日志配置
 
-所有日志文件位于项目根目录的 `logs/` 文件夹中：
+```cpp
+// 日志级别
+enum class LogLevel {
+    Debug,
+    Info,
+    Warning,
+    Critical
+};
 
+// 设置日志级别
+qSetMessagePattern("[%{time yyyy-MM-dd hh:mm:ss.zzz}] [%{type}] %{message}");
 ```
-EnhanceVision/
-├── logs/
-│   ├── cmake_configure.log    # CMake 配置日志
-│   ├── build_output.log       # 编译输出日志
-│   └── runtime_output.log     # 运行时日志
+
+## 调试技巧
+
+### 断点调试
+
+1. **Visual Studio**：
+   - F9 设置断点
+   - F5 启动调试
+   - F10 单步跳过
+   - F11 单步进入
+
+2. **Qt Creator**：
+   - F9 设置断点
+   - Ctrl+R 启动调试
+   - F10 单步跳过
+   - F11 单步进入
+
+### QML 调试
+
+```qml
+// 使用 console.log
+console.log("变量值:", value)
+
+// 使用 Debugger
+// Qt Creator → Debug → QML
 ```
 
-### 清理日志
+### 远程调试
 
 ```powershell
-# 清空所有日志文件
-Remove-Item -Path "logs\*" -Recurse -Force -ErrorAction SilentlyContinue
+# 启用远程调试
+$env:QT_QPA_PLATFORM = "windows:fontengine=freetype"
+./EnhanceVision.exe -qmljsdebugger=port:1234
 ```
 
-## 第三方库配置
+## 故障排除流程
 
-| 库 | 路径 | 说明 |
-|----|------|------|
-| NCNN | `third_party/ncnn/` | AI 推理框架，add_subdirectory |
+### 构建失败
+
+```
+1. 检查日志文件
+   ↓
+2. 识别错误类型
+   ↓
+3. 应用对应解决方案
+   ↓
+4. 增量构建验证
+   ↓
+5. 仍有错误？返回步骤 2
+```
+
+### 运行时错误
+
+```
+1. 查看运行时日志
+   ↓
+2. 检查 DLL 依赖
+   ↓
+3. 检查 QML 加载
+   ↓
+4. 使用调试器定位
+   ↓
+5. 修复并验证
+```
+
+### 性能问题
+
+```
+1. 使用性能分析器
+   ↓
+2. 识别瓶颈
+   ↓
+3. 优化代码
+   ↓
+4. 测量改进
+   ↓
+5. 持续优化
+```
+
+## 构建时间参考
+
+| 场景 | 预计时间 | 说明 |
+|------|----------|------|
+| 首次完整构建 | 3-5 分钟 | 包括 NCNN 编译 |
+| 增量构建（少量文件） | 10-30 秒 | 仅编译修改文件 |
+| 仅修改 QML | 5-10 秒 | 资源更新 |
+| 清理后重建 | 3-5 分钟 | 完整重新编译 |
 
 ## 注意事项
 
-- 日志覆盖：每次执行前删除所有旧日志
-- 警告等级：MSVC `/W4`
-- 递归修复：持续循环直到零警告
-- Qt 路径：`E:\Qt\6.10.2\msvc2022_64`
-- CMake 路径：`C:\Program Files\CMake\bin\cmake.exe`
-- 构建目录：`build/msvc2022/Release/`（Release）
-- Qt DLL 部署：构建时自动执行 `windeployqt`
-- QML 文件：需要在 CMakeLists.txt 的 `qt_add_qml_module` 中注册
-- 头文件：需要在 CMakeLists.txt 中添加到目标以支持 MOC
-- **增量构建**：不要每次都删除 build 目录，仅在遇到问题时清理
-- **运行时日志**：每次程序启动会覆盖 `runtime_output.log`
+- **增量构建**：不要每次都删除 build 目录
+- **日志覆盖**：每次执行前删除所有旧日志
+- **警告等级**：MSVC `/W4`
+- **Qt 路径**：`E:\Qt\6.10.2\msvc2022_64`
+- **CMake 路径**：`C:\Program Files\CMake\bin\cmake.exe`
+- **构建目录**：`build/msvc2022/Release/`
 - **构建后运行**：每次构建成功后必须运行程序验证
 - **关闭已运行程序**：启动新程序前必须先关闭已运行的相同程序

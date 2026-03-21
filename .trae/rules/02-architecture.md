@@ -25,16 +25,22 @@ trigger: glob
 │  ┌───────────────────────────────────────────────────────────┐  │
 │  │              C++ 业务层                                   │  │
 │  │  ┌─────────────────────────────────────────────────────┐  │  │
+│  │  │  Controllers (QObject + Q_PROPERTY)                 │  │  │
+│  │  │  · FileController · ProcessingController            │  │  │
+│  │  │  · SessionController · SettingsController           │  │  │
+│  │  └─────────────────────────────────────────────────────┘  │  │
+│  │  ┌─────────────────────────────────────────────────────┐  │  │
 │  │  │  Models (QAbstractListModel)                        │  │  │
 │  │  │  · SessionModel · FileModel · ProcessingModel       │  │  │
+│  │  │  · MessageModel                                     │  │  │
 │  │  └─────────────────────────────────────────────────────┘  │  │
 │  │  ┌─────────────────────────────────────────────────────┐  │  │
 │  │  │  Providers (QQuickImageProvider)                    │  │  │
 │  │  │  · PreviewProvider · ThumbnailProvider              │  │  │
 │  │  └─────────────────────────────────────────────────────┘  │  │
 │  │  ┌─────────────────────────────────────────────────────┐  │  │
-│  │  │  Controllers (QObject + Q_PROPERTY)                 │  │  │
-│  │  │  · SessionController · SettingsController           │  │  │
+│  │  │  Services (业务服务)                                 │  │  │
+│  │  │  · ImageExportService                               │  │  │
 │  │  └─────────────────────────────────────────────────────┘  │  │
 │  └───────────────────────────────────────────────────────────┘  │
 │                           ↕ 直接调用                             │
@@ -44,7 +50,10 @@ trigger: glob
 │  │  · ImageProcessor              - 图像处理                 │  │
 │  │  · VideoProcessor              - 视频处理                 │  │
 │  │  · FrameCache                  - 帧缓存                   │  │
-│  │  · ShaderManager               - Shader 管理              │  │
+│  │  · ProcessingEngine            - 处理引擎调度             │  │
+│  │  · TaskCoordinator             - 任务协调器               │  │
+│  │  · ResourceManager             - 资源管理器               │  │
+│  │  · ModelRegistry               - AI 模型注册表            │  │
 │  └───────────────────────────────────────────────────────────┘  │
 │                                                                 │
 │  所有处理都在本地完成，无需网络连接                              │
@@ -76,6 +85,79 @@ qml/
 
 **职责**：数据管理、状态同步、业务逻辑
 
+#### Controllers（控制器）
+
+控制器负责协调 UI 和业务逻辑，是 QML 与 C++ 交互的主要入口。
+
+```cpp
+// 文件操作控制器
+class FileController : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(FileModel* fileModel READ fileModel CONSTANT)
+    Q_PROPERTY(int currentIndex READ currentIndex WRITE setCurrentIndex NOTIFY currentIndexChanged)
+    
+public:
+    Q_INVOKABLE void addFiles(const QStringList& paths);
+    Q_INVOKABLE void removeFile(int index);
+    Q_INVOKABLE void clearFiles();
+    Q_INVOKABLE bool hasFiles() const;
+    
+signals:
+    void currentIndexChanged();
+    void filesChanged();
+};
+
+// 处理流程控制器
+class ProcessingController : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(float progress READ progress NOTIFY progressChanged)
+    Q_PROPERTY(bool isProcessing READ isProcessing NOTIFY isProcessingChanged)
+    Q_PROPERTY(QString status READ status NOTIFY statusChanged)
+    
+public:
+    Q_INVOKABLE void startProcessing();
+    Q_INVOKABLE void cancelProcessing();
+    Q_INVOKABLE void applyShaderParams(const QVariantMap& params);
+    
+signals:
+    void progressChanged(float progress);
+    void isProcessingChanged(bool processing);
+    void statusChanged(const QString& status);
+    void processingFinished(const QString& resultPath);
+    void processingError(const QString& error);
+};
+
+// 会话管理控制器
+class SessionController : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(QString activeSessionId READ activeSessionId NOTIFY activeSessionChanged)
+    Q_PROPERTY(SessionModel* sessionModel READ sessionModel CONSTANT)
+    
+public:
+    Q_INVOKABLE QString createSession(const QString& name = QString());
+    Q_INVOKABLE void switchSession(const QString& id);
+    Q_INVOKABLE void deleteSession(const QString& id);
+    Q_INVOKABLE void pinSession(const QString& id, bool pinned);
+    
+signals:
+    void activeSessionChanged();
+};
+
+// 设置控制器
+class SettingsController : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(QString theme READ theme WRITE setTheme NOTIFY themeChanged)
+    Q_PROPERTY(QString language READ language WRITE setLanguage NOTIFY languageChanged)
+    
+public:
+    Q_INVOKABLE void resetToDefaults();
+    
+signals:
+    void themeChanged(const QString& theme);
+    void languageChanged(const QString& language);
+};
+```
+
 #### Models（数据模型）
 
 ```cpp
@@ -89,14 +171,57 @@ public:
         FilePathRole = Qt::UserRole + 1,
         FileNameRole,
         ThumbnailRole,
-        StatusRole
+        StatusRole,
+        FileSizeRole,
+        DurationRole
     };
     
     Q_INVOKABLE void addFile(const QString& path);
     Q_INVOKABLE void removeFile(int index);
+    Q_INVOKABLE void updateStatus(int index, int status);
     
 signals:
     void countChanged();
+};
+
+// 会话模型
+class SessionModel : public QAbstractListModel {
+    Q_OBJECT
+    Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
+    
+public:
+    enum Roles {
+        SessionIdRole = Qt::UserRole + 1,
+        SessionNameRole,
+        IsPinnedRole,
+        CreatedAtRole,
+        FileCountRole
+    };
+};
+
+// 处理状态模型
+class ProcessingModel : public QAbstractListModel {
+    Q_OBJECT
+    
+public:
+    enum Roles {
+        FileIndexRole = Qt::UserRole + 1,
+        ProgressRole,
+        StatusRole,
+        ErrorMessageRole
+    };
+};
+
+// 消息模型
+class MessageModel : public QAbstractListModel {
+    Q_OBJECT
+    
+public:
+    enum Roles {
+        MessageRole = Qt::UserRole + 1,
+        TypeRole,       // info, warning, error, success
+        TimestampRole
+    };
 };
 ```
 
@@ -111,25 +236,43 @@ public:
         return m_engine->getCurrentPreview();
     }
 };
+
+class ThumbnailProvider : public QQuickImageProvider {
+public:
+    QImage requestImage(const QString& id, QSize* size, const QSize& requestedSize) override {
+        // 返回缩略图
+        return m_cache->getThumbnail(id, requestedSize);
+    }
+};
 ```
 
-#### Controllers（控制器）
+#### Services（服务层）
+
+服务层封装可复用的业务逻辑，供控制器调用。
 
 ```cpp
-// 暴露给 QML 的业务控制器
-class SessionController : public QObject {
+// 图像导出服务
+class ImageExportService : public QObject {
     Q_OBJECT
-    Q_PROPERTY(QString activeSessionId READ activeSessionId NOTIFY activeSessionChanged)
-    Q_PROPERTY(QStringList sessions READ sessions NOTIFY sessionsChanged)
     
 public:
-    Q_INVOKABLE QString createSession(const QString& name = QString());
-    Q_INVOKABLE void switchSession(const QString& id);
-    Q_INVOKABLE void deleteSession(const QString& id);
+    // 导出单张图像
+    bool exportImage(const QImage& image, const QString& outputPath,
+                     const QString& format = "PNG", int quality = 100);
+    
+    // 批量导出
+    void exportBatch(const QList<QImage>& images, const QString& outputDir,
+                     std::function<void(int, int)> progressCallback);
+    
+    // 导出处理后的图像
+    bool exportProcessedImage(const QString& sourcePath, 
+                              const QVariantMap& shaderParams,
+                              const QString& outputPath);
     
 signals:
-    void activeSessionChanged();
-    void sessionsChanged();
+    void exportProgress(int current, int total);
+    void exportFinished(const QString& outputPath);
+    void exportError(const QString& error);
 };
 ```
 
@@ -144,10 +287,29 @@ class AIEngine : public QObject {
 public:
     bool loadModel(const QString& modelPath);
     QImage enhance(const QImage& input, float scale = 2.0f);
+    bool isAvailable() const;
     
 signals:
     void progressChanged(float progress);
     void finished(const QImage& result);
+};
+
+// AI 模型注册表
+class ModelRegistry : public QObject {
+    Q_OBJECT
+public:
+    struct ModelInfo {
+        QString id;
+        QString name;
+        QString paramPath;
+        QString binPath;
+        int scale;
+        QString description;
+    };
+    
+    QList<ModelInfo> availableModels() const;
+    bool loadModel(const QString& modelId);
+    ModelInfo currentModel() const;
 };
 
 // 图像处理器
@@ -155,6 +317,7 @@ class ImageProcessor : public QObject {
     Q_OBJECT
 public:
     QImage applyShader(const QImage& input, const ShaderParams& params);
+    QImage applyAIEnhance(const QImage& input, float scale);
     
 private:
     QOpenGLShaderProgram m_shader;
@@ -166,6 +329,66 @@ class VideoProcessor : public QObject {
 public:
     void processVideo(const QString& inputPath, const QString& outputPath,
                       std::function<void(float)> progressCallback);
+    void cancelProcessing();
+    
+signals:
+    void frameProcessed(int frameIndex, int totalFrames);
+    void processingFinished(const QString& outputPath);
+};
+
+// 帧缓存管理
+class FrameCache : public QObject {
+    Q_OBJECT
+public:
+    QImage getFrame(const QString& videoPath, int frameIndex);
+    void cacheFrame(const QString& videoPath, int frameIndex, const QImage& frame);
+    void clearCache();
+    void setMaxCacheSize(int maxFrames);
+    
+private:
+    QCache<QString, QImage> m_cache;
+};
+
+// 处理引擎调度
+class ProcessingEngine : public QObject {
+    Q_OBJECT
+public:
+    void processImage(const QString& path, const QVariantMap& params);
+    void processVideo(const QString& path, const QVariantMap& params);
+    void cancelAll();
+    
+signals:
+    void progressChanged(float progress);
+    void processingFinished(const QString& resultPath);
+};
+
+// 任务协调器
+class TaskCoordinator : public QObject {
+    Q_OBJECT
+public:
+    void submitTask(const QString& taskId, std::function<void()> task);
+    void cancelTask(const QString& taskId);
+    void setMaxConcurrentTasks(int max);
+    
+signals:
+    void taskCompleted(const QString& taskId);
+    void taskFailed(const QString& taskId, const QString& error);
+};
+
+// 资源管理器
+class ResourceManager : public QObject {
+    Q_OBJECT
+public:
+    static ResourceManager* instance();
+    
+    QString modelPath(const QString& modelName) const;
+    QString iconPath(const QString& iconName) const;
+    QString shaderPath(const QString& shaderName) const;
+    
+    void cleanup();
+    
+private:
+    QString m_resourceBasePath;
 };
 ```
 
@@ -216,8 +439,8 @@ Connections {
     function onProgressChanged(progress) {
         progressBar.value = progress
     }
-    function onFinished(result) {
-        previewImage.source = "image://preview/result"
+    function onProcessingFinished(resultPath) {
+        previewImage.source = "file:///" + resultPath
     }
 }
 ```
@@ -367,18 +590,6 @@ Connections {
 
 ## 关键设计决策
 
-### 为什么选择 QML 而非 WebEngine？
-
-| 对比项 | QML | WebEngine + React |
-|--------|-----|-------------------|
-| 内存占用 | ~100MB | ~500MB |
-| 启动速度 | <1s | 2-5s |
-| 图像传输 | 零拷贝 | 需要序列化 |
-| GPU 访问 | 直接访问 | 间接访问 |
-| Shader 集成 | 原生支持 | 复杂 |
-| 开发效率 | 高（声明式） | 高（React 生态） |
-| 调试难度 | 中等 | 高（多层抽象） |
-
 ### 为什么使用 QQuickImageProvider？
 
 - **零拷贝**：QML Image 直接引用 C++ QImage 内存
@@ -392,3 +603,10 @@ Connections {
 - **虚拟化支持**：ListView 自动实现虚拟滚动
 - **角色绑定**：QML 可以直接绑定 model.roleName
 - **排序过滤**：支持 QSortFilterProxyModel
+
+### 为什么添加 Services 层？
+
+- **职责分离**：控制器专注于 UI 交互，服务专注于业务逻辑
+- **代码复用**：多个控制器可以共享同一服务
+- **测试友好**：服务可以独立测试
+- **维护性**：业务逻辑集中管理，便于修改
