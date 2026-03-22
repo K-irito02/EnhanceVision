@@ -86,6 +86,7 @@ Window {
     property real _savedH: 0
     property bool _wasMaximized: false
     property var mediaPlayer: null
+    property real _volumeBeforeMute: 0.5
 
     // ========== 导航按钮状态管理 ==========
     property bool navButtonsVisible: false
@@ -1025,10 +1026,12 @@ Window {
                             tooltip: qsTr("静音")
                             onClicked: {
                                 if (audioOutput.volume > 0) {
+                                    root._volumeBeforeMute = audioOutput.volume
                                     audioOutput.volume = 0
                                     SettingsController.volume = 0
                                 } else {
-                                    audioOutput.volume = SettingsController.volume / 100
+                                    audioOutput.volume = root._volumeBeforeMute
+                                    SettingsController.volume = Math.round(root._volumeBeforeMute * 100)
                                 }
                             }
                         }

@@ -4,29 +4,18 @@ import QtQuick.Layouts
 import "../styles"
 import "../controls"
 
-/**
- * @brief 消息列表组件
- * 展示所有处理任务的消息列表，支持滚动浏览
- * 每条消息包含缩略图、进度、操作按钮等
- *
- * 当 C++ messageModel 可用时，使用真实数据；
- * 否则回退到内置 demoModel 演示数据。
- */
 Item {
     id: root
 
-    // ========== 属性 ==========
     property bool batchMode: false
     property var selectedIds: []
     readonly property bool _hasRealModel: typeof messageModel !== "undefined"
     
-    // 从 MainPage 传入的引用
     property Item viewerContainer: null
     property var pendingViewer: null
     property var messageViewer: null
     property var minimizedDock: null
 
-    // ========== 消息列表 ==========
     ListView {
         id: messageList
         anchors.fill: parent
@@ -53,7 +42,6 @@ Item {
             selectable: batchMode
             estimatedRemainingSec: model.status === 1 ? Math.max(0, Math.round((100 - (model.progress || 0)) * 0.6)) : 0
 
-            // mediaFiles 和 completedCount 的构建
             property ListModel _cachedMedia: ListModel {}
             mediaFiles: _cachedMedia
             totalFileCount: _cachedMedia.count
@@ -116,11 +104,14 @@ Item {
                 if (typeof processingController !== "undefined")
                     processingController.cancelTask(model.id)
             }
-            onEditClicked: {
-                root._openEditDialog(model.id)
+            onRetryClicked: {
+                root._handleRetry(model.id)
             }
-            onSaveClicked: {
-                root._handleDownload(model.id, model.status)
+            onRetryFailedFilesClicked: {
+                root._handleRetryFailedFiles(model.id)
+            }
+            onSaveSuccessfulFilesClicked: {
+                root._handleSaveSuccessfulFiles(model.id)
             }
             onDownloadClicked: {
                 root._handleDownload(model.id, model.status)
@@ -142,6 +133,9 @@ Item {
                     messageModel.removeMediaFile(model.id, idx)
                 }
             }
+            onRetrySingleFailedFile: function(idx) {
+                root._handleRetrySingleFailedFile(model.id, idx)
+            }
             onSelectionToggled: function(isSelected) {
                 var mid = model.id
                 if (isSelected) {
@@ -157,7 +151,6 @@ Item {
             policy: ScrollBar.AsNeeded
         }
 
-        // 空状态
         Item {
             visible: messageList.count === 0
             anchors.fill: parent
@@ -196,8 +189,6 @@ Item {
             }
         }
     }
-
-    // 媒体查看器已移至 MainPage 中的 EmbeddedMediaViewer
     
     function _getShaderParam(paramName, defaultValue) {
         var p = root.parent
@@ -210,7 +201,6 @@ Item {
         return defaultValue
     }
     
-    // 监听 C++ MessageModel 的 mediaFileRemoved 信号
     Connections {
         target: root._hasRealModel ? messageModel : null
         enabled: root._hasRealModel
@@ -228,7 +218,6 @@ Item {
         }
     }
 
-    // ========== 演示数据模型 ==========
     ListModel {
         id: demoModel
     }
@@ -239,15 +228,13 @@ Item {
         }
     }
 
-    // ========== 内部方法 ==========
-
-    /** @brief 构建 demo 模式的媒体文件 */
     function _buildDemoMedia(targetModel, msgStatus) {
         var count = 5 + Math.floor(Math.random() * 16)
         for (var i = 0; i < count; i++) {
             var fileStatus = 0
             if (msgStatus === 2) fileStatus = 2
             else if (msgStatus === 1) fileStatus = (i < count * 0.6) ? 2 : 1
+            else if (msgStatus === 3) fileStatus = (i < count * 0.3) ? 2 : 3
             targetModel.append({
                 "filePath": "",
                 "fileName": "media_" + (i+1) + (Math.random() > 0.3 ? ".jpg" : ".mp4"),
@@ -259,7 +246,6 @@ Item {
         }
     }
 
-    /** @brief 打开媒体查看器 */
     function _openViewer(msgId, fileIndex, msgStatus) {
         if (!root.messageViewer) {
             return
@@ -273,6 +259,7 @@ Item {
                 var f = allFiles[i]
                 var filePath = f.filePath || ""
                 var resultPath = f.resultPath || ""
+                var mediaType = f.mediaType !== undefined ? f.mediaType : 0
                 
                 if (f.status === 2) {
                     var thumbSource = ""
@@ -284,10 +271,15 @@ Item {
                         thumbSource = "image://thumbnail/" + filePath
                     }
                     
+                    var viewPath = filePath
+                    if (mediaType === 0 && resultPath && resultPath !== "") {
+                        viewPath = resultPath
+                    }
+                    
                     files.push({
-                        "filePath":  resultPath || filePath,
+                        "filePath":  viewPath,
                         "fileName":  f.fileName  || "",
-                        "mediaType": f.mediaType !== undefined ? f.mediaType : 0,
+                        "mediaType": mediaType,
                         "thumbnail": thumbSource,
                         "resultPath": resultPath,
                         "originalPath": filePath,
@@ -315,13 +307,11 @@ Item {
             viewer.currentMessageId = msgId
             viewer.mediaFiles = files
             
-            // 获取消息存储的 shader 参数
             var shaderParams = _hasRealModel ? messageModel.getShaderParams(msgId) : {}
             
             var hasShaderModifications = shaderParams.hasShaderModifications === true
             viewer.shaderEnabled = hasShaderModifications
             
-            // 设置 shader 参数
             viewer.shaderBrightness = shaderParams.brightness !== undefined ? shaderParams.brightness : 0.0
             viewer.shaderContrast = shaderParams.contrast !== undefined ? shaderParams.contrast : 1.0
             viewer.shaderSaturation = shaderParams.saturation !== undefined ? shaderParams.saturation : 1.0
@@ -341,7 +331,6 @@ Item {
         }
     }
     
-    /** @brief 同步更新查看器窗口数据 */
     function _syncViewerWindow(messageId, deletedIndex) {
         if (!root.messageViewer) return
         
@@ -388,7 +377,6 @@ Item {
         }
     }
 
-    /** @brief 下载已完成文件 */
     function _handleDownload(msgId, msgStatus) {
         if (_hasRealModel && typeof fileController !== "undefined") {
             var completedFiles = messageModel.getCompletedFiles(msgId)
@@ -406,7 +394,23 @@ Item {
         }
     }
 
-    /** @brief 保存单个文件 */
+    function _handleSaveSuccessfulFiles(msgId) {
+        if (_hasRealModel && typeof fileController !== "undefined") {
+            var completedFiles = messageModel.getCompletedFiles(msgId)
+            if (completedFiles.length === 0) {
+                return
+            }
+            var paths = []
+            for (var i = 0; i < completedFiles.length; i++) {
+                var rp = completedFiles[i].resultPath
+                if (rp && rp !== "") paths.push(rp)
+            }
+            if (paths.length > 0) {
+                fileController.downloadCompletedFiles(paths)
+            }
+        }
+    }
+
     function _saveOneFile(msgId, fileIndex) {
         if (_hasRealModel && typeof fileController !== "undefined") {
             var allFiles = messageModel.getMediaFiles(msgId)
@@ -420,10 +424,24 @@ Item {
         }
     }
 
-    function _openEditDialog(msgId) {
+    function _handleRetry(msgId) {
+        if (_hasRealModel && typeof processingController !== "undefined") {
+            processingController.retryMessage(msgId)
+        }
     }
 
-    /** @brief 填充演示数据 */
+    function _handleRetryFailedFiles(msgId) {
+        if (_hasRealModel && typeof processingController !== "undefined") {
+            processingController.retryFailedFiles(msgId)
+        }
+    }
+
+    function _handleRetrySingleFailedFile(msgId, fileIndex) {
+        if (_hasRealModel && typeof processingController !== "undefined") {
+            processingController.retrySingleFailedFile(msgId, fileIndex)
+        }
+    }
+
     function _populateDemoData() {
         demoModel.append({
             "id": "demo-001-abcd-efgh",
@@ -447,9 +465,18 @@ Item {
             "id": "demo-003-qrst-uvwx",
             "timestamp": new Date(2026, 2, 14, 8, 5, 0),
             "mode": 0,
-            "status": 0,
+            "status": 3,
             "progress": 0,
-            "queuePosition": 2,
+            "queuePosition": 0,
+            "errorMessage": ""
+        })
+        demoModel.append({
+            "id": "demo-004-yzab-cdef",
+            "timestamp": new Date(2026, 2, 15, 10, 30, 0),
+            "mode": 0,
+            "status": 2,
+            "progress": 100,
+            "queuePosition": 0,
             "errorMessage": ""
         })
     }

@@ -52,9 +52,11 @@ Item {
     
     property var _mediaPlayer: null
     property bool _videoEnded: false
+    property bool _isPlaying: false
     property real _savedW: 800
     property real _savedH: 600
     property real sharedVolume: SettingsController.volume / 100
+    property real _volumeBeforeMute: 0.5
     
     function openAt(index) {
         currentIndex = Math.max(0, Math.min(index, mediaFiles.length - 1))
@@ -389,11 +391,15 @@ Item {
             
             onPlaybackStateChanged: {
                 if (playbackState === MediaPlayer.StoppedState) {
+                    root._isPlaying = false
                     if (position > 0 && duration > 0 && position >= duration - 500) {
                         root._videoEnded = true
                     }
                 } else if (playbackState === MediaPlayer.PlayingState) {
+                    root._isPlaying = true
                     root._videoEnded = false
+                } else if (playbackState === MediaPlayer.PausedState) {
+                    root._isPlaying = false
                 }
             }
             
@@ -576,6 +582,10 @@ Item {
         target: root
         function onCurrentSourceChanged() {
             if (root.isVideo && root.currentSource) {
+                // 先停止当前播放，避免状态混乱
+                if (vidPlayer.playbackState === MediaPlayer.PlayingState) {
+                    vidPlayer.stop()
+                }
                 vidPlayer.source = root._getSource(root.currentSource)
             }
         }
@@ -994,10 +1004,12 @@ Item {
                     tooltip: qsTr("静音")
                     onClicked: {
                         if (root.sharedVolume > 0) {
+                            root._volumeBeforeMute = root.sharedVolume
                             root.sharedVolume = 0
                             SettingsController.volume = 0
                         } else {
-                            root.sharedVolume = SettingsController.volume / 100
+                            root.sharedVolume = root._volumeBeforeMute
+                            SettingsController.volume = Math.round(root._volumeBeforeMute * 100)
                         }
                     }
                 }

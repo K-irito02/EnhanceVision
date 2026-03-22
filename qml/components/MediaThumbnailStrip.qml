@@ -16,6 +16,7 @@ Item {
     property bool expanded: false
     property int collapsedMaxVisible: 10
     property bool onlyCompleted: false
+    property bool showFailedFiles: false
     property bool messageMode: false
     property int totalCount: mediaModel ? mediaModel.count : 0
     readonly property int visibleCount: filteredModel.count
@@ -24,6 +25,7 @@ Item {
     signal saveFile(int index)
     signal deleteFile(int index)
     signal fileRemoved(string messageId, int fileIndex)
+    signal retryFailedFile(int index)
 
     implicitHeight: contentLoader.implicitHeight
 
@@ -33,6 +35,7 @@ Item {
 
     onMediaModelChanged: _rebuildFiltered()
     onOnlyCompletedChanged: _rebuildFiltered()
+    onShowFailedFilesChanged: _rebuildFiltered()
     Component.onCompleted: _rebuildFiltered()
     
     Connections {
@@ -54,6 +57,16 @@ Item {
         }
     }
 
+    function _shouldIncludeItem(item) {
+        if (onlyCompleted) {
+            return item.status === 2
+        }
+        if (!showFailedFiles) {
+            return item.status === 2 || item.status === 1 || item.status === 0
+        }
+        return true
+    }
+
     function _rebuildFiltered() {
         filteredModel.clear()
         if (!mediaModel) return
@@ -64,7 +77,7 @@ Item {
         if (isQmlListModel) {
             for (var i = 0; i < mediaModel.count; i++) {
                 var item = mediaModel.get(i)
-                if (!onlyCompleted || item.status === 2) {
+                if (_shouldIncludeItem(item)) {
                     filteredModel.append({
                         "origIndex": i,
                         "filePath": item.filePath || "",
@@ -87,7 +100,7 @@ Item {
                 var status = mediaModel.data(idx, 266)
                 var resultPath = mediaModel.data(idx, 267)
                 
-                if (!onlyCompleted || status === 2) {
+                if (_shouldIncludeItem({status: status})) {
                     filteredModel.append({
                         "origIndex": i,
                         "filePath": filePath || "",
@@ -139,19 +152,37 @@ Item {
                         height: root.thumbSize
                         required property int index
                         property var itemData: index < filteredModel.count ? filteredModel.get(index) : null
-                        property bool showDeleteBtn: thumbMouse.containsMouse || deleteBtnMouse.containsMouse
+                        property int itemStatus: itemData && itemData.status !== undefined ? itemData.status : -1
+                        property bool showDeleteBtn: thumbMouse.containsMouse || deleteBtnMouse.containsMouse || deleteBtnForFailedMouse.containsMouse
+                        property bool isPending: itemStatus === 0
+                        property bool isProcessing: itemStatus === 1
+                        property bool isSuccess: itemStatus === 2
+                        property bool isFailed: itemStatus === 3
+                        property bool isCancelled: itemStatus === 4
+                        property bool isUnavailable: !isSuccess
+                        property bool canRetry: isFailed || isCancelled
+                        property int itemMediaType: itemData && itemData.mediaType !== undefined ? itemData.mediaType : 0
 
-                        Rectangle {
+                        Rectangle{
                             id: hoverBorder
                             anchors.fill: parent
                             anchors.margins: 2
                             radius: Theme.radius.md
                             color: "transparent"
-                            border.width: 2
-                            border.color: thumbMouse.containsMouse ? Theme.colors.primary : "transparent"
+                            border.width: {
+                                if (!thumbDelegate.isSuccess && root.messageMode) return 2
+                                if (thumbMouse.containsMouse) return 2
+                                return 0
+                            }
+                            border.color: {
+                                if (!thumbDelegate.isSuccess && root.messageMode) return Theme.colors.destructive
+                                if (thumbMouse.containsMouse) return Theme.colors.primary
+                                return "transparent"
+                            }
                             z: 5
                             
-                            Behavior on border.color { ColorAnimation { duration: Theme.animation.fast } }
+                            Behavior on border.color{ ColorAnimation{ duration: Theme.animation.fast } }
+                            Behavior on border.width{ NumberAnimation{ duration: Theme.animation.fast } }
                         }
 
                         Rectangle {
@@ -167,7 +198,7 @@ Item {
                                 source: {
                                     if (!thumbDelegate.itemData) return ""
                                     
-                                    if (root.messageMode && thumbDelegate.itemData.status === 2) {
+                                    if (root.messageMode && thumbDelegate.isSuccess) {
                                         if (thumbDelegate.itemData.processedThumbnailId && thumbDelegate.itemData.processedThumbnailId !== "") {
                                             return "image://thumbnail/" + thumbDelegate.itemData.processedThumbnailId
                                         }
@@ -187,6 +218,7 @@ Item {
                                 smooth: true
                                 sourceSize: Qt.size(root.thumbSize * 2, root.thumbSize * 2)
                                 visible: status === Image.Ready
+                                opacity: 1.0
                                 layer.enabled: true
                                 layer.samples: 4
                                 layer.effect: MultiEffect {
@@ -194,6 +226,8 @@ Item {
                                     maskThresholdMin: 0.5
                                     maskSpreadAtMin: 1.0
                                     maskSource: thumbMask
+                                }
+                                onStatusChanged: {
                                 }
                             }
 
@@ -223,7 +257,7 @@ Item {
                             }
 
                             Rectangle {
-                                visible: thumbDelegate.itemData !== undefined && thumbDelegate.itemData !== null && thumbDelegate.itemData.mediaType === 1
+                                visible: thumbDelegate.itemMediaType === 1 && !thumbDelegate.isFailed && !thumbDelegate.isPending && !thumbDelegate.isProcessing
                                 anchors.bottom: parent.bottom
                                 anchors.left: parent.left
                                 anchors.margins: 4
@@ -242,7 +276,7 @@ Item {
                                 anchors.fill: parent
                                 radius: parent.radius
                                 color: Qt.rgba(0, 0, 0, 0.5)
-                                visible: thumbDelegate.itemData !== undefined && thumbDelegate.itemData !== null && thumbDelegate.itemData.status !== 2 && root.messageMode
+                                visible: thumbDelegate.isProcessing && root.messageMode
                                 ColoredIcon {
                                     anchors.centerIn: parent
                                     source: Theme.icon("loader")
@@ -253,7 +287,7 @@ Item {
                                         from: 0; to: 360
                                         duration: 1500
                                         loops: Animation.Infinite
-                                        running: thumbDelegate.itemData !== undefined && thumbDelegate.itemData !== null && thumbDelegate.itemData.status === 1
+                                        running: thumbDelegate.isProcessing
                                     }
                                 }
                             }
@@ -263,14 +297,18 @@ Item {
                             id: thumbMouse
                             anchors.fill: parent
                             hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
+                            cursorShape: thumbDelegate.isSuccess ? Qt.PointingHandCursor : Qt.ArrowCursor
                             acceptedButtons: Qt.LeftButton | Qt.RightButton
                             onClicked: function(mouse) {
                                 if (mouse.button === Qt.RightButton) {
+                                    var status = thumbDelegate.itemData ? thumbDelegate.itemData.status : 0
                                     contextMenu.targetIndex = thumbDelegate.index
+                                    contextMenu.fileStatus = status
                                     contextMenu.popup()
                                 } else {
-                                    root.viewFile(thumbDelegate.itemData ? thumbDelegate.itemData.origIndex : thumbDelegate.index)
+                                    if (thumbDelegate.isSuccess) {
+                                        root.viewFile(thumbDelegate.itemData ? thumbDelegate.itemData.origIndex : thumbDelegate.index)
+                                    }
                                 }
                             }
                         }
@@ -283,7 +321,7 @@ Item {
                             width: 20; height: 20
                             radius: 10
                             color: deleteBtnMouse.containsMouse ? Theme.colors.destructive : Qt.rgba(0, 0, 0, 0.7)
-                            visible: thumbDelegate.showDeleteBtn
+                            visible: thumbDelegate.showDeleteBtn && !thumbDelegate.isFailed
                             z: 10
                             
                             opacity: visible ? 1 : 0
@@ -311,6 +349,43 @@ Item {
                             }
                             Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
                         }
+
+                        Rectangle {
+                            id: deleteBtnForFailed
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            anchors.margins: 4
+                            width: 20; height: 20
+                            radius: 10
+                            color: deleteBtnForFailedMouse.containsMouse ? Theme.colors.destructive : Qt.rgba(0, 0, 0, 0.7)
+                            visible: thumbDelegate.showDeleteBtn && (thumbDelegate.isFailed || thumbDelegate.isCancelled)
+                            z: 10
+                            
+                            opacity: visible ? 1 : 0
+                            Behavior on opacity { NumberAnimation { duration: 100 } }
+                            
+                            Text {
+                                anchors.centerIn: parent
+                                text: "\u00D7"
+                                color: "#FFFFFF"
+                                font.pixelSize: 14
+                                font.weight: Font.Bold
+                            }
+                            MouseArea {
+                                id: deleteBtnForFailedMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    var origIndex = thumbDelegate.itemData ? thumbDelegate.itemData.origIndex : thumbDelegate.index
+                                    root.deleteFile(origIndex)
+                                    if (root.messageId !== "") {
+                                        root.fileRemoved(root.messageId, origIndex)
+                                    }
+                                }
+                            }
+                            Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
+                        }
                     }
 
                     MouseArea {
@@ -318,10 +393,14 @@ Item {
                         z: -1
                         acceptedButtons: Qt.NoButton
                         onWheel: function(wheel) {
-                            var delta = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.angleDelta.x
-                            thumbListView.contentX = Math.max(0, Math.min(thumbListView.contentX - delta * 0.5, 
-                                Math.max(0, thumbListView.contentWidth - thumbListView.width)))
-                            wheel.accepted = true
+                            if (thumbListView.interactive) {
+                                var delta = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.angleDelta.x
+                                thumbListView.contentX = Math.max(0, Math.min(thumbListView.contentX - delta * 0.5, 
+                                    Math.max(0, thumbListView.contentWidth - thumbListView.width)))
+                                wheel.accepted = true
+                            } else {
+                                wheel.accepted = false
+                            }
                         }
                     }
                 }
@@ -379,6 +458,22 @@ Item {
                     clip: true
                     boundsBehavior: Flickable.StopAtBounds
                     interactive: contentHeight > height
+                    
+                    MouseArea {
+                        anchors.fill: parent
+                        z: -1
+                        acceptedButtons: Qt.NoButton
+                        onWheel: function(wheel) {
+                            if (thumbGridView.interactive) {
+                                var delta = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.angleDelta.x
+                                thumbGridView.contentY = Math.max(0, Math.min(thumbGridView.contentY - delta * 0.5, 
+                                    Math.max(0, thumbGridView.contentHeight - thumbGridView.height)))
+                                wheel.accepted = true
+                            } else {
+                                wheel.accepted = false
+                            }
+                        }
+                    }
 
                     delegate: Item {
                         id: thumbDelegate
@@ -386,19 +481,37 @@ Item {
                         height: thumbGridView.cellHeight - root.thumbSpacing
                         required property int index
                         property var itemData: index < filteredModel.count ? filteredModel.get(index) : null
-                        property bool showDeleteBtn: thumbMouse.containsMouse || deleteBtnMouse.containsMouse
+                        property int itemStatus: itemData && itemData.status !== undefined ? itemData.status : -1
+                        property bool showDeleteBtn: thumbMouse.containsMouse || deleteBtnMouse.containsMouse || deleteBtnForFailedMouse.containsMouse
+                        property bool isPending: itemStatus === 0
+                        property bool isProcessing: itemStatus === 1
+                        property bool isSuccess: itemStatus === 2
+                        property bool isFailed: itemStatus === 3
+                        property bool isCancelled: itemStatus === 4
+                        property bool isUnavailable: !isSuccess
+                        property bool canRetry: isFailed || isCancelled
+                        property int itemMediaType: itemData && itemData.mediaType !== undefined ? itemData.mediaType : 0
 
-                        Rectangle {
+                        Rectangle{
                             id: hoverBorder
                             anchors.fill: parent
                             anchors.margins: 2
                             radius: Theme.radius.md
                             color: "transparent"
-                            border.width: 2
-                            border.color: thumbMouse.containsMouse ? Theme.colors.primary : "transparent"
+                            border.width: {
+                                if (!thumbDelegate.isSuccess && root.messageMode) return 2
+                                if (thumbMouse.containsMouse) return 2
+                                return 0
+                            }
+                            border.color: {
+                                if (!thumbDelegate.isSuccess && root.messageMode) return Theme.colors.destructive
+                                if (thumbMouse.containsMouse) return Theme.colors.primary
+                                return "transparent"
+                            }
                             z: 5
                             
-                            Behavior on border.color { ColorAnimation { duration: Theme.animation.fast } }
+                            Behavior on border.color{ ColorAnimation{ duration: Theme.animation.fast } }
+                            Behavior on border.width{ NumberAnimation{ duration: Theme.animation.fast } }
                         }
 
                         Rectangle {
@@ -414,7 +527,7 @@ Item {
                                 source: {
                                     if (!thumbDelegate.itemData) return ""
                                     
-                                    if (root.messageMode && thumbDelegate.itemData.status === 2) {
+                                    if (root.messageMode && thumbDelegate.isSuccess) {
                                         if (thumbDelegate.itemData.processedThumbnailId && thumbDelegate.itemData.processedThumbnailId !== "") {
                                             return "image://thumbnail/" + thumbDelegate.itemData.processedThumbnailId
                                         }
@@ -434,6 +547,7 @@ Item {
                                 smooth: true
                                 sourceSize: Qt.size(root.thumbSize * 2, root.thumbSize * 2)
                                 visible: status === Image.Ready
+                                opacity: 1.0
                                 layer.enabled: true
                                 layer.samples: 4
                                 layer.effect: MultiEffect {
@@ -441,6 +555,8 @@ Item {
                                     maskThresholdMin: 0.5
                                     maskSpreadAtMin: 1.0
                                     maskSource: thumbMask
+                                }
+                                onStatusChanged: {
                                 }
                             }
 
@@ -470,7 +586,7 @@ Item {
                             }
 
                             Rectangle {
-                                visible: thumbDelegate.itemData && thumbDelegate.itemData.mediaType === 1
+                                visible: thumbDelegate.itemMediaType === 1 && !thumbDelegate.isFailed && !thumbDelegate.isPending && !thumbDelegate.isProcessing
                                 anchors.bottom: parent.bottom
                                 anchors.left: parent.left
                                 anchors.margins: 4
@@ -489,7 +605,7 @@ Item {
                                 anchors.fill: parent
                                 radius: parent.radius
                                 color: Qt.rgba(0, 0, 0, 0.5)
-                                visible: thumbDelegate.itemData && thumbDelegate.itemData.status !== 2 && root.messageMode
+                                visible: thumbDelegate.isProcessing && root.messageMode
                                 ColoredIcon {
                                     anchors.centerIn: parent
                                     source: Theme.icon("loader")
@@ -500,7 +616,7 @@ Item {
                                         from: 0; to: 360
                                         duration: 1500
                                         loops: Animation.Infinite
-                                        running: thumbDelegate.itemData && thumbDelegate.itemData.status === 1
+                                        running: thumbDelegate.isProcessing
                                     }
                                 }
                             }
@@ -510,14 +626,18 @@ Item {
                             id: thumbMouse
                             anchors.fill: parent
                             hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
+                            cursorShape: thumbDelegate.isSuccess ? Qt.PointingHandCursor : Qt.ArrowCursor
                             acceptedButtons: Qt.LeftButton | Qt.RightButton
                             onClicked: function(mouse) {
                                 if (mouse.button === Qt.RightButton) {
+                                    var status = thumbDelegate.itemData ? thumbDelegate.itemData.status : 0
                                     contextMenu.targetIndex = thumbDelegate.index
+                                    contextMenu.fileStatus = status
                                     contextMenu.popup()
                                 } else {
-                                    root.viewFile(thumbDelegate.itemData ? thumbDelegate.itemData.origIndex : thumbDelegate.index)
+                                    if (thumbDelegate.isSuccess) {
+                                        root.viewFile(thumbDelegate.itemData ? thumbDelegate.itemData.origIndex : thumbDelegate.index)
+                                    }
                                 }
                             }
                         }
@@ -530,7 +650,7 @@ Item {
                             width: 20; height: 20
                             radius: 10
                             color: deleteBtnMouse.containsMouse ? Theme.colors.destructive : Qt.rgba(0, 0, 0, 0.7)
-                            visible: thumbDelegate.showDeleteBtn
+                            visible: thumbDelegate.showDeleteBtn && !thumbDelegate.isFailed
                             z: 10
                             
                             opacity: visible ? 1 : 0
@@ -558,40 +678,64 @@ Item {
                             }
                             Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
                         }
+
+                        Rectangle {
+                            id: deleteBtnForFailed
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            anchors.margins: 4
+                            width: 20; height: 20
+                            radius: 10
+                            color: deleteBtnForFailedMouse.containsMouse ? Theme.colors.destructive : Qt.rgba(0, 0, 0, 0.7)
+                            visible: thumbDelegate.showDeleteBtn && thumbDelegate.isFailed
+                            z: 10
+                            
+                            opacity: visible ? 1 : 0
+                            Behavior on opacity { NumberAnimation { duration: 100 } }
+                            
+                            Text {
+                                anchors.centerIn: parent
+                                text: "\u00D7"
+                                color: "#FFFFFF"
+                                font.pixelSize: 14
+                                font.weight: Font.Bold
+                            }
+                            MouseArea {
+                                id: deleteBtnForFailedMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    var origIndex = thumbDelegate.itemData ? thumbDelegate.itemData.origIndex : thumbDelegate.index
+                                    root.deleteFile(origIndex)
+                                    if (root.messageId !== "") {
+                                        root.fileRemoved(root.messageId, origIndex)
+                                    }
+                                }
+                            }
+                            Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
+                        }
                     }
                 }
 
                 Rectangle {
                     id: collapseButton
-                    anchors.top: parent.top
                     anchors.right: parent.right
-                    anchors.margins: 8
-                    width: collapseRow.implicitWidth + 16
-                    height: 28
-                    radius: 14
+                    anchors.top: parent.top
+                    anchors.topMargin: Math.max(0, (root.thumbSize - 32) / 2 + 2)
+                    anchors.rightMargin: 8
+                    width: 32
+                    height: 32
+                    radius: 16
                     color: Qt.rgba(0, 0, 0, 0.6)
                     visible: root.expandable && root.expanded
                     z: 100
-
-                    Row {
-                        id: collapseRow
+                    
+                    ColoredIcon {
                         anchors.centerIn: parent
-                        spacing: 4
-
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: qsTr("收缩")
-                            color: "#FFFFFF"
-                            font.pixelSize: 12
-                            font.weight: Font.Medium
-                        }
-
-                        ColoredIcon {
-                            anchors.verticalCenter: parent.verticalCenter
-                            source: Theme.icon("chevron-up")
-                            iconSize: 14
-                            color: "#FFFFFF"
-                        }
+                        source: Theme.icon("chevron-up")
+                        iconSize: 16
+                        color: "#FFFFFF"
                     }
 
                     MouseArea {
@@ -607,10 +751,16 @@ Item {
     Menu {
         id: contextMenu
         property int targetIndex: -1
-        width: 140
+        property int fileStatus: 0
+        readonly property bool isSuccess: fileStatus === 2
+        readonly property bool isFailedOrCancelled: fileStatus === 3 || fileStatus === 4
+        readonly property bool isProcessingOrPending: fileStatus === 0 || fileStatus === 1
+        width: 160
         background: Rectangle { color: Theme.colors.popover; border.width: 1; border.color: Theme.colors.border; radius: Theme.radius.md }
-
+        
         MenuItem {
+            visible: contextMenu.isSuccess
+            height: visible ? 32 : 0
             text: qsTr("放大查看")
             background: Rectangle { color: parent.highlighted ? Theme.colors.surfaceHover : "transparent"; radius: Theme.radius.sm }
             contentItem: Row {
@@ -622,6 +772,8 @@ Item {
         }
 
         MenuItem {
+            visible: contextMenu.isSuccess
+            height: visible ? 32 : 0
             text: qsTr("保存")
             background: Rectangle { color: parent.highlighted ? Theme.colors.surfaceHover : "transparent"; radius: Theme.radius.sm }
             contentItem: Row {
@@ -632,9 +784,28 @@ Item {
             onTriggered: { if (contextMenu.targetIndex >= 0) { var item = filteredModel.get(contextMenu.targetIndex); root.saveFile(item ? item.origIndex : contextMenu.targetIndex) } }
         }
 
-        MenuSeparator { contentItem: Rectangle { implicitHeight: 1; color: Theme.colors.border } }
+        MenuItem {
+            visible: contextMenu.isFailedOrCancelled || contextMenu.isProcessingOrPending
+            height: visible ? 32 : 0
+            text: qsTr("重新处理")
+            background: Rectangle { color: parent.highlighted ? Theme.colors.surfaceHover : "transparent"; radius: Theme.radius.sm }
+            contentItem: Row {
+                spacing: 8; leftPadding: 8
+                ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("refresh-cw"); iconSize: 14; color: Theme.colors.primary }
+                Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("重新处理"); color: Theme.colors.primary; font.pixelSize: 13 }
+            }
+            onTriggered: { if (contextMenu.targetIndex >= 0) { var item = filteredModel.get(contextMenu.targetIndex); root.retryFailedFile(item ? item.origIndex : contextMenu.targetIndex) } }
+        }
+
+        MenuSeparator { 
+            visible: true
+            height: 9
+            contentItem: Rectangle { implicitHeight: 1; color: Theme.colors.border } 
+        }
 
         MenuItem {
+            visible: true
+            height: 32
             text: qsTr("删除")
             background: Rectangle { color: parent.highlighted ? Theme.colors.destructiveSubtle : "transparent"; radius: Theme.radius.sm }
             contentItem: Row {

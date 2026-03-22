@@ -450,6 +450,12 @@
         <source>删除</source>
         <translation >删除</translation>
     </message>
+    <message>
+        <location filename="../../qml/components/MediaThumbnailStrip.qml" line="804"/>
+        <location filename="../../qml/components/MediaThumbnailStrip.qml" line="809"/>
+        <source>重新处理</source>
+        <translation >重新处理</translation>
+    </message>
 </context>
 <context>
     <name>MediaViewer</name>
@@ -602,7 +608,42 @@
     <message>
         <location filename="../../qml/components/MessageItem.qml" line="427"/>
         <source>%1 个文件</source>
-        <translation ></translation>
+        <translation >%1 个文件</translation>
+    </message>
+    <message>
+        <location filename="../../qml/components/MessageItem.qml" line="203"/>
+        <source>重新处理失败文件</source>
+        <translation >重新处理失败文件</translation>
+    </message>
+    <message>
+        <location filename="../../qml/components/MessageItem.qml" line="210"/>
+        <source>保存成功文件</source>
+        <translation >保存成功文件</translation>
+    </message>
+    <message>
+        <location filename="../../qml/components/MessageItem.qml" line="265"/>
+        <source>自动处理失败，您可以选择点击卡片右上角的&quot;重新处理&quot;按钮或者选中某个多媒体文件右击选择&quot;重新处理&quot;选项进行再次处理</source>
+        <translation >自动处理失败，您可以选择点击卡片右上角的"重新处理"按钮或者选中某个多媒体文件右击选择"重新处理"选项进行再次处理</translation>
+    </message>
+    <message>
+        <location filename="../../qml/components/MessageItem.qml" line="268"/>
+        <source>部分文件处理失败，可点击&quot;重新处理&quot;按钮或右键选择&quot;重新处理&quot;</source>
+        <translation >部分文件处理失败，可点击"重新处理"按钮或右键选择"重新处理"</translation>
+    </message>
+    <message>
+        <location filename="../../qml/components/MessageItem.qml" line="283"/>
+        <source>关闭提示</source>
+        <translation >关闭提示</translation>
+    </message>
+    <message>
+        <location filename="../../qml/components/MessageItem.qml" line="370"/>
+        <source>成功：%1个文件</source>
+        <translation >成功：%1个文件</translation>
+    </message>
+    <message>
+        <location filename="../../qml/components/MessageItem.qml" line="398"/>
+        <source>失败：%1个文件</source>
+        <translation >失败：%1个文件</translation>
     </message>
 </context>
 <context>

@@ -24,8 +24,29 @@ ColumnLayout {
 
     spacing: 8
 
-    // 内部：当前模型详情
-    property var currentModelInfo: registry && modelId !== "" ? registry.getModelInfoMap(modelId) : null
+    // 内部：当前模型详情 - 使用Qt.binding确保响应式更新
+    property var currentModelInfo: null
+    
+    // 监听registry和modelId变化，更新currentModelInfo
+    onRegistryChanged: _updateModelInfo()
+    onModelIdChanged: _updateModelInfo()
+    
+    function _updateModelInfo() {
+        if (registry && modelId !== "") {
+            _isModelSwitching = true
+            currentModelInfo = registry.getModelInfoMap(modelId)
+            // 重置为模型默认分块
+            if (currentModelInfo && currentModelInfo.tileSize) {
+                tileSize = currentModelInfo.tileSize
+            }
+            // 延迟重置参数，避免控件跳动
+            _pendingParams = {}
+            modelParams = {}
+            _isModelSwitching = false
+        } else {
+            currentModelInfo = null
+        }
+    }
 
     // 内部：用于平滑过渡的参数缓存
     property var _pendingParams: ({})
@@ -49,21 +70,6 @@ ColumnLayout {
     // 获取参数描述（本地化）
     function getParamDescription(param) {
         return localizedText(param, "description", "description_en")
-    }
-
-    onModelIdChanged: {
-        if (registry && modelId !== "") {
-            _isModelSwitching = true
-            currentModelInfo = registry.getModelInfoMap(modelId)
-            // 重置为模型默认分块
-            if (currentModelInfo && currentModelInfo.tileSize) {
-                tileSize = currentModelInfo.tileSize
-            }
-            // 延迟重置参数，避免控件跳动
-            _pendingParams = {}
-            modelParams = {}
-            _isModelSwitching = false
-        }
     }
 
     // ========== 模型信息卡片 ==========
@@ -186,7 +192,7 @@ ColumnLayout {
         ColoredIcon {
             source: Theme.icon("zap")
             iconSize: 14
-            color: root.useGpu ? Theme.colors.primary : Theme.colors.mutedForeground
+            color: root.useGpu && engine && engine.gpuAvailable ? Theme.colors.primary : Theme.colors.mutedForeground
         }
 
         Text {
@@ -197,28 +203,67 @@ ColumnLayout {
         }
 
         Controls.Switch {
-            checked: root.useGpu
+            id: gpuSwitch
+            checked: root.useGpu && engine && engine.gpuAvailable
+            enabled: engine && engine.gpuAvailable
+            opacity: enabled ? 1.0 : 0.5
             onToggled: {
                 root.useGpu = checked
                 root.paramsChanged()
             }
         }
 
-        // GPU 状态指示
+        // 开关状态标签
         Rectangle {
             height: 18
             radius: Theme.radius.sm
-            color: engine && engine.gpuAvailable ? "#1a7c3d1e" : "#1ae74c3c"
-            Layout.minimumWidth: gpuStatusText.implicitWidth + 16
-            Layout.preferredWidth: gpuStatusText.implicitWidth + 16
+            color: root.useGpu ? "#1a2563eb" : "#1a71717a"
+            Layout.minimumWidth: switchStatusText.implicitWidth + 16
+            Layout.preferredWidth: switchStatusText.implicitWidth + 16
 
             Text {
-                id: gpuStatusText
+                id: switchStatusText
                 anchors.centerIn: parent
-                text: engine && engine.gpuAvailable ? qsTr("可用") : qsTr("不可用")
+                text: root.useGpu ? qsTr("已开启") : qsTr("已关闭")
                 font.pixelSize: 9
-                color: engine && engine.gpuAvailable ? "#7c3d1e" : "#e74c3c"
+                color: root.useGpu ? "#2563eb" : "#71717a"
             }
+        }
+
+        // GPU 可用性警告标签（仅当 GPU 不可用时显示）
+        Rectangle {
+            visible: !(engine && engine.gpuAvailable)
+            height: 18
+            radius: Theme.radius.sm
+            color: "#1ae74c3c"
+            Layout.minimumWidth: gpuWarningText.implicitWidth + 16
+            Layout.preferredWidth: gpuWarningText.implicitWidth + 16
+
+            Text {
+                id: gpuWarningText
+                anchors.centerIn: parent
+                text: qsTr("GPU不可用")
+                font.pixelSize: 9
+                color: "#e74c3c"
+            }
+        }
+    }
+
+    // GPU 可用性变化时自动调整 useGpu
+    Connections {
+        target: engine
+        function onGpuAvailableChanged(available) {
+            if (!available) {
+                root.useGpu = false
+                root.paramsChanged()
+            }
+        }
+    }
+
+    // 初始化时检查 GPU 可用性
+    Component.onCompleted: {
+        if (engine && !engine.gpuAvailable) {
+            root.useGpu = false
         }
     }
 
@@ -268,12 +313,171 @@ ColumnLayout {
         }
     }
 
+    // ========== 调试信息面板 ==========
+    ColumnLayout {
+        id: debugPanel
+        Layout.fillWidth: true
+        spacing: 6
+        visible: currentModelInfo !== null
+
+        Rectangle {
+            Layout.fillWidth: true
+            height: 1
+            color: Theme.colors.border
+        }
+
+        // 折叠标题
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 6
+
+            Text {
+                text: qsTr("调试信息")
+                color: Theme.colors.mutedForeground
+                font.pixelSize: 11
+            }
+
+            Item { Layout.fillWidth: true }
+
+            Text {
+                text: debugContent.visible ? qsTr("收起") : qsTr("展开")
+                color: Theme.colors.primary
+                font.pixelSize: 11
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: debugContent.visible = !debugContent.visible
+                }
+            }
+        }
+
+        // 调试内容
+        ColumnLayout {
+            id: debugContent
+            Layout.fillWidth: true
+            spacing: 4
+            visible: false
+
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: debugInfoColumn.implicitHeight + 12
+                radius: Theme.radius.sm
+                color: Theme.colors.muted
+                opacity: 0.3
+
+                ColumnLayout {
+                    id: debugInfoColumn
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.margins: 6
+                    spacing: 2
+
+                    // GPU 加速状态
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        Text {
+                            text: qsTr("GPU 加速:")
+                            color: Theme.colors.mutedForeground
+                            font.pixelSize: 10
+                            font.family: "monospace"
+                        }
+                        Text {
+                            text: {
+                                if (!engine) return qsTr("未知")
+                                if (!engine.gpuAvailable) return qsTr("不可用 (CPU模式)")
+                                return root.useGpu ? qsTr("已开启 (Vulkan)") : qsTr("已关闭 (CPU模式)")
+                            }
+                            color: {
+                                if (!engine || !engine.gpuAvailable) return "#e74c3c"
+                                return root.useGpu ? "#22c55e" : Theme.colors.mutedForeground
+                            }
+                            font.pixelSize: 10
+                            font.family: "monospace"
+                        }
+                    }
+
+                    // 分块大小
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        Text {
+                            text: qsTr("分块大小:")
+                            color: Theme.colors.mutedForeground
+                            font.pixelSize: 10
+                            font.family: "monospace"
+                        }
+                        Text {
+                            text: root.tileSize > 0 ? (root.tileSize + " px") : qsTr("自动 (不分块)")
+                            color: Theme.colors.foreground
+                            font.pixelSize: 10
+                            font.family: "monospace"
+                        }
+                    }
+
+                    // 输出放大倍数
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        visible: currentModelInfo !== null && currentModelInfo.scaleFactor > 1
+                        Text {
+                            text: qsTr("放大倍数:")
+                            color: Theme.colors.mutedForeground
+                            font.pixelSize: 10
+                            font.family: "monospace"
+                        }
+                        Text {
+                            text: currentModelInfo ? (currentModelInfo.scaleFactor + "x") : "1x"
+                            color: Theme.colors.foreground
+                            font.pixelSize: 10
+                            font.family: "monospace"
+                        }
+                    }
+
+                    // 当前模型
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        visible: currentModelInfo !== null
+                        Text {
+                            text: qsTr("当前模型:")
+                            color: Theme.colors.mutedForeground
+                            font.pixelSize: 10
+                            font.family: "monospace"
+                        }
+                        Text {
+                            text: currentModelInfo ? currentModelInfo.name : ""
+                            color: Theme.colors.foreground
+                            font.pixelSize: 10
+                            font.family: "monospace"
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // ========== 模型特定参数 ==========
     ColumnLayout {
         id: modelParamsSection
         Layout.fillWidth: true
         spacing: 6
-        visible: currentModelInfo !== null && Object.keys(currentModelInfo.supportedParams || {}).length > 0
+        visible: {
+            if (!currentModelInfo) return false
+            var params = currentModelInfo.supportedParams
+            if (!params) return false
+            // 确保params是对象类型
+            if (typeof params !== 'object') return false
+            try {
+                var keys = Object.keys(params)
+                return keys.length > 0
+            } catch (e) {
+                return false
+            }
+        }
 
         Behavior on opacity {
             NumberAnimation { duration: Theme.animation.fast }
@@ -295,21 +499,25 @@ ColumnLayout {
         Repeater {
             id: paramsRepeater
             model: {
-                if (!currentModelInfo || !currentModelInfo.supportedParams) {
+                if (!currentModelInfo) return []
+                var params = currentModelInfo.supportedParams
+                if (!params || typeof params !== 'object') return []
+                try {
+                    var keys = Object.keys(params)
+                    var items = []
+                    for (var i = 0; i < keys.length; i++) {
+                        var key = keys[i]
+                        var param = params[key]
+                        if (!param || typeof param !== 'object') continue
+                        // 深拷贝参数对象，确保 key 被正确设置
+                        var paramCopy = JSON.parse(JSON.stringify(param))
+                        paramCopy.key = key
+                        items.push(paramCopy)
+                    }
+                    return items
+                } catch (e) {
                     return []
                 }
-                var params = currentModelInfo.supportedParams
-                var keys = Object.keys(params)
-                var items = []
-                for (var i = 0; i < keys.length; i++) {
-                    var key = keys[i]
-                    var param = params[key]
-                    // 深拷贝参数对象，确保 key 被正确设置
-                    var paramCopy = JSON.parse(JSON.stringify(param))
-                    paramCopy.key = key
-                    items.push(paramCopy)
-                }
-                return items
             }
 
             delegate: ColumnLayout {
