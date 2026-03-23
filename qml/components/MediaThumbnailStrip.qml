@@ -36,14 +36,65 @@ Item {
     onMediaModelChanged: _rebuildFiltered()
     onOnlyCompletedChanged: _rebuildFiltered()
     onShowFailedFilesChanged: _rebuildFiltered()
-    Component.onCompleted: _rebuildFiltered()
+    Component.onCompleted: {
+        _rebuildFiltered()
+    }
     
     Connections {
         target: mediaModel
-        function onDataChanged(topLeft, bottomRight, roles) { _rebuildFiltered() }
-        function onRowsInserted(parent, first, last) { _rebuildFiltered() }
+        function onDataChanged(topLeft, bottomRight, roles) { _handleDataChanged(topLeft, bottomRight, roles) }
+        function onRowsInserted(parent, first, last) { _handleRowsInserted(first, last) }
         function onRowsRemoved(parent, first, last) { _handleRowsRemoved(first, last) }
         function onModelReset() { _rebuildFiltered() }
+    }
+    
+    function _handleDataChanged(topLeft, bottomRight, roles) {
+        var changedStart = topLeft !== undefined && topLeft !== null && topLeft.row !== undefined
+            ? topLeft.row
+            : topLeft
+        var changedEnd = bottomRight !== undefined && bottomRight !== null && bottomRight.row !== undefined
+            ? bottomRight.row
+            : bottomRight
+
+        if (changedStart === undefined || changedEnd === undefined) {
+            _rebuildFiltered()
+            return
+        }
+
+        for (var i = changedStart; i <= changedEnd; i++) {
+            var sourceItem = _getSourceItemAtIndex(i)
+            var filteredIdx = _findItemByOrigIndex(i)
+
+            if (sourceItem && _shouldIncludeItem(sourceItem)) {
+                if (filteredIdx >= 0) {
+                    _updateFilteredItem(filteredIdx, sourceItem)
+                } else {
+                    filteredModel.insert(_findInsertPositionByOrigIndex(i), _createFilteredItem(i, sourceItem))
+                }
+            } else if (filteredIdx >= 0) {
+                filteredModel.remove(filteredIdx)
+            }
+        }
+    }
+    
+    function _handleRowsInserted(first, last) {
+        var insertedCount = last - first + 1
+
+        for (var i = 0; i < filteredModel.count; i++) {
+            var orig = filteredModel.get(i).origIndex
+            if (orig >= first) {
+                filteredModel.setProperty(i, "origIndex", orig + insertedCount)
+            }
+        }
+
+        for (var sourceIndex = first; sourceIndex <= last; sourceIndex++) {
+            var sourceItem = _getSourceItemAtIndex(sourceIndex)
+            if (sourceItem && _shouldIncludeItem(sourceItem)) {
+                if (_findItemByOrigIndex(sourceIndex) < 0) {
+                    filteredModel.insert(_findInsertPositionByOrigIndex(sourceIndex), _createFilteredItem(sourceIndex, sourceItem))
+                }
+            }
+        }
     }
     
     function _handleRowsRemoved(first, last) {
@@ -57,6 +108,14 @@ Item {
         }
     }
 
+    Connections {
+        target: typeof thumbnailProvider !== 'undefined' ? thumbnailProvider : null
+        enabled: typeof thumbnailProvider !== 'undefined'
+        function onThumbnailReady(id) {
+            root._bumpThumbVersion(id)
+        }
+    }
+
     function _shouldIncludeItem(item) {
         if (onlyCompleted) {
             return item.status === 2
@@ -67,51 +126,235 @@ Item {
         return true
     }
 
-    function _rebuildFiltered() {
-        filteredModel.clear()
-        if (!mediaModel) return
+    function _findItemByOrigIndex(origIdx) {
+        for (var i = 0; i < filteredModel.count; i++) {
+            if (filteredModel.get(i).origIndex === origIdx) {
+                return i
+            }
+        }
+        return -1
+    }
+
+    function _findInsertPositionByOrigIndex(origIdx) {
+        for (var i = 0; i < filteredModel.count; i++) {
+            if (filteredModel.get(i).origIndex > origIdx) {
+                return i
+            }
+        }
+        return filteredModel.count
+    }
+
+    function _updateItemProperty(filteredIdx, key, value) {
+        var current = filteredModel.get(filteredIdx)[key]
+        if (current !== value) {
+            filteredModel.setProperty(filteredIdx, key, value)
+        }
+    }
+
+    function _createFilteredItem(origIdx, item) {
+        return {
+            "origIndex": origIdx,
+            "filePath": item.filePath || "",
+            "fileName": item.fileName || "",
+            "mediaType": item.mediaType !== undefined ? item.mediaType : 0,
+            "thumbnail": item.thumbnail || "",
+            "status": item.status !== undefined ? item.status : 0,
+            "resultPath": item.resultPath || "",
+            "processedThumbnailId": item.processedThumbnailId || "",
+            "thumbVersion": 0
+        }
+    }
+
+    function _updateFilteredItem(filteredIdx, item) {
+        _updateItemProperty(filteredIdx, "filePath", item.filePath || "")
+        _updateItemProperty(filteredIdx, "fileName", item.fileName || "")
+        _updateItemProperty(filteredIdx, "mediaType", item.mediaType !== undefined ? item.mediaType : 0)
+        _updateItemProperty(filteredIdx, "thumbnail", item.thumbnail || "")
+        _updateItemProperty(filteredIdx, "status", item.status !== undefined ? item.status : 0)
+        _updateItemProperty(filteredIdx, "resultPath", item.resultPath || "")
+        _updateItemProperty(filteredIdx, "processedThumbnailId", item.processedThumbnailId || "")
+        // 注意：不重置 thumbVersion，保留已有的版本号
+    }
+
+    // 从 image://thumbnail/<resourceId>?v=N 中提取裸资源 ID
+    // thumbnailReady 信号发出的 id 就是这个裸资源 ID
+    function _extractResourceId(url) {
+        if (!url || url === "") return ""
+        var s = String(url)
+        var q = s.indexOf("?")
+        if (q >= 0) s = s.substring(0, q)
+        var prefix = "image://thumbnail/"
+        if (s.indexOf(prefix) === 0) return s.substring(prefix.length)
+        return s
+    }
+
+    // 计算某个 filteredModel 行对应的裸资源 ID（与 thumbnailReady 信号 id 对齐）
+    function _resourceIdForRow(rowData, isSuccess) {
+        if (!rowData) return ""
+        if (root.messageMode && isSuccess) {
+            if (rowData.processedThumbnailId && rowData.processedThumbnailId !== "")
+                return rowData.processedThumbnailId
+            if (rowData.resultPath && rowData.resultPath !== "")
+                return rowData.resultPath
+        }
+        var thumb = rowData.thumbnail
+        if (thumb && thumb !== "") {
+            if (thumb.indexOf("image://thumbnail/") === 0)
+                return thumb.substring("image://thumbnail/".length)
+            // 纯本地路径，不走版本机制
+            return ""
+        }
+        return rowData.filePath || ""
+    }
+
+    // thumbnailReady 携带解码后的裸资源 ID → 找到所有匹配行 → 仅对那几行 thumbVersion+1
+    // 这样只有对应 delegate 的 source 绑定重新计算，而不触发全部 delegate 刷新
+    function _bumpThumbVersion(readyId) {
+        if (!readyId || readyId === "") return
+        for (var i = 0; i < filteredModel.count; i++) {
+            var row = filteredModel.get(i)
+            var isSuccess = (row.status === 2)
+            var rid = _resourceIdForRow(row, isSuccess)
+            if (rid === readyId) {
+                filteredModel.setProperty(i, "thumbVersion", (row.thumbVersion || 0) + 1)
+            }
+        }
+    }
+
+    // 使用行内 thumbVersion 驱动版本后缀，仅该行变化时重新求值
+    function _thumbnailSourceForItem(itemData, isSuccess) {
+        if (!itemData) return ""
+
+        var base = ""
+        if (root.messageMode && isSuccess) {
+            if (itemData.processedThumbnailId && itemData.processedThumbnailId !== "") {
+                base = "image://thumbnail/" + itemData.processedThumbnailId
+            } else if (itemData.resultPath && itemData.resultPath !== "") {
+                base = "image://thumbnail/" + itemData.resultPath
+            }
+        }
+
+        if (base === "") {
+            var path = itemData.thumbnail
+            if (path && path !== "") {
+                if (path.indexOf("image://") === 0) {
+                    base = path
+                } else {
+                    // 纯本地路径，直接返回，无需版本后缀
+                    return path
+                }
+            } else {
+                var fp = itemData.filePath
+                if (fp && fp !== "") {
+                    base = "image://thumbnail/" + fp
+                }
+            }
+        }
+
+        if (base === "") return ""
+
+        // 用行内版本号驱动刷新：仅该行的 thumbVersion 变化时，source 绑定重新求值
+        var version = itemData.thumbVersion || 0
+        return base + "?v=" + version
+    }
+
+    function _getSourceItems() {
+        var items = []
+        if (!mediaModel) return items
         
         var isQmlListModel = (typeof mediaModel.get === "function") && (mediaModel.count !== undefined)
         var isCppModel = (typeof mediaModel.rowCount === "function") && (typeof mediaModel.data === "function")
+        var isArray = Array.isArray(mediaModel) || (typeof mediaModel.length === "number" && typeof mediaModel.get !== "function")
         
         if (isQmlListModel) {
             for (var i = 0; i < mediaModel.count; i++) {
                 var item = mediaModel.get(i)
                 if (_shouldIncludeItem(item)) {
-                    filteredModel.append({
-                        "origIndex": i,
-                        "filePath": item.filePath || "",
-                        "fileName": item.fileName || "",
-                        "mediaType": item.mediaType !== undefined ? item.mediaType : 0,
-                        "thumbnail": item.thumbnail || "",
-                        "status": item.status !== undefined ? item.status : 0,
-                        "resultPath": item.resultPath || "",
-                        "processedThumbnailId": item.processedThumbnailId || ""
-                    })
+                    items.push(_createFilteredItem(i, item))
+                }
+            }
+        } else if (isArray) {
+            for (var i = 0; i < mediaModel.length; i++) {
+                var item = mediaModel[i]
+                if (_shouldIncludeItem(item)) {
+                    items.push(_createFilteredItem(i, item))
                 }
             }
         } else if (isCppModel) {
             for (var i = 0; i < mediaModel.rowCount(); i++) {
                 var idx = mediaModel.index(i, 0)
-                var filePath = mediaModel.data(idx, 258)
-                var fileName = mediaModel.data(idx, 259)
-                var mediaType = mediaModel.data(idx, 262)
-                var thumbnail = mediaModel.data(idx, 263)
-                var status = mediaModel.data(idx, 266)
-                var resultPath = mediaModel.data(idx, 267)
-                
-                if (_shouldIncludeItem({status: status})) {
-                    filteredModel.append({
-                        "origIndex": i,
-                        "filePath": filePath || "",
-                        "fileName": fileName || "",
-                        "mediaType": mediaType !== undefined ? mediaType : 0,
-                        "thumbnail": thumbnail || "",
-                        "status": status !== undefined ? status : 0,
-                        "resultPath": resultPath || "",
-                        "processedThumbnailId": ""
-                    })
+                var item = {
+                    filePath: mediaModel.data(idx, 258) || "",
+                    fileName: mediaModel.data(idx, 259) || "",
+                    mediaType: mediaModel.data(idx, 262),
+                    thumbnail: mediaModel.data(idx, 263) || "",
+                    status: mediaModel.data(idx, 266),
+                    resultPath: mediaModel.data(idx, 267) || "",
+                    processedThumbnailId: ""
                 }
+                if (_shouldIncludeItem(item)) {
+                    items.push(_createFilteredItem(i, item))
+                }
+            }
+        }
+        return items
+    }
+
+    function _getSourceItemAtIndex(sourceIdx) {
+        if (!mediaModel) return null
+        
+        var isQmlListModel = (typeof mediaModel.get === "function") && (mediaModel.count !== undefined)
+        var isCppModel = (typeof mediaModel.rowCount === "function") && (typeof mediaModel.data === "function")
+        var isArray = Array.isArray(mediaModel) || (typeof mediaModel.length === "number" && typeof mediaModel.get !== "function")
+        
+        var item = null
+        if (isQmlListModel && sourceIdx >= 0 && sourceIdx < mediaModel.count) {
+            item = mediaModel.get(sourceIdx)
+        } else if (isArray && sourceIdx >= 0 && sourceIdx < mediaModel.length) {
+            item = mediaModel[sourceIdx]
+        } else if (isCppModel && sourceIdx >= 0 && sourceIdx < mediaModel.rowCount()) {
+            var idx = mediaModel.index(sourceIdx, 0)
+            item = {
+                filePath: mediaModel.data(idx, 258) || "",
+                fileName: mediaModel.data(idx, 259) || "",
+                mediaType: mediaModel.data(idx, 262),
+                thumbnail: mediaModel.data(idx, 263) || "",
+                status: mediaModel.data(idx, 266),
+                resultPath: mediaModel.data(idx, 267) || "",
+                processedThumbnailId: ""
+            }
+        }
+        return item
+    }
+
+    function _rebuildFiltered() {
+        if (!mediaModel) {
+            filteredModel.clear()
+            return
+        }
+        
+        var sourceItems = _getSourceItems()
+        
+        var sourceIndexMap = {}
+        for (var i = 0; i < sourceItems.length; i++) {
+            sourceIndexMap[sourceItems[i].origIndex] = sourceItems[i]
+        }
+        
+        for (var i = filteredModel.count - 1; i >= 0; i--) {
+            var filteredItem = filteredModel.get(i)
+            if (!(filteredItem.origIndex in sourceIndexMap)) {
+                filteredModel.remove(i)
+            }
+        }
+        
+        for (var i = 0; i < sourceItems.length; i++) {
+            var sourceItem = sourceItems[i]
+            var filteredIdx = _findItemByOrigIndex(sourceItem.origIndex)
+            
+            if (filteredIdx >= 0) {
+                _updateFilteredItem(filteredIdx, sourceItem)
+            } else {
+                filteredModel.append(sourceItem)
             }
         }
     }
@@ -145,14 +388,39 @@ Item {
                     clip: true
                     boundsBehavior: Flickable.StopAtBounds
                     interactive: contentWidth > width
+                    cacheBuffer: 500
+                    reuseItems: false
 
                     delegate: Item {
                         id: thumbDelegate
                         width: root.thumbSize
                         height: root.thumbSize
+                        // required properties 从 ListModel 角色直接绑定，setProperty 变化时自动更新
                         required property int index
-                        property var itemData: index < filteredModel.count ? filteredModel.get(index) : null
-                        property int itemStatus: itemData && itemData.status !== undefined ? itemData.status : -1
+                        required property string filePath
+                        required property string fileName
+                        required property int mediaType
+                        required property string thumbnail
+                        required property int status
+                        required property string resultPath
+                        required property string processedThumbnailId
+                        required property int thumbVersion
+                        required property int origIndex
+
+                        // 兼容旧代码中对 itemData 的访问
+                        property var itemData: ({
+                            filePath: filePath,
+                            fileName: fileName,
+                            mediaType: mediaType,
+                            thumbnail: thumbnail,
+                            status: status,
+                            resultPath: resultPath,
+                            processedThumbnailId: processedThumbnailId,
+                            thumbVersion: thumbVersion,
+                            origIndex: origIndex
+                        })
+
+                        property int itemStatus: status
                         property bool showDeleteBtn: thumbMouse.containsMouse || deleteBtnMouse.containsMouse || deleteBtnForFailedMouse.containsMouse
                         property bool isPending: itemStatus === 0
                         property bool isProcessing: itemStatus === 1
@@ -161,7 +429,7 @@ Item {
                         property bool isCancelled: itemStatus === 4
                         property bool isUnavailable: !isSuccess
                         property bool canRetry: isFailed || isCancelled
-                        property int itemMediaType: itemData && itemData.mediaType !== undefined ? itemData.mediaType : 0
+                        property int itemMediaType: mediaType
 
                         Rectangle{
                             id: hoverBorder
@@ -195,24 +463,7 @@ Item {
                             Image {
                                 id: thumbImage
                                 anchors.fill: parent
-                                source: {
-                                    if (!thumbDelegate.itemData) return ""
-                                    
-                                    if (root.messageMode && thumbDelegate.isSuccess) {
-                                        if (thumbDelegate.itemData.processedThumbnailId && thumbDelegate.itemData.processedThumbnailId !== "") {
-                                            return "image://thumbnail/" + thumbDelegate.itemData.processedThumbnailId
-                                        }
-                                        if (thumbDelegate.itemData.resultPath && thumbDelegate.itemData.resultPath !== "") {
-                                            return "image://thumbnail/" + thumbDelegate.itemData.resultPath
-                                        }
-                                    }
-                                    
-                                    var path = thumbDelegate.itemData.thumbnail
-                                    if (path && path !== "") return path
-                                    var fp = thumbDelegate.itemData.filePath
-                                    if (fp && fp !== "") return "image://thumbnail/" + fp
-                                    return ""
-                                }
+                                source: root._thumbnailSourceForItem(thumbDelegate.itemData, thumbDelegate.isSuccess)
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
                                 smooth: true
@@ -227,15 +478,12 @@ Item {
                                     maskSpreadAtMin: 1.0
                                     maskSource: thumbMask
                                 }
-                                onStatusChanged: {
-                                }
                             }
 
                             Item {
                                 id: thumbMask
                                 visible: false
                                 layer.enabled: true
-                                layer.samples: 4
                                 width: thumbRect.width
                                 height: thumbRect.height
 
@@ -297,7 +545,7 @@ Item {
                             id: thumbMouse
                             anchors.fill: parent
                             hoverEnabled: true
-                            cursorShape: thumbDelegate.isSuccess ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            cursorShape: (!root.messageMode || thumbDelegate.isSuccess) ? Qt.PointingHandCursor : Qt.ArrowCursor
                             acceptedButtons: Qt.LeftButton | Qt.RightButton
                             onClicked: function(mouse) {
                                 if (mouse.button === Qt.RightButton) {
@@ -306,7 +554,7 @@ Item {
                                     contextMenu.fileStatus = status
                                     contextMenu.popup()
                                 } else {
-                                    if (thumbDelegate.isSuccess) {
+                                    if (!root.messageMode || thumbDelegate.isSuccess) {
                                         root.viewFile(thumbDelegate.itemData ? thumbDelegate.itemData.origIndex : thumbDelegate.index)
                                     }
                                 }
@@ -458,6 +706,8 @@ Item {
                     clip: true
                     boundsBehavior: Flickable.StopAtBounds
                     interactive: contentHeight > height
+                    cacheBuffer: 500
+                    reuseItems: false
                     
                     MouseArea {
                         anchors.fill: parent
@@ -479,9 +729,32 @@ Item {
                         id: thumbDelegate
                         width: thumbGridView.cellWidth - root.thumbSpacing
                         height: thumbGridView.cellHeight - root.thumbSpacing
+                        // required properties 从 ListModel 角色直接绑定，setProperty 变化时自动更新
                         required property int index
-                        property var itemData: index < filteredModel.count ? filteredModel.get(index) : null
-                        property int itemStatus: itemData && itemData.status !== undefined ? itemData.status : -1
+                        required property string filePath
+                        required property string fileName
+                        required property int mediaType
+                        required property string thumbnail
+                        required property int status
+                        required property string resultPath
+                        required property string processedThumbnailId
+                        required property int thumbVersion
+                        required property int origIndex
+
+                        // 兼容旧代码中对 itemData 的访问
+                        property var itemData: ({
+                            filePath: filePath,
+                            fileName: fileName,
+                            mediaType: mediaType,
+                            thumbnail: thumbnail,
+                            status: status,
+                            resultPath: resultPath,
+                            processedThumbnailId: processedThumbnailId,
+                            thumbVersion: thumbVersion,
+                            origIndex: origIndex
+                        })
+
+                        property int itemStatus: status
                         property bool showDeleteBtn: thumbMouse.containsMouse || deleteBtnMouse.containsMouse || deleteBtnForFailedMouse.containsMouse
                         property bool isPending: itemStatus === 0
                         property bool isProcessing: itemStatus === 1
@@ -490,7 +763,7 @@ Item {
                         property bool isCancelled: itemStatus === 4
                         property bool isUnavailable: !isSuccess
                         property bool canRetry: isFailed || isCancelled
-                        property int itemMediaType: itemData && itemData.mediaType !== undefined ? itemData.mediaType : 0
+                        property int itemMediaType: mediaType
 
                         Rectangle{
                             id: hoverBorder
@@ -524,24 +797,7 @@ Item {
                             Image {
                                 id: thumbImage
                                 anchors.fill: parent
-                                source: {
-                                    if (!thumbDelegate.itemData) return ""
-                                    
-                                    if (root.messageMode && thumbDelegate.isSuccess) {
-                                        if (thumbDelegate.itemData.processedThumbnailId && thumbDelegate.itemData.processedThumbnailId !== "") {
-                                            return "image://thumbnail/" + thumbDelegate.itemData.processedThumbnailId
-                                        }
-                                        if (thumbDelegate.itemData.resultPath && thumbDelegate.itemData.resultPath !== "") {
-                                            return "image://thumbnail/" + thumbDelegate.itemData.resultPath
-                                        }
-                                    }
-                                    
-                                    var path = thumbDelegate.itemData.thumbnail
-                                    if (path && path !== "") return path
-                                    var fp = thumbDelegate.itemData.filePath
-                                    if (fp && fp !== "") return "image://thumbnail/" + fp
-                                    return ""
-                                }
+                                source: root._thumbnailSourceForItem(thumbDelegate.itemData, thumbDelegate.isSuccess)
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
                                 smooth: true
@@ -556,15 +812,12 @@ Item {
                                     maskSpreadAtMin: 1.0
                                     maskSource: thumbMask
                                 }
-                                onStatusChanged: {
-                                }
                             }
 
                             Item {
                                 id: thumbMask
                                 visible: false
                                 layer.enabled: true
-                                layer.samples: 4
                                 width: thumbRect.width
                                 height: thumbRect.height
 
@@ -626,7 +879,7 @@ Item {
                             id: thumbMouse
                             anchors.fill: parent
                             hoverEnabled: true
-                            cursorShape: thumbDelegate.isSuccess ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            cursorShape: (!root.messageMode || thumbDelegate.isSuccess) ? Qt.PointingHandCursor : Qt.ArrowCursor
                             acceptedButtons: Qt.LeftButton | Qt.RightButton
                             onClicked: function(mouse) {
                                 if (mouse.button === Qt.RightButton) {
@@ -635,7 +888,7 @@ Item {
                                     contextMenu.fileStatus = status
                                     contextMenu.popup()
                                 } else {
-                                    if (thumbDelegate.isSuccess) {
+                                    if (!root.messageMode || thumbDelegate.isSuccess) {
                                         root.viewFile(thumbDelegate.itemData ? thumbDelegate.itemData.origIndex : thumbDelegate.index)
                                     }
                                 }
@@ -759,7 +1012,7 @@ Item {
         background: Rectangle { color: Theme.colors.popover; border.width: 1; border.color: Theme.colors.border; radius: Theme.radius.md }
         
         MenuItem {
-            visible: contextMenu.isSuccess
+            visible: !root.messageMode || contextMenu.isSuccess
             height: visible ? 32 : 0
             text: qsTr("放大查看")
             background: Rectangle { color: parent.highlighted ? Theme.colors.surfaceHover : "transparent"; radius: Theme.radius.sm }
@@ -772,7 +1025,7 @@ Item {
         }
 
         MenuItem {
-            visible: contextMenu.isSuccess
+            visible: root.messageMode && contextMenu.isSuccess
             height: visible ? 32 : 0
             text: qsTr("保存")
             background: Rectangle { color: parent.highlighted ? Theme.colors.surfaceHover : "transparent"; radius: Theme.radius.sm }
@@ -785,14 +1038,14 @@ Item {
         }
 
         MenuItem {
-            visible: contextMenu.isFailedOrCancelled || contextMenu.isProcessingOrPending
+            visible: root.messageMode && (contextMenu.isFailedOrCancelled || contextMenu.isProcessingOrPending)
             height: visible ? 32 : 0
             text: qsTr("重新处理")
             background: Rectangle { color: parent.highlighted ? Theme.colors.surfaceHover : "transparent"; radius: Theme.radius.sm }
             contentItem: Row {
                 spacing: 8; leftPadding: 8
-                ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("refresh-cw"); iconSize: 14; color: Theme.colors.primary }
-                Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("重新处理"); color: Theme.colors.primary; font.pixelSize: 13 }
+                ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("refresh-cw"); iconSize: 14; color: Theme.colors.foreground }
+                Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("重新处理"); color: Theme.colors.foreground; font.pixelSize: 13 }
             }
             onTriggered: { if (contextMenu.targetIndex >= 0) { var item = filteredModel.get(contextMenu.targetIndex); root.retryFailedFile(item ? item.origIndex : contextMenu.targetIndex) } }
         }

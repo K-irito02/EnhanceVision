@@ -9,6 +9,8 @@
 #include <QUrl>
 #include <QFileInfo>
 #include <QDir>
+#include <QPainter>
+#include <QPen>
 
 namespace EnhanceVision {
 
@@ -82,11 +84,17 @@ QString ThumbnailProvider::normalizeFilePath(const QString &path)
 
 QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize)
 {
-    // 先检查缓存
+    QString cacheKey = id;
+    
+    int queryPos = cacheKey.indexOf('?');
+    if (queryPos > 0) {
+        cacheKey = cacheKey.left(queryPos);
+    }
+
     {
         QMutexLocker locker(&m_mutex);
-        if (m_thumbnails.contains(id)) {
-            QImage thumbnail = m_thumbnails.value(id);
+        if (m_thumbnails.contains(cacheKey)) {
+            QImage thumbnail = m_thumbnails.value(cacheKey);
             if (size) {
                 *size = thumbnail.size();
             }
@@ -97,48 +105,46 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         }
     }
 
-    // 缓存未命中：id 可能是文件路径，尝试同步生成缩略图
-    QString filePath = normalizeFilePath(id);
-    QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(256, 256);
-    QImage thumbnail;
+    if (m_pendingRequests.contains(cacheKey)) {
+        QImage placeholder = generatePlaceholderImage(requestedSize);
+        if (size) {
+            *size = placeholder.size();
+        }
+        return placeholder;
+    }
 
-    // 检查文件是否存在
+    QString filePath = normalizeFilePath(cacheKey);
+    QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(256, 256);
+
     QFileInfo fileInfo(filePath);
     if (!fileInfo.exists()) {
+        qWarning() << "[ThumbnailProvider] File not found:" << filePath << "(from id:" << id << ")";
         if (size) {
             *size = QSize(0, 0);
         }
         return QImage();
     }
 
-    if (ImageUtils::isImageFile(filePath)) {
-        thumbnail = ImageUtils::generateThumbnail(filePath, targetSize);
-    } else if (ImageUtils::isVideoFile(filePath)) {
-        thumbnail = ImageUtils::generateVideoThumbnail(filePath, targetSize);
-    }
-
-    if (!thumbnail.isNull()) {
-        // 缓存生成的缩略图
+    {
         QMutexLocker locker(&m_mutex);
-        m_thumbnails[id] = thumbnail;
-
-        if (size) {
-            *size = thumbnail.size();
-        }
-        return thumbnail;
+        m_pendingRequests.insert(cacheKey);
     }
+    
+    generateThumbnailAsync(filePath, cacheKey, targetSize);
 
-    // 无法生成缩略图
+    QImage placeholder = generatePlaceholderImage(requestedSize);
     if (size) {
-        *size = QSize(0, 0);
+        *size = placeholder.size();
     }
-    return QImage();
+    return placeholder;
 }
 
 void ThumbnailProvider::setThumbnail(const QString &id, const QImage &thumbnail)
 {
     QMutexLocker locker(&m_mutex);
     m_thumbnails[id] = thumbnail;
+    locker.unlock();
+    emit thumbnailReady(id);
 }
 
 void ThumbnailProvider::generateThumbnailAsync(const QString &filePath, const QString &id, const QSize &size)
@@ -176,11 +182,45 @@ ThumbnailProvider* ThumbnailProvider::instance()
 
 void ThumbnailProvider::onThumbnailReady(const QString &id, const QImage &thumbnail)
 {
-    if (!thumbnail.isNull()) {
-        QMutexLocker locker(&m_mutex);
-        m_thumbnails[id] = thumbnail;
+    QString decodedId = id;
+    if (id.contains('%')) {
+        decodedId = QUrl::fromPercentEncoding(id.toUtf8());
     }
-    emit thumbnailReady(id);
+    
+    {
+        QMutexLocker locker(&m_mutex);
+        m_pendingRequests.remove(id);
+        if (!thumbnail.isNull()) {
+            m_thumbnails[id] = thumbnail;
+            if (decodedId != id) {
+                m_thumbnails[decodedId] = thumbnail;
+            }
+        } else {
+            qWarning() << "[ThumbnailProvider] Thumbnail generation failed for:" << id;
+        }
+    }
+    emit thumbnailReady(decodedId);
+    // 只发出解码后的 ID 信号，避免 QML 收到两次通知导致 thumbVersion 多次递增
+}
+
+QImage ThumbnailProvider::generatePlaceholderImage(const QSize& size)
+{
+    QSize placeholderSize = size.isValid() ? size : QSize(256, 256);
+    QImage placeholder(placeholderSize, QImage::Format_ARGB32);
+    placeholder.fill(Qt::transparent);
+    
+    QPainter painter(&placeholder);
+    painter.setRenderHint(QPainter::Antialiasing);
+    
+    QColor bgColor(128, 128, 128, 60);
+    painter.fillRect(placeholder.rect(), bgColor);
+    
+    QPen pen(QColor(128, 128, 128, 120));
+    pen.setWidth(1);
+    painter.setPen(pen);
+    painter.drawRect(placeholder.rect().adjusted(0, 0, -1, -1));
+    
+    return placeholder;
 }
 
 } // namespace EnhanceVision

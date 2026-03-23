@@ -32,8 +32,7 @@ namespace {
         
         switch (type) {
         case QtDebugMsg:
-            typeStr = "DEBUG";
-            break;
+            return;
         case QtInfoMsg:
             typeStr = "INFO";
             break;
@@ -80,15 +79,15 @@ int main(int argc, char *argv[])
     
     if (logFile->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         qInstallMessageHandler(messageHandler);
-        qDebug() << "Log file created:" << logFileName;
+        qInfo() << "Log file created:" << logFileName;
     } else {
         qWarning() << "Failed to create log file:" << logFileName;
     }
 
-    qDebug() << "========================================";
-    qDebug() << "EnhanceVision starting...";
-    qDebug() << "Qt version:" << qVersion();
-    qDebug() << "========================================";
+    qInfo() << "========================================";
+    qInfo() << "EnhanceVision starting...";
+    qInfo() << "Qt version:" << qVersion();
+    qInfo() << "========================================";
 
     EnhanceVision::Application application;
     application.initialize();
@@ -97,7 +96,7 @@ int main(int argc, char *argv[])
     int result = app.exec();
     
     // 清理日志
-    qDebug() << "EnhanceVision exiting with code:" << result;
+    qInfo() << "EnhanceVision exiting with code:" << result;
     if (logFile) {
         logFile->close();
         delete logFile;
