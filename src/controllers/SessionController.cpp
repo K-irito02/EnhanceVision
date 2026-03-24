@@ -19,6 +19,9 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QDateTime>
+#include <QTimer>
+#include <QElapsedTimer>
+#include <QtConcurrent>
 
 namespace EnhanceVision {
 
@@ -29,16 +32,53 @@ SessionController::SessionController(QObject* parent)
     , m_batchSelectionMode(false)
     , m_sessionCounter(0)
     , m_autoSaveEnabled(true)
+    , m_lastAutoSaveMs(0)
+    , m_saveTimer(new QTimer(this))
+    , m_sessionNotifyTimer(new QTimer(this))
 {
     connect(m_sessionModel, &SessionModel::errorOccurred, this, &SessionController::errorOccurred);
+
+    m_saveTimer->setSingleShot(true);
+    m_saveTimer->setInterval(1800);
+    connect(m_saveTimer, &QTimer::timeout, this, [this]() {
+        if (!m_autoSaveEnabled) {
+            return;
+        }
+
+        if (m_hasPendingSave) {
+            m_hasPendingSave = false;
+            saveSessions();
+        }
+    });
+
+    m_sessionNotifyTimer->setSingleShot(true);
+    m_sessionNotifyTimer->setInterval(120);
+    connect(m_sessionNotifyTimer, &QTimer::timeout, this, [this]() {
+        if (m_pendingNotifySessionIds.isEmpty()) {
+            return;
+        }
+
+        const QSet<QString> sessionIds = m_pendingNotifySessionIds;
+        m_pendingNotifySessionIds.clear();
+
+        for (const QString& sessionId : sessionIds) {
+            m_sessionModel->notifySessionDataChanged(sessionId);
+        }
+    });
     
     // 连接 SessionModel 的 activeSessionChanged 信号，处理内部会话切换（如删除会话后自动切换）
     connect(m_sessionModel, &SessionModel::activeSessionChanged, this, [this]() {
         QString newActiveId = m_sessionModel->activeSessionId();
         if (newActiveId != m_activeSessionId) {
+            const QString oldActiveId = m_activeSessionId;
+
+            if (m_processingController && !oldActiveId.isEmpty() && oldActiveId != newActiveId) {
+                m_processingController->onSessionChanging(oldActiveId, newActiveId);
+            }
+
             // 保存旧会话的消息（如果旧会话还存在）
-            if (!m_activeSessionId.isEmpty() && m_messageModel) {
-                Session* oldSession = getSession(m_activeSessionId);
+            if (!oldActiveId.isEmpty() && m_messageModel) {
+                Session* oldSession = getSession(oldActiveId);
                 if (oldSession) {
                     m_messageModel->syncToSession(*oldSession);
                 }
@@ -62,6 +102,8 @@ SessionController::SessionController(QObject* parent)
             emit activeSessionChanged();
         }
     });
+
+    rebuildSessionMessageIndex();
 }
 
 SessionController::~SessionController()
@@ -94,7 +136,14 @@ void SessionController::onMessageCountChanged()
     Session* session = getSession(currentId);
     if (session) {
         m_messageModel->syncToSession(*session);
-        m_sessionModel->notifySessionDataChanged(currentId);
+        rebuildMessageRowIndexForSession(currentId, session->messages);
+        for (const Message& message : session->messages) {
+            m_messageToSessionId[message.id] = currentId;
+        }
+        m_pendingNotifySessionIds.insert(currentId);
+        if (m_sessionNotifyTimer) {
+            m_sessionNotifyTimer->start();
+        }
     }
 }
 
@@ -139,6 +188,7 @@ QString SessionController::createSession(const QString& name)
     session.sortIndex = m_sessionModel->rowCount();
 
     m_sessionModel->addSession(session);
+    rebuildSessionMessageIndex();
 
     emit sessionCreated(session.id);
     emit sessionCountChanged();
@@ -155,7 +205,10 @@ QString SessionController::createAndSelectSession(const QString& name)
 
 void SessionController::switchSession(const QString& sessionId)
 {
-    QString currentActiveId = m_sessionModel->activeSessionId();
+    QElapsedTimer perfTimer;
+    perfTimer.start();
+
+    const QString currentActiveId = m_sessionModel->activeSessionId();
     if (currentActiveId == sessionId) return;
 
     // 1. 保存当前会话的消息
@@ -167,6 +220,8 @@ void SessionController::switchSession(const QString& sessionId)
 
     // 3. 加载新会话的消息
     loadSessionMessages(sessionId);
+
+    qInfo() << "[Perf][SessionController] switchSession cost:" << perfTimer.elapsed() << "ms";
 
     emit sessionSwitched(sessionId);
     emit activeSessionChanged();
@@ -187,10 +242,10 @@ void SessionController::deleteSession(const QString& sessionId)
     
     if (m_processingController) {
         m_processingController->cancelSessionTasks(sessionId);
-        m_processingController->waitForSessionCancellation(sessionId, 3000);
     }
     
     m_sessionModel->deleteSession(sessionId);
+    rebuildSessionMessageIndex();
     
     if (isActiveSession) {
         QString newActiveId = m_sessionModel->activeSessionId();
@@ -214,10 +269,10 @@ void SessionController::clearSession(const QString& sessionId)
 {
     if (m_processingController) {
         m_processingController->cancelSessionTasks(sessionId);
-        m_processingController->waitForSessionCancellation(sessionId, 3000);
     }
     
     m_sessionModel->clearSession(sessionId);
+    rebuildSessionMessageIndex();
     
     if (sessionId == m_sessionModel->activeSessionId() && m_messageModel) {
         m_messageModel->clear();
@@ -266,13 +321,11 @@ void SessionController::deleteSelectedSessions()
         for (const QString& sessionId : selectedIds) {
             m_processingController->cancelSessionTasks(sessionId);
         }
-        for (const QString& sessionId : selectedIds) {
-            m_processingController->waitForSessionCancellation(sessionId, 2000);
-        }
     }
     
     int count = m_sessionModel->deleteSelectedSessions();
     if (count > 0) {
+        rebuildSessionMessageIndex();
         emit sessionCountChanged();
         emit selectionChanged();
         
@@ -307,12 +360,10 @@ void SessionController::clearSelectedSessions()
         for (const QString& sessionId : selectedIds) {
             m_processingController->cancelSessionTasks(sessionId);
         }
-        for (const QString& sessionId : selectedIds) {
-            m_processingController->waitForSessionCancellation(sessionId, 2000);
-        }
     }
     
     m_sessionModel->clearSelectedSessions();
+    rebuildSessionMessageIndex();
     
     if (activeSessionCleared && m_messageModel) {
         m_messageModel->clear();
@@ -354,13 +405,127 @@ QString SessionController::getSessionName(const QString& sessionId) const
 
 Session* SessionController::getSession(const QString& sessionId)
 {
+    if (sessionId.isEmpty()) {
+        return nullptr;
+    }
+
+    const auto indexIt = m_sessionRowById.constFind(sessionId);
+    if (indexIt == m_sessionRowById.constEnd()) {
+        return nullptr;
+    }
+
     QList<Session>& sessions = m_sessionModel->sessionsRef();
-    for (auto& session : sessions) {
-        if (session.id == sessionId) {
-            return &session;
+    const int index = indexIt.value();
+    if (index < 0 || index >= sessions.size() || sessions[index].id != sessionId) {
+        return nullptr;
+    }
+
+    return &sessions[index];
+}
+
+const Session* SessionController::getSessionConst(const QString& sessionId) const
+{
+    if (sessionId.isEmpty()) {
+        return nullptr;
+    }
+
+    const auto indexIt = m_sessionRowById.constFind(sessionId);
+    if (indexIt == m_sessionRowById.constEnd()) {
+        return nullptr;
+    }
+
+    const QList<Session>& sessions = m_sessionModel->sessionsRef();
+    const int index = indexIt.value();
+    if (index < 0 || index >= sessions.size() || sessions[index].id != sessionId) {
+        return nullptr;
+    }
+
+    return &sessions[index];
+}
+
+Message SessionController::messageInSession(const QString& sessionId, const QString& messageId) const
+{
+    const Session* session = getSessionConst(sessionId);
+    if (!session) {
+        return Message();
+    }
+
+    const auto sessionMessageIndexIt = m_messageRowBySessionId.constFind(sessionId);
+    if (sessionMessageIndexIt != m_messageRowBySessionId.constEnd()) {
+        const auto messageIndexIt = sessionMessageIndexIt.value().constFind(messageId);
+        if (messageIndexIt != sessionMessageIndexIt.value().constEnd()) {
+            const int messageIndex = messageIndexIt.value();
+            if (messageIndex >= 0 && messageIndex < session->messages.size()) {
+                return session->messages.at(messageIndex);
+            }
         }
     }
-    return nullptr;
+
+    for (const auto& message : session->messages) {
+        if (message.id == messageId) {
+            return message;
+        }
+    }
+
+    return Message();
+}
+
+QString SessionController::sessionIdForMessage(const QString& messageId) const
+{
+    if (messageId.isEmpty()) {
+        return QString();
+    }
+
+    const auto it = m_messageToSessionId.constFind(messageId);
+    if (it != m_messageToSessionId.constEnd()) {
+        return it.value();
+    }
+
+    return QString();
+}
+
+bool SessionController::updateMessageInSession(const QString& sessionId, const Message& message)
+{
+    Session* session = getSession(sessionId);
+    if (!session) {
+        return false;
+    }
+
+    const auto sessionMessageIndexIt = m_messageRowBySessionId.constFind(sessionId);
+    if (sessionMessageIndexIt != m_messageRowBySessionId.constEnd()) {
+        const auto messageIndexIt = sessionMessageIndexIt.value().constFind(message.id);
+        if (messageIndexIt != sessionMessageIndexIt.value().constEnd()) {
+            const int messageIndex = messageIndexIt.value();
+            if (messageIndex >= 0 && messageIndex < session->messages.size()) {
+                session->messages[messageIndex] = message;
+                session->modifiedAt = QDateTime::currentDateTime();
+
+                m_messageToSessionId[message.id] = sessionId;
+                m_pendingNotifySessionIds.insert(sessionId);
+                if (m_sessionNotifyTimer) {
+                    m_sessionNotifyTimer->start();
+                }
+                return true;
+            }
+        }
+    }
+
+    for (int i = 0; i < session->messages.size(); ++i) {
+        if (session->messages[i].id == message.id) {
+            session->messages[i] = message;
+            session->modifiedAt = QDateTime::currentDateTime();
+
+            m_messageToSessionId[message.id] = sessionId;
+            m_messageRowBySessionId[sessionId][message.id] = i;
+            m_pendingNotifySessionIds.insert(sessionId);
+            if (m_sessionNotifyTimer) {
+                m_sessionNotifyTimer->start();
+            }
+            return true;
+        }
+    }
+
+    return false;
 }
 
 QString SessionController::ensureActiveSession()
@@ -396,50 +561,80 @@ void SessionController::setAutoSaveEnabled(bool enabled)
 {
     if (m_autoSaveEnabled != enabled) {
         m_autoSaveEnabled = enabled;
+
+        if (!m_autoSaveEnabled && m_saveTimer) {
+            m_saveTimer->stop();
+            m_hasPendingSave = false;
+            m_saveQueued = false;
+        }
+
         emit autoSaveEnabledChanged();
     }
 }
 
 void SessionController::saveSessions()
 {
+    if (m_saveInProgress) {
+        m_saveQueued = true;
+        return;
+    }
+
+    m_saveInProgress = true;
+
     ensureDataDirectory();
-    
+
     QString filePath = sessionsFilePath();
-    
+
     QJsonObject root;
     root["version"] = 1;
     root["lastActiveSessionId"] = m_sessionModel->activeSessionId();
     root["sessionCounter"] = m_sessionCounter;
-    
+
     QJsonArray sessionsArray;
     for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
         Session session = m_sessionModel->sessionAt(i);
         sessionsArray.append(sessionToJson(session));
     }
     root["sessions"] = sessionsArray;
-    
-    QString tempPath = filePath + ".tmp";
-    QFile file(tempPath);
-    if (!file.open(QIODevice::WriteOnly)) {
-        qWarning() << "Failed to open file for writing:" << tempPath;
-        emit errorOccurred(tr("无法保存会话数据"));
-        return;
-    }
-    
-    QJsonDocument doc(root);
-    file.write(doc.toJson(QJsonDocument::Indented));
-    file.close();
-    
-    QFile oldFile(filePath);
-    if (oldFile.exists()) {
-        oldFile.remove();
-    }
-    
-    if (!file.rename(filePath)) {
-        qWarning() << "Failed to rename temp file to:" << filePath;
-        emit errorOccurred(tr("无法保存会话数据"));
-        return;
-    }
+
+    const QString tempPath = filePath + ".tmp";
+
+    m_saveFuture = QtConcurrent::run([this, root, tempPath, filePath]() {
+        QString errorMessage;
+
+        QFile file(tempPath);
+        if (!file.open(QIODevice::WriteOnly)) {
+            errorMessage = tr("无法保存会话数据");
+        } else {
+            QJsonDocument doc(root);
+            file.write(doc.toJson(QJsonDocument::Indented));
+            file.close();
+
+            QFile oldFile(filePath);
+            if (oldFile.exists()) {
+                oldFile.remove();
+            }
+
+            if (!file.rename(filePath)) {
+                errorMessage = tr("无法保存会话数据");
+            }
+        }
+
+        QMetaObject::invokeMethod(this, [this, errorMessage]() {
+            m_saveInProgress = false;
+
+            if (!errorMessage.isEmpty()) {
+                emit errorOccurred(errorMessage);
+            } else {
+                m_lastAutoSaveMs = QDateTime::currentMSecsSinceEpoch();
+            }
+
+            if (m_saveQueued) {
+                m_saveQueued = false;
+                saveSessions();
+            }
+        }, Qt::QueuedConnection);
+    });
 }
 
 void SessionController::loadSessions()
@@ -476,6 +671,8 @@ void SessionController::loadSessions()
         Session session = jsonToSession(value.toObject());
         m_sessionModel->addSession(session);
     }
+
+    rebuildSessionMessageIndex();
     
     QString lastActiveId = root["lastActiveSessionId"].toString();
     if (!lastActiveId.isEmpty()) {
@@ -495,35 +692,88 @@ void SessionController::loadSessions()
 void SessionController::saveCurrentSessionMessages()
 {
     if (!m_messageModel) return;
-    
+
     QString currentId = m_sessionModel->activeSessionId();
     if (currentId.isEmpty()) return;
-    
+
     Session* session = getSession(currentId);
     if (session) {
         m_messageModel->syncToSession(*session);
-        
-        // 通知 SessionModel 数据变化，更新 messageCount
-        m_sessionModel->notifySessionDataChanged(currentId);
+
+        for (const Message& message : session->messages) {
+            m_messageToSessionId[message.id] = currentId;
+        }
+
+        m_pendingNotifySessionIds.insert(currentId);
+        if (m_sessionNotifyTimer) {
+            m_sessionNotifyTimer->start();
+        }
     }
 }
 
 void SessionController::syncCurrentMessagesToSession()
 {
     saveCurrentSessionMessages();
-    
-    if (m_autoSaveEnabled) {
-        saveSessions();
+
+    if (!m_autoSaveEnabled) {
+        return;
+    }
+
+    m_hasPendingSave = true;
+
+    if (m_saveInProgress) {
+        m_saveQueued = true;
+    }
+
+    if (m_saveTimer) {
+        m_saveTimer->start();
     }
 }
 
 void SessionController::loadSessionMessages(const QString& sessionId)
 {
     if (!m_messageModel) return;
-    
+
     Session* session = getSession(sessionId);
     if (session) {
-        m_messageModel->loadFromSession(*session);
+        m_messageModel->setMessages(session->messages);
+        m_messageModel->setCurrentSessionId(session->id);
+
+        if (m_processingController) {
+            QStringList interruptedMessageIds;
+            interruptedMessageIds.reserve(session->messages.size());
+
+            for (const Message& msg : session->messages) {
+                if (m_autoRetriedMessageIds.contains(msg.id)) {
+                    continue;
+                }
+
+                bool hasInterruptedFiles = false;
+                for (const MediaFile& file : msg.mediaFiles) {
+                    if (file.status == ProcessingStatus::Pending || file.status == ProcessingStatus::Processing) {
+                        hasInterruptedFiles = true;
+                        break;
+                    }
+                }
+
+                if (hasInterruptedFiles) {
+                    m_autoRetriedMessageIds.insert(msg.id);
+                    interruptedMessageIds.append(msg.id);
+                }
+            }
+
+            if (!interruptedMessageIds.isEmpty()) {
+                QTimer::singleShot(0, this, [this, sessionId, interruptedMessageIds]() {
+                    if (!m_processingController) {
+                        return;
+                    }
+
+                    for (const QString& messageId : interruptedMessageIds) {
+                        m_processingController->autoRetryInterruptedFiles(messageId, sessionId);
+                    }
+                });
+            }
+        }
     }
 }
 
@@ -639,6 +889,12 @@ Message SessionController::jsonToMessage(const QJsonObject& json) const
     message.parameters = jsonToParameters(json["parameters"].toObject());
     message.shaderParams = jsonToShaderParams(json["shaderParams"].toObject());
     
+    if (message.status == ProcessingStatus::Processing) {
+        message.status = ProcessingStatus::Pending;
+        message.progress = 0;
+        message.queuePosition = -1;
+    }
+    
     return message;
 }
 
@@ -670,6 +926,11 @@ MediaFile SessionController::jsonToMediaFile(const QJsonObject& json) const
     file.resolution = QSize(json["width"].toInt(0), json["height"].toInt(0));
     file.status = static_cast<ProcessingStatus>(json["status"].toInt(0));
     file.resultPath = json["resultPath"].toString();
+    
+    if (file.status == ProcessingStatus::Processing) {
+        file.status = ProcessingStatus::Pending;
+    }
+    
     return file;
 }
 
@@ -740,14 +1001,21 @@ void SessionController::restoreThumbnails()
     }
     
     int restoredCount = 0;
+    int missingCount = 0;
+    int totalCompletedFiles = 0;
     
     for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
         Session session = m_sessionModel->sessionAt(i);
+        bool sessionModified = false;
         
-        for (const Message& message : session.messages) {
-            for (const MediaFile& file : message.mediaFiles) {
+        for (Message& message : session.messages) {
+            bool messageModified = false;
+            
+            for (MediaFile& file : message.mediaFiles) {
                 if (file.status == ProcessingStatus::Completed && !file.resultPath.isEmpty()) {
+                    totalCompletedFiles++;
                     QFileInfo resultFileInfo(file.resultPath);
+                    
                     if (resultFileInfo.exists()) {
                         QString thumbId = "processed_" + file.id;
                         QImage thumbnail;
@@ -762,6 +1030,11 @@ void SessionController::restoreThumbnails()
                             thumbnailProvider->setThumbnail(thumbId, thumbnail);
                             restoredCount++;
                         }
+                    } else {
+                        file.status = ProcessingStatus::Failed;
+                        missingCount++;
+                        messageModified = true;
+                        qWarning() << "[SessionController] Processed file not found:" << file.resultPath;
                     }
                 }
                 
@@ -769,6 +1042,68 @@ void SessionController::restoreThumbnails()
                     thumbnailProvider->setThumbnail(file.filePath, file.thumbnail);
                 }
             }
+            
+            if (messageModified) {
+                int completedCount = 0;
+                int failedCount = 0;
+                for (const MediaFile& f : message.mediaFiles) {
+                    if (f.status == ProcessingStatus::Completed) completedCount++;
+                    else if (f.status == ProcessingStatus::Failed || 
+                             f.status == ProcessingStatus::Cancelled) failedCount++;
+                }
+                
+                if (failedCount > 0 && completedCount == 0) {
+                    message.status = ProcessingStatus::Failed;
+                } else if (completedCount == message.mediaFiles.size()) {
+                    message.status = ProcessingStatus::Completed;
+                } else {
+                    message.status = ProcessingStatus::Pending;
+                }
+                sessionModified = true;
+            }
+        }
+        
+        if (sessionModified) {
+            m_sessionModel->updateSession(session);
+            
+            if (session.isActive && m_messageModel) {
+                m_messageModel->setMessages(session.messages);
+            }
+        }
+    }
+
+    rebuildSessionMessageIndex();
+    
+    if (missingCount > 0) {
+        qWarning() << "[SessionController] Found" << missingCount << "missing processed files";
+    }
+}
+
+void SessionController::rebuildMessageRowIndexForSession(const QString& sessionId, const QList<Message>& messages)
+{
+    QHash<QString, int> rowIndex;
+    rowIndex.reserve(messages.size());
+
+    for (int i = 0; i < messages.size(); ++i) {
+        rowIndex.insert(messages[i].id, i);
+    }
+
+    m_messageRowBySessionId.insert(sessionId, rowIndex);
+}
+
+void SessionController::rebuildSessionMessageIndex()
+{
+    m_messageToSessionId.clear();
+    m_sessionRowById.clear();
+    m_messageRowBySessionId.clear();
+
+    const QList<Session>& sessions = m_sessionModel->sessionsRef();
+    for (int i = 0; i < sessions.size(); ++i) {
+        const Session& session = sessions[i];
+        m_sessionRowById[session.id] = i;
+        rebuildMessageRowIndexForSession(session.id, session.messages);
+        for (const Message& message : session.messages) {
+            m_messageToSessionId[message.id] = session.id;
         }
     }
 }

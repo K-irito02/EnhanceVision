@@ -38,6 +38,16 @@ Rectangle {
 
     property string aiSelectedModelId: ""
     property string aiSelectedCategory: ""
+    property alias aiUseGpu: aiParamsPanel.useGpu
+    property alias aiTileSize: aiParamsPanel.tileSize
+    property alias aiModelParams: aiParamsPanel.modelParams
+    // 当前选中模型的 AI 放大倍数（1 = 非超分模型或默认）
+    readonly property int aiScaleFactor: aiParamsPanel.currentModelInfo ? (aiParamsPanel.currentModelInfo.scaleFactor || 1) : 1
+    // 当前媒体类型和尺寸（由外部绑定后透传给 AIParamsPanel）
+    property alias aiCurrentMediaSize: aiParamsPanel.currentMediaSize
+    property alias aiCurrentMediaIsVideo: aiParamsPanel.currentMediaIsVideo
+    // 汇总推理参数（含自动计算值）
+    function getAIParams() { return aiParamsPanel.getParams() }
     property bool collapsed: false
     
     readonly property bool hasShaderModifications: {

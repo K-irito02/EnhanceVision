@@ -30,6 +30,5 @@ Item {
             colorizationColor: root.color
             colorization: 1.0
         }
-        
-            }
+    }
 }

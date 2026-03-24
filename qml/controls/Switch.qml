@@ -10,6 +10,7 @@ Item {
     height: 22
 
     property bool checked: false
+    property bool enabled: true
     property alias checkedColor: backgroundRect.checkedColor
     property alias uncheckedColor: backgroundRect.uncheckedColor
 
@@ -23,12 +24,20 @@ Item {
         property color checkedColor: Theme.colors.switchOn
         property color uncheckedColor: Theme.colors.switchOff
 
-        color: control.checked ? checkedColor : uncheckedColor
+        color: !control.enabled ? Theme.colors.muted :
+               control.checked ? checkedColor : uncheckedColor
+        opacity: control.enabled ? 1.0 : 0.6
 
         Behavior on color {
             ColorAnimation {
                 duration: Theme.animation.fast
                 easing.type: Easing.OutCubic
+            }
+        }
+
+        Behavior on opacity {
+            NumberAnimation {
+                duration: Theme.animation.fast
             }
         }
 
@@ -52,7 +61,8 @@ Item {
 
     MouseArea {
         anchors.fill: parent
-        cursorShape: Qt.PointingHandCursor
+        cursorShape: control.enabled ? Qt.PointingHandCursor : Qt.ForbiddenCursor
+        enabled: control.enabled
         onClicked: {
             control.checked = !control.checked
             control.toggled()

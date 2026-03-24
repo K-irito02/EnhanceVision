@@ -25,6 +25,23 @@ elseif(SCCACHE_PROGRAM)
     set(CMAKE_CXX_COMPILER_LAUNCHER "${SCCACHE_PROGRAM}")
 endif()
 
+# ========== Vulkan SDK 配置（必须在 find_package(Qt6) 之前）==========
+set(VULKAN_SDK "E:/Vulkan/VulkanSDK")
+set(Vulkan_INCLUDE_DIR "${VULKAN_SDK}/Include" CACHE PATH "Vulkan include directory")
+set(Vulkan_LIBRARY "${VULKAN_SDK}/Lib/vulkan-1.lib" CACHE FILEPATH "Vulkan library")
+set(Vulkan_FOUND TRUE CACHE BOOL "Vulkan found" FORCE)
+set(ENV{VULKAN_SDK} "${VULKAN_SDK}")
+
+# 创建 Vulkan::Vulkan 目标（如果不存在）
+if(NOT TARGET Vulkan::Vulkan)
+    add_library(Vulkan::Vulkan UNKNOWN IMPORTED GLOBAL)
+    set_target_properties(Vulkan::Vulkan PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${Vulkan_INCLUDE_DIR}"
+        IMPORTED_LOCATION "${Vulkan_LIBRARY}"
+    )
+    message(STATUS "Vulkan SDK found at: ${VULKAN_SDK}")
+endif()
+
 # Qt 模块
 find_package(Qt6 REQUIRED COMPONENTS
     Core
@@ -54,6 +71,28 @@ set(THIRD_PARTY_DIR "${CMAKE_SOURCE_DIR}/third_party")
 set(NCNN_BUILD_EXAMPLES OFF CACHE BOOL "Disable NCNN examples" FORCE)
 set(NCNN_BUILD_TOOLS OFF CACHE BOOL "Disable NCNN tools" FORCE)
 set(NCNN_PYTHON_API OFF CACHE BOOL "Disable NCNN Python API" FORCE)
+
+# 启用 NCNN Vulkan GPU 加速支持
+set(NCNN_VULKAN ON CACHE BOOL "Enable Vulkan GPU acceleration in NCNN" FORCE)
+
+# OpenCV 配置
+set(OpenCV_DIR "${THIRD_PARTY_DIR}/opencv")
+set(OpenCV_INCLUDE_DIR "${OpenCV_DIR}/include")
+if(EXISTS "${OpenCV_DIR}/x64/vc17/lib")
+    set(OpenCV_LIB_DIR "${OpenCV_DIR}/x64/vc17/lib")
+elseif(EXISTS "${OpenCV_DIR}/lib")
+    set(OpenCV_LIB_DIR "${OpenCV_DIR}/lib")
+endif()
+
+# 检查 OpenCV 是否可用
+if(EXISTS "${OpenCV_INCLUDE_DIR}/opencv2/opencv.hpp")
+    message(STATUS "OpenCV found at: ${OpenCV_DIR}")
+    add_definitions(-DUSE_OPENCV)
+    set(OPENCV_AVAILABLE ON)
+else()
+    message(STATUS "OpenCV not found, face_enhance feature disabled")
+    set(OPENCV_AVAILABLE OFF)
+endif()
 
 # NCNN - 优化：使用预编译库而非从源码构建
 if(BUILD_NCNN_FROM_SOURCE)
@@ -328,6 +367,7 @@ qt_add_qml_module(EnhanceVision
         resources/icons-dark/play.svg
         resources/icons-dark/plus.svg
         resources/icons-dark/refresh.svg
+        resources/icons-dark/refresh-cw.svg
         resources/icons-dark/rotate-ccw.svg
         resources/icons-dark/save.svg
         resources/icons-dark/send.svg
@@ -424,10 +464,12 @@ endif()
 
 # Windows 部署
 if(WIN32)
+    # 仅在 ffmpeg/bin 非空时才拷贝（目录为空或不存在时跳过）
     add_custom_command(TARGET EnhanceVision POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${THIRD_PARTY_DIR}/ffmpeg/bin"
-            "$<TARGET_FILE_DIR:EnhanceVision>"
+        COMMAND ${CMAKE_COMMAND}
+            -DSRC_DIR="${THIRD_PARTY_DIR}/ffmpeg/bin"
+            -DDST_DIR="$<TARGET_FILE_DIR:EnhanceVision>"
+            -P "${CMAKE_SOURCE_DIR}/cmake/copy_if_exists.cmake"
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_SOURCE_DIR}/resources/models"
             "$<TARGET_FILE_DIR:EnhanceVision>/models"

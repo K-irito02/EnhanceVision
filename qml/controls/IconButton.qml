@@ -72,8 +72,7 @@ Button {
             color: {
                 if (root.danger && root.hovered) return "#FFFFFF"
                 if (root.hovered) return root.iconHoverColor
-                // 亮色主题下使用更深的颜色确保可见性
-                return Theme.isDark ? root.iconColor : Theme.colors.foreground
+                return root.iconColor
             }
 
             Behavior on color {

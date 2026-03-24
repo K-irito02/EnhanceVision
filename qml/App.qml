@@ -38,6 +38,13 @@ FocusScope {
     property alias shaderHighlights: controlPanel.highlights
     property alias shaderShadows: controlPanel.shadows
     property alias hasShaderModifications: controlPanel.hasShaderModifications
+    property alias aiSelectedModelId: controlPanel.aiSelectedModelId
+    property alias aiSelectedCategory: controlPanel.aiSelectedCategory
+    property alias aiUseGpu: controlPanel.aiUseGpu
+    property alias aiTileSize: controlPanel.aiTileSize
+    property alias aiModelParams: controlPanel.aiModelParams
+    // AI 放大倍数：透传给 MainPage，用于查看器窗口尺寸计算
+    property alias aiScaleFactor: controlPanel.aiScaleFactor
 
     function clearAllFocus() {
         focusCatcher.forceActiveFocus()
@@ -143,6 +150,7 @@ FocusScope {
                 MainPage {
                     id: mainPage
                     processingMode: root.processingMode
+                    aiScaleFactor: root.aiScaleFactor
                     onProcessingModeChanged: root.processingMode = processingMode
                     onExpandControlPanel: {
                         root.controlPanelCollapsed = false

@@ -110,6 +110,11 @@ public:
     Q_INVOKABLE QVariant getParameter(const QString &name) const;
 
     /**
+     * @brief 清空当前模型参数（避免跨任务残留）
+     */
+    Q_INVOKABLE void clearParameters();
+
+    /**
      * @brief 合并用户参数和模型默认参数
      * @return 合并后的参数映射
      */
@@ -120,6 +125,39 @@ public:
      * @return 有效参数映射
      */
     Q_INVOKABLE QVariantMap getEffectiveParams() const;
+
+    /**
+     * @brief 根据输入图像尺寸和当前模型自动计算合适的分块大小
+     *
+     * 规则（按优先级）：
+     * 1. 若模型 tileSize == 0（模型自身声明不分块），返回 0（不分块）。
+     * 2. 估算单块推理所需显存：tile_pixels × channels × sizeof(float) × scale² × kFactor。
+     * 3. 在 [minTile, maxTile] 范围内以 64 为步长选择最大不超过可用显存的分块大小。
+     * 4. GPU 不可用时回落到保守的 CPU 分块策略。
+     *
+     * @param inputSize 输入图像的像素尺寸
+     * @return 推荐的分块大小（像素），0 表示不分块
+     */
+    Q_INVOKABLE int computeAutoTileSize(const QSize &inputSize) const;
+
+    /**
+     * @brief 根据媒体文件信息为当前模型的所有参数计算最优自动值
+     *
+     * 涵盖所有模型类别的每个 supportedParam，包括：
+     * - 超分辨率：tileSize, outscale, tta_mode, face_enhance
+     * - 去噪：tileSize, noise_threshold
+     * - 去模糊：tileSize, deblur_strength
+     * - 去雾：tileSize, dehaze_strength
+     * - 上色：tileSize, render_factor, artistic_mode
+     * - 低光增强：enhancement_strength, exposure_correction
+     * - 视频插帧：time_step, uhd_mode, tta_spatial, tta_temporal
+     * - 图像修复：inpaint_radius
+     *
+     * @param mediaSize   媒体文件的原始分辨率（宽×高，像素）
+     * @param isVideo     true = 视频文件，false = 图像文件
+     * @return 推荐参数键值对（仅包含与默认值不同、或需要根据媒体特征调整的项）
+     */
+    Q_INVOKABLE QVariantMap computeAutoParams(const QSize &mediaSize, bool isVideo) const;
 
     // ========== 状态查询 ==========
 
@@ -141,10 +179,23 @@ signals:
     void modelChanged();
     void processingChanged(bool processing);
     void progressChanged(double progress);
+    void progressTextChanged(const QString &text);
     void processCompleted(const QImage &result);
     void processFileCompleted(bool success, const QString &resultPath, const QString &error);
     void processError(const QString &error);
     void useGpuChanged(bool useGpu);
+    void gpuAvailableChanged(bool available);
+    /**
+     * @brief 自动参数已计算完成（可供 QML 更新 UI）
+     * @param autoTileSize 自动计算出的分块大小（0=不分块）
+     */
+    void autoParamsComputed(int autoTileSize);
+
+    /**
+     * @brief 全参数自动计算完成信号（包含所有模型类别的推荐参数）
+     * @param autoParams 推荐参数键值对
+     */
+    void allAutoParamsComputed(const QVariantMap &autoParams);
 
 private:
     // ========== 内部方法 ==========
@@ -159,7 +210,11 @@ private:
     QImage processSingle(const QImage &input, const ModelInfo &model);
     ncnn::Mat runInference(const ncnn::Mat &input, const ModelInfo &model);
 
-    void setProgress(double value);
+    QImage processWithTTA(const QImage &input, const ModelInfo &model);
+    QImage mergeTTAResults(const QList<QImage> &results);
+    QImage applyOutscale(const QImage &input, double scale);
+
+    void setProgress(double value, bool forceEmit = false);
     void setProcessing(bool processing);
 
     // ========== 成员变量 ==========
@@ -176,9 +231,11 @@ private:
 
     std::atomic<bool> m_isProcessing{false};
     std::atomic<double> m_progress{0.0};
+    std::atomic<qint64> m_lastProgressEmitMs{0};
     std::atomic<bool> m_cancelRequested{false};
     bool m_gpuAvailable = false;
     bool m_useGpu = true;
+    QString m_lastError;
 
     mutable QMutex m_mutex;
 };

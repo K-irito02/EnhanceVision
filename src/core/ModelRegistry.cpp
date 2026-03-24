@@ -55,9 +55,6 @@ int ModelRegistry::initialize(const QString &modelsRootPath)
         }
     }
 
-    qDebug() << "[ModelRegistry] Initialized:" << m_models.size() << "models registered,"
-             << availableCount << "available";
-
     emit modelsChanged();
     return m_models.size();
 }

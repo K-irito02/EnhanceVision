@@ -9,6 +9,8 @@
 
 #include <QObject>
 #include <QAbstractListModel>
+
+class QTimer;
 #include "EnhanceVision/models/DataTypes.h"
 
 namespace EnhanceVision {
@@ -23,6 +25,7 @@ public:
 
     void addTask(const QueueTask& task);
     void updateTasks(const QList<QueueTask>& tasks);
+    void updateTask(const QueueTask& task);
     void updateTaskProgress(const QString& taskId, int progress);
     void updateTaskStatus(const QString& taskId, ProcessingStatus status);
     void removeTask(const QString& taskId);
@@ -31,7 +34,11 @@ signals:
     void tasksChanged();
 
 private:
+    void scheduleTasksChanged();
+
     QList<QueueTask> m_tasks;
+    QTimer* m_tasksChangedTimer = nullptr;
+    bool m_tasksChangedPending = false;
 };
 
 } // namespace EnhanceVision

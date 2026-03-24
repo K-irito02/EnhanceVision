@@ -15,6 +15,17 @@
 
 namespace EnhanceVision {
 
+namespace {
+constexpr qint64 kMessagePerfLogThresholdMs = 4;
+
+inline void logMessagePerfIfSlow(const char* tag, qint64 elapsedMs)
+{
+    if (elapsedMs >= kMessagePerfLogThresholdMs) {
+        qInfo() << "[Perf][MessageModel]" << tag << "cost:" << elapsedMs << "ms";
+    }
+}
+}
+
 MessageModel::MessageModel(QObject *parent)
     : QAbstractListModel(parent)
 {
@@ -69,6 +80,7 @@ QVariant MessageModel::data(const QModelIndex &index, int role) const
             QVariantMap fileMap;
             fileMap["id"] = file.id;
             fileMap["filePath"] = file.filePath;
+            fileMap["originalPath"] = file.originalPath.isEmpty() ? file.filePath : file.originalPath;
             fileMap["fileName"] = file.fileName;
             fileMap["fileSize"] = file.fileSize;
             fileMap["mediaType"] = static_cast<int>(file.type);
@@ -77,7 +89,7 @@ QVariant MessageModel::data(const QModelIndex &index, int role) const
             fileMap["resultPath"] = file.resultPath;
             fileMap["duration"] = file.duration;
             
-            if (message.mode == ProcessingMode::Shader && hasShaderModifications && file.status == ProcessingStatus::Completed) {
+            if (file.status == ProcessingStatus::Completed && !file.resultPath.isEmpty()) {
                 fileMap["processedThumbnailId"] = "processed_" + file.id;
             }
             
@@ -162,6 +174,7 @@ QString MessageModel::addMessage(const Message &message)
 
     emit countChanged();
     emit messageAdded(newMessage.id);
+    emitMessageFileStatsChanged(newMessage.id, newMessage);
 
     return newMessage.id;
 }
@@ -192,6 +205,9 @@ QString MessageModel::addMessage(int mode, const QVariantList &mediaFiles, const
 
 void MessageModel::updateStatus(const QString &messageId, int status)
 {
+    QElapsedTimer perfTimer;
+    perfTimer.start();
+
     int index = findMessageIndex(messageId);
     if (index < 0) {
         emit errorOccurred(tr("消息不存在: %1").arg(messageId));
@@ -202,10 +218,15 @@ void MessageModel::updateStatus(const QString &messageId, int status)
     QModelIndex modelIndex = createIndex(index, 0);
     emit dataChanged(modelIndex, modelIndex, {StatusRole, StatusTextRole, StatusColorRole});
     emit statusUpdated(messageId, status);
+
+    logMessagePerfIfSlow("updateStatus", perfTimer.elapsed());
 }
 
 void MessageModel::updateProgress(const QString &messageId, int progress)
 {
+    QElapsedTimer perfTimer;
+    perfTimer.start();
+
     int index = findMessageIndex(messageId);
     if (index < 0) {
         emit errorOccurred(tr("消息不存在: %1").arg(messageId));
@@ -215,6 +236,8 @@ void MessageModel::updateProgress(const QString &messageId, int progress)
     m_messages[index].progress = qBound(0, progress, 100);
     QModelIndex modelIndex = createIndex(index, 0);
     emit dataChanged(modelIndex, modelIndex, {ProgressRole});
+
+    logMessagePerfIfSlow("updateProgress", perfTimer.elapsed());
 }
 
 void MessageModel::updateErrorMessage(const QString &messageId, const QString &errorMessage)
@@ -238,15 +261,17 @@ bool MessageModel::removeMessage(const QString &messageId)
         return false;
     }
 
+    emit messageRemoving(messageId);
+
     if (m_processingController) {
         m_processingController->cancelMessageTasks(messageId);
-        m_processingController->waitForMessageCancellation(messageId, 2000);
     }
 
     beginRemoveRows(QModelIndex(), index, index);
     m_messages.removeAt(index);
     endRemoveRows();
 
+    m_messageFileStatsCache.remove(messageId);
     emit countChanged();
     emit messageRemoved(messageId);
     return true;
@@ -288,10 +313,8 @@ int MessageModel::removeSelectedMessages()
 
     if (m_processingController) {
         for (const QString& messageId : toDelete) {
+            emit messageRemoving(messageId);
             m_processingController->cancelMessageTasks(messageId);
-        }
-        for (const QString& messageId : toDelete) {
-            m_processingController->waitForMessageCancellation(messageId, 2000);
         }
     }
 
@@ -301,6 +324,7 @@ int MessageModel::removeSelectedMessages()
             beginRemoveRows(QModelIndex(), index, index);
             m_messages.removeAt(index);
             endRemoveRows();
+            m_messageFileStatsCache.remove(*it);
             emit messageRemoved(*it);
             deletedCount++;
         }
@@ -321,12 +345,12 @@ void MessageModel::clear()
 
     if (m_processingController && !m_currentSessionId.isEmpty()) {
         m_processingController->cancelSessionTasks(m_currentSessionId);
-        m_processingController->waitForSessionCancellation(m_currentSessionId, 3000);
     }
 
     beginResetModel();
     m_messages.clear();
     endResetModel();
+    resetMessageFileStatsCache();
     emit countChanged();
 }
 
@@ -349,11 +373,133 @@ void MessageModel::syncToSession(Session& session)
 
 void MessageModel::loadFromSession(const Session& session)
 {
-    beginResetModel();
-    m_messages = session.messages;
+    setMessages(session.messages);
     m_currentSessionId = session.id;
-    endResetModel();
     emit countChanged();
+}
+
+void MessageModel::setMessages(const QList<Message>& messages)
+{
+    auto mediaFileEqual = [](const MediaFile& a, const MediaFile& b) {
+        return a.id == b.id &&
+               a.filePath == b.filePath &&
+               a.fileName == b.fileName &&
+               a.fileSize == b.fileSize &&
+               a.type == b.type &&
+               a.duration == b.duration &&
+               a.resolution == b.resolution &&
+               a.status == b.status &&
+               a.resultPath == b.resultPath;
+    };
+
+    auto messageEqual = [&](const Message& a, const Message& b) {
+        if (a.id != b.id ||
+            a.timestamp != b.timestamp ||
+            a.mode != b.mode ||
+            a.parameters != b.parameters ||
+            a.status != b.status ||
+            a.errorMessage != b.errorMessage ||
+            a.isSelected != b.isSelected ||
+            a.progress != b.progress ||
+            a.queuePosition != b.queuePosition ||
+            a.mediaFiles.size() != b.mediaFiles.size()) {
+            return false;
+        }
+
+        for (int i = 0; i < a.mediaFiles.size(); ++i) {
+            if (!mediaFileEqual(a.mediaFiles[i], b.mediaFiles[i])) {
+                return false;
+            }
+        }
+
+        return true;
+    };
+
+    const int oldCount = m_messages.size();
+    const int newCount = messages.size();
+    const int commonCount = qMin(oldCount, newCount);
+
+    for (int i = 0; i < commonCount; ++i) {
+        if (m_messages[i].id != messages[i].id) {
+            beginResetModel();
+            m_messages = messages;
+            endResetModel();
+            resetMessageFileStatsCache();
+            for (const Message& message : m_messages) {
+                emitMessageFileStatsChanged(message.id, message);
+                emit messageMediaFilesReloaded(message.id);
+            }
+            return;
+        }
+    }
+
+    QSet<QString> seenMessageIds;
+
+    for (int i = 0; i < commonCount; ++i) {
+        bool mediaFilesChanged = false;
+        if (m_messages[i].mediaFiles.size() != messages[i].mediaFiles.size()) {
+            mediaFilesChanged = true;
+        } else {
+            for (int fileIdx = 0; fileIdx < m_messages[i].mediaFiles.size(); ++fileIdx) {
+                if (!mediaFileEqual(m_messages[i].mediaFiles[fileIdx], messages[i].mediaFiles[fileIdx])) {
+                    mediaFilesChanged = true;
+                    break;
+                }
+            }
+        }
+
+        if (!messageEqual(m_messages[i], messages[i])) {
+            m_messages[i] = messages[i];
+            QModelIndex modelIndex = createIndex(i, 0);
+            emit dataChanged(modelIndex, modelIndex);
+
+            if (mediaFilesChanged) {
+                emit messageMediaFilesReloaded(m_messages[i].id);
+            }
+        }
+
+        seenMessageIds.insert(m_messages[i].id);
+        emitMessageFileStatsChanged(m_messages[i].id, m_messages[i]);
+    }
+
+    if (newCount > oldCount) {
+        beginInsertRows(QModelIndex(), oldCount, newCount - 1);
+        for (int i = oldCount; i < newCount; ++i) {
+            m_messages.append(messages[i]);
+        }
+        endInsertRows();
+
+        for (int i = oldCount; i < newCount; ++i) {
+            seenMessageIds.insert(m_messages[i].id);
+            emitMessageFileStatsChanged(m_messages[i].id, m_messages[i]);
+            emit messageMediaFilesReloaded(m_messages[i].id);
+        }
+    } else if (newCount < oldCount) {
+        for (int i = newCount; i < oldCount; ++i) {
+            m_messageFileStatsCache.remove(m_messages[i].id);
+        }
+
+        beginRemoveRows(QModelIndex(), newCount, oldCount - 1);
+        while (m_messages.size() > newCount) {
+            m_messages.removeLast();
+        }
+        endRemoveRows();
+    }
+
+    auto it = m_messageFileStatsCache.begin();
+    while (it != m_messageFileStatsCache.end()) {
+        if (!seenMessageIds.contains(it.key())) {
+            it = m_messageFileStatsCache.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    for (const Message& message : m_messages) {
+        if (!seenMessageIds.contains(message.id)) {
+            emitMessageFileStatsChanged(message.id, message);
+        }
+    }
 }
 
 Message MessageModel::messageById(const QString &messageId) const
@@ -433,18 +579,41 @@ QString MessageModel::getModeText(ProcessingMode mode) const
 void MessageModel::updateFileStatus(const QString &messageId, const QString &fileId,
                                      int status, const QString &resultPath)
 {
+    QElapsedTimer perfTimer;
+    perfTimer.start();
+
     int idx = findMessageIndex(messageId);
-    if (idx < 0) return;
+    if (idx < 0) {
+        return;
+    }
 
     Message &message = m_messages[idx];
+    const ProcessingStatus nextStatus = static_cast<ProcessingStatus>(status);
+
     for (int i = 0; i < message.mediaFiles.size(); ++i) {
         if (message.mediaFiles[i].id == fileId) {
-            message.mediaFiles[i].status = static_cast<ProcessingStatus>(status);
-            if (!resultPath.isEmpty()) {
-                message.mediaFiles[i].resultPath = resultPath;
+            bool changed = false;
+
+            if (message.mediaFiles[i].status != nextStatus) {
+                message.mediaFiles[i].status = nextStatus;
+                changed = true;
             }
-            QModelIndex modelIndex = createIndex(idx, 0);
-            emit dataChanged(modelIndex, modelIndex, {MediaFilesRole});
+
+            if (!resultPath.isEmpty() && message.mediaFiles[i].resultPath != resultPath) {
+                if (message.mediaFiles[i].originalPath.isEmpty()) {
+                    message.mediaFiles[i].originalPath = message.mediaFiles[i].filePath;
+                }
+                message.mediaFiles[i].resultPath = resultPath;
+                changed = true;
+            }
+
+            if (!changed) {
+                return;
+            }
+
+            emit mediaFilePatched(messageId, fileId, status, resultPath);
+            emitMessageFileStatsChanged(messageId, message);
+            logMessagePerfIfSlow("updateFileStatus", perfTimer.elapsed());
             return;
         }
     }
@@ -452,13 +621,19 @@ void MessageModel::updateFileStatus(const QString &messageId, const QString &fil
 
 void MessageModel::updateQueuePosition(const QString &messageId, int position)
 {
+    QElapsedTimer perfTimer;
+    perfTimer.start();
+
     int idx = findMessageIndex(messageId);
-    if (idx < 0) return;
+    if (idx < 0) {
+        return;
+    }
 
     if (m_messages[idx].queuePosition != position) {
         m_messages[idx].queuePosition = position;
         QModelIndex modelIndex = createIndex(idx, 0);
         emit dataChanged(modelIndex, modelIndex, {QueuePositionRole});
+        logMessagePerfIfSlow("updateQueuePosition", perfTimer.elapsed());
     }
 }
 
@@ -534,6 +709,7 @@ QVariantList MessageModel::getMediaFiles(const QString &messageId) const
         QVariantMap fileMap;
         fileMap["id"] = file.id;
         fileMap["filePath"] = file.filePath;
+        fileMap["originalPath"] = file.originalPath.isEmpty() ? file.filePath : file.originalPath;
         fileMap["fileName"] = file.fileName;
         fileMap["fileSize"] = file.fileSize;
         fileMap["mediaType"] = static_cast<int>(file.type);
@@ -541,7 +717,7 @@ QVariantList MessageModel::getMediaFiles(const QString &messageId) const
         fileMap["resultPath"] = file.resultPath;
         fileMap["duration"] = file.duration;
         
-        if (msg.mode == ProcessingMode::Shader && hasShaderModifications && file.status == ProcessingStatus::Completed) {
+        if (file.status == ProcessingStatus::Completed && !file.resultPath.isEmpty()) {
             fileMap["processedThumbnailId"] = "processed_" + file.id;
         }
         
@@ -620,11 +796,14 @@ bool MessageModel::removeMediaFile(const QString &messageId, int fileIndex)
     }
 
     message.mediaFiles.removeAt(fileIndex);
+    emit messageMediaFilesReloaded(messageId);
+    emitMessageFileStatsChanged(messageId, message);
     
     if (message.mediaFiles.isEmpty()) {
         beginRemoveRows(QModelIndex(), msgIdx, msgIdx);
         m_messages.removeAt(msgIdx);
         endRemoveRows();
+        m_messageFileStatsCache.remove(messageId);
         emit countChanged();
         emit messageRemoved(messageId);
     } else {
@@ -650,6 +829,51 @@ bool MessageModel::removeMediaFileById(const QString &messageId, const QString &
         }
     }
     return false;
+}
+
+MessageModel::FileStats MessageModel::calculateFileStats(const Message& message) const
+{
+    FileStats stats;
+    for (const MediaFile& file : message.mediaFiles) {
+        switch (file.status) {
+        case ProcessingStatus::Completed:
+            stats.success++;
+            break;
+        case ProcessingStatus::Failed:
+        case ProcessingStatus::Cancelled:
+            stats.failed++;
+            break;
+        case ProcessingStatus::Processing:
+            stats.processing++;
+            break;
+        case ProcessingStatus::Pending:
+        default:
+            stats.pending++;
+            break;
+        }
+    }
+    return stats;
+}
+
+void MessageModel::emitMessageFileStatsChanged(const QString& messageId, const Message& message)
+{
+    if (messageId.isEmpty()) {
+        return;
+    }
+
+    const FileStats stats = calculateFileStats(message);
+    const auto it = m_messageFileStatsCache.constFind(messageId);
+    if (it != m_messageFileStatsCache.constEnd() && it.value() == stats) {
+        return;
+    }
+
+    m_messageFileStatsCache.insert(messageId, stats);
+    emit messageFileStatsChanged(messageId, stats.success, stats.failed, stats.pending, stats.processing);
+}
+
+void MessageModel::resetMessageFileStatsCache()
+{
+    m_messageFileStatsCache.clear();
 }
 
 } // namespace EnhanceVision

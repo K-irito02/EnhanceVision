@@ -103,18 +103,40 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
             }
             return thumbnail;
         }
+
+        if (m_pendingRequests.contains(cacheKey)) {
+            QImage placeholder = generatePlaceholderImage(requestedSize);
+            if (size) {
+                *size = placeholder.size();
+            }
+            return placeholder;
+        }
     }
 
-    if (m_pendingRequests.contains(cacheKey)) {
+    QString filePath = normalizeFilePath(cacheKey);
+    QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(256, 256);
+
+    if (cacheKey.startsWith("processed_")) {
+        {
+            QMutexLocker locker(&m_mutex);
+            if (m_thumbnails.contains(cacheKey)) {
+                QImage thumbnail = m_thumbnails.value(cacheKey);
+                if (size) {
+                    *size = thumbnail.size();
+                }
+                if (!requestedSize.isEmpty() && requestedSize != thumbnail.size()) {
+                    return ImageUtils::scaleImage(thumbnail, requestedSize, true);
+                }
+                return thumbnail;
+            }
+        }
+
         QImage placeholder = generatePlaceholderImage(requestedSize);
         if (size) {
             *size = placeholder.size();
         }
         return placeholder;
     }
-
-    QString filePath = normalizeFilePath(cacheKey);
-    QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(256, 256);
 
     QFileInfo fileInfo(filePath);
     if (!fileInfo.exists()) {
@@ -125,11 +147,6 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         return QImage();
     }
 
-    {
-        QMutexLocker locker(&m_mutex);
-        m_pendingRequests.insert(cacheKey);
-    }
-    
     generateThumbnailAsync(filePath, cacheKey, targetSize);
 
     QImage placeholder = generatePlaceholderImage(requestedSize);
@@ -149,16 +166,17 @@ void ThumbnailProvider::setThumbnail(const QString &id, const QImage &thumbnail)
 
 void ThumbnailProvider::generateThumbnailAsync(const QString &filePath, const QString &id, const QSize &size)
 {
-    // 检查是否已经存在缩略图
+    // 检查是否已经存在缩略图或正在生成
     {
         QMutexLocker locker(&m_mutex);
-        if (m_thumbnails.contains(id)) {
+        if (m_thumbnails.contains(id) || m_pendingRequests.contains(id)) {
             return;
         }
+        m_pendingRequests.insert(id);
     }
-    
+
     ThumbnailGenerator* generator = new ThumbnailGenerator(filePath, id, size);
-    connect(generator, &ThumbnailGenerator::thumbnailReady, 
+    connect(generator, &ThumbnailGenerator::thumbnailReady,
             this, &ThumbnailProvider::onThumbnailReady);
     m_threadPool->start(generator);
 }

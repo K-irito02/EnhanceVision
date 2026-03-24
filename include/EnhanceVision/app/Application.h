@@ -24,6 +24,7 @@ class FileController;
 class SessionController;
 class ProcessingController;
 class ImageExportService;
+class ThumbnailProvider;
 
 class Application : public QObject
 {
@@ -45,7 +46,7 @@ public:
 
 private:
     void registerQmlTypes();
-    void setupQmlContext();
+    void setupQmlContext(ThumbnailProvider* thumbnailProvider);
     void setupTranslator();
     bool switchTranslator(const QString& language);
 

@@ -13,11 +13,15 @@
 #include <QThreadPool>
 #include <QUuid>
 #include <QHash>
+#include <QSet>
 #include <QElapsedTimer>
+#include <functional>
 #include "EnhanceVision/models/DataTypes.h"
 #include "EnhanceVision/models/ProcessingModel.h"
 #include "EnhanceVision/core/AIEngine.h"
 #include "EnhanceVision/core/ModelRegistry.h"
+
+class QTimer;
 
 namespace EnhanceVision {
 
@@ -81,17 +85,23 @@ public:
     Q_INVOKABLE QueueTask* getTask(const QString& taskId);
     Q_INVOKABLE QList<QueueTask> getAllTasks() const;
     Q_INVOKABLE void clearCompletedTasks();
+    Q_INVOKABLE void retryMessage(const QString& messageId);
+    Q_INVOKABLE void retryFailedFiles(const QString& messageId);
+    Q_INVOKABLE void retrySingleFailedFile(const QString& messageId, int fileIndex);
+    void autoRetryInterruptedFiles(const QString& messageId, const QString& sessionId);
+    bool hasTasksForMessage(const QString& messageId) const;
     
     void cancelMessageTasks(const QString& messageId);
     void cancelSessionTasks(const QString& sessionId);
-    
-    bool waitForMessageCancellation(const QString& messageId, int timeoutMs = 5000);
-    bool waitForSessionCancellation(const QString& sessionId, int timeoutMs = 5000);
     
     void pauseSessionTasks(const QString& sessionId);
     void resumeSessionTasks(const QString& sessionId);
     
     void onSessionChanging(const QString& oldSessionId, const QString& newSessionId);
+    void setVisibleSessionUpdateFrozen(bool frozen);
+    bool visibleSessionUpdateFrozen() const;
+    void setInteractionPriorityMode(bool enabled);
+    void setImportBurstMode(bool enabled);
     
     void setMaxConcurrentTasks(int max);
     void setResourceQuota(const ResourceQuota& quota);
@@ -138,6 +148,11 @@ private:
     QThreadPool* m_threadPool;
     int m_currentProcessingCount;
     int m_maxConcurrentTasks;
+    int m_baseMaxConcurrentTasks;
+    int m_interactionPriorityMaxConcurrentTasks;
+    int m_importBurstMaxConcurrentTasks;
+    bool m_interactionPriorityMode = false;
+    bool m_importBurstMode = false;
     int m_taskCounter;
     class FileController* m_fileController;
     MessageModel* m_messageModel;
@@ -153,16 +168,53 @@ private:
     AIEngine* m_aiEngine;
     ModelRegistry* m_modelRegistry;
     QHash<QString, Message> m_taskMessages;
+    QHash<QString, int> m_lastReportedTaskProgress;
+    QHash<QString, qint64> m_lastTaskProgressUpdateMs;
+    QHash<QString, qint64> m_lastMessageProgressSyncMs;
+    QHash<QString, qint64> m_lastMessageStatusSyncMs;
+    QHash<QString, qint64> m_lastSessionMemorySyncMs;
+    QSet<QString> m_pendingMemorySyncMessageIds;
+    bool m_freezeVisibleSessionUpdates = false;
+    QTimer* m_memorySyncTimer = nullptr;
+    QSet<QString> m_preloadedModelIds;
+    QSet<QString> m_pendingPreloadModelIds;
+    QString m_activeAiTaskId;
+    QTimer* m_sessionSyncTimer;
 
     QString generateTaskId();
-    void syncMessageProgress(const QString& messageId);
-    void syncMessageStatus(const QString& messageId);
+    void refreshEffectiveConcurrencyLimit();
+    void requestModelPreload(const QString& modelId);
+    void requestSessionSync();
+    void requestSessionMemorySync(const QString& messageId = QString());
+    void flushSessionMemorySync();
+    void syncVisibleMessageIfNeeded(const QString& sessionId, const QString& messageId,
+                                    const std::function<void()>& syncFn);
+    void syncModelTasks();
+    void syncModelTask(const QueueTask& task);
+    void syncModelTaskById(const QString& taskId);
+    void syncMessageProgress(const QString& messageId, const QString& sessionId = QString());
+    void syncMessageStatus(const QString& messageId, const QString& sessionId = QString());
+    QString resolveSessionIdForMessage(const QString& messageId, const QString& fallbackSessionId = QString()) const;
+    Message messageForSession(const QString& sessionId, const QString& messageId) const;
+    void updateFileStatusForSessionMessage(const QString& sessionId, const QString& messageId,
+                                           const QString& fileId, ProcessingStatus status,
+                                           const QString& resultPath);
+    void updateErrorForSessionMessage(const QString& sessionId, const QString& messageId,
+                                      const QString& errorMessage);
+    void updateProgressForSessionMessage(const QString& sessionId, const QString& messageId, int progress);
+    void updateStatusForSessionMessage(const QString& sessionId, const QString& messageId, ProcessingStatus status);
+    void updateQueuePositionForSessionMessage(const QString& sessionId, const QString& messageId, int queuePosition);
     void updateQueuePositions();
     bool tryStartTask(QueueTask& task);
     void startTask(QueueTask& task);
     void updateTaskProgress(const QString& taskId, int progress);
     void completeTask(const QString& taskId, const QString& resultPath);
     void failTask(const QString& taskId, const QString& error);
+    void processShaderVideoThumbnailAsync(const QString& taskId,
+                                          const QString& messageId,
+                                          const QString& fileId,
+                                          const QString& filePath,
+                                          const ShaderParams& shaderParams);
     QVariantMap shaderParamsToVariantMap(const ShaderParams& params);
     
     void gracefulCancel(const QString& taskId, int timeoutMs = 5000);

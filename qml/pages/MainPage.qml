@@ -24,6 +24,8 @@ Rectangle {
     property bool hasFiles: typeof fileModel !== "undefined" ? fileModel.count > 0 : pendingFilesModel.count > 0
     property bool hasMessages: typeof messageModel !== "undefined" ? messageModel.count > 0 : true
     property string currentSessionId: typeof sessionController !== "undefined" ? sessionController.activeSessionId : ""
+    // AI 放大倍数：由 App.qml 从 ControlPanel 透传，用于查看器窗口尺寸计算
+    property int aiScaleFactor: 1
     
     // 全局z-index计数器，供所有查看器共享
     property int globalZIndexCounter: 1100
@@ -213,6 +215,7 @@ Rectangle {
                 containerItem: messageAreaContainer
                 messageMode: false
                 viewerId: "pending-viewer"
+                aiScaleFactor: root.aiScaleFactor
                 
                 shaderEnabled: root.processingMode === 0 && _getShaderParam("hasShaderModifications", false)
                 shaderBrightness: _getShaderParam("shaderBrightness", 0.0)
@@ -254,6 +257,8 @@ Rectangle {
                 containerItem: messageAreaContainer
                 messageMode: true
                 viewerId: "message-viewer"
+                // messageMode 下结果图已是 scaleFactor 倍，传 1 避免重复放大
+                aiScaleFactor: 1
                 
                 property string currentMessageId: ""
                 
@@ -587,6 +592,26 @@ Rectangle {
                     vignette: _getShaderParam("shaderVignette", 0.0),
                     highlights: _getShaderParam("shaderHighlights", 0.0),
                     shadows: _getShaderParam("shaderShadows", 0.0)
+                }
+            } else {
+                var selectedModelId = _getShaderParam("aiSelectedModelId", "")
+                var selectedCategory = _getShaderParam("aiSelectedCategory", "")
+                var useGpu = _getShaderParam("aiUseGpu", true)
+                var tileSize = _getShaderParam("aiTileSize", 0)
+                var modelParams = _getShaderParam("aiModelParams", {})
+
+                params = {
+                    modelId: selectedModelId,
+                    category: selectedCategory,
+                    useGpu: useGpu,
+                    tileSize: tileSize
+                }
+
+                if (modelParams) {
+                    var keys = Object.keys(modelParams)
+                    for (var i = 0; i < keys.length; ++i) {
+                        params[keys[i]] = modelParams[keys[i]]
+                    }
                 }
             }
             processingController.sendToProcessing(root.processingMode, params)

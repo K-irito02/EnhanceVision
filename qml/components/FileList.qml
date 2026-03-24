@@ -109,6 +109,21 @@ Rectangle {
                 spacing: 6
                 orientation: ListView.Horizontal
                 model: fileModel
+                boundsBehavior: Flickable.StopAtBounds
+                cacheBuffer: 500
+                reuseItems: true
+                
+                MouseArea {
+                    anchors.fill: parent
+                    z: -1
+                    acceptedButtons: Qt.NoButton
+                    onWheel: function(wheel) {
+                        var delta = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.angleDelta.x
+                        fileListView.contentX = Math.max(0, Math.min(fileListView.contentX - delta * 0.5, 
+                            Math.max(0, fileListView.contentWidth - fileListView.width)))
+                        wheel.accepted = true
+                    }
+                }
                 
                 // 文件项委托
                 delegate: Rectangle {
@@ -144,11 +159,41 @@ Rectangle {
                             clip: true
                             
                             Image {
-                                anchors.centerIn: parent
-                                width: 24; height: 24
-                                source: model.mediaType === 0 ? Theme.icon("image") : Theme.icon("video")
-                                sourceSize: Qt.size(24, 24)
+                                id: thumbImage
+                                anchors.fill: parent
+                                source: model.filePath ? "image://thumbnail/" + model.filePath : ""
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
                                 smooth: true
+                                sourceSize: Qt.size(120, 120)
+                                visible: status === Image.Ready
+                                
+                                layer.enabled: true
+                                layer.samples: 4
+                            }
+                            
+                            ColoredIcon {
+                                anchors.centerIn: parent
+                                source: model.mediaType === 0 ? Theme.icon("image") : Theme.icon("video")
+                                iconSize: 24
+                                color: Theme.colors.mutedForeground
+                                visible: thumbImage.status !== Image.Ready
+                            }
+                            
+                            Rectangle {
+                                visible: model.mediaType === 1
+                                anchors.bottom: parent.bottom
+                                anchors.left: parent.left
+                                anchors.margins: 4
+                                width: 20; height: 16
+                                radius: 3
+                                color: Qt.rgba(0, 0, 0, 0.65)
+                                ColoredIcon {
+                                    anchors.centerIn: parent
+                                    source: Theme.icon("play")
+                                    iconSize: 10
+                                    color: "#FFFFFF"
+                                }
                             }
                         }
                         

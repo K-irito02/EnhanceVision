@@ -10,6 +10,7 @@
 #include <QQuickImageProvider>
 #include <QImage>
 #include <QMap>
+#include <QSet>
 #include <QMutex>
 #include <QThreadPool>
 #include <QRunnable>
@@ -108,9 +109,12 @@ private slots:
 
 private:
     QMap<QString, QImage> m_thumbnails;     ///< 缩略图映射
+    QSet<QString> m_pendingRequests;        ///< 正在生成中的请求
     QMutex m_mutex;                           ///< 互斥锁，保证线程安全
     QThreadPool* m_threadPool;                ///< 线程池
     static ThumbnailProvider* s_instance;     ///< 单例实例
+    
+    QImage generatePlaceholderImage(const QSize& size);
 };
 
 } // namespace EnhanceVision

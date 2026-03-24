@@ -1007,7 +1007,6 @@ Item {
         property int fileStatus: 0
         readonly property bool isSuccess: fileStatus === 2
         readonly property bool isFailedOrCancelled: fileStatus === 3 || fileStatus === 4
-        readonly property bool isProcessingOrPending: fileStatus === 0 || fileStatus === 1
         width: 160
         background: Rectangle { color: Theme.colors.popover; border.width: 1; border.color: Theme.colors.border; radius: Theme.radius.md }
         
@@ -1038,7 +1037,7 @@ Item {
         }
 
         MenuItem {
-            visible: root.messageMode && (contextMenu.isFailedOrCancelled || contextMenu.isProcessingOrPending)
+            visible: root.messageMode && contextMenu.isFailedOrCancelled
             height: visible ? 32 : 0
             text: qsTr("重新处理")
             background: Rectangle { color: parent.highlighted ? Theme.colors.surfaceHover : "transparent"; radius: Theme.radius.sm }

@@ -43,7 +43,8 @@ Item {
     readonly property var currentFile: mediaFiles.length > 0 && currentIndex >= 0 && currentIndex < mediaFiles.length ? mediaFiles[currentIndex] : null
     readonly property bool isVideo: currentFile ? (currentFile.mediaType === 1) : false
     readonly property bool _shouldApplyShader: shaderEnabled && !messageMode && !showOriginal
-    readonly property bool _hasShaderOrOriginal: (shaderEnabled && !messageMode) || (messageMode && currentFile && currentFile.originalPath)
+    readonly property bool _hasDistinctResult: currentFile && currentFile.resultPath && currentFile.originalPath && currentFile.resultPath !== currentFile.originalPath
+    readonly property bool _hasShaderOrOriginal: (shaderEnabled && !messageMode) || (messageMode && _hasDistinctResult)
     readonly property string currentSource: currentFile ? (showOriginal && currentFile.originalPath ? currentFile.originalPath : currentFile.filePath) : ""
     
     signal fileRemoved(string messageId, int fileIndex)
@@ -57,20 +58,77 @@ Item {
     property real _savedH: 600
     property real sharedVolume: SettingsController.volume / 100
     property real _volumeBeforeMute: 0.5
+
+    // ========== 窗口尺寸智能调整 ==========
+    // 根据媒体分辨率与 AI 放大倍数计算理想窗口尺寸
+    // 规则：
+    //   1. 内容尺寸 = 媒体原始尺寸 × AI 放大倍数
+    //   2. 加上 UI 装饰（标题栏、控制栏、缩略图栏）得到目标窗口尺寸
+    //   3. 等比缩放，不超过屏幕工作区 80%
+    //   4. 最小保障 480×360（确保控制按钮可点击）
+    function computeIdealWindowSize(mediaW, mediaH, scaleFactor) {
+        var sf = Math.max(1, scaleFactor || 1)
+        // 防御：媒体尺寸无效时使用合理默认值
+        var cw = (mediaW > 0 ? mediaW : 1280) * sf
+        var ch = (mediaH > 0 ? mediaH : 720)  * sf
+
+        // UI 装饰高度：标题栏(44) + 视频控制栏(80) + 缩略图栏(60)
+        var decorH = 44
+        if (isVideo) decorH += 80
+        if (mediaFiles.length > 1 && messageMode) decorH += 60
+        var decorW = 16  // 左右 padding
+
+        var targetW = cw + decorW
+        var targetH = ch + decorH
+
+        // 屏幕工作区 80% 上限
+        var maxW = Math.max(480, Math.floor(Screen.desktopAvailableWidth  * 0.80))
+        var maxH = Math.max(360, Math.floor(Screen.desktopAvailableHeight * 0.80))
+
+        // 等比缩放，保持宽高比不失真
+        var scaleToFit = Math.min(1.0, Math.min(maxW / targetW, maxH / targetH))
+        targetW = Math.floor(targetW * scaleToFit)
+        targetH = Math.floor(targetH * scaleToFit)
+
+        // 最小保障
+        targetW = Math.max(480, targetW)
+        targetH = Math.max(360, targetH)
+
+        return Qt.size(targetW, targetH)
+    }
     
+    // AI 放大倍数属性：由外部（如 AIParamsPanel）在推理参数更新时设置。
+    // 用于窗口初始尺寸计算，避免超分结果图过小或过大。
+    // 默认值 1 = 不放大（浏览模式或 Shader 模式），超分模式由调用方注入。
+    property int aiScaleFactor: 1
+
     function openAt(index) {
         currentIndex = Math.max(0, Math.min(index, mediaFiles.length - 1))
         showOriginal = false
-        
+
         // 如果窗口已最小化，则恢复窗口并移除最小化标签
         if (isMinimized) {
             isMinimized = false
             // 通知移除最小化标签
             closed()  // 触发closed信号，MainPage会移除最小化标签
         }
-        
+
         isOpen = true
-        
+
+        // ── 智能调整独立窗口初始尺寸（仅在切换到该文件时重算） ─────
+        // messageMode 下结果图已是 scaleFactor 倍，传 1 避免重复放大；
+        // 预览模式传 aiScaleFactor 预估 AI 输出尺寸。
+        var file = mediaFiles.length > 0 ? mediaFiles[currentIndex] : null
+        if (file && file.resolution && file.resolution.width > 0) {
+            var sf = root.messageMode ? 1 : Math.max(1, root.aiScaleFactor)
+            var ideal = computeIdealWindowSize(file.resolution.width, file.resolution.height, sf)
+            _savedW = ideal.width
+            _savedH = ideal.height
+        } else {
+            _savedW = 800
+            _savedH = 600
+        }
+
         // 动态提升z-index，确保最后打开的查看器始终在最上层
         if (displayMode === "embedded") {
             // 使用父级MainPage的全局计数器
@@ -84,6 +142,13 @@ Item {
             embeddedOverlay.visible = true
             embeddedOverlay.forceActiveFocus()
         } else {
+            // 独立窗口模式：应用智能尺寸
+            if (detachedWindow.visibility !== Window.FullScreen) {
+                detachedWindow.width  = _savedW
+                detachedWindow.height = _savedH
+                detachedWindow.x = Math.floor((Screen.desktopAvailableWidth  - _savedW) / 2)
+                detachedWindow.y = Math.floor((Screen.desktopAvailableHeight - _savedH) / 2)
+            }
             detachedWindow.show()
             detachedWindow.raise()
         }
@@ -142,10 +207,27 @@ Item {
         if (displayMode === "detached") return
         displayMode = "detached"
         embeddedOverlay.visible = false
-        detachedWindow.x = gx !== undefined ? gx : Screen.width / 2 - 400
-        detachedWindow.y = gy !== undefined ? gy : Screen.height / 2 - 300
-        detachedWindow.width = _savedW
+
+        // 若 _savedW/_savedH 是默认值且有媒体分辨率，先用智能尺寸覆盖
+        if (_savedW === 800 && _savedH === 600) {
+            var file = mediaFiles.length > 0 ? mediaFiles[currentIndex] : null
+            if (file && file.resolution && file.resolution.width > 0) {
+                var sf = root.messageMode ? 1 : Math.max(1, root.aiScaleFactor)
+                var ideal = computeIdealWindowSize(file.resolution.width, file.resolution.height, sf)
+                _savedW = ideal.width
+                _savedH = ideal.height
+            }
+        }
+
+        detachedWindow.width  = _savedW
         detachedWindow.height = _savedH
+        if (gx !== undefined && gy !== undefined) {
+            detachedWindow.x = gx
+            detachedWindow.y = gy
+        } else {
+            detachedWindow.x = Math.floor((Screen.desktopAvailableWidth  - _savedW) / 2)
+            detachedWindow.y = Math.floor((Screen.desktopAvailableHeight - _savedH) / 2)
+        }
         detachedWindow.show()
         detachedWindow.raise()
         detachedWindow.requestActivate()
@@ -589,6 +671,14 @@ Item {
                 vidPlayer.source = root._getSource(root.currentSource)
             }
         }
+        function onIsVideoChanged() {
+            // 当从视频切换到图片时，停止视频播放
+            if (!root.isVideo && vidPlayer.playbackState !== MediaPlayer.StoppedState) {
+                vidPlayer.stop()
+                root._videoEnded = false
+                root._isPlaying = false
+            }
+        }
     }
     
     
@@ -597,7 +687,13 @@ Item {
         property var videoPlayer
         property alias videoOutput: vo
         property alias audioOutput: ao
-        clip: true
+        clip: true  // 防止超分后大图溢出容器边界
+
+        Rectangle {
+            anchors.fill: parent
+            color: "#000000"
+            z: -1
+        }
         
         // ========== 导航按钮状态管理 ==========
         property bool navButtonsVisible: false
@@ -635,9 +731,36 @@ Item {
             }
         }
         
-        Image { id: imgSrc; anchors.fill: parent; visible: false; source: !viewer.isVideo ? viewer._getSource(viewer.currentSource) : ""; fillMode: Image.PreserveAspectFit; asynchronous: true; smooth: true; mipmap: true }
-        FullShaderEffect { anchors.fill: imgSrc; source: imgSrc; visible: !viewer.isVideo && viewer.currentSource && viewer.shaderEnabled && !viewer.messageMode && !viewer.showOriginal; brightness: viewer.shaderBrightness; contrast: viewer.shaderContrast; saturation: viewer.shaderSaturation; hue: viewer.shaderHue; sharpness: viewer.shaderSharpness; blurAmount: viewer.shaderBlur; denoise: viewer.shaderDenoise; exposure: viewer.shaderExposure; gamma: viewer.shaderGamma; temperature: viewer.shaderTemperature; tint: viewer.shaderTint; vignette: viewer.shaderVignette; highlights: viewer.shaderHighlights; shadows: viewer.shaderShadows }
-        Image { anchors.fill: parent; visible: !viewer.isVideo && viewer.currentSource && (viewer.showOriginal || !viewer.shaderEnabled || viewer.messageMode); source: !viewer.isVideo ? viewer._getSource(viewer.currentSource) : ""; fillMode: Image.PreserveAspectFit; asynchronous: true; smooth: true; mipmap: true }
+        // 隐藏的原始图像，仅作为 FullShaderEffect 的 source（尺寸受父容器约束）
+        Image {
+            id: imgSrc
+            anchors.fill: parent
+            visible: false
+            source: !viewer.isVideo ? viewer._getSource(viewer.currentSource) : ""
+            fillMode: Image.PreserveAspectFit
+            asynchronous: true; smooth: true; mipmap: true
+        }
+        // Shader 效果层：fill parent（而非 imgSrc），确保显示区域与容器严格一致
+        FullShaderEffect {
+            anchors.fill: parent
+            source: imgSrc
+            visible: !viewer.isVideo && viewer.currentSource && viewer.shaderEnabled && !viewer.messageMode && !viewer.showOriginal
+            brightness: viewer.shaderBrightness; contrast: viewer.shaderContrast
+            saturation: viewer.shaderSaturation; hue: viewer.shaderHue
+            sharpness: viewer.shaderSharpness; blurAmount: viewer.shaderBlur
+            denoise: viewer.shaderDenoise; exposure: viewer.shaderExposure
+            gamma: viewer.shaderGamma; temperature: viewer.shaderTemperature
+            tint: viewer.shaderTint; vignette: viewer.shaderVignette
+            highlights: viewer.shaderHighlights; shadows: viewer.shaderShadows
+        }
+        // 普通图像层（原图或无 shader 时显示），fill parent 保证不溢出
+        Image {
+            anchors.fill: parent
+            visible: !viewer.isVideo && viewer.currentSource && (viewer.showOriginal || !viewer.shaderEnabled || viewer.messageMode)
+            source: !viewer.isVideo ? viewer._getSource(viewer.currentSource) : ""
+            fillMode: Image.PreserveAspectFit
+            asynchronous: true; smooth: true; mipmap: true
+        }
         
         // 图片区域的鼠标检测
         MouseArea {
@@ -661,8 +784,8 @@ Item {
         Item {
             anchors.fill: parent; visible: viewer.isVideo
             
-            // 是否应用视频Shader效果（消息模式下也需要应用，因为视频已经处理过）
-            property bool _applyVideoShader: viewer.shaderEnabled && !viewer.showOriginal
+            // 仅在预览模式应用视频Shader；消息模式下展示导出结果/原图，不再二次套用
+            property bool _applyVideoShader: viewer.shaderEnabled && !viewer.showOriginal && !viewer.messageMode
             
             Image {
                 id: videoPreviewFrame
@@ -714,7 +837,6 @@ Item {
             ShaderEffectSource {
                 id: videoShaderSource
                 sourceItem: vo
-                sourceRect: Qt.rect(0, 0, 0, 0)  // 自动使用源项的完整尺寸
                 live: true
                 hideSource: parent._applyVideoShader
                 visible: false

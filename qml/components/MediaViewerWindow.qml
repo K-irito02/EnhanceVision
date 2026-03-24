@@ -69,13 +69,13 @@ Window {
         
         if (messageMode) {
             if (showOriginal) {
-                // 查看原图：显示原始文件路径
                 return currentFile.originalPath || currentFile.filePath || ""
             }
-            // 默认：显示已处理文件（filePath 已指向 resultPath）
+            if (currentFile.resultPath && currentFile.resultPath !== "") {
+                return currentFile.resultPath
+            }
             return currentFile.filePath || currentFile.originalPath || ""
         } else {
-            // 预览模式：显示原始文件，shader 实时应用
             return currentFile.filePath || currentFile.originalPath || ""
         }
     }
@@ -133,6 +133,44 @@ Window {
     title: currentFile ? currentFile.fileName : qsTr("媒体查看器")
     color: Theme.colors.background
     flags: Qt.Window | Qt.FramelessWindowHint
+
+    // ========== 窗口尺寸智能调整 ==========
+    // 根据媒体文件分辨率和 AI 放大倍数智能设置初始窗口尺寸
+    // 规则：
+    //   1. 基于媒体原始分辨率 × AI 放大倍数得到「目标内容尺寸」
+    //   2. 加上 UI 装饰（标题栏 44px、控制栏高度）得到「目标窗口尺寸」
+    //   3. 限制在屏幕工作区的 80% 以内
+    //   4. 不小于最小可用尺寸（480×360）
+    function computeIdealWindowSize(mediaW, mediaH, scaleFactor) {
+        var sf = Math.max(1, scaleFactor || 1)
+        // 防御：媒体尺寸无效时使用合理默认值
+        var cw = (mediaW > 0 ? mediaW : 1280) * sf
+        var ch = (mediaH > 0 ? mediaH : 720)  * sf
+
+        // UI 装饰高度：标题栏(44) + 视频控制栏(90) + 缩略图栏(60)
+        var decorH = 44
+        if (isVideo) decorH += 90
+        if (mediaFiles.length > 1) decorH += 60
+        var decorW = 16
+
+        var targetW = cw + decorW
+        var targetH = ch + decorH
+
+        // 屏幕工作区 80% 上限
+        var maxW = Math.max(480, Math.floor(Screen.desktopAvailableWidth  * 0.80))
+        var maxH = Math.max(360, Math.floor(Screen.desktopAvailableHeight * 0.80))
+
+        // 等比缩放，保持宽高比不失真
+        var scaleToFit = Math.min(1.0, Math.min(maxW / targetW, maxH / targetH))
+        targetW = Math.floor(targetW * scaleToFit)
+        targetH = Math.floor(targetH * scaleToFit)
+
+        // 最小保障（确保控制按钮可点击）
+        targetW = Math.max(480, targetW)
+        targetH = Math.max(360, targetH)
+
+        return Qt.size(targetW, targetH)
+    }
 
     SubWindowHelper {
         id: windowHelper
@@ -221,9 +259,38 @@ Window {
         _videoEnded = false
     }
 
+    // AI 放大倍数属性：由外部（如 AIParamsPanel）在推理参数更新时设置。
+    // 用于窗口初始尺寸计算，避免超分结果图过小或过大。
+    // 默认值 1 = 不放大（浏览模式或 Shader 模式），超分模式由调用方注入。
+    property int aiScaleFactor: 1
+
     function openAt(index) {
         currentIndex = index
         showOriginal = false
+
+        // ── 窗口尺寸智能调整 ───────────────────────────────────────
+        // 仅在窗口非全屏状态下调整（全屏时保持全屏）
+        if (root.visibility !== Window.FullScreen) {
+            var file = mediaFiles.length > 0 && index >= 0 && index < mediaFiles.length
+                       ? mediaFiles[index] : null
+            if (file && file.resolution && file.resolution.width > 0 && file.resolution.height > 0) {
+                // 使用 AI 放大倍数感知窗口尺寸：
+                // - messageMode（查看结果）：结果图已是 scaleFactor 倍，此处传 1 避免重复放大
+                // - 预览模式（实时查看）：传入 aiScaleFactor 预估输出尺寸
+                var sf = root.messageMode ? 1 : Math.max(1, root.aiScaleFactor)
+                var ideal = computeIdealWindowSize(file.resolution.width, file.resolution.height, sf)
+                root.width  = ideal.width
+                root.height = ideal.height
+            } else {
+                // 无法获取分辨率时使用合理默认值
+                root.width  = 900
+                root.height = 650
+            }
+            // 居中显示
+            root.x = Math.floor((Screen.desktopAvailableWidth  - root.width)  / 2)
+            root.y = Math.floor((Screen.desktopAvailableHeight - root.height) / 2)
+        }
+
         root.show()
         root.raise()
         root.requestActivate()
@@ -276,7 +343,7 @@ Window {
 
                 Rectangle {
                     id: compareButton
-                    visible: root.messageMode
+                    visible: root.messageMode && root.currentFile && root.currentFile.resultPath && root.currentFile.originalPath && root.currentFile.resultPath !== root.currentFile.originalPath
                     width: compareRow.implicitWidth + 16
                     height: 28
                     radius: 6
@@ -338,6 +405,7 @@ Window {
             anchors.bottom: isVideo ? videoControls.top : bottomBar.top
             anchors.left: parent.left
             anchors.right: parent.right
+            clip: true  // 防止超分后大图溢出窗口边界
 
             Image {
                 id: imageViewSource
@@ -354,14 +422,14 @@ Window {
                 asynchronous: true
                 smooth: true
                 mipmap: true
-                
-                onStatusChanged: {
-                }
             }
 
+            // Shader 效果层：anchors.fill parent（而非 imageViewSource），
+            // 避免因 imageViewSource 隐藏时尺寸计算异常导致的溢出
             FullShaderEffect {
                 id: imageViewWithShader
-                anchors.fill: imageViewSource
+                anchors.fill: parent
+                anchors.margins: 8
                 source: imageViewSource
                 visible: !isVideo && currentSource !== "" && _shouldApplyShader
                 
@@ -416,13 +484,10 @@ Window {
                     if (src.startsWith("file:///") || src.startsWith("qrc:/") || src.startsWith("demo://")) return src
                     return "file:///" + src
                 }
-                fillMode: Image.PreserveAspectFit
+                fillMode: Image.PreserveAspectFit  // 始终保持比例适配，超分大图不会溢出
                 asynchronous: true
                 smooth: true
                 mipmap: true
-                
-                onStatusChanged: {
-                }
 
                 MouseArea {
                     id: imageClickArea
@@ -454,7 +519,8 @@ Window {
                 anchors.fill: parent
                 anchors.margins: 8
                 visible: isVideo
-                
+                clip: true  // 防止视频帧溢出容器
+
                 // 是否应用视频Shader效果（消息模式下也需要应用）
                 property bool _applyVideoShader: shaderEnabled && !showOriginal
 

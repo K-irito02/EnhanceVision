@@ -25,7 +25,11 @@ Rectangle {
     
     property int successFileCount: 0
     property int failedFileCount: 0
+    property int pendingFileCount: 0
+    property int processingFileCount: 0
     property bool hasFailedFiles: failedFileCount > 0
+    property bool allFilesSettled: totalFileCount > 0 && pendingFileCount === 0 && processingFileCount === 0
+    property bool failedTipDismissed: false
     
     signal cancelClicked()
     signal retryClicked()
@@ -39,36 +43,105 @@ Rectangle {
     signal deleteMediaFile(int index)
     signal retrySingleFailedFile(int index)
     
+    property bool _hasStatsSnapshot: false
+    property int _countUpdateCalls: 0
+    property double _countUpdateTotalMs: 0
+    property double _countUpdateMaxMs: 0
+    property double _lastCountPerfLogMs: 0
+
+    function _applyFileStats(success, failed, pending, processing) {
+        successFileCount = success
+        failedFileCount = failed
+        pendingFileCount = pending
+        processingFileCount = processing
+        _hasStatsSnapshot = true
+
+        if (failed === 0 || pending > 0 || processing > 0) {
+            failedTipDismissed = false
+        }
+    }
+
     function _updateFileCounts() {
+        var beginMs = Date.now()
+
         var success = 0
         var failed = 0
+        var pending = 0
+        var processing = 0
         if (mediaFiles && mediaFiles.count > 0) {
             for (var i = 0; i < mediaFiles.count; i++) {
                 var item = mediaFiles.get(i)
-                if (item.status === 2) success++
-                else if (item.status === 3) failed++
-                else if (item.status === 4) failed++
-                else if (item.status === 0) failed++
-                else if (item.status === 1) failed++
+                if (item.status === 2) {
+                    success++
+                } else if (item.status === 3 || item.status === 4) {
+                    failed++
+                } else if (item.status === 0) {
+                    pending++
+                } else if (item.status === 1) {
+                    processing++
+                }
             }
         }
-        successFileCount = success
-        failedFileCount = failed
+
+        _applyFileStats(success, failed, pending, processing)
+
+        var elapsed = Date.now() - beginMs
+        _countUpdateCalls += 1
+        _countUpdateTotalMs += elapsed
+        _countUpdateMaxMs = Math.max(_countUpdateMaxMs, elapsed)
+
+        if (_lastCountPerfLogMs <= 0) {
+            _lastCountPerfLogMs = beginMs
+        }
+
+        if ((beginMs - _lastCountPerfLogMs) >= 2000) {
+            console.info("[Perf][MessageItem] _updateFileCounts calls:", _countUpdateCalls,
+                         "avgMs:", _countUpdateCalls > 0 ? (_countUpdateTotalMs / _countUpdateCalls).toFixed(2) : "0",
+                         "maxMs:", _countUpdateMaxMs.toFixed(2), "taskId:", taskId)
+            _countUpdateCalls = 0
+            _countUpdateTotalMs = 0
+            _countUpdateMaxMs = 0
+            _lastCountPerfLogMs = beginMs
+        }
+    }
+
+    function scheduleFileCountUpdate(force) {
+        if (force === true) {
+            if (fileCountUpdateTimer.running) {
+                fileCountUpdateTimer.stop()
+            }
+            _updateFileCounts()
+            return
+        }
+
+        if (fileCountUpdateTimer.running) {
+            return
+        }
+        fileCountUpdateTimer.start()
+    }
+
+    Timer {
+        id: fileCountUpdateTimer
+        interval: 80
+        repeat: false
+        onTriggered: root._updateFileCounts()
     }
     
     Connections {
         target: mediaFiles
         enabled: mediaFiles !== null
-        function onDataChanged() { 
-            _updateFileCounts() 
+        function onDataChanged() {
+            root.scheduleFileCountUpdate()
         }
-        function onCountChanged() { 
-            _updateFileCounts() 
+        function onCountChanged() {
+            root.scheduleFileCountUpdate()
         }
     }
     
     onMediaFilesChanged: {
-        _updateFileCounts()
+        if (!_hasStatsSnapshot) {
+            scheduleFileCountUpdate()
+        }
     }
     
     color: Theme.colors.card
@@ -199,6 +272,7 @@ Rectangle {
                 
                 IconButton {
                     iconName: "refresh-cw"; iconSize: 14; btnSize: 26
+                    iconColor: Theme.colors.iconActive
                     tooltip: qsTr("重新处理失败文件")
                     visible: root.hasFailedFiles
                     onClicked: root.retryFailedFilesClicked()
@@ -206,6 +280,7 @@ Rectangle {
                 
                 IconButton {
                     iconName: "download"; iconSize: 14; btnSize: 26
+                    iconColor: Theme.colors.iconActive
                     tooltip: qsTr("保存成功文件")
                     visible: root.successFileCount > 0
                     onClicked: root.saveSuccessfulFilesClicked()
@@ -241,7 +316,7 @@ Rectangle {
         
         Rectangle {
             id: autoProcessFailedTip
-            visible: root.hasFailedFiles && root.status !== 1
+            visible: root.allFilesSettled && root.hasFailedFiles && !root.failedTipDismissed
             Layout.fillWidth: true
             height: tipContentRow.implicitHeight + 16
             radius: Theme.radius.sm
@@ -249,8 +324,6 @@ Rectangle {
             border.width: 1
             border.color: Qt.rgba(Theme.colors.warning.r, Theme.colors.warning.g, Theme.colors.warning.b, 0.3)
             clip: true
-            
-            property bool dismissed: false
             
             Row {
                 id: tipContentRow
@@ -284,15 +357,15 @@ Rectangle {
                         color: parent.hovered ? Qt.rgba(Theme.colors.warning.r, Theme.colors.warning.g, Theme.colors.warning.b, 0.2) : "transparent"
                     }
                     onClicked: {
-                        autoProcessFailedTip.dismissed = true
-                        autoProcessFailedTip.visible = false
+                        // 手动关闭单条提示仍可用；当状态再次变化时会自动重新评估显示
+                        root.failedTipDismissed = true
                     }
                 }
             }
         }
         
         ColumnLayout {
-            visible: status === 0 || status === 1
+            visible: ((status === 0 || status === 1) && !root._hasStatsSnapshot) || (root.pendingFileCount > 0 || root.processingFileCount > 0)
             Layout.fillWidth: true
             spacing: 4
             

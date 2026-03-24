@@ -28,11 +28,16 @@ ImageUtils::~ImageUtils()
 
 QImage ImageUtils::generateThumbnail(const QString &imagePath, const QSize &size)
 {
+    qDebug() << "[ImageUtils] generateThumbnail called for:" << imagePath << "size:" << size;
     QImage image = loadImage(imagePath);
     if (image.isNull()) {
+        qWarning() << "[ImageUtils] Failed to load image for thumbnail:" << imagePath;
         return QImage();
     }
-    return scaleImage(image, size, true);
+    qDebug() << "[ImageUtils] Image loaded successfully, original size:" << image.size();
+    QImage result = scaleImage(image, size, true);
+    qDebug() << "[ImageUtils] Thumbnail generated, result size:" << result.size();
+    return result;
 }
 
 QImage ImageUtils::generateVideoThumbnail(const QString &videoPath, const QSize &size)

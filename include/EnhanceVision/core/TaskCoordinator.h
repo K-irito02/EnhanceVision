@@ -61,9 +61,9 @@ public:
     void triggerCancellation(const QString& taskId);
     void triggerPause(const QString& taskId, bool paused);
     
-    bool waitForCancellation(const QString& taskId, int timeoutMs = 5000);
-    bool waitForAllMessageTasksCancelled(const QString& messageId, int timeoutMs = 5000);
-    bool waitForAllSessionTasksCancelled(const QString& sessionId, int timeoutMs = 5000);
+    void requestCancellation(const QString& taskId);
+    void requestMessageCancellation(const QString& messageId);
+    void requestSessionCancellation(const QString& sessionId);
     
     QList<QString> allTaskIds() const;
     int totalTaskCount() const;

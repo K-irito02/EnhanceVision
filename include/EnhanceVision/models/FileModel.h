@@ -9,6 +9,9 @@
 
 #include <QAbstractListModel>
 #include <QStringList>
+#include <QThreadPool>
+#include <QRunnable>
+#include <QSet>
 #include "EnhanceVision/models/DataTypes.h"
 
 namespace EnhanceVision {
@@ -120,6 +123,21 @@ signals:
      */
     void errorOccurred(const QString &message);
 
+    /**
+     * @brief 缩略图生成完成信号
+     * @param fileId 文件ID
+     */
+    void thumbnailGenerated(const QString &fileId);
+
+public slots:
+    /**
+     * @brief 更新文件缩略图（由异步任务调用）
+     * @param fileId 文件ID
+     * @param thumbnailVariant 缩略图（QVariant包装）
+     * @param resolutionVariant 分辨率（QVariant包装）
+     */
+    void updateFileThumbnail(const QString &fileId, const QVariant &thumbnailVariant, const QVariant &resolutionVariant);
+
 private:
     /**
      * @brief 生成唯一ID
@@ -143,6 +161,11 @@ private:
 
     QList<MediaFile> m_files;  ///< 文件列表
     static const qint64 kMaxFileSize;  ///< 最大文件大小（2GB）
+    
+    QThreadPool* m_threadPool;  ///< 线程池用于异步生成缩略图
+    QSet<QString> m_pendingThumbnails;  ///< 正在生成缩略图的文件ID
+    
+    int findFileIndexById(const QString &fileId) const;
 };
 
 } // namespace EnhanceVision

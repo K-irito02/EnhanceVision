@@ -102,6 +102,7 @@ struct AIParams {
     ModelCategory category;    ///< 模型类别
     bool useGpu = true;        ///< 是否使用 GPU
     int tileSize = 0;          ///< 自定义分块大小（0=自动）
+    bool autoTileSize = true;  ///< 分块大小是否为自动模式（true=根据图像尺寸自动计算，false=使用 tileSize）
     QVariantMap modelParams;   ///< 模型特定参数（如去噪等级等）
 
     AIParams() : category(ModelCategory::SuperResolution) {}
@@ -230,6 +231,7 @@ struct ShaderParams {
 struct MediaFile {
     QString id;              ///< 唯一标识
     QString filePath;        ///< 文件路径
+    QString originalPath;    ///< 原始文件路径（处理前的原始文件）
     QString fileName;        ///< 文件名
     qint64 fileSize;         ///< 文件大小（字节）
     MediaType type;          ///< 媒体类型

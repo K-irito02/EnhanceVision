@@ -22,8 +22,154 @@
 #include <QQmlContext>
 #include <QCoreApplication>
 #include <QLibraryInfo>
+#include <QQuickWindow>
+#include <QElapsedTimer>
+#include <QVector>
+#include <QPointer>
+#include <QTimer>
+#include <algorithm>
+#include <cmath>
+#include <limits>
 
 namespace EnhanceVision {
+
+namespace {
+
+class FrameTimeProbe final : public QObject
+{
+public:
+    explicit FrameTimeProbe(QQuickWindow* window, QObject* parent = nullptr)
+        : QObject(parent)
+        , m_window(window)
+    {
+        if (m_window) {
+            connect(m_window, &QQuickWindow::frameSwapped,
+                    this, &FrameTimeProbe::onFrameSwapped);
+        }
+
+        m_timer.start();
+
+        m_reportTimer = new QTimer(this);
+        m_reportTimer->setInterval(10000);
+        connect(m_reportTimer, &QTimer::timeout, this, [this]() {
+            reportAndReset();
+        });
+        m_reportTimer->start();
+    }
+
+    ~FrameTimeProbe() override
+    {
+        reportAndReset(true);
+    }
+
+private:
+    void onFrameSwapped()
+    {
+        const qint64 nowNs = m_timer.nsecsElapsed();
+        if (m_lastNs > 0) {
+            const double frameMs = static_cast<double>(nowNs - m_lastNs) / 1000000.0;
+            if (frameMs > 0.0 && frameMs < std::numeric_limits<double>::infinity()) {
+                m_samples.push_back(frameMs);
+                if (frameMs > 16.7) {
+                    m_over16Count++;
+                }
+                if (frameMs > 33.3) {
+                    m_over33Count++;
+                }
+                if (frameMs > 50.0) {
+                    m_over50Count++;
+                }
+                if (frameMs > 100.0) {
+                    m_over100Count++;
+                }
+            }
+        }
+        m_lastNs = nowNs;
+    }
+
+private:
+    static double percentileValue(const QVector<double>& values, double p)
+    {
+        if (values.isEmpty()) {
+            return 0.0;
+        }
+
+        QVector<double> sorted = values;
+        std::sort(sorted.begin(), sorted.end());
+
+        const int sampleCount = static_cast<int>(sorted.size());
+        int index = static_cast<int>(std::ceil((p / 100.0) * sampleCount)) - 1;
+        index = std::max(0, std::min(index, sampleCount - 1));
+        return sorted.at(index);
+    }
+
+    static double averageValue(const QVector<double>& values)
+    {
+        if (values.isEmpty()) {
+            return 0.0;
+        }
+
+        double sum = 0.0;
+        for (const double value : values) {
+            sum += value;
+        }
+        return sum / static_cast<double>(values.size());
+    }
+
+    static double maxValue(const QVector<double>& values)
+    {
+        if (values.isEmpty()) {
+            return 0.0;
+        }
+
+        return *std::max_element(values.begin(), values.end());
+    }
+
+    void reportAndReset(bool isFinalReport = false)
+    {
+        if (m_samples.isEmpty()) {
+            return;
+        }
+
+        const double p50 = percentileValue(m_samples, 50.0);
+        const double p95 = percentileValue(m_samples, 95.0);
+        const double p99 = percentileValue(m_samples, 99.0);
+        const double avg = averageValue(m_samples);
+        const double max = maxValue(m_samples);
+
+        qInfo().noquote() << QString("[Perf][Frame]%1 window:10s samples:%2 avg:%3ms p50:%4ms p95:%5ms p99:%6ms max:%7ms >16.7ms:%8 >33.3ms:%9 >50ms:%10 >100ms:%11")
+                                 .arg(isFinalReport ? "[Final]" : "")
+                                 .arg(m_samples.size())
+                                 .arg(QString::number(avg, 'f', 2))
+                                 .arg(QString::number(p50, 'f', 2))
+                                 .arg(QString::number(p95, 'f', 2))
+                                 .arg(QString::number(p99, 'f', 2))
+                                 .arg(QString::number(max, 'f', 2))
+                                 .arg(m_over16Count)
+                                 .arg(m_over33Count)
+                                 .arg(m_over50Count)
+                                 .arg(m_over100Count);
+
+        m_samples.clear();
+        m_over16Count = 0;
+        m_over33Count = 0;
+        m_over50Count = 0;
+        m_over100Count = 0;
+    }
+
+private:
+    QPointer<QQuickWindow> m_window;
+    QElapsedTimer m_timer;
+    qint64 m_lastNs = 0;
+    QTimer* m_reportTimer = nullptr;
+    QVector<double> m_samples;
+    int m_over16Count = 0;
+    int m_over33Count = 0;
+    int m_over50Count = 0;
+    int m_over100Count = 0;
+};
+
+} // namespace
 
 Application::Application(QObject *parent)
     : QObject(parent)
@@ -53,13 +199,15 @@ void Application::initialize()
     
     QQmlEngine *engine = m_mainWidget->engine();
     engine->addImageProvider(QStringLiteral("preview"), new PreviewProvider());
-    engine->addImageProvider(QStringLiteral("thumbnail"), new ThumbnailProvider());
+    
+    auto* thumbnailProvider = new ThumbnailProvider();
+    engine->addImageProvider(QStringLiteral("thumbnail"), thumbnailProvider);
 
     registerQmlTypes();
 
     m_mainWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
 
-    setupQmlContext();
+    setupQmlContext(thumbnailProvider);
 
     setupTranslator();
 
@@ -69,6 +217,13 @@ void Application::initialize()
     m_sessionController->restoreThumbnails();
 
     m_mainWidget->setSource(QUrl(QStringLiteral("qrc:/qt/qml/EnhanceVision/qml/main.qml")));
+
+    if (auto* quickWindow = m_mainWidget->quickWindow()) {
+        new FrameTimeProbe(quickWindow, m_mainWidget);
+        qInfo() << "[Perf][Frame] probe attached";
+    } else {
+        qWarning() << "[Perf][Frame] probe attach failed: quickWindow is null";
+    }
 
     if (m_mainWidget->status() == QQuickWidget::Error) {
         const auto errors = m_mainWidget->errors();
@@ -120,7 +275,7 @@ void Application::registerQmlTypes()
                                                        "ProcessingController should be accessed via context property");
 }
 
-void Application::setupQmlContext()
+void Application::setupQmlContext(ThumbnailProvider* thumbnailProvider)
 {
     QQmlContext *context = m_mainWidget->rootContext();
 
@@ -129,6 +284,7 @@ void Application::setupQmlContext()
     m_processingController->setFileController(m_fileController.get());
     m_processingController->setMessageModel(m_messageModel.get());
     m_processingController->setSessionController(m_sessionController.get());
+    m_sessionController->setProcessingController(m_processingController.get());
     
     // 连接 SessionController 和 MessageModel（用于会话切换时同步消息）
     m_sessionController->setMessageModel(m_messageModel.get());
@@ -143,6 +299,9 @@ void Application::setupQmlContext()
     context->setContextProperty("fileController", m_fileController.get());
     context->setContextProperty("sessionController", m_sessionController.get());
     context->setContextProperty("processingController", m_processingController.get());
+    
+    // 将 ThumbnailProvider 设置为上下文属性，供 QML 访问
+    context->setContextProperty("thumbnailProvider", thumbnailProvider);
     
     // 将 ImageExportService 设置为上下文属性，供 QML 访问
     context->setContextProperty("imageExportService", m_imageExportService);

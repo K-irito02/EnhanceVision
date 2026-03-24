@@ -10,11 +10,36 @@ Item {
     property bool batchMode: false
     property var selectedIds: []
     readonly property bool _hasRealModel: typeof messageModel !== "undefined"
+    property int _delegateRebuildCalls: 0
+    property double _delegateRebuildTotalMs: 0
+    property double _delegateRebuildMaxMs: 0
+    property double _lastDelegateRebuildLogMs: 0
     
     property Item viewerContainer: null
     property var pendingViewer: null
     property var messageViewer: null
     property var minimizedDock: null
+
+    function _recordDelegateRebuild(costMs) {
+        _delegateRebuildCalls += 1
+        _delegateRebuildTotalMs += costMs
+        _delegateRebuildMaxMs = Math.max(_delegateRebuildMaxMs, costMs)
+
+        var nowMs = Date.now()
+        if (_lastDelegateRebuildLogMs <= 0) {
+            _lastDelegateRebuildLogMs = nowMs
+        }
+
+        if ((nowMs - _lastDelegateRebuildLogMs) >= 2000) {
+            console.info("[Perf][MessageList] _buildMediaForDelegate calls:", _delegateRebuildCalls,
+                         "avgMs:", _delegateRebuildCalls > 0 ? (_delegateRebuildTotalMs / _delegateRebuildCalls).toFixed(2) : "0",
+                         "maxMs:", _delegateRebuildMaxMs.toFixed(2))
+            _delegateRebuildCalls = 0
+            _delegateRebuildTotalMs = 0
+            _delegateRebuildMaxMs = 0
+            _lastDelegateRebuildLogMs = nowMs
+        }
+    }
 
     ListView {
         id: messageList
@@ -22,6 +47,9 @@ Item {
         clip: true
         spacing: 12
         bottomMargin: 12
+        
+        property bool isScrolling: moving || flicking
+        property int scrollTimeout: 0
 
         model: root._hasRealModel ? messageModel : demoModel
 
@@ -31,6 +59,8 @@ Item {
 
             required property int index
             required property var model
+            
+            property bool shouldLoadContent: !messageList.isScrolling
 
             taskId: model.id || ""
             timestamp: model.timestamp ? Qt.formatDateTime(model.timestamp, "yyyy-MM-dd hh:mm:ss") : ""
@@ -43,61 +73,206 @@ Item {
             estimatedRemainingSec: model.status === 1 ? Math.max(0, Math.round((100 - (model.progress || 0)) * 0.6)) : 0
 
             property ListModel _cachedMedia: ListModel {}
+            property int _successFileCount: 0
+            property int _failedFileCount: 0
+            property int _pendingFileCount: 0
+            property int _processingFileCount: 0
+            property bool _fileStatsInitialized: false
             mediaFiles: _cachedMedia
             totalFileCount: _cachedMedia.count
-            completedCount: _countCompleted()
+            completedCount: _successFileCount
 
             function _countCompleted() {
-                var c = 0
-                for (var i = 0; i < _cachedMedia.count; i++) {
-                    if (_cachedMedia.get(i).status === 2) c++
-                }
-                return c
+                return _successFileCount
             }
 
-            Component.onCompleted: _buildMediaForDelegate()
+            function _resetFileStatsFromModel() {
+                var success = 0
+                var failed = 0
+                var pending = 0
+                var processing = 0
+                for (var i = 0; i < _cachedMedia.count; i++) {
+                    var entry = _cachedMedia.get(i)
+                    if (entry.status === 2) {
+                        success++
+                    } else if (entry.status === 3 || entry.status === 4) {
+                        failed++
+                    } else if (entry.status === 1) {
+                        processing++
+                    } else {
+                        pending++
+                    }
+                }
+
+                _successFileCount = success
+                _failedFileCount = failed
+                _pendingFileCount = pending
+                _processingFileCount = processing
+                _fileStatsInitialized = true
+                msgDelegate._applyFileStats(success, failed, pending, processing)
+            }
+
+            function _bumpFileStats(oldStatus, newStatus) {
+                function decByStatus(statusValue) {
+                    if (statusValue === 2) {
+                        _successFileCount = Math.max(0, _successFileCount - 1)
+                    } else if (statusValue === 3 || statusValue === 4) {
+                        _failedFileCount = Math.max(0, _failedFileCount - 1)
+                    } else if (statusValue === 1) {
+                        _processingFileCount = Math.max(0, _processingFileCount - 1)
+                    } else {
+                        _pendingFileCount = Math.max(0, _pendingFileCount - 1)
+                    }
+                }
+
+                function incByStatus(statusValue) {
+                    if (statusValue === 2) {
+                        _successFileCount += 1
+                    } else if (statusValue === 3 || statusValue === 4) {
+                        _failedFileCount += 1
+                    } else if (statusValue === 1) {
+                        _processingFileCount += 1
+                    } else {
+                        _pendingFileCount += 1
+                    }
+                }
+
+                decByStatus(oldStatus)
+                incByStatus(newStatus)
+
+                msgDelegate._applyFileStats(_successFileCount, _failedFileCount, _pendingFileCount, _processingFileCount)
+            }
+
+            Component.onCompleted: {
+                if (msgDelegate.shouldLoadContent) {
+                    _buildMediaForDelegate()
+                }
+            }
 
             Connections {
                 target: model
-                function onMediaFilesChanged() { msgDelegate._buildMediaForDelegate() }
+                function onStatusChanged() {
+                    if (msgDelegate.shouldLoadContent && msgDelegate._cachedMedia.count === 0) {
+                        msgDelegate._buildMediaForDelegate()
+                    }
+                }
+            }
+            
+            onShouldLoadContentChanged: {
+                if (shouldLoadContent && _cachedMedia.count === 0) {
+                    _buildMediaForDelegate()
+                }
+            }
+
+            function _findCachedFileIndexById(fileId) {
+                for (var i = 0; i < _cachedMedia.count; i++) {
+                    if (_cachedMedia.get(i).id === fileId) {
+                        return i
+                    }
+                }
+                return -1
+            }
+
+            function _patchCachedMediaFile(fileId, fileStatus, fileResultPath) {
+                var idx = _findCachedFileIndexById(fileId)
+                if (idx < 0) {
+                    if (msgDelegate.shouldLoadContent) {
+                        _buildMediaForDelegate()
+                    }
+                    return
+                }
+
+                var entry = _cachedMedia.get(idx)
+                var oldStatus = entry.status
+                var nextStatus = fileStatus
+                var nextResultPath = (fileResultPath !== undefined) ? fileResultPath : (entry.resultPath || "")
+                var sourcePath = entry.originalPath || entry.filePath || ""
+                var viewPath = sourcePath
+
+                if (nextStatus === 2 && nextResultPath && nextResultPath !== "") {
+                    viewPath = nextResultPath
+                }
+
+                var thumbSource = ""
+                if (nextStatus === 2) {
+                    if (entry.processedThumbnailId && entry.processedThumbnailId !== "") {
+                        thumbSource = "image://thumbnail/" + entry.processedThumbnailId
+                    } else if (nextResultPath && nextResultPath !== "") {
+                        thumbSource = "image://thumbnail/" + nextResultPath
+                    } else if (sourcePath !== "") {
+                        thumbSource = "image://thumbnail/" + sourcePath
+                    }
+                } else if (sourcePath !== "") {
+                    thumbSource = "image://thumbnail/" + sourcePath
+                }
+
+                _cachedMedia.setProperty(idx, "status", nextStatus)
+                _cachedMedia.setProperty(idx, "resultPath", nextResultPath)
+                _cachedMedia.setProperty(idx, "filePath", viewPath)
+                _cachedMedia.setProperty(idx, "thumbnail", thumbSource)
+
+                if (_fileStatsInitialized && oldStatus !== nextStatus) {
+                    _bumpFileStats(oldStatus, nextStatus)
+                }
             }
 
             function _buildMediaForDelegate() {
-                _cachedMedia.clear()
-                if (root._hasRealModel && model.mediaFiles) {
-                    var files = model.mediaFiles
-                    for (var i = 0; i < files.length; i++) {
-                        var f = files[i]
-                        
-                        var thumbSource = ""
-                        if (f.status === 2) {
-                            if (f.processedThumbnailId && f.processedThumbnailId !== "") {
-                                thumbSource = "image://thumbnail/" + f.processedThumbnailId
-                            } else if (f.resultPath && f.resultPath !== "") {
-                                thumbSource = "image://thumbnail/" + f.resultPath
-                            } else if (f.filePath) {
-                                thumbSource = "image://thumbnail/" + f.filePath
-                            }
-                        } else {
-                            if (f.filePath) {
-                                thumbSource = "image://thumbnail/" + f.filePath
-                            }
-                        }
-                        
-                        _cachedMedia.append({
-                            "filePath":  (f.status === 2 && f.resultPath) ? f.resultPath : (f.filePath || ""),
-                            "fileName":  f.fileName  || "",
-                            "mediaType": f.mediaType !== undefined ? f.mediaType : 0,
-                            "thumbnail": thumbSource,
-                            "status":    f.status    !== undefined ? f.status : 0,
-                            "resultPath": f.resultPath || "",
-                            "originalPath": f.filePath || "",
-                            "processedThumbnailId": f.processedThumbnailId || ""
-                        })
+                var beginMs = Date.now()
+
+                if (!(root._hasRealModel && model.mediaFiles)) {
+                    if (_cachedMedia.count === 0) {
+                        root._buildDemoMedia(_cachedMedia, model.status)
                     }
-                } else {
-                    root._buildDemoMedia(_cachedMedia, model.status)
+                    _resetFileStatsFromModel()
+                    root._recordDelegateRebuild(Date.now() - beginMs)
+                    return
                 }
+
+                var files = model.mediaFiles
+                var targetCount = files.length
+
+                for (var i = 0; i < targetCount; i++) {
+                    var f = files[i]
+                    var thumbSource = ""
+
+                    if (f.status === 2) {
+                        if (f.processedThumbnailId && f.processedThumbnailId !== "") {
+                            thumbSource = "image://thumbnail/" + f.processedThumbnailId
+                        } else if (f.resultPath && f.resultPath !== "") {
+                            thumbSource = "image://thumbnail/" + f.resultPath
+                        } else if (f.filePath) {
+                            thumbSource = "image://thumbnail/" + f.filePath
+                        }
+                    } else if (f.filePath) {
+                        thumbSource = "image://thumbnail/" + f.filePath
+                    }
+
+                    var filePath = (f.status === 2 && f.resultPath) ? f.resultPath : (f.filePath || "")
+                    var row = {
+                        "id": f.id || "",
+                        "filePath": filePath,
+                        "fileName": f.fileName || "",
+                        "mediaType": f.mediaType !== undefined ? f.mediaType : 0,
+                        "thumbnail": thumbSource,
+                        "status": f.status !== undefined ? f.status : 0,
+                        "resultPath": f.resultPath || "",
+                        "originalPath": f.filePath || "",
+                        "processedThumbnailId": f.processedThumbnailId || ""
+                    }
+
+                    if (i < _cachedMedia.count) {
+                        _cachedMedia.set(i, row)
+                    } else {
+                        _cachedMedia.append(row)
+                    }
+                }
+
+                while (_cachedMedia.count > targetCount) {
+                    _cachedMedia.remove(_cachedMedia.count - 1)
+                }
+
+                _resetFileStatsFromModel()
+                root._recordDelegateRebuild(Date.now() - beginMs)
             }
 
             onCancelClicked: {
@@ -204,6 +379,61 @@ Item {
     Connections {
         target: root._hasRealModel ? messageModel : null
         enabled: root._hasRealModel
+
+        function _patchVisibleDelegate(messageId, fileId, fileStatus, resultPath) {
+            if (!messageList.contentItem) {
+                return
+            }
+
+            var children = messageList.contentItem.children
+            for (var i = 0; i < children.length; i++) {
+                var child = children[i]
+                if (child && child.taskId === messageId && child._patchCachedMediaFile) {
+                    child._patchCachedMediaFile(fileId, fileStatus, resultPath)
+                    break
+                }
+            }
+        }
+
+        function onMediaFilePatched(messageId, fileId, fileStatus, resultPath) {
+            _patchVisibleDelegate(messageId, fileId, fileStatus, resultPath)
+        }
+
+        function onMessageFileStatsChanged(messageId, successCount, failedCount, pendingCount, processingCount) {
+            if (!messageList.contentItem) {
+                return
+            }
+
+            var children = messageList.contentItem.children
+            for (var i = 0; i < children.length; i++) {
+                var child = children[i]
+                if (child && child.taskId === messageId && child._applyFileStats) {
+                    child._successFileCount = successCount
+                    child._failedFileCount = failedCount
+                    child._pendingFileCount = pendingCount
+                    child._processingFileCount = processingCount
+                    child._fileStatsInitialized = true
+                    child._applyFileStats(successCount, failedCount, pendingCount, processingCount)
+                    break
+                }
+            }
+        }
+
+        function onMessageMediaFilesReloaded(messageId) {
+            if (!messageList.contentItem) {
+                return
+            }
+
+            var children = messageList.contentItem.children
+            for (var i = 0; i < children.length; i++) {
+                var child = children[i]
+                if (child && child.taskId === messageId && child._buildMediaForDelegate) {
+                    child._buildMediaForDelegate()
+                    break
+                }
+            }
+        }
+
         function onMediaFileRemoved(messageId, fileIndex) {
             if (root.messageViewer && root.messageViewer.isOpen && 
                 root.messageViewer.currentMessageId === messageId) {
@@ -272,7 +502,7 @@ Item {
                     }
                     
                     var viewPath = filePath
-                    if (mediaType === 0 && resultPath && resultPath !== "") {
+                    if (resultPath && resultPath !== "") {
                         viewPath = resultPath
                     }
                     

@@ -12,8 +12,13 @@
 #include <QStringList>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QSet>
+#include <QFuture>
+#include <QHash>
 #include "EnhanceVision/models/DataTypes.h"
 #include "EnhanceVision/models/SessionModel.h"
+
+class QTimer;
 
 namespace EnhanceVision {
 
@@ -76,6 +81,11 @@ public:
     Q_INVOKABLE int selectedCount() const;
     Q_INVOKABLE QString getSessionName(const QString& sessionId) const;
     Q_INVOKABLE Session* getSession(const QString& sessionId);
+    const Session* getSessionConst(const QString& sessionId) const;
+    Message messageInSession(const QString& sessionId, const QString& messageId) const;
+    QString sessionIdForMessage(const QString& messageId) const;
+    bool updateMessageInSession(const QString& sessionId, const Message& message);
+    void rebuildSessionMessageIndex();
     
     /**
      * @brief 确保有活动会话（用于发送消息时）
@@ -125,6 +135,20 @@ private:
     bool m_batchSelectionMode;
     int m_sessionCounter;
     bool m_autoSaveEnabled;
+    qint64 m_lastAutoSaveMs;
+    QSet<QString> m_autoRetriedMessageIds;
+    QTimer* m_saveTimer = nullptr;
+    QFuture<void> m_saveFuture;
+    QTimer* m_sessionNotifyTimer = nullptr;
+    bool m_hasPendingSave = false;
+    bool m_saveInProgress = false;
+    bool m_saveQueued = false;
+    QSet<QString> m_pendingNotifySessionIds;
+    QHash<QString, QString> m_messageToSessionId;
+    QHash<QString, int> m_sessionRowById;
+    QHash<QString, QHash<QString, int>> m_messageRowBySessionId;
+
+    void rebuildMessageRowIndexForSession(const QString& sessionId, const QList<Message>& messages);
 
     QString generateSessionId();
     QString generateDefaultSessionName();

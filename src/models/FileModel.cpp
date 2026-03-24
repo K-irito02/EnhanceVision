@@ -10,19 +10,67 @@
 #include <QUuid>
 #include <QFileInfo>
 #include <QDir>
+#include <QtConcurrent>
+#include <QMetaObject>
 
 namespace EnhanceVision {
 
-// 2GB 最大文件大小
 const qint64 FileModel::kMaxFileSize = 2LL * 1024 * 1024 * 1024;
+
+class ThumbnailGenerationTask : public QRunnable
+{
+public:
+    ThumbnailGenerationTask(const QString &fileId, const QString &filePath, MediaType type, FileModel *model)
+        : m_fileId(fileId)
+        , m_filePath(filePath)
+        , m_type(type)
+        , m_model(model)
+    {
+        setAutoDelete(true);
+    }
+    
+    void run() override
+    {
+        const QSize thumbnailSize(200, 200);
+        QImage thumbnail;
+        QSize resolution;
+        
+        if (m_type == MediaType::Image) {
+            thumbnail = ImageUtils::generateThumbnail(m_filePath, thumbnailSize);
+            QImage image = ImageUtils::loadImage(m_filePath);
+            if (!image.isNull()) {
+                resolution = image.size();
+            }
+        } else {
+            thumbnail = ImageUtils::generateVideoThumbnail(m_filePath, thumbnailSize);
+        }
+        
+        if (!thumbnail.isNull() && m_model) {
+            QMetaObject::invokeMethod(m_model, "updateFileThumbnail", 
+                Qt::QueuedConnection,
+                Q_ARG(QString, m_fileId),
+                Q_ARG(QVariant, QVariant::fromValue(thumbnail)),
+                Q_ARG(QVariant, QVariant::fromValue(resolution)));
+        }
+    }
+    
+private:
+    QString m_fileId;
+    QString m_filePath;
+    MediaType m_type;
+    FileModel *m_model;
+};
 
 FileModel::FileModel(QObject *parent)
     : QAbstractListModel(parent)
+    , m_threadPool(new QThreadPool(this))
 {
+    m_threadPool->setMaxThreadCount(2);
 }
 
 FileModel::~FileModel()
 {
+    m_threadPool->waitForDone(1000);
 }
 
 int FileModel::rowCount(const QModelIndex &parent) const
@@ -90,25 +138,21 @@ bool FileModel::addFile(const QString &filePath)
 {
     QFileInfo fileInfo(filePath);
 
-    // 检查文件是否存在
     if (!fileInfo.exists() || !fileInfo.isFile()) {
         emit errorOccurred(tr("文件不存在: %1").arg(filePath));
         return false;
     }
 
-    // 检查文件格式
     if (!isFormatSupported(filePath)) {
         emit errorOccurred(tr("不支持的文件格式: %1").arg(filePath));
         return false;
     }
 
-    // 检查文件大小
     if (!isSizeValid(filePath)) {
         emit errorOccurred(tr("文件大小超过限制 (最大 2GB): %1").arg(filePath));
         return false;
     }
 
-    // 创建 MediaFile 对象
     MediaFile mediaFile;
     mediaFile.id = generateId();
     mediaFile.filePath = QDir::toNativeSeparators(fileInfo.absoluteFilePath());
@@ -116,34 +160,20 @@ bool FileModel::addFile(const QString &filePath)
     mediaFile.fileSize = fileInfo.size();
     mediaFile.type = getMediaType(filePath);
     mediaFile.status = ProcessingStatus::Pending;
-    
-    // 生成缩略图
-    const QSize thumbnailSize(200, 200);
-    if (mediaFile.type == MediaType::Image) {
-        mediaFile.thumbnail = ImageUtils::generateThumbnail(filePath, thumbnailSize);
-        // 获取图像分辨率
-        QImage image = ImageUtils::loadImage(filePath);
-        if (!image.isNull()) {
-            mediaFile.resolution = image.size();
-        }
-    } else {
-        mediaFile.thumbnail = ImageUtils::generateVideoThumbnail(filePath, thumbnailSize);
-    }
 
-    // 缓存到 ThumbnailProvider（QML 通过 image://thumbnail/ 获取）
-    if (!mediaFile.thumbnail.isNull()) {
-        if (auto* provider = ThumbnailProvider::instance()) {
-            provider->setThumbnail(mediaFile.filePath, mediaFile.thumbnail);
-        }
-    }
-
-    // 添加到列表
     beginInsertRows(QModelIndex(), m_files.size(), m_files.size());
     m_files.append(mediaFile);
     endInsertRows();
 
     emit countChanged();
     emit filesAdded(1);
+
+    if (!m_pendingThumbnails.contains(mediaFile.id)) {
+        m_pendingThumbnails.insert(mediaFile.id);
+        ThumbnailGenerationTask* task = new ThumbnailGenerationTask(
+            mediaFile.id, mediaFile.filePath, mediaFile.type, this);
+        m_threadPool->start(task);
+    }
 
     return true;
 }
@@ -242,6 +272,44 @@ QString FileModel::formatFileSize(qint64 size) const
     } else {
         return tr("%1 GB").arg(size / (1024.0 * 1024.0 * 1024.0), 0, 'f', 2);
     }
+}
+
+void FileModel::updateFileThumbnail(const QString &fileId, const QVariant &thumbnailVariant, const QVariant &resolutionVariant)
+{
+    m_pendingThumbnails.remove(fileId);
+    
+    int index = findFileIndexById(fileId);
+    if (index < 0) {
+        return;
+    }
+    
+    QImage thumbnail = thumbnailVariant.value<QImage>();
+    QSize resolution = resolutionVariant.toSize();
+    
+    m_files[index].thumbnail = thumbnail;
+    if (resolution.isValid()) {
+        m_files[index].resolution = resolution;
+    }
+    
+    if (!thumbnail.isNull()) {
+        if (auto* provider = ThumbnailProvider::instance()) {
+            provider->setThumbnail(m_files[index].filePath, thumbnail);
+        }
+    }
+    
+    QModelIndex modelIndex = createIndex(index, 0);
+    emit dataChanged(modelIndex, modelIndex, {ThumbnailRole, ResolutionRole});
+    emit thumbnailGenerated(fileId);
+}
+
+int FileModel::findFileIndexById(const QString &fileId) const
+{
+    for (int i = 0; i < m_files.size(); ++i) {
+        if (m_files[i].id == fileId) {
+            return i;
+        }
+    }
+    return -1;
 }
 
 } // namespace EnhanceVision

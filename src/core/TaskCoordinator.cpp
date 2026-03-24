@@ -6,7 +6,6 @@
 
 #include "EnhanceVision/core/TaskCoordinator.h"
 #include <QCoreApplication>
-#include <QElapsedTimer>
 #include <QThread>
 
 namespace EnhanceVision {
@@ -333,107 +332,89 @@ void TaskCoordinator::triggerPause(const QString& taskId, bool paused) {
     }
 }
 
-bool TaskCoordinator::waitForCancellation(const QString& taskId, int timeoutMs) {
-    QElapsedTimer timer;
-    timer.start();
+void TaskCoordinator::requestCancellation(const QString& taskId) {
+    QMutexLocker locker(&m_mutex);
     
-    while (timer.elapsed() < timeoutMs) {
-        {
-            QMutexLocker locker(&m_mutex);
-            if (!m_taskContexts.contains(taskId)) {
-                return true;
-            }
-            
-            TaskState state = m_taskContexts[taskId].state;
-            if (state == TaskState::Cancelled || 
-                state == TaskState::Completed ||
-                state == TaskState::Failed ||
-                state == TaskState::Orphaned) {
-                return true;
-            }
-        }
-        
-        QCoreApplication::processEvents();
-        QThread::usleep(50000);
+    if (!m_taskContexts.contains(taskId)) {
+        return;
     }
     
-    return false;
+    TaskContext& ctx = m_taskContexts[taskId];
+    
+    if (ctx.cancelToken) {
+        ctx.cancelToken->store(true);
+    }
+    
+    ctx.state = TaskState::Cancelling;
+    
+    if (m_cancelWaitConditions.contains(taskId)) {
+        m_cancelWaitConditions[taskId]->wakeAll();
+    }
+    
+    emit taskCancelled(taskId, "requested");
+    emit taskStateChanged(taskId, TaskState::Cancelling);
 }
 
-bool TaskCoordinator::waitForAllMessageTasksCancelled(const QString& messageId, int timeoutMs) {
-    QElapsedTimer timer;
-    timer.start();
+void TaskCoordinator::requestMessageCancellation(const QString& messageId) {
+    QMutexLocker locker(&m_mutex);
     
-    while (timer.elapsed() < timeoutMs) {
-        {
-            QMutexLocker locker(&m_mutex);
-            
-            if (!m_messageToTasks.contains(messageId)) {
-                return true;
-            }
-            
-            bool allDone = true;
-            for (const QString& taskId : m_messageToTasks[messageId]) {
-                if (m_taskContexts.contains(taskId)) {
-                    TaskState state = m_taskContexts[taskId].state;
-                    if (state != TaskState::Cancelled && 
-                        state != TaskState::Completed &&
-                        state != TaskState::Failed &&
-                        state != TaskState::Orphaned) {
-                        allDone = false;
-                        break;
-                    }
-                }
-            }
-            
-            if (allDone) {
-                return true;
-            }
-        }
-        
-        QCoreApplication::processEvents();
-        QThread::usleep(50000);
+    if (!m_messageToTasks.contains(messageId)) {
+        return;
     }
     
-    return false;
+    QSet<QString> taskIds = m_messageToTasks[messageId];
+    
+    for (const QString& taskId : taskIds) {
+        if (m_taskContexts.contains(taskId)) {
+            TaskContext& ctx = m_taskContexts[taskId];
+            
+            if (ctx.cancelToken) {
+                ctx.cancelToken->store(true);
+            }
+            
+            ctx.state = TaskState::Cancelling;
+            
+            if (m_cancelWaitConditions.contains(taskId)) {
+                m_cancelWaitConditions[taskId]->wakeAll();
+            }
+            
+            emit taskCancelled(taskId, "message_deletion");
+            emit taskStateChanged(taskId, TaskState::Cancelling);
+        }
+    }
+    
+    emit messageTasksCancelled(messageId);
 }
 
-bool TaskCoordinator::waitForAllSessionTasksCancelled(const QString& sessionId, int timeoutMs) {
-    QElapsedTimer timer;
-    timer.start();
+void TaskCoordinator::requestSessionCancellation(const QString& sessionId) {
+    QMutexLocker locker(&m_mutex);
     
-    while (timer.elapsed() < timeoutMs) {
-        {
-            QMutexLocker locker(&m_mutex);
-            
-            if (!m_sessionToTasks.contains(sessionId)) {
-                return true;
-            }
-            
-            bool allDone = true;
-            for (const QString& taskId : m_sessionToTasks[sessionId]) {
-                if (m_taskContexts.contains(taskId)) {
-                    TaskState state = m_taskContexts[taskId].state;
-                    if (state != TaskState::Cancelled && 
-                        state != TaskState::Completed &&
-                        state != TaskState::Failed &&
-                        state != TaskState::Orphaned) {
-                        allDone = false;
-                        break;
-                    }
-                }
-            }
-            
-            if (allDone) {
-                return true;
-            }
-        }
-        
-        QCoreApplication::processEvents();
-        QThread::usleep(50000);
+    if (!m_sessionToTasks.contains(sessionId)) {
+        return;
     }
     
-    return false;
+    QSet<QString> taskIds = m_sessionToTasks[sessionId];
+    
+    for (const QString& taskId : taskIds) {
+        if (m_taskContexts.contains(taskId)) {
+            TaskContext& ctx = m_taskContexts[taskId];
+            
+            if (ctx.cancelToken) {
+                ctx.cancelToken->store(true);
+            }
+            
+            ctx.state = TaskState::Cancelling;
+            
+            if (m_cancelWaitConditions.contains(taskId)) {
+                m_cancelWaitConditions[taskId]->wakeAll();
+            }
+            
+            emit taskCancelled(taskId, "session_deletion");
+            emit taskStateChanged(taskId, TaskState::Cancelling);
+        }
+    }
+    
+    emit sessionTasksCancelled(sessionId);
 }
 
 QList<QString> TaskCoordinator::allTaskIds() const {

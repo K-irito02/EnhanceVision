@@ -8,6 +8,8 @@
 #define ENHANCEVISION_MESSAGEMODEL_H
 
 #include <QAbstractListModel>
+#include <QHash>
+#include <QSet>
 #include "EnhanceVision/models/DataTypes.h"
 
 namespace EnhanceVision {
@@ -226,6 +228,28 @@ public:
 
 signals:
     /**
+     * @brief 消息内单文件增量更新信号（避免整条 mediaFiles 刷新）
+     */
+    void mediaFilePatched(const QString &messageId,
+                          const QString &fileId,
+                          int status,
+                          const QString &resultPath);
+
+    /**
+     * @brief 消息媒体文件批量替换（用于会话切换等差量加载）
+     */
+    void messageMediaFilesReloaded(const QString &messageId);
+
+    /**
+     * @brief 单条消息文件统计变化（success/failed/pending/processing）
+     */
+    void messageFileStatsChanged(const QString &messageId,
+                                 int successCount,
+                                 int failedCount,
+                                 int pendingCount,
+                                 int processingCount);
+
+    /**
      * @brief 消息数量变化信号
      */
     void countChanged();
@@ -241,6 +265,12 @@ signals:
      * @param messageId 消息ID
      */
     void messageRemoved(const QString &messageId);
+
+    /**
+     * @brief 消息即将删除信号（用于异步取消任务）
+     * @param messageId 消息ID
+     */
+    void messageRemoving(const QString &messageId);
 
     /**
      * @brief 消息中的媒体文件被删除
@@ -263,6 +293,24 @@ signals:
     void errorOccurred(const QString &message);
 
 private:
+    struct FileStats {
+        int success = 0;
+        int failed = 0;
+        int pending = 0;
+        int processing = 0;
+
+        bool operator==(const FileStats& other) const {
+            return success == other.success &&
+                   failed == other.failed &&
+                   pending == other.pending &&
+                   processing == other.processing;
+        }
+
+        bool operator!=(const FileStats& other) const {
+            return !(*this == other);
+        }
+    };
+
     /**
      * @brief 生成唯一ID
      * @return 唯一ID
@@ -297,9 +345,14 @@ private:
      */
     QString getModeText(ProcessingMode mode) const;
 
+    FileStats calculateFileStats(const Message& message) const;
+    void emitMessageFileStatsChanged(const QString& messageId, const Message& message);
+    void resetMessageFileStatsCache();
+
     QList<Message> m_messages;  ///< 消息列表
     QString m_currentSessionId; ///< 当前会话ID
     ProcessingController* m_processingController = nullptr; ///< 处理控制器引用
+    QHash<QString, FileStats> m_messageFileStatsCache;
 };
 
 } // namespace EnhanceVision
