@@ -10,6 +10,7 @@
 #include <QObject>
 #include <QImage>
 #include <QMutex>
+#include <QPointer>
 #include <atomic>
 #include <memory>
 #include <net.h>
@@ -216,6 +217,14 @@ private:
 
     void setProgress(double value, bool forceEmit = false);
     void setProcessing(bool processing);
+    void emitError(const QString &error);
+
+    // ── 纯 const 辅助（不持有外部锁，内部不加锁） ──
+    QVariantMap getEffectiveParamsLocked(const ModelInfo &model) const;
+    int  computeAutoTileSizeForModel(const QSize &inputSize, const ModelInfo &model) const;
+    QVariantMap computeAutoParamsForModel(const QSize &mediaSize, bool isVideo,
+                                          const ModelInfo &model,
+                                          const QString &modelId) const;
 
     // ========== 成员变量 ==========
     ncnn::Net m_net;
@@ -233,11 +242,24 @@ private:
     std::atomic<double> m_progress{0.0};
     std::atomic<qint64> m_lastProgressEmitMs{0};
     std::atomic<bool> m_cancelRequested{false};
+    std::atomic<bool> m_gpuOomDetected{false};   // GPU OOM 自动降级标志
     bool m_gpuAvailable = false;
     bool m_useGpu = true;
+
+    // Thread-safe last error storage (written from worker thread, read in worker thread)
+    mutable QMutex m_lastErrorMutex;
     QString m_lastError;
 
+    // m_mutex: 保护 loadModel / unloadModel / process 互斥，防止推理与加载并发
     mutable QMutex m_mutex;
+    // m_inferenceMutex: 保护 m_net 推理过程（runInference），不允许并发推理
+    mutable QMutex m_inferenceMutex;
+    // m_paramsMutex: 保护 m_parameters 读写，允许推理线程与 UI 线程并发访问参数
+    mutable QMutex m_paramsMutex;
+
+    // 当前持有的 Vulkan allocator（需在 updateOptions 前显式释放）
+    ncnn::VkAllocator* m_blobVkAllocator = nullptr;
+    ncnn::VkAllocator* m_stagingVkAllocator = nullptr;
 };
 
 } // namespace EnhanceVision

@@ -516,16 +516,18 @@ void ProcessingController::requestModelPreload(const QString& modelId)
 
     m_pendingPreloadModelIds.insert(modelId);
 
-    m_threadPool->start([this, modelId]() {
+    // 预加载必须在主线程执行（m_aiEngine 是主线程 QObject）
+    // 使用 QTimer::singleShot 异步但在主线程中调用，避免阻塞当前调用栈
+    QTimer::singleShot(0, this, [this, modelId]() {
+        if (!m_pendingPreloadModelIds.contains(modelId)) {
+            return; // 已被取消或重复
+        }
         const bool loaded = m_aiEngine->loadModel(modelId);
-
-        QMetaObject::invokeMethod(this, [this, modelId, loaded]() {
-            m_pendingPreloadModelIds.remove(modelId);
-            if (loaded) {
-                m_preloadedModelIds.insert(modelId);
-                qInfo() << "[Perf][ProcessingController] model preloaded:" << modelId;
-            }
-        }, Qt::QueuedConnection);
+        m_pendingPreloadModelIds.remove(modelId);
+        if (loaded) {
+            m_preloadedModelIds.insert(modelId);
+            qInfo() << "[Perf][ProcessingController] model preloaded:" << modelId;
+        }
     });
 }
 
@@ -601,50 +603,50 @@ void ProcessingController::startTask(QueueTask& task)
 
             m_activeAiTaskId = taskId;
 
-            m_threadPool->start([this, taskId, modelId, inputPath, outputPath, message]() {
-                QElapsedTimer aiStartTimer;
-                aiStartTimer.start();
+            // ── 模型加载在主线程完成，然后启动推理工作线程 ──────────────
+            // m_aiEngine 是主线程 QObject，不能在 threadPool 线程直接调用其方法。
+            // 先在主线程加载模型（通常已预加载，耗时极短），再派发推理到工作线程。
+            QElapsedTimer aiStartTimer;
+            aiStartTimer.start();
 
-                if (!m_aiEngine->loadModel(modelId)) {
-                    QMetaObject::invokeMethod(this, [this, taskId, modelId]() {
-                        failTask(taskId, tr("模型加载失败: %1").arg(modelId));
-                    }, Qt::QueuedConnection);
-                    return;
-                }
+            if (!m_aiEngine->loadModel(modelId)) {
+                failTask(taskId, tr("模型加载失败: %1").arg(modelId));
+                return;
+            }
 
-                const qint64 loadModelCostMs = aiStartTimer.elapsed();
+            const qint64 loadModelCostMs = aiStartTimer.elapsed();
+            if (loadModelCostMs >= 16) {
+                qInfo() << "[Perf][ProcessingController] startTask loadModel cost:" << loadModelCostMs << "ms"
+                        << "model:" << message.aiParams.modelId;
+            }
 
-                QMetaObject::invokeMethod(this, [this, taskId, message, inputPath, outputPath, loadModelCostMs]() {
-                    if (loadModelCostMs >= 16) {
-                        qInfo() << "[Perf][ProcessingController] startTask loadModel cost:" << loadModelCostMs << "ms"
-                                << "model:" << message.aiParams.modelId;
-                    }
+            const ModelInfo modelInfo = m_modelRegistry->getModelInfo(message.aiParams.modelId);
+            m_aiEngine->setUseGpu(message.aiParams.useGpu);
+            // 先清空参数，再按顺序设置，避免多文件处理时上一个任务的参数残留
+            m_aiEngine->clearParameters();
+            // tileSize=0 表示自动模式，不强制写入（让 AIEngine 内部自动计算）
+            if (message.aiParams.tileSize > 0) {
+                m_aiEngine->setParameter("tileSize", message.aiParams.tileSize);
+            }
+            for (auto it = message.aiParams.modelParams.begin();
+                 it != message.aiParams.modelParams.end(); ++it) {
+                m_aiEngine->setParameter(it.key(), it.value());
+            }
 
-                    const ModelInfo modelInfo = m_modelRegistry->getModelInfo(message.aiParams.modelId);
-                    m_aiEngine->setUseGpu(message.aiParams.useGpu);
-                    m_aiEngine->clearParameters();
-                    m_aiEngine->setParameter("tileSize", message.aiParams.tileSize);
+            const QVariantMap effectiveParams = m_aiEngine->getEffectiveParams();
+            qInfo() << "[ProcessingController][AI] launch"
+                    << "task:" << taskId
+                    << "model:" << message.aiParams.modelId
+                    << "input:" << inputPath
+                    << "output:" << outputPath
+                    << "gpuRequested:" << message.aiParams.useGpu
+                    << "gpuEffective:" << (m_aiEngine->gpuAvailable() && m_aiEngine->useGpu())
+                    << "tileSizeRequested:" << message.aiParams.tileSize
+                    << "tileSizeEffective:" << effectiveParams.value("tileSize", modelInfo.tileSize).toInt()
+                    << "outscaleEffective:" << effectiveParams.value("outscale", modelInfo.scaleFactor).toDouble();
 
-                    for (auto it = message.aiParams.modelParams.begin();
-                         it != message.aiParams.modelParams.end(); ++it) {
-                        m_aiEngine->setParameter(it.key(), it.value());
-                    }
-
-                    const QVariantMap effectiveParams = m_aiEngine->getEffectiveParams();
-                    qInfo() << "[ProcessingController][AI] launch"
-                            << "task:" << taskId
-                            << "model:" << message.aiParams.modelId
-                            << "input:" << inputPath
-                            << "output:" << outputPath
-                            << "gpuRequested:" << message.aiParams.useGpu
-                            << "gpuEffective:" << (m_aiEngine->gpuAvailable() && m_aiEngine->useGpu())
-                            << "tileSizeRequested:" << message.aiParams.tileSize
-                            << "tileSizeEffective:" << effectiveParams.value("tileSize", modelInfo.tileSize).toInt()
-                            << "outscaleEffective:" << effectiveParams.value("outscale", modelInfo.scaleFactor).toDouble();
-
-                    m_aiEngine->processAsync(inputPath, outputPath);
-                }, Qt::QueuedConnection);
-            });
+            // 推理派发到工作线程（processAsync 内部使用 m_inferenceMutex 保证串行）
+            m_aiEngine->processAsync(inputPath, outputPath);
 
             logPerfIfSlow("startTask", perfTimer.elapsed());
             return;

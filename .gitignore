@@ -1,9 +1,9 @@
 # Build directories
 build/
 cmake-build-*/
-third_party/*/build/
-third_party/
-third_party/ncnn/build/
+# third_party/*/build/
+# third_party/
+# third_party/ncnn/build/
 tests/*/build/
 
 # CMake
@@ -81,4 +81,4 @@ Thumbs.db
 desktop.ini
 
 # 资源
-resources/models/
+# resources/models/
