@@ -6,8 +6,10 @@
 
 #include "EnhanceVision/core/AIEngine.h"
 #include "EnhanceVision/core/ModelRegistry.h"
+#include "EnhanceVision/utils/ImageUtils.h"
 #include <QFile>
 #include <QDir>
+#include <QFileInfo>
 #include <QDebug>
 #include <QImage>
 #include <QPainter>
@@ -16,6 +18,16 @@
 #include <QElapsedTimer>
 #include <algorithm>
 #include <cmath>
+#include <vector>
+
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libavutil/avutil.h>
+#include <libavutil/imgutils.h>
+#include <libswscale/swscale.h>
+#include <libswresample/swresample.h>
+}
 
 namespace EnhanceVision {
 
@@ -156,10 +168,27 @@ bool AIEngine::loadModel(const QString &modelId)
         return true;
     }
 
-    // 卸载旧模型
+    // 卸载旧模型并清理 GPU 内存
     if (!m_currentModelId.isEmpty()) {
         m_net.clear();
         m_currentModel.isLoaded = false;
+        
+        // 清理 GPU 内存，防止切换模型时 GPU 状态损坏导致崩溃
+#if NCNN_VULKAN
+        if (m_vkdev) {
+            ncnn::VkAllocator* blobAlloc = m_vkdev->acquire_blob_allocator();
+            if (blobAlloc) {
+                blobAlloc->clear();
+                m_vkdev->reclaim_blob_allocator(blobAlloc);
+            }
+            ncnn::VkAllocator* stagingAlloc = m_vkdev->acquire_staging_allocator();
+            if (stagingAlloc) {
+                stagingAlloc->clear();
+                m_vkdev->reclaim_staging_allocator(stagingAlloc);
+            }
+            qInfo() << "[AIEngine][loadModel] GPU memory cleared before loading new model";
+        }
+#endif
     }
 
     // 重置 GPU OOM 状态（换模型时重置）
@@ -176,6 +205,8 @@ bool AIEngine::loadModel(const QString &modelId)
             << "outputBlob:" << info.outputBlobName
             << "tileSize:" << info.tileSize
             << "scale:" << info.scaleFactor
+            << "sizeBytes:" << info.sizeBytes
+            << "sizeMB:" << (info.sizeBytes / (1024.0 * 1024.0))
             << "useVulkan:" << m_opt.use_vulkan_compute;
 
     int ret = m_net.load_param(info.paramPath.toStdString().c_str());
@@ -191,12 +222,14 @@ bool AIEngine::loadModel(const QString &modelId)
         return false;
     }
 
+    const int loadedLayerCount = static_cast<int>(m_net.layers().size());
     qInfo() << "[AIEngine][loadModel] model loaded successfully"
-            << "layers:" << m_net.layers().size();
+            << "layers:" << loadedLayerCount;
 
     m_currentModelId = modelId;
     m_currentModel = info;
     m_currentModel.isLoaded = true;
+    m_currentModel.layerCount = loadedLayerCount;
 
     emit modelLoaded(modelId);
     emit modelChanged();
@@ -337,12 +370,51 @@ QImage AIEngine::process(const QImage &input)
         result = processSingle(workInput, effectiveModel);
     }
 
-    // ── GPU OOM 自动降级重试：首次推理失败且是 GPU OOM，以分块模式重试 ────────
-    if (result.isNull() && m_gpuOomDetected.load() && !needTile) {
-        int fallbackTile = (currentModel.tileSize > 0) ? currentModel.tileSize : 200;
-        qWarning() << "[AIEngine] Retrying with tileSize=" << fallbackTile << "after GPU OOM";
-        effectiveModel.tileSize = fallbackTile;
-        result = processTiled(workInput, effectiveModel);
+    // ── GPU OOM 自动降级重试：推理失败且是 GPU OOM，以更小分块模式多次重试 ────────
+    if (result.isNull() && m_gpuOomDetected.load()) {
+        // 保存当前进度，防止重试时进度条倒退
+        const double progressBeforeRetry = m_progress.load();
+        
+        // 尝试一系列递减的分块大小，从较保守的值开始
+        const int fallbackTiles[] = {128, 96, 64};
+        const int numFallbacks = sizeof(fallbackTiles) / sizeof(fallbackTiles[0]);
+        
+        for (int i = 0; i < numFallbacks && result.isNull(); ++i) {
+            int fallbackTile = fallbackTiles[i];
+            qWarning() << "[AIEngine] OOM retry attempt" << (i + 1) << "with tileSize=" << fallbackTile
+                       << "progressBeforeRetry:" << progressBeforeRetry;
+            
+            // 尝试清理 GPU 内存
+#if NCNN_VULKAN
+            if (m_vkdev) {
+                ncnn::VkAllocator* allocator = m_vkdev->acquire_blob_allocator();
+                if (allocator) {
+                    allocator->clear();
+                    m_vkdev->reclaim_blob_allocator(allocator);
+                }
+                allocator = m_vkdev->acquire_staging_allocator();
+                if (allocator) {
+                    allocator->clear();
+                    m_vkdev->reclaim_staging_allocator(allocator);
+                }
+            }
+#endif
+            // 重置 OOM 标志以便重试
+            m_gpuOomDetected.store(false);
+            
+            effectiveModel.tileSize = fallbackTile;
+            result = processTiled(workInput, effectiveModel);
+            
+            if (!result.isNull()) {
+                qInfo() << "[AIEngine] OOM retry succeeded with tileSize=" << fallbackTile;
+                break;
+            }
+        }
+        
+        // 如果所有 GPU 重试都失败，考虑 CPU 回退（如果启用了 GPU）
+        if (result.isNull() && m_useGpu) {
+            qWarning() << "[AIEngine] All GPU OOM retries failed, consider using CPU mode";
+        }
     }
 
     if (!result.isNull() && std::abs(outscale - currentModel.scaleFactor) > 0.01) {
@@ -405,6 +477,14 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
     QtConcurrent::run([this, inputPath, outputPath, snapshotParams]() {
         QElapsedTimer perfTimer;
         perfTimer.start();
+
+        // ── 视频文件检测：视频走逐帧处理管线 ────────────────────────────────
+        if (ImageUtils::isVideoFile(inputPath)) {
+            qInfo() << "[AIEngine][processAsync] detected video input, routing to video pipeline:"
+                    << inputPath;
+            processVideoInternal(inputPath, outputPath);
+            return;
+        }
 
         QImage inputImage(inputPath);
         if (inputImage.isNull()) {
@@ -484,6 +564,18 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
 void AIEngine::cancelProcess()
 {
     m_cancelRequested = true;
+}
+
+void AIEngine::forceCancel()
+{
+    m_forceCancelled = true;
+    m_cancelRequested = true;
+    qWarning() << "[AIEngine] Force cancel requested";
+}
+
+bool AIEngine::isForceCancelled() const
+{
+    return m_forceCancelled.load();
 }
 
 // ========== OpenCV Inpainting (Qt 原生实现) ==========
@@ -671,7 +763,22 @@ void AIEngine::setProgress(double value, bool forceEmit)
     constexpr double kProgressEmitDelta = 0.01;
     constexpr qint64 kProgressEmitIntervalMs = 66;
     const double clampedValue = std::clamp(value, 0.0, 1.0);
-    const double previous = m_progress.exchange(clampedValue);
+    
+    // 防止进度条倒退：只有在以下情况才更新进度
+    // 1. 新值大于当前值（正常前进）
+    // 2. 新值为 0（重置）或 1.0（完成）
+    // 3. 强制发射
+    double previous = m_progress.load();
+    const bool isReset = (clampedValue < 0.01);
+    const bool isComplete = (clampedValue >= 0.99);
+    const bool isForward = (clampedValue > previous);
+    
+    if (!forceEmit && !isReset && !isComplete && !isForward) {
+        // 进度在倒退且不是重置/完成，忽略此次更新
+        return;
+    }
+    
+    previous = m_progress.exchange(clampedValue);
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
     const qint64 lastEmit = m_lastProgressEmitMs.load();
     const bool firstEmit = (lastEmit == 0);
@@ -704,17 +811,27 @@ void AIEngine::setProcessing(bool processing)
 
 ncnn::Mat AIEngine::qimageToMat(const QImage &image, const ModelInfo &model)
 {
-    QImage img = image.convertToFormat(QImage::Format_RGB888);
+    QImage img = (image.format() == QImage::Format_RGB888)
+        ? image.copy()
+        : image.convertToFormat(QImage::Format_RGB888);
+
+    if (img.isNull() || img.width() <= 0 || img.height() <= 0) {
+        qWarning() << "[AIEngine][qimageToMat] invalid converted image";
+        return ncnn::Mat();
+    }
+
     int w = img.width();
     int h = img.height();
-    qInfo() << "[AIEngine][qimageToMat] input:" << image.size()
-            << "converted:" << img.size()
-            << "bytesPerLine:" << img.bytesPerLine()
-            << "normMean:" << model.normMean[0] << model.normMean[1] << model.normMean[2]
-            << "normScale:" << model.normScale[0] << model.normScale[1] << model.normScale[2];
-    ncnn::Mat in = ncnn::Mat::from_pixels(img.constBits(), ncnn::Mat::PIXEL_RGB, w, h);
+    const int stride = img.bytesPerLine();
+
+    // 使用带 stride 的重载，避免 Qt 行对齐导致的越界读取
+    ncnn::Mat in = ncnn::Mat::from_pixels(img.constBits(), ncnn::Mat::PIXEL_RGB, w, h, stride);
+    if (in.empty()) {
+        qWarning() << "[AIEngine][qimageToMat] from_pixels failed";
+        return ncnn::Mat();
+    }
+
     in.substract_mean_normalize(model.normMean, model.normScale);
-    qInfo() << "[AIEngine][qimageToMat] output mat:" << "w:" << in.w << "h:" << in.h << "c:" << in.c;
     return in;
 }
 
@@ -729,9 +846,6 @@ QImage AIEngine::matToQimage(const ncnn::Mat &mat, const ModelInfo &model)
         return QImage();
     }
     int w = mat.w, h = mat.h;
-    qInfo() << "[AIEngine][matToQimage] input mat:" << "w:" << w << "h:" << h << "c:" << mat.c
-            << "denormMean:" << model.denormMean[0] << model.denormMean[1] << model.denormMean[2]
-            << "denormScale:" << model.denormScale[0] << model.denormScale[1] << model.denormScale[2];
     ncnn::Mat out = mat.clone();
     if (out.empty() || out.data == nullptr) {
         qWarning() << "[AIEngine][matToQimage] mat.clone() produced empty mat";
@@ -746,10 +860,8 @@ QImage AIEngine::matToQimage(const ncnn::Mat &mat, const ModelInfo &model)
         if (data[i] < minVal) minVal = data[i];
         if (data[i] > maxVal) maxVal = data[i];
     }
-    qInfo() << "[AIEngine][matToQimage] after clamp min:" << minVal << "max:" << maxVal << "total:" << total;
     QImage result(w, h, QImage::Format_RGB888);
     out.to_pixels(result.bits(), ncnn::Mat::PIXEL_RGB);
-    qInfo() << "[AIEngine][matToQimage] output image:" << result.size() << "isNull:" << result.isNull();
     return result;
 }
 
@@ -764,49 +876,85 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
         qWarning() << "[AIEngine][Inference] model not loaded, cannot run inference";
         return ncnn::Mat();
     }
-    const std::string inputBlob  = model.inputBlobName.toStdString();
-    const std::string outputBlob = model.outputBlobName.toStdString();
-    if (inputBlob.empty() || outputBlob.empty()) {
-        qWarning() << "[AIEngine][Inference] empty blob name(s)"
-                   << "input:" << model.inputBlobName
-                   << "output:" << model.outputBlobName;
+
+    QStringList inputCandidates;
+    inputCandidates << model.inputBlobName << "input" << "data" << "in0" << "Input1";
+    inputCandidates.removeAll(QString());
+    inputCandidates.removeDuplicates();
+
+    QStringList outputCandidates;
+    outputCandidates << model.outputBlobName << "output" << "out0" << "prob";
+    outputCandidates.removeAll(QString());
+    outputCandidates.removeDuplicates();
+
+    if (inputCandidates.isEmpty() || outputCandidates.isEmpty()) {
+        qWarning() << "[AIEngine][Inference] empty blob candidate list"
+                   << "inputCandidates:" << inputCandidates
+                   << "outputCandidates:" << outputCandidates;
         return ncnn::Mat();
     }
+
     // 由于 m_mutex 与 loadModel/unloadModel 共享，推理期间也会持续持有
     // 但 loadModel 端会通过 m_isProcessing 检查被阻止，因此实际上不会发生死锁
     QMutexLocker netLocker(&m_mutex);
     ncnn::Extractor ex = m_net.create_extractor();
     ex.set_light_mode(true);
-    qInfo() << "[AIEngine][Inference] start"
-            << "inputBlob:" << model.inputBlobName
-            << "outputBlob:" << model.outputBlobName
-            << "inputMat:" << "w:" << input.w << "h:" << input.h << "c:" << input.c
-            << "netLoaded:" << model.isLoaded;
-    int inputRet = ex.input(inputBlob.c_str(), input);
-    qInfo() << "[AIEngine][Inference] input result:" << inputRet;
+
+    QString selectedInputBlob;
+    int inputRet = -1;
+    for (const QString &candidate : inputCandidates) {
+        inputRet = ex.input(candidate.toStdString().c_str(), input);
+        if (inputRet == 0) {
+            selectedInputBlob = candidate;
+            break;
+        }
+    }
+
     if (inputRet != 0) {
-        qWarning() << "[AIEngine][Inference] Failed to set input blob:" << model.inputBlobName
+        qWarning() << "[AIEngine][Inference] Failed to set input blob"
+                   << "requested:" << model.inputBlobName
+                   << "tried:" << inputCandidates
                    << "ret:" << inputRet;
-        emitError(tr("推理输入失败，模型可能与输入格式不兼容"));
+        emitError(tr("推理输入失败，模型输入节点不匹配"));
         return ncnn::Mat();
     }
+
     ncnn::Mat output;
-    int extractRet = ex.extract(outputBlob.c_str(), output);
-    qInfo() << "[AIEngine][Inference] extract result:" << extractRet
-            << "outputMat:" << "w:" << output.w << "h:" << output.h << "c:" << output.c;
-    if (extractRet != 0 || output.empty()) {
-        qWarning() << "[AIEngine][Inference] Failed to extract output blob:" << model.outputBlobName
-                   << "extractRet:" << extractRet << "empty:" << output.empty();
-        // extractRet == -100 是 Vulkan OOM 错误码，标记后供上层自动降级
+    int extractRet = -1;
+    bool gpuOomSeen = false;
+    QString selectedOutputBlob;
+    
+    for (const QString &candidate : outputCandidates) {
+        ncnn::Mat tmp;
+        extractRet = ex.extract(candidate.toStdString().c_str(), tmp);
         if (extractRet == -100) {
+            gpuOomSeen = true;
+        }
+        if (extractRet == 0 && !tmp.empty()) {
+            output = std::move(tmp);
+            selectedOutputBlob = candidate;
+            break;
+        }
+    }
+
+    if (extractRet != 0 || output.empty()) {
+        qWarning() << "[AIEngine][Inference] Failed to extract output blob"
+                   << "requested:" << model.outputBlobName
+                   << "tried:" << outputCandidates
+                   << "extractRet:" << extractRet
+                   << "gpuOomSeen:" << gpuOomSeen
+                   << "empty:" << output.empty();
+        // extractRet == -100 或任意候选节点返回 -100 均视为 Vulkan OOM，标记后供上层自动降级
+        if (gpuOomSeen) {
             m_gpuOomDetected.store(true);
-            qWarning() << "[AIEngine][Inference] GPU OOM detected (extractRet=-100), flagging for tile fallback";
+            qWarning() << "[AIEngine][Inference] GPU OOM detected (gpuOomSeen=true), flagging for tile fallback";
             emitError(tr("GPU 显存不足 (OOM)，将自动切换为分块模式重试"));
         } else {
-            emitError(tr("推理提取失败 (ret=%1)，模型可能与当前设备/驱动不兼容").arg(extractRet));
+            emitError(tr("推理输出失败，模型输出节点不匹配或设备不兼容 (ret=%1)").arg(extractRet));
         }
         return ncnn::Mat();
     }
+
     return output;
 }
 
@@ -845,16 +993,136 @@ QImage AIEngine::processSingle(const QImage &input, const ModelInfo &model)
 
 QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
 {
+    // 防御性检查：确保输入有效
+    if (input.isNull() || input.width() <= 0 || input.height() <= 0) {
+        qWarning() << "[AIEngine][Tiled] invalid input image, returning null";
+        return QImage();
+    }
+
     int tileSize = model.tileSize;
-    int padding = model.tilePadding;
     int scale = model.scaleFactor;
     int w = input.width();
     int h = input.height();
+
+    qInfo() << "[AIEngine][Tiled] entry"
+            << "inputSize:" << w << "x" << h
+            << "inputFormat:" << input.format()
+            << "tileSize:" << tileSize
+            << "scale:" << scale
+            << "layerCount:" << model.layerCount;
 
     if (tileSize <= 0) {
         qWarning() << "[AIEngine][Tiled] tileSize is 0 or negative, falling back to processSingle";
         return processSingle(input, model);
     }
+
+    // ── 动态计算 padding：复杂模型需要更大的重叠区域避免边界伪影 ──────────
+    // Real-ESRGAN 等大模型的感受野很大，需要足够的上下文才能产生一致的输出
+    int padding = model.tilePadding;
+    const int layerCount = model.layerCount;  // 使用缓存的层数，避免直接访问 m_net
+    if (layerCount > 500) {
+        padding = std::max(padding, 64);  // 超大模型（如 realesrgan_x4plus 999层）
+    } else if (layerCount > 200) {
+        padding = std::max(padding, 48);  // 大模型（如 realesrgan_x4plus_anime 268层）
+    } else if (layerCount > 50) {
+        padding = std::max(padding, 24);  // 中等模型
+    }
+    
+    // ── 为边界分块提供完整 padding：使用简单黑色填充 ──────────────────────
+    // 注：复杂的镜像填充在某些 QImage 格式上可能导致崩溃，使用简单填充更稳定
+    // 转换为 RGB888 格式确保兼容性
+    QImage normalizedInput;
+    if (input.format() == QImage::Format_RGB888) {
+        normalizedInput = input;
+    } else {
+        normalizedInput = input.convertToFormat(QImage::Format_RGB888);
+        qInfo() << "[AIEngine][Tiled] format converted"
+                << "from:" << input.format()
+                << "to:" << normalizedInput.format()
+                << "bytesPerLine:" << normalizedInput.bytesPerLine()
+                << "expectedBytesPerLine:" << (w * 3);
+    }
+
+    if (normalizedInput.isNull() || normalizedInput.format() != QImage::Format_RGB888) {
+        qWarning() << "[AIEngine][Tiled] failed to normalize input format"
+                   << "isNull:" << normalizedInput.isNull()
+                   << "format:" << normalizedInput.format();
+        return processSingle(input, model);
+    }
+
+    QImage paddedInput(w + 2 * padding, h + 2 * padding, QImage::Format_RGB888);
+    if (paddedInput.isNull()) {
+        qWarning() << "[AIEngine][Tiled] failed to create padded image";
+        return processSingle(input, model);
+    }
+    paddedInput.fill(Qt::black);
+    
+    // 使用正确的字节宽度进行复制
+    const int srcBytesPerLine = normalizedInput.bytesPerLine();
+    const int expectedBytesPerLine = w * 3;
+    
+    // 使用简单的像素复制代替 QPainter（更稳定）
+    // 复制原图到中心位置
+    for (int y = 0; y < h; ++y) {
+        const uchar* srcLine = normalizedInput.constScanLine(y);
+        uchar* dstLine = paddedInput.scanLine(y + padding);
+        // 使用实际的字节宽度，而不是假定的 w * 3
+        if (srcBytesPerLine >= expectedBytesPerLine) {
+            std::memcpy(dstLine + padding * 3, srcLine, expectedBytesPerLine);
+        } else {
+            std::memcpy(dstLine + padding * 3, srcLine, srcBytesPerLine);
+            std::memset(dstLine + padding * 3 + srcBytesPerLine, 0, expectedBytesPerLine - srcBytesPerLine);
+        }
+    }
+    
+    // 镜像填充边缘（使用直接像素操作）
+    // 上边缘
+    for (int y = 0; y < std::min(padding, h); ++y) {
+        const uchar* srcLine = normalizedInput.constScanLine(y);
+        uchar* dstLine = paddedInput.scanLine(padding - 1 - y);
+        if (srcBytesPerLine >= expectedBytesPerLine) {
+            std::memcpy(dstLine + padding * 3, srcLine, expectedBytesPerLine);
+        } else {
+            std::memcpy(dstLine + padding * 3, srcLine, srcBytesPerLine);
+            std::memset(dstLine + padding * 3 + srcBytesPerLine, 0, expectedBytesPerLine - srcBytesPerLine);
+        }
+    }
+    // 下边缘
+    for (int y = 0; y < std::min(padding, h); ++y) {
+        const uchar* srcLine = normalizedInput.constScanLine(h - 1 - y);
+        uchar* dstLine = paddedInput.scanLine(padding + h + y);
+        if (srcBytesPerLine >= expectedBytesPerLine) {
+            std::memcpy(dstLine + padding * 3, srcLine, expectedBytesPerLine);
+        } else {
+            std::memcpy(dstLine + padding * 3, srcLine, srcBytesPerLine);
+            std::memset(dstLine + padding * 3 + srcBytesPerLine, 0, expectedBytesPerLine - srcBytesPerLine);
+        }
+    }
+    // 左边缘和右边缘（逐像素镜像）
+    for (int y = 0; y < h; ++y) {
+        uchar* dstLine = paddedInput.scanLine(y + padding);
+        const uchar* srcLine = normalizedInput.constScanLine(y);
+        // 左边缘镜像
+        for (int x = 0; x < std::min(padding, w); ++x) {
+            int srcX = x;
+            int dstX = padding - 1 - x;
+            dstLine[dstX * 3 + 0] = srcLine[srcX * 3 + 0];
+            dstLine[dstX * 3 + 1] = srcLine[srcX * 3 + 1];
+            dstLine[dstX * 3 + 2] = srcLine[srcX * 3 + 2];
+        }
+        // 右边缘镜像
+        for (int x = 0; x < std::min(padding, w); ++x) {
+            int srcX = w - 1 - x;
+            int dstX = padding + w + x;
+            dstLine[dstX * 3 + 0] = srcLine[srcX * 3 + 0];
+            dstLine[dstX * 3 + 1] = srcLine[srcX * 3 + 1];
+            dstLine[dstX * 3 + 2] = srcLine[srcX * 3 + 2];
+        }
+    }
+    
+    // 使用扩展后的图像进行分块处理
+    const int paddedW = paddedInput.width();
+    const int paddedH = paddedInput.height();
 
     int tilesX = (w + tileSize - 1) / tileSize;
     int tilesY = (h + tileSize - 1) / tileSize;
@@ -867,7 +1135,8 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
             << "scale:" << scale
             << "tiles:" << tilesX << "x" << tilesY
             << "total:" << totalTiles
-            << "outputSize:" << (w * scale) << "x" << (h * scale);
+            << "outputSize:" << (w * scale) << "x" << (h * scale)
+            << "paddedInput:" << paddedW << "x" << paddedH;
 
     QImage output(w * scale, h * scale, QImage::Format_RGB888);
     output.fill(Qt::black);
@@ -875,63 +1144,109 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
     painter.setCompositionMode(QPainter::CompositionMode_Source);
 
     int tileIndex = 0;
+    int successfulTiles = 0;
+    int consecutiveFailures = 0;  // 连续失败计数，用于快速失败检测
+    const int kMaxConsecutiveFailures = 2;  // 连续失败超过此数即认为 GPU 状态损坏
+
     for (int ty = 0; ty < tilesY; ++ty) {
         for (int tx = 0; tx < tilesX; ++tx) {
             if (m_cancelRequested) { painter.end(); return QImage(); }
 
+            // 快速失败：如果连续多个分块失败（可能是 GPU OOM 或状态损坏），立即返回
+            if (consecutiveFailures >= kMaxConsecutiveFailures) {
+                qWarning() << "[AIEngine][Tiled] fast-fail: too many consecutive failures"
+                           << "(" << consecutiveFailures << "), aborting tiled processing";
+                painter.end();
+                emitError(tr("分块处理连续失败，可能是显存不足"));
+                return QImage();
+            }
+
+            // 原始图像中的分块位置（用于最终输出定位）
             int x0 = tx * tileSize;
             int y0 = ty * tileSize;
             int x1 = std::min(x0 + tileSize, w);
             int y1 = std::min(y0 + tileSize, h);
+            int actualTileW = x1 - x0;
+            int actualTileH = y1 - y0;
 
-            int px0 = std::max(x0 - padding, 0);
-            int py0 = std::max(y0 - padding, 0);
-            int px1 = std::min(x1 + padding, w);
-            int py1 = std::min(y1 + padding, h);
+            // 在 paddedInput 中的提取位置（所有分块都有完整 padding）
+            // paddedInput 中，原图从 (padding, padding) 开始
+            int px0 = x0;  // 在 paddedInput 中 = 原始 x0（因为左边已经有 padding 像素的填充）
+            int py0 = y0;
+            int extractW = actualTileW + 2 * padding;
+            int extractH = actualTileH + 2 * padding;
 
-            int tileW = px1 - px0;
-            int tileH = py1 - py0;
-
-            QImage tile = input.copy(px0, py0, tileW, tileH);
+            QImage tile = paddedInput.copy(px0, py0, extractW, extractH);
             ncnn::Mat in = qimageToMat(tile, model);
             if (in.empty()) {
-                qWarning() << "[AIEngine][Tiled] tile" << tileIndex << "qimageToMat failed, skipping";
-                tileIndex++; continue;
+                qWarning() << "[AIEngine][Tiled] tile" << tileIndex << "qimageToMat failed";
+                tileIndex++;
+                consecutiveFailures++;
+                continue;
             }
 
             ncnn::Mat out = runInference(in, model);
             if (out.empty() || out.w <= 0 || out.h <= 0) {
-                qWarning() << "[AIEngine][Tiled] tile" << tileIndex << "inference failed, skipping";
+                qWarning() << "[AIEngine][Tiled] tile" << tileIndex << "inference failed";
                 tileIndex++;
+                consecutiveFailures++;
                 setProgress(0.1 + 0.85 * tileIndex / totalTiles);
+                
+                // 如果检测到 GPU OOM，立即返回让调用者用更小分块重试
+                if (m_gpuOomDetected.load()) {
+                    qWarning() << "[AIEngine][Tiled] GPU OOM detected, aborting to allow retry with smaller tiles";
+                    painter.end();
+                    return QImage();
+                }
                 continue;
             }
 
             QImage tileResult = matToQimage(out, model);
             if (tileResult.isNull()) {
-                qWarning() << "[AIEngine][Tiled] tile" << tileIndex << "matToQimage failed, skipping";
-                tileIndex++; continue;
+                qWarning() << "[AIEngine][Tiled] tile" << tileIndex << "matToQimage failed";
+                tileIndex++;
+                consecutiveFailures++;
+                continue;
             }
 
-            int outPadLeft = (x0 - px0) * scale;
-            int outPadTop  = (y0 - py0) * scale;
-            int outW = (x1 - x0) * scale;
-            int outH = (y1 - y0) * scale;
+            // 由于使用了镜像填充的 paddedInput，所有分块都有完整的 padding
+            // 因此裁剪位置始终是 (padding * scale, padding * scale)
+            int outPadLeft = padding * scale;
+            int outPadTop  = padding * scale;
+            int outW = actualTileW * scale;
+            int outH = actualTileH * scale;
 
             if (outPadLeft + outW > tileResult.width() || outPadTop + outH > tileResult.height()) {
                 qWarning() << "[AIEngine][Tiled] tile" << tileIndex
                            << "crop region out of bounds, tileResult:" << tileResult.size()
                            << "crop:(" << outPadLeft << "," << outPadTop << ") size:" << outW << "x" << outH;
-                tileIndex++; continue;
+                tileIndex++;
+                consecutiveFailures++;
+                continue;
             }
 
             QImage croppedResult = tileResult.copy(outPadLeft, outPadTop, outW, outH);
             painter.drawImage(x0 * scale, y0 * scale, croppedResult);
             tileIndex++;
+            successfulTiles++;
+            consecutiveFailures = 0;  // 成功时重置连续失败计数
             setProgress(0.1 + 0.85 * tileIndex / totalTiles);
         }
     }
     painter.end();
+
+    // 只有所有分块都成功才返回结果
+    if (successfulTiles < totalTiles) {
+        int failedTiles = totalTiles - successfulTiles;
+        qWarning() << "[AIEngine][Tiled] tiled inference incomplete"
+                   << "successful:" << successfulTiles
+                   << "failed:" << failedTiles
+                   << "total:" << totalTiles;
+        emitError(tr("推理未完整完成（%1/%2 分块成功）").arg(successfulTiles).arg(totalTiles));
+        return QImage();
+    }
+
+    qInfo() << "[AIEngine][Tiled] all" << totalTiles << "tiles processed successfully";
     return output;
 }
 
@@ -1019,6 +1334,890 @@ QImage AIEngine::applyOutscale(const QImage &input, double scale)
     int newWidth  = static_cast<int>(input.width()  * scale);
     int newHeight = static_cast<int>(input.height() * scale);
     return input.scaled(newWidth, newHeight, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+}
+
+// ========== 轻量级帧推理（供视频管线使用）==========
+
+QImage AIEngine::processFrame(const QImage &input, const ModelInfo &model, int tileSize)
+{
+    // 防御性检查：确保输入有效
+    if (input.isNull() || input.width() <= 0 || input.height() <= 0) {
+        qWarning() << "[AIEngine][processFrame] invalid input image"
+                   << "isNull:" << input.isNull()
+                   << "width:" << input.width()
+                   << "height:" << input.height();
+        return QImage();
+    }
+    
+    // 验证 QImage 内存是否有效
+    if (input.constBits() == nullptr) {
+        qWarning() << "[AIEngine][processFrame] input has null bits pointer";
+        return QImage();
+    }
+    
+    // 创建深拷贝验证内存有效性并确保数据独立（避免隐式共享导致的竞争）
+    QImage safeInput = input.copy();
+    if (safeInput.isNull()) {
+        qWarning() << "[AIEngine][processFrame] failed to create safe input copy";
+        return QImage();
+    }
+    
+    // 检查取消状态
+    if (m_cancelRequested || m_forceCancelled) {
+        return QImage();
+    }
+
+    // 自动 tileSize 决策
+    if (tileSize <= 0) {
+        tileSize = computeAutoTileSizeForModel(input.size(), model);
+    }
+
+    // 极大图像安全检查
+    if (tileSize == 0 && model.tileSize > 0) {
+        const qint64 pixels = static_cast<qint64>(input.width()) * input.height();
+        if (pixels > 1024LL * 1024) {
+            tileSize = model.tileSize;
+        }
+    }
+    if (tileSize == 0) {
+        const qint64 pixels = static_cast<qint64>(input.width()) * input.height();
+        if (pixels > 2048LL * 2048 && model.tileSize > 0) {
+            tileSize = model.tileSize;
+        }
+    }
+
+    // GPU OOM 自动降级
+    if (m_gpuOomDetected.load() && tileSize == 0) {
+        tileSize = (model.tileSize > 0) ? model.tileSize : 200;
+    }
+
+    ModelInfo effectiveModel = model;
+    if (tileSize > 0) {
+        effectiveModel.tileSize = tileSize;
+    }
+
+    // 分块处理策略：
+    // 1. 视频帧通常较小（<1024x1024），单帧处理更稳定高效
+    // 2. 大图像（>1024x1024）需要分块处理避免 GPU OOM
+    // 3. 分块处理的 padding/mirroring 在某些边界条件下可能导致内存问题
+    //    因此仅在必要时使用，且优先选择较大的 tile size 减少拼接次数
+    const qint64 pixelCount = static_cast<qint64>(safeInput.width()) * safeInput.height();
+    constexpr qint64 kTileThreshold = 1024LL * 1024;  // 1M 像素阈值
+    
+    bool needTile = (tileSize > 0) && (pixelCount > kTileThreshold);
+
+    QImage result;
+    if (needTile) {
+        // 大图像：使用分块处理，但优先使用较大 tile 减少边界问题
+        int safeTileSize = std::max(tileSize, 256);
+        effectiveModel.tileSize = safeTileSize;
+        result = processTiledNoProgress(safeInput, effectiveModel);
+    } else {
+        // 小图像/视频帧：单帧处理更稳定
+        result = processSingleNoProgress(safeInput, effectiveModel);
+    }
+
+    // GPU OOM 自动降级重试
+    if (result.isNull() && m_gpuOomDetected.load()) {
+        const int fallbackTiles[] = {128, 96, 64};
+        for (int fb : fallbackTiles) {
+            if (!result.isNull()) break;
+            m_gpuOomDetected.store(false);
+            cleanupGpuMemory();
+            effectiveModel.tileSize = fb;
+            result = processTiled(safeInput, effectiveModel);
+        }
+    }
+
+    return result;
+}
+
+QImage AIEngine::processTiledNoProgress(const QImage &input, const ModelInfo &model)
+{
+    // 防御性检查：确保输入有效
+    if (input.isNull() || input.width() <= 0 || input.height() <= 0) {
+        qWarning() << "[AIEngine][TiledNoProgress] invalid input image, returning null";
+        return QImage();
+    }
+
+    int tileSize = model.tileSize;
+    int scale = model.scaleFactor;
+    int w = input.width();
+    int h = input.height();
+
+    if (tileSize <= 0) {
+        return processSingleNoProgress(input, model);
+    }
+
+    // ── 动态计算 padding：复杂模型需要更大的重叠区域避免边界伪影 ──────────
+    int padding = model.tilePadding;
+    const int layerCount = model.layerCount;
+    if (layerCount > 500) {
+        padding = std::max(padding, 64);
+    } else if (layerCount > 200) {
+        padding = std::max(padding, 48);
+    } else if (layerCount > 50) {
+        padding = std::max(padding, 24);
+    }
+    
+    // ── 转换为 RGB888 格式确保兼容性 ────────────────────────────
+    QImage normalizedInput;
+    if (input.format() == QImage::Format_RGB888) {
+        normalizedInput = input;
+    } else {
+        QImage inputCopy = input.copy();
+        normalizedInput = inputCopy.convertToFormat(QImage::Format_RGB888);
+    }
+
+    if (normalizedInput.isNull() || normalizedInput.format() != QImage::Format_RGB888) {
+        qWarning() << "[AIEngine][TiledNoProgress] failed to normalize input format"
+                   << "isNull:" << normalizedInput.isNull()
+                   << "format:" << normalizedInput.format();
+        return processSingleNoProgress(input, model);
+    }
+
+    QImage paddedInput(w + 2 * padding, h + 2 * padding, QImage::Format_RGB888);
+    if (paddedInput.isNull()) {
+        qWarning() << "[AIEngine][TiledNoProgress] failed to create padded image";
+        return processSingleNoProgress(input, model);
+    }
+    paddedInput.fill(Qt::black);
+    
+    // 使用正确的字节宽度进行复制
+    const int srcBytesPerLine = normalizedInput.bytesPerLine();
+    const int expectedBytesPerLine = w * 3;
+    
+    // 使用简单的像素复制代替 QPainter（更稳定）
+    // 复制原图到中心位置
+    for (int y = 0; y < h; ++y) {
+        const uchar* srcLine = normalizedInput.constScanLine(y);
+        uchar* dstLine = paddedInput.scanLine(y + padding);
+        // 使用实际的字节宽度，而不是假定的 w * 3
+        if (srcBytesPerLine >= expectedBytesPerLine) {
+            std::memcpy(dstLine + padding * 3, srcLine, expectedBytesPerLine);
+        } else {
+            std::memcpy(dstLine + padding * 3, srcLine, srcBytesPerLine);
+            std::memset(dstLine + padding * 3 + srcBytesPerLine, 0, expectedBytesPerLine - srcBytesPerLine);
+        }
+    }
+    
+    // 镜像填充边缘（使用直接像素操作）
+    // 上边缘
+    for (int y = 0; y < std::min(padding, h); ++y) {
+        const uchar* srcLine = normalizedInput.constScanLine(y);
+        uchar* dstLine = paddedInput.scanLine(padding - 1 - y);
+        if (srcBytesPerLine >= expectedBytesPerLine) {
+            std::memcpy(dstLine + padding * 3, srcLine, expectedBytesPerLine);
+        } else {
+            std::memcpy(dstLine + padding * 3, srcLine, srcBytesPerLine);
+            std::memset(dstLine + padding * 3 + srcBytesPerLine, 0, expectedBytesPerLine - srcBytesPerLine);
+        }
+    }
+    // 下边缘
+    for (int y = 0; y < std::min(padding, h); ++y) {
+        const uchar* srcLine = normalizedInput.constScanLine(h - 1 - y);
+        uchar* dstLine = paddedInput.scanLine(padding + h + y);
+        if (srcBytesPerLine >= expectedBytesPerLine) {
+            std::memcpy(dstLine + padding * 3, srcLine, expectedBytesPerLine);
+        } else {
+            std::memcpy(dstLine + padding * 3, srcLine, srcBytesPerLine);
+            std::memset(dstLine + padding * 3 + srcBytesPerLine, 0, expectedBytesPerLine - srcBytesPerLine);
+        }
+    }
+    // 左边缘和右边缘（逐像素镜像）
+    for (int y = 0; y < h; ++y) {
+        uchar* dstLine = paddedInput.scanLine(y + padding);
+        const uchar* srcLine = normalizedInput.constScanLine(y);
+        // 左边缘镜像
+        for (int x = 0; x < std::min(padding, w); ++x) {
+            int srcX = x;
+            int dstX = padding - 1 - x;
+            dstLine[dstX * 3 + 0] = srcLine[srcX * 3 + 0];
+            dstLine[dstX * 3 + 1] = srcLine[srcX * 3 + 1];
+            dstLine[dstX * 3 + 2] = srcLine[srcX * 3 + 2];
+        }
+        // 右边缘镜像
+        for (int x = 0; x < std::min(padding, w); ++x) {
+            int srcX = w - 1 - x;
+            int dstX = padding + w + x;
+            dstLine[dstX * 3 + 0] = srcLine[srcX * 3 + 0];
+            dstLine[dstX * 3 + 1] = srcLine[srcX * 3 + 1];
+            dstLine[dstX * 3 + 2] = srcLine[srcX * 3 + 2];
+        }
+    }
+    
+    // 使用扩展后的图像进行分块处理
+    const int paddedW = paddedInput.width();
+    const int paddedH = paddedInput.height();
+
+    int tilesX = (w + tileSize - 1) / tileSize;
+    int tilesY = (h + tileSize - 1) / tileSize;
+    int totalTiles = tilesX * tilesY;
+
+    QImage output(w * scale, h * scale, QImage::Format_RGB888);
+    output.fill(Qt::black);
+    QPainter painter(&output);
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
+
+    int tileIndex = 0;
+    int successfulTiles = 0;
+    int consecutiveFailures = 0;  // 连续失败计数，用于快速失败检测
+    const int kMaxConsecutiveFailures = 2;  // 连续失败超过此数即认为 GPU 状态损坏
+
+    for (int ty = 0; ty < tilesY; ++ty) {
+        for (int tx = 0; tx < tilesX; ++tx) {
+            if (m_cancelRequested) { painter.end(); return QImage(); }
+
+            // 快速失败：如果连续多个分块失败（可能是 GPU OOM 或状态损坏），立即返回
+            if (consecutiveFailures >= kMaxConsecutiveFailures) {
+                qWarning() << "[AIEngine][TiledNoProgress] fast-fail: too many consecutive failures"
+                           << "(" << consecutiveFailures << "), aborting tiled processing";
+                painter.end();
+                emitError(tr("分块处理连续失败，可能是显存不足"));
+                return QImage();
+            }
+
+            // 原始图像中的分块位置（用于最终输出定位）
+            int x0 = tx * tileSize;
+            int y0 = ty * tileSize;
+            int x1 = std::min(x0 + tileSize, w);
+            int y1 = std::min(y0 + tileSize, h);
+            int actualTileW = x1 - x0;
+            int actualTileH = y1 - y0;
+
+            // 在 paddedInput 中的提取位置（所有分块都有完整 padding）
+            // paddedInput 中，原图从 (padding, padding) 开始
+            int px0 = x0;  // 在 paddedInput 中 = 原始 x0（因为左边已经有 padding 像素的填充）
+            int py0 = y0;
+            int extractW = actualTileW + 2 * padding;
+            int extractH = actualTileH + 2 * padding;
+
+            QImage tile = paddedInput.copy(px0, py0, extractW, extractH);
+            ncnn::Mat in = qimageToMat(tile, model);
+            if (in.empty()) {
+                qWarning() << "[AIEngine][TiledNoProgress] tile" << tileIndex << "qimageToMat failed";
+                tileIndex++;
+                consecutiveFailures++;
+                continue;
+            }
+
+            ncnn::Mat out = runInference(in, model);
+            if (out.empty() || out.w <= 0 || out.h <= 0) {
+                qWarning() << "[AIEngine][TiledNoProgress] tile" << tileIndex << "inference failed";
+                tileIndex++;
+                consecutiveFailures++;
+                
+                // 如果检测到 GPU OOM，立即返回让调用者用更小分块重试
+                if (m_gpuOomDetected.load()) {
+                    qWarning() << "[AIEngine][TiledNoProgress] GPU OOM detected, aborting to allow retry with smaller tiles";
+                    painter.end();
+                    return QImage();
+                }
+                continue;
+            }
+
+            QImage tileResult = matToQimage(out, model);
+            if (tileResult.isNull()) {
+                qWarning() << "[AIEngine][TiledNoProgress] tile" << tileIndex << "matToQimage failed";
+                tileIndex++;
+                consecutiveFailures++;
+                continue;
+            }
+
+            // 由于使用了镜像填充的 paddedInput，所有分块都有完整的 padding
+            // 因此裁剪位置始终是 (padding * scale, padding * scale)
+            int outPadLeft = padding * scale;
+            int outPadTop  = padding * scale;
+            int outW = actualTileW * scale;
+            int outH = actualTileH * scale;
+
+            if (outPadLeft + outW > tileResult.width() || outPadTop + outH > tileResult.height()) {
+                qWarning() << "[AIEngine][TiledNoProgress] tile" << tileIndex
+                           << "crop region out of bounds, tileResult:" << tileResult.size()
+                           << "crop:(" << outPadLeft << "," << outPadTop << ") size:" << outW << "x" << outH;
+                tileIndex++;
+                consecutiveFailures++;
+                continue;
+            }
+
+            QImage croppedResult = tileResult.copy(outPadLeft, outPadTop, outW, outH);
+            painter.drawImage(x0 * scale, y0 * scale, croppedResult);
+            tileIndex++;
+            successfulTiles++;
+            consecutiveFailures = 0;  // 成功时重置连续失败计数
+        }
+    }
+    painter.end();
+
+    // 只有所有分块都成功才返回结果
+    if (successfulTiles < totalTiles) {
+        int failedTiles = totalTiles - successfulTiles;
+        qWarning() << "[AIEngine][TiledNoProgress] tiled inference incomplete"
+                   << "successful:" << successfulTiles
+                   << "failed:" << failedTiles
+                   << "total:" << totalTiles;
+        emitError(tr("推理未完整完成（%1/%2 分块成功）").arg(successfulTiles).arg(totalTiles));
+        return QImage();
+    }
+
+    return output;
+}
+
+QImage AIEngine::processSingleNoProgress(const QImage &input, const ModelInfo &model)
+{
+    if (input.isNull() || input.width() <= 0 || input.height() <= 0) {
+        qWarning() << "[AIEngine][SingleNoProgress] invalid input image";
+        return QImage();
+    }
+
+    if (m_cancelRequested) return QImage();
+    
+    ncnn::Mat in = qimageToMat(input, model);
+    if (m_cancelRequested) return QImage();
+    ncnn::Mat out = runInference(in, model);
+    if (out.empty()) {
+        qWarning() << "[AIEngine][SingleNoProgress] inference returned empty mat";
+        return QImage();
+    }
+    if (m_cancelRequested) return QImage();
+    return matToQimage(out, model);
+}
+
+void AIEngine::cleanupGpuMemory()
+{
+#if NCNN_VULKAN
+    if (!m_vkdev) return;
+    if (m_blobVkAllocator) {
+        m_blobVkAllocator->clear();
+    }
+    if (m_stagingVkAllocator) {
+        m_stagingVkAllocator->clear();
+    }
+#endif
+}
+
+// ========== 视频处理管线 ==========
+
+void AIEngine::processVideoInternal(const QString &inputPath, const QString &outputPath)
+{
+    QElapsedTimer perfTimer;
+    perfTimer.start();
+
+    // ── 锁定推理互斥锁：整个视频处理期间持有，避免逐帧锁释放导致状态不一致 ──
+    QMutexLocker inferenceLocker(&m_inferenceMutex);
+
+    // ── 快照模型和参数（线程安全，仅在循环前做一次）─────────────────────────
+    ModelInfo snapModel;
+    QString snapModelId;
+    QVariantMap snapParams;
+    {
+        QMutexLocker locker(&m_mutex);
+        snapModel   = m_currentModel;
+        snapModelId = m_currentModelId;
+    }
+    {
+        QMutexLocker locker(&m_paramsMutex);
+        snapParams = getEffectiveParamsLocked(snapModel);
+    }
+
+    // ── 发出警告：图像模型处理视频的潜在问题 ──────────────────────────────
+    const bool isVideoNativeModel = snapModelId.contains("video", Qt::CaseInsensitive)
+                                 || snapModelId.contains("rife",  Qt::CaseInsensitive);
+    if (!isVideoNativeModel) {
+        QString warning = tr("当前使用图像模型处理视频，可能存在以下问题：\n"
+                             "• 帧间一致性较差，可能出现闪烁\n"
+                             "• 处理速度显著慢于视频专用模型\n"
+                             "• 输出文件体积可能较大\n"
+                             "建议优先使用 AnimeVideo 系列视频模型。");
+        qWarning() << "[AIEngine][Video] image model used for video:" << snapModelId << warning;
+        QMetaObject::invokeMethod(this, [this, warning]() {
+            emit videoProcessingWarning(warning);
+        }, Qt::QueuedConnection);
+    }
+
+    setProcessing(true);
+    setProgress(0.0);
+    m_cancelRequested = false;
+
+    // ── 预计算帧 tileSize 和 outscale ────────────────────────────────────
+    // 优先使用用户指定的 tileSize，否则使用模型默认值（避免自动计算返回过大值导致 GPU OOM）
+    int frameTileSize = snapModel.tileSize;  // 使用模型默认值（通常是 200）
+    if (snapParams.contains("tileSize") && snapParams["tileSize"].toInt() > 0) {
+        frameTileSize = snapParams["tileSize"].toInt();
+    }
+    double outscale = snapParams.value("outscale", snapModel.scaleFactor).toDouble();
+
+    // ── FFmpeg 资源（全部集中声明，统一清理）──────────────────────────────
+    AVFormatContext *inFmtCtx  = nullptr;
+    AVFormatContext *outFmtCtx = nullptr;
+    AVCodecContext  *decCtx    = nullptr;
+    AVCodecContext  *encCtx    = nullptr;
+    SwsContext      *decSwsCtx = nullptr;   // 解码 sws（复用，避免逐帧创建销毁）
+    SwsContext      *encSwsCtx = nullptr;   // 编码 sws
+    AVFrame *decFrame = nullptr;
+    AVFrame *encFrame = nullptr;
+    AVPacket *pkt     = nullptr;
+
+    int videoIdx = -1;
+    int audioIdx = -1;
+    int outVideoIdx = -1;
+    int outAudioIdx = -1;
+    bool headerWritten = false;
+    bool encoderOpened = false;
+
+    // 解码 sws 缓存状态（用于检测格式变化并按需重建）
+    int decSwsW = 0, decSwsH = 0;
+    AVPixelFormat decSwsFmt = AV_PIX_FMT_NONE;
+
+    auto cleanup = [&]() {
+        if (decSwsCtx) sws_freeContext(decSwsCtx);
+        if (encSwsCtx) sws_freeContext(encSwsCtx);
+        if (encFrame)  av_frame_free(&encFrame);
+        if (decFrame)  av_frame_free(&decFrame);
+        if (pkt)       av_packet_free(&pkt);
+        if (encCtx)    avcodec_free_context(&encCtx);
+        if (decCtx)    avcodec_free_context(&decCtx);
+        if (outFmtCtx) {
+            if (headerWritten && !(outFmtCtx->oformat->flags & AVFMT_NOFILE))
+                avio_closep(&outFmtCtx->pb);
+            avformat_free_context(outFmtCtx);
+        }
+        if (inFmtCtx) avformat_close_input(&inFmtCtx);
+        setProcessing(false);
+    };
+
+    auto fail = [&](const QString &err) {
+        qWarning() << "[AIEngine][Video] error:" << err;
+        cleanup();
+        emit processError(err);
+        emit processFileCompleted(false, QString(), err);
+    };
+
+    // ── 1. 打开输入文件 ──────────────────────────────────────────────────
+    if (avformat_open_input(&inFmtCtx, inputPath.toUtf8().constData(), nullptr, nullptr) < 0) {
+        fail(tr("无法打开视频文件: %1").arg(inputPath));
+        return;
+    }
+    if (avformat_find_stream_info(inFmtCtx, nullptr) < 0) {
+        fail(tr("无法获取视频流信息"));
+        return;
+    }
+
+    for (unsigned i = 0; i < inFmtCtx->nb_streams; ++i) {
+        if (inFmtCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO && videoIdx < 0)
+            videoIdx = static_cast<int>(i);
+        else if (inFmtCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO && audioIdx < 0)
+            audioIdx = static_cast<int>(i);
+    }
+    if (videoIdx < 0) { fail(tr("未找到视频流")); return; }
+
+    // ── 2. 初始化解码器 ──────────────────────────────────────────────────
+    const AVCodec *dec = avcodec_find_decoder(inFmtCtx->streams[videoIdx]->codecpar->codec_id);
+    if (!dec) { fail(tr("未找到合适的视频解码器")); return; }
+
+    decCtx = avcodec_alloc_context3(dec);
+    avcodec_parameters_to_context(decCtx, inFmtCtx->streams[videoIdx]->codecpar);
+    if (avcodec_open2(decCtx, dec, nullptr) < 0) {
+        fail(tr("无法打开视频解码器"));
+        return;
+    }
+
+    // 估算总帧数
+    int64_t totalFrames = inFmtCtx->streams[videoIdx]->nb_frames;
+    if (totalFrames <= 0 && decCtx->framerate.num > 0 && inFmtCtx->duration > 0) {
+        totalFrames = inFmtCtx->duration * decCtx->framerate.num
+                    / (static_cast<int64_t>(AV_TIME_BASE) * std::max(1, decCtx->framerate.den));
+    }
+    if (totalFrames <= 0) totalFrames = 1000;
+
+    qInfo() << "[AIEngine][Video] start processing"
+            << "input:" << inputPath
+            << "decoder:" << dec->name
+            << "size:" << decCtx->width << "x" << decCtx->height
+            << "estimatedFrames:" << totalFrames
+            << "model:" << snapModelId
+            << "tileSize:" << frameTileSize
+            << "outscale:" << outscale;
+
+    // Note: setProgress removed to avoid cross-thread signal issues in worker thread
+
+    // ── 3. 逐帧解码 → AI 推理 → 编码 ───────────────────────────────────
+    decFrame = av_frame_alloc();
+    pkt      = av_packet_alloc();
+    int64_t frameCount = 0;
+    int64_t failedFrames = 0;
+    bool firstFrameProcessed = false;
+
+    // 确保输出路径使用 mp4 扩展名
+    QString effectiveOutputPath = outputPath;
+    {
+        QFileInfo outInfo(outputPath);
+        if (outInfo.suffix().toLower() != "mp4") {
+            effectiveOutputPath = outInfo.absolutePath() + "/" + outInfo.completeBaseName() + ".mp4";
+        }
+    }
+
+    // GPU 清理间隔：每 N 帧清理一次显存，平衡性能和显存占用
+    constexpr int kGpuCleanupInterval = 5;
+
+    // ── 方案3：try-catch 包裹主循环，捕获未预期的异常防止进程残留 ────
+    try {
+    while (av_read_frame(inFmtCtx, pkt) >= 0) {
+        if (m_cancelRequested || m_forceCancelled) {
+            av_packet_unref(pkt);
+            qInfo() << "[AIEngine][Video] Cancelled at frame" << frameCount << "force:" << m_forceCancelled.load();
+            fail(tr("视频处理已取消"));
+            return;
+        }
+
+        // ── 音频流：直接复制（仅在编码器已打开后） ─────────────────────────
+        if (pkt->stream_index == audioIdx && outFmtCtx && outAudioIdx >= 0 && headerWritten) {
+            AVPacket *audioPkt = av_packet_clone(pkt);
+            audioPkt->stream_index = outAudioIdx;
+            av_packet_rescale_ts(audioPkt,
+                inFmtCtx->streams[audioIdx]->time_base,
+                outFmtCtx->streams[outAudioIdx]->time_base);
+            av_interleaved_write_frame(outFmtCtx, audioPkt);
+            av_packet_free(&audioPkt);
+            av_packet_unref(pkt);
+            continue;
+        }
+
+        if (pkt->stream_index != videoIdx) { av_packet_unref(pkt); continue; }
+
+        avcodec_send_packet(decCtx, pkt);
+        av_packet_unref(pkt);
+
+        while (avcodec_receive_frame(decCtx, decFrame) == 0) {
+            if (m_cancelRequested || m_forceCancelled) {
+                qInfo() << "[AIEngine][Video] Cancelled at frame receive" << frameCount;
+                fail(tr("视频处理已取消"));
+                return;
+            }
+
+            // ── 解码帧 → QImage（使用 frame->format 而非 decCtx->pix_fmt，
+            //    复用 SwsContext，仅在分辨率或格式变化时重建）───────────────
+            const AVPixelFormat frameFmt = static_cast<AVPixelFormat>(decFrame->format);
+            if (!decSwsCtx || decSwsW != decFrame->width ||
+                decSwsH != decFrame->height || decSwsFmt != frameFmt) {
+                if (decSwsCtx) sws_freeContext(decSwsCtx);
+                decSwsCtx = sws_getContext(
+                    decFrame->width, decFrame->height, frameFmt,
+                    decFrame->width, decFrame->height, AV_PIX_FMT_RGB24,
+                    SWS_BILINEAR, nullptr, nullptr, nullptr);
+                decSwsW   = decFrame->width;
+                decSwsH   = decFrame->height;
+                decSwsFmt = frameFmt;
+                if (!decSwsCtx) {
+                    qWarning() << "[AIEngine][Video] frame" << frameCount
+                               << "sws_getContext failed for pixel format" << frameFmt;
+                    failedFrames++;
+                    continue;
+                }
+            }
+
+            // 修复堆损坏：使用对齐的临时缓冲区进行 sws_scale，避免 QImage bytesPerLine 问题
+            const int frameW = decFrame->width;
+            const int frameH = decFrame->height;
+            const int rgb24LineSize = frameW * 3;  // RGB24 精确行宽，无填充
+            
+            // 分配临时缓冲区（sws_scale 需要连续内存，无填充）
+            std::vector<uint8_t> rgb24Buffer(rgb24LineSize * frameH);
+            
+            {
+                uint8_t *dst[4] = { rgb24Buffer.data(), nullptr, nullptr, nullptr };
+                int dstStride[4] = { rgb24LineSize, 0, 0, 0 };
+
+                if (frameCount % 10 == 0 || frameCount < 3) {
+                    qInfo() << "[AIEngine][Video] frame" << frameCount
+                            << "sws_scale: src linesize:" << decFrame->linesize[0]
+                            << "dst lineSize:" << rgb24LineSize
+                            << "width:" << frameW
+                            << "height:" << frameH;
+                    fflush(stdout);
+                }
+
+                int swsRet = sws_scale(decSwsCtx, decFrame->data, decFrame->linesize,
+                                       0, frameH, dst, dstStride);
+
+                if (swsRet < 0 || swsRet != frameH) {
+                    qWarning() << "[AIEngine][Video] frame" << frameCount
+                               << "sws_scale failed with ret:" << swsRet
+                               << "expected:" << frameH;
+                    failedFrames++;
+                    continue;
+                }
+            }
+            
+            // 从临时缓冲区安全创建 QImage
+            QImage frameImg(frameW, frameH, QImage::Format_RGB888);
+            if (frameImg.isNull()) {
+                qWarning() << "[AIEngine][Video] frame" << frameCount
+                           << "failed to allocate QImage for frame";
+                failedFrames++;
+                continue;
+            }
+            
+            // 逐行复制数据，正确处理 QImage 的 bytesPerLine 对齐
+            for (int y = 0; y < frameH; ++y) {
+                const uint8_t* srcLine = rgb24Buffer.data() + y * rgb24LineSize;
+                uchar* dstLine = frameImg.scanLine(y);
+                std::memcpy(dstLine, srcLine, rgb24LineSize);
+            }
+            
+
+            if (frameImg.isNull()) {
+                qWarning() << "[AIEngine][Video] frame" << frameCount
+                           << "decode to QImage failed, skipping";
+                failedFrames++;
+                continue;
+            }
+
+            // ── GPU 显存帧间清理已禁用 ──────────────────────────────────────
+            // 在视频处理过程中清理 GPU 内存会导致 ncnn 的 Vulkan allocator 失效，
+            // 从而引发空指针访问崩溃。仅在视频处理完全结束后清理一次。
+            // if (frameCount > 0 && (frameCount % kGpuCleanupInterval == 0)) {
+            //     cleanupGpuMemory();
+            // }
+
+            
+            // ── AI 推理（使用轻量级 processFrame，不涉及状态/信号管理）─────
+            QImage resultImg = processFrame(frameImg, snapModel, frameTileSize);
+            if (resultImg.isNull()) {
+                qWarning() << "[AIEngine][Video] frame" << frameCount
+                           << "AI inference failed, using original frame";
+                resultImg = frameImg;
+                failedFrames++;
+            }
+
+            // 应用 outscale（如果与模型原生缩放不同）
+            if (std::abs(outscale - snapModel.scaleFactor) > 0.01) {
+                resultImg = applyOutscale(resultImg, outscale / snapModel.scaleFactor);
+            }
+
+            // ── 延迟初始化编码器（需要第一帧推理结果才知道输出尺寸） ──────
+            if (!firstFrameProcessed) {
+                firstFrameProcessed = true;
+                // 方案4：确保输出宽高为偶数（YUV420P 要求，某些编码器对奇数分辨率不兼容）
+                const int outW = resultImg.width()  & ~1;
+                const int outH = resultImg.height() & ~1;
+                if (outW != resultImg.width() || outH != resultImg.height()) {
+                    qInfo() << "[AIEngine][Video] output size aligned to even:"
+                            << resultImg.width() << "x" << resultImg.height()
+                            << "->" << outW << "x" << outH;
+                    resultImg = resultImg.scaled(outW, outH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+                }
+
+                avformat_alloc_output_context2(&outFmtCtx, nullptr, "mp4",
+                    effectiveOutputPath.toUtf8().constData());
+                if (!outFmtCtx) { fail(tr("无法创建输出格式上下文")); return; }
+
+                // 编码器优先级：优先使用稳定的软件/硬件编码器
+                // 注意：h264_mf 在工作线程中不稳定，需要排除
+                const AVCodec *enc = nullptr;
+                const char* encoderPriority[] = {
+                    "libx264",      // GPL 软件编码器（需要 GPL FFmpeg 构建）
+                    "h264_nvenc",   // NVIDIA 硬件编码器（RTX/GTX 显卡）
+                    "h264_qsv",     // Intel Quick Sync（集成显卡）
+                    "h264_amf",     // AMD 硬件编码器
+                    "libopenh264",  // Cisco OpenH264（BSD 许可证）
+                    nullptr
+                };
+                
+                for (int i = 0; encoderPriority[i] && !enc; ++i) {
+                    const AVCodec *candidate = avcodec_find_encoder_by_name(encoderPriority[i]);
+                    if (candidate) {
+                        // 排除 h264_mf（Windows MF 编码器在工作线程中崩溃）
+                        if (QString(candidate->name).contains("mf", Qt::CaseInsensitive)) {
+                            qInfo() << "[AIEngine][Video] skipping unstable encoder:" << candidate->name;
+                            continue;
+                        }
+                        enc = candidate;
+                        qInfo() << "[AIEngine][Video] selected H.264 encoder:" << enc->name;
+                    }
+                }
+                
+                // 回退到 MPEG-4（广泛支持，质量稍低但稳定）
+                if (!enc) {
+                    enc = avcodec_find_encoder(AV_CODEC_ID_MPEG4);
+                    if (enc) {
+                        qInfo() << "[AIEngine][Video] using MPEG-4 fallback encoder:" << enc->name;
+                    }
+                }
+                
+                if (!enc) { fail(tr("未找到可用的视频编码器")); return; }
+
+                AVStream *outVStream = avformat_new_stream(outFmtCtx, nullptr);
+                outVideoIdx = outVStream->index;
+
+                encCtx = avcodec_alloc_context3(enc);
+                encCtx->width  = outW;
+                encCtx->height = outH;
+                encCtx->pix_fmt = AV_PIX_FMT_YUV420P;
+                encCtx->time_base = inFmtCtx->streams[videoIdx]->time_base;
+                encCtx->framerate = decCtx->framerate;
+                encCtx->bit_rate = static_cast<int64_t>(outW) * outH * 4;
+                if (outFmtCtx->oformat->flags & AVFMT_GLOBALHEADER)
+                    encCtx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+
+                AVDictionary *encOpts = nullptr;
+                av_dict_set(&encOpts, "preset", "medium", 0);
+                av_dict_set(&encOpts, "crf", "18", 0);
+                if (avcodec_open2(encCtx, enc, &encOpts) < 0) {
+                    av_dict_free(&encOpts);
+                    fail(tr("无法打开视频编码器"));
+                    return;
+                }
+                av_dict_free(&encOpts);
+                encoderOpened = true;
+
+                avcodec_parameters_from_context(outVStream->codecpar, encCtx);
+                outVStream->time_base = encCtx->time_base;
+
+                if (audioIdx >= 0) {
+                    AVStream *outAStream = avformat_new_stream(outFmtCtx, nullptr);
+                    outAudioIdx = outAStream->index;
+                    avcodec_parameters_copy(outAStream->codecpar, inFmtCtx->streams[audioIdx]->codecpar);
+                    outAStream->time_base = inFmtCtx->streams[audioIdx]->time_base;
+                }
+
+                if (!(outFmtCtx->oformat->flags & AVFMT_NOFILE)) {
+                    if (avio_open(&outFmtCtx->pb, effectiveOutputPath.toUtf8().constData(), AVIO_FLAG_WRITE) < 0) {
+                        fail(tr("无法打开输出文件: %1").arg(effectiveOutputPath));
+                        return;
+                    }
+                }
+                if (avformat_write_header(outFmtCtx, nullptr) < 0) {
+                    fail(tr("无法写入视频文件头"));
+                    return;
+                }
+                headerWritten = true;
+
+                encSwsCtx = sws_getContext(outW, outH, AV_PIX_FMT_RGB24,
+                    outW, outH, AV_PIX_FMT_YUV420P,
+                    SWS_BILINEAR, nullptr, nullptr, nullptr);
+                encFrame = av_frame_alloc();
+                encFrame->format = AV_PIX_FMT_YUV420P;
+                encFrame->width  = outW;
+                encFrame->height = outH;
+                av_frame_get_buffer(encFrame, 32);
+
+                qInfo() << "[AIEngine][Video] encoder initialized"
+                        << "outputSize:" << outW << "x" << outH
+                        << "codec:" << enc->name;
+            }
+
+            // ── QImage → YUV → 编码（内联转换，避免中间 AVFrame 分配）────
+            {
+                // 确保 resultImg 是 RGB888 格式（与 encSwsCtx 匹配）
+                if (resultImg.format() != QImage::Format_RGB888) {
+                    resultImg = resultImg.convertToFormat(QImage::Format_RGB888);
+                }
+                uint8_t *src[4] = { resultImg.bits(), nullptr, nullptr, nullptr };
+                int srcStride[4] = { static_cast<int>(resultImg.bytesPerLine()), 0, 0, 0 };
+                sws_scale(encSwsCtx, src, srcStride, 0, resultImg.height(),
+                          encFrame->data, encFrame->linesize);
+            }
+            encFrame->pts = decFrame->pts;
+
+            int sendRet = avcodec_send_frame(encCtx, encFrame);
+            if (sendRet < 0) {
+                qWarning() << "[AIEngine][Video] frame" << frameCount
+                           << "avcodec_send_frame failed ret:" << sendRet;
+                failedFrames++;
+            }
+            AVPacket *outPkt = av_packet_alloc();
+            while (avcodec_receive_packet(encCtx, outPkt) == 0) {
+                av_packet_rescale_ts(outPkt, encCtx->time_base,
+                    outFmtCtx->streams[outVideoIdx]->time_base);
+                outPkt->stream_index = outVideoIdx;
+                av_interleaved_write_frame(outFmtCtx, outPkt);
+                av_packet_unref(outPkt);
+            }
+            av_packet_free(&outPkt);
+
+            frameCount++;
+            
+            // 更新进度（跨线程安全）
+            if (totalFrames > 0) {
+                const double progress = static_cast<double>(frameCount) / totalFrames;
+                setProgress(progress);
+            }
+            
+            // 心跳日志（每30帧输出一次，减少IO开销）
+            if (frameCount % 30 == 0) {
+                qInfo() << "[AIEngine][Video] progress" << frameCount << "/" << totalFrames
+                        << QString::number(100.0 * frameCount / std::max(1LL, totalFrames), 'f', 1) + "%"
+                        << "elapsed:" << perfTimer.elapsed() << "ms";
+            }
+        }
+    }
+
+    // ── 4. 刷新编码器 ───────────────────────────────────────────────────
+    if (encoderOpened && encCtx) {
+        avcodec_send_frame(encCtx, nullptr);
+        AVPacket *outPkt = av_packet_alloc();
+        while (avcodec_receive_packet(encCtx, outPkt) == 0) {
+            av_packet_rescale_ts(outPkt, encCtx->time_base,
+                outFmtCtx->streams[outVideoIdx]->time_base);
+            outPkt->stream_index = outVideoIdx;
+            av_interleaved_write_frame(outFmtCtx, outPkt);
+            av_packet_unref(outPkt);
+        }
+        av_packet_free(&outPkt);
+    }
+
+    // ── 5. 写入文件尾 & 最终清理 ────────────────────────────────────────
+    if (headerWritten && outFmtCtx) {
+        av_write_trailer(outFmtCtx);
+    }
+
+    } catch (const std::exception &ex) {
+        qCritical() << "[AIEngine][Video] C++ exception caught in video pipeline:"
+                    << ex.what() << "at frame" << frameCount;
+        fflush(stdout);
+        cleanup();
+        emit processError(tr("视频处理异常崩溃: %1").arg(QString::fromLocal8Bit(ex.what())));
+        emit processFileCompleted(false, QString(), tr("视频处理异常崩溃"));
+        return;
+    } catch (...) {
+        qCritical() << "[AIEngine][Video] Unknown exception caught in video pipeline"
+                    << "at frame" << frameCount;
+        fflush(stdout);
+        cleanup();
+        emit processError(tr("视频处理发生未知异常"));
+        emit processFileCompleted(false, QString(), tr("视频处理发生未知异常"));
+        return;
+    }
+
+    // GPU 显存清理已禁用
+    // 在视频处理结束后立即清理 Vulkan allocator 会导致 Qt 渲染线程的 GPU 设备丢失
+    // (DXGI_ERROR_DEVICE_REMOVED 0x887a0005)。NCNN 的 Vulkan allocator 会在
+    // AIEngine 析构时自动清理，无需手动干预。
+    // cleanupGpuMemory();
+
+    const qint64 totalCostMs = perfTimer.elapsed();
+    qInfo() << "[AIEngine][Video] finished"
+            << "frames:" << frameCount
+            << "failedFrames:" << failedFrames
+            << "totalCost:" << totalCostMs << "ms"
+            << "avgPerFrame:" << (frameCount > 0 ? totalCostMs / frameCount : 0) << "ms"
+            << "output:" << effectiveOutputPath;
+
+    setProgress(1.0);  // 完成时设置进度为100%
+    cleanup();
+
+    if (frameCount > 0) {
+        QFileInfo outInfo(effectiveOutputPath);
+        if (outInfo.exists() && outInfo.size() > 0) {
+            emit processFileCompleted(true, effectiveOutputPath, QString());
+        } else {
+            emit processFileCompleted(false, QString(),
+                tr("视频处理完成但输出文件无效: %1").arg(effectiveOutputPath));
+        }
+    } else {
+        emit processFileCompleted(false, QString(), tr("视频处理失败：未能成功处理任何帧"));
+    }
 }
 
 // ========== 自动参数计算 ==========
@@ -1206,23 +2405,54 @@ int AIEngine::computeAutoTileSizeForModel(const QSize &inputSize, const ModelInf
     const int scale    = std::max(1, model.scaleFactor);
     const int channels = model.outputChannels > 0 ? model.outputChannels : 3;
 
-    constexpr double kFactor     = 6.0;
+    // ── 根据模型复杂度动态调整 kFactor ──────────────────────────────────
+    // kFactor 估算中间特征图占用显存与 I/O 张量的倍数关系
+    // 方法1: 基于模型文件大小（权重越多通常中间层越多）
+    // 方法2: 基于模型的层数（加载时缓存在 model.layerCount）
+    double kFactor = 8.0;  // 基准值（轻量模型）
+    
+    // 使用缓存的层数（避免直接访问 m_net，确保线程安全）
+    const int layerCount = model.layerCount;
+    
+    // 优先使用层数判断复杂度（更准确）
+    if (layerCount > 500) {
+        kFactor = 48.0;   // 超大模型（如 realesrgan_x4plus 999层）
+    } else if (layerCount > 200) {
+        kFactor = 32.0;   // 大模型（如 realesrgan_x4plus_anime 268层）
+    } else if (layerCount > 50) {
+        kFactor = 16.0;   // 中等模型
+    } else if (layerCount > 0) {
+        kFactor = 10.0;   // 轻量模型（如 animevideov3 41层）
+    }
+    // 回退: 基于文件大小判断（模型未加载时）
+    else if (model.sizeBytes > 50LL * 1024 * 1024) {
+        kFactor = 48.0;   // >50MB 模型
+    } else if (model.sizeBytes > 20LL * 1024 * 1024) {
+        kFactor = 32.0;   // >20MB 模型
+    } else if (model.sizeBytes > 5LL * 1024 * 1024) {
+        kFactor = 16.0;   // >5MB 模型
+    }
+    
     constexpr qint64 kBytesPerMB = 1024LL * 1024;
 
+    // ── 估算可用显存（保守估计，避免触发 OOM）──────────────────────────
+    // 注意：实际可用显存 < 物理显存，因为 OS/驱动/其他程序也占用
     qint64 availableMB = 0;
     if (m_gpuAvailable && m_useGpu) {
 #if NCNN_VULKAN
-        if (m_vkdev) availableMB = 2048;
+        // 保守估计：假设只有 1GB 可用于推理（即使显卡有更多显存）
+        // 因为 Vulkan 管线、纹理缓存、命令缓冲区等也占用显存
+        if (m_vkdev) availableMB = 1024;
 #endif
-        if (availableMB <= 0) availableMB = 1024;
+        if (availableMB <= 0) availableMB = 512;
     } else {
-        availableMB = 512;
+        availableMB = 256;  // CPU 模式更保守
     }
 
-    // GPU OOM 已检测到：将可用显存估算减半，以确保分块足够小
+    // GPU OOM 已检测到：大幅降低可用显存估算
     if (m_gpuOomDetected.load()) {
-        availableMB = availableMB / 2;
-        qWarning() << "[AIEngine][AutoTile] GPU OOM flag active, halving availableMB to" << availableMB;
+        availableMB = std::max(128LL, availableMB / 4);
+        qWarning() << "[AIEngine][AutoTile] GPU OOM flag active, reducing availableMB to" << availableMB;
     }
 
     auto memForTile = [&](int tile) -> double {
@@ -1235,8 +2465,8 @@ int AIEngine::computeAutoTileSizeForModel(const QSize &inputSize, const ModelInf
 
     const int maxPossibleTile = std::max(w, h);
     const int minTile = 64;
-    const int maxTile = std::min(1024, maxPossibleTile);
-    const int step    = 64;
+    const int maxTile = std::min(512, maxPossibleTile);  // 降低最大分块到 512
+    const int step    = 32;  // 更细的步进，找到更精确的分块
 
     int bestTile = minTile;
     for (int t = maxTile; t >= minTile; t -= step) {
@@ -1246,12 +2476,25 @@ int AIEngine::computeAutoTileSizeForModel(const QSize &inputSize, const ModelInf
         }
     }
 
-    if (w <= bestTile && h <= bestTile) return 0;
+    // 如果图像足够小，不需要分块
+    if (w <= bestTile && h <= bestTile) {
+        qInfo() << "[AIEngine][AutoTile] no tiling needed:"
+                << "input:" << w << "x" << h
+                << "bestTile:" << bestTile
+                << "layers:" << layerCount
+                << "sizeBytes:" << model.sizeBytes
+                << "kFactor:" << kFactor;
+        return 0;
+    }
 
     qInfo() << "[AIEngine][AutoTile]"
             << "input:" << w << "x" << h
             << "scale:" << scale
+            << "layers:" << layerCount
+            << "sizeBytes:" << model.sizeBytes
+            << "kFactor:" << kFactor
             << "availableMB:" << availableMB
+            << "memForBestTile:" << memForTile(bestTile)
             << "bestTile:" << bestTile;
     return bestTile;
 }
