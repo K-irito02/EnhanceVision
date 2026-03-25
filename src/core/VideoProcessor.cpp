@@ -358,7 +358,14 @@ AVFrame* VideoProcessor::imageToFrame(const QImage& image, AVFrame* referenceFra
 
     frame->pts = referenceFrame->pts;
     frame->pict_type = referenceFrame->pict_type;
+#if LIBAVUTIL_VERSION_MAJOR >= 58
+    // FFmpeg 7.x: key_frame 移至 flags
+    if (referenceFrame->flags & AV_FRAME_FLAG_KEY) {
+        frame->flags |= AV_FRAME_FLAG_KEY;
+    }
+#else
     frame->key_frame = referenceFrame->key_frame;
+#endif
 
     return frame;
 }

@@ -97,8 +97,32 @@ if (pixelCount > kTileThreshold) {
 
 ---
 
-## 六、后续工作
+## 六、后续更新 (2026-03-26)
 
-- [ ] 集成 libx264 到 CMake 构建系统
-- [ ] 修复分块处理的边界条件问题
-- [ ] 考虑使用 h264_nvenc 硬件加速编码
+### 已完成
+
+- ✅ **启用 h264_nvenc 硬件编码**：NVIDIA GPU 加速，编码速度大幅提升
+- ✅ **集成 FFmpeg GPL 构建**：替换为 BtbN 的 `ffmpeg-master-latest-win64-gpl-shared`，支持 libx264 和 nvenc
+- ✅ **修复分块处理角落镜像**：添加四个角落的镜像填充，避免黑色伪影导致失真
+- ✅ **添加诊断日志**：帧质量检测、编码错误详情、分块处理状态
+
+### 编码器配置
+
+| 编码器 | 参数 | 说明 |
+|--------|------|------|
+| h264_nvenc | preset=p4, rc=vbr, cq=23 | NVIDIA 硬件编码 |
+| libx264 | preset=medium, crf=18 | GPL 软件编码 |
+| h264_qsv | preset=medium, global_quality=23 | Intel Quick Sync |
+| h264_amf | quality=balanced | AMD 硬件编码 |
+| mpeg4 | q:v=5 | 回退编码器 |
+
+### FFmpeg 版本
+
+- **版本**: ffmpeg-master-latest-win64-gpl-shared (BtbN)
+- **位置**: `third_party/ffmpeg/`
+- **特性**: `--enable-libx264 --enable-nvenc --enable-gpl`
+
+### 测试结果
+
+- 视频处理：210 帧，0 失败，h264_nvenc 编码
+- 图像处理：分块处理正常，无角落伪影

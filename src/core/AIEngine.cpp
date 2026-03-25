@@ -1120,6 +1120,36 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
         }
     }
     
+    // 四个角落的镜像填充（避免黑色伪影导致失真）
+    for (int y = 0; y < std::min(padding, h); ++y) {
+        uchar* dstLineTop = paddedInput.scanLine(padding - 1 - y);
+        uchar* dstLineBot = paddedInput.scanLine(padding + h + y);
+        const uchar* srcLineTop = normalizedInput.constScanLine(y);
+        const uchar* srcLineBot = normalizedInput.constScanLine(h - 1 - y);
+        for (int x = 0; x < std::min(padding, w); ++x) {
+            int dstXL = padding - 1 - x;
+            int dstXR = padding + w + x;
+            int srcXL = x;
+            int srcXR = w - 1 - x;
+            // 左上角
+            dstLineTop[dstXL * 3 + 0] = srcLineTop[srcXL * 3 + 0];
+            dstLineTop[dstXL * 3 + 1] = srcLineTop[srcXL * 3 + 1];
+            dstLineTop[dstXL * 3 + 2] = srcLineTop[srcXL * 3 + 2];
+            // 右上角
+            dstLineTop[dstXR * 3 + 0] = srcLineTop[srcXR * 3 + 0];
+            dstLineTop[dstXR * 3 + 1] = srcLineTop[srcXR * 3 + 1];
+            dstLineTop[dstXR * 3 + 2] = srcLineTop[srcXR * 3 + 2];
+            // 左下角
+            dstLineBot[dstXL * 3 + 0] = srcLineBot[srcXL * 3 + 0];
+            dstLineBot[dstXL * 3 + 1] = srcLineBot[srcXL * 3 + 1];
+            dstLineBot[dstXL * 3 + 2] = srcLineBot[srcXL * 3 + 2];
+            // 右下角
+            dstLineBot[dstXR * 3 + 0] = srcLineBot[srcXR * 3 + 0];
+            dstLineBot[dstXR * 3 + 1] = srcLineBot[srcXR * 3 + 1];
+            dstLineBot[dstXR * 3 + 2] = srcLineBot[srcXR * 3 + 2];
+        }
+    }
+    
     // 使用扩展后的图像进行分块处理
     const int paddedW = paddedInput.width();
     const int paddedH = paddedInput.height();
@@ -1142,6 +1172,12 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
     output.fill(Qt::black);
     QPainter painter(&output);
     painter.setCompositionMode(QPainter::CompositionMode_Source);
+
+    qInfo() << "[AIEngine][Tiled] processing"
+            << "input:" << w << "x" << h
+            << "output:" << (w * scale) << "x" << (h * scale)
+            << "tiles:" << tilesX << "x" << tilesY << "=" << totalTiles
+            << "tileSize:" << tileSize << "padding:" << padding;
 
     int tileIndex = 0;
     int successfulTiles = 0;
@@ -1546,6 +1582,36 @@ QImage AIEngine::processTiledNoProgress(const QImage &input, const ModelInfo &mo
         }
     }
     
+    // 四个角落的镜像填充（避免黑色伪影导致失真）
+    for (int y = 0; y < std::min(padding, h); ++y) {
+        uchar* dstLineTop = paddedInput.scanLine(padding - 1 - y);
+        uchar* dstLineBot = paddedInput.scanLine(padding + h + y);
+        const uchar* srcLineTop = normalizedInput.constScanLine(y);
+        const uchar* srcLineBot = normalizedInput.constScanLine(h - 1 - y);
+        for (int x = 0; x < std::min(padding, w); ++x) {
+            int dstXL = padding - 1 - x;
+            int dstXR = padding + w + x;
+            int srcXL = x;
+            int srcXR = w - 1 - x;
+            // 左上角
+            dstLineTop[dstXL * 3 + 0] = srcLineTop[srcXL * 3 + 0];
+            dstLineTop[dstXL * 3 + 1] = srcLineTop[srcXL * 3 + 1];
+            dstLineTop[dstXL * 3 + 2] = srcLineTop[srcXL * 3 + 2];
+            // 右上角
+            dstLineTop[dstXR * 3 + 0] = srcLineTop[srcXR * 3 + 0];
+            dstLineTop[dstXR * 3 + 1] = srcLineTop[srcXR * 3 + 1];
+            dstLineTop[dstXR * 3 + 2] = srcLineTop[srcXR * 3 + 2];
+            // 左下角
+            dstLineBot[dstXL * 3 + 0] = srcLineBot[srcXL * 3 + 0];
+            dstLineBot[dstXL * 3 + 1] = srcLineBot[srcXL * 3 + 1];
+            dstLineBot[dstXL * 3 + 2] = srcLineBot[srcXL * 3 + 2];
+            // 右下角
+            dstLineBot[dstXR * 3 + 0] = srcLineBot[srcXR * 3 + 0];
+            dstLineBot[dstXR * 3 + 1] = srcLineBot[srcXR * 3 + 1];
+            dstLineBot[dstXR * 3 + 2] = srcLineBot[srcXR * 3 + 2];
+        }
+    }
+    
     // 使用扩展后的图像进行分块处理
     const int paddedW = paddedInput.width();
     const int paddedH = paddedInput.height();
@@ -1558,6 +1624,12 @@ QImage AIEngine::processTiledNoProgress(const QImage &input, const ModelInfo &mo
     output.fill(Qt::black);
     QPainter painter(&output);
     painter.setCompositionMode(QPainter::CompositionMode_Source);
+
+    qInfo() << "[AIEngine][Tiled] processing"
+            << "input:" << w << "x" << h
+            << "output:" << (w * scale) << "x" << (h * scale)
+            << "tiles:" << tilesX << "x" << tilesY << "=" << totalTiles
+            << "tileSize:" << tileSize << "padding:" << padding;
 
     int tileIndex = 0;
     int successfulTiles = 0;
@@ -1988,6 +2060,14 @@ void AIEngine::processVideoInternal(const QString &inputPath, const QString &out
                            << "AI inference failed, using original frame";
                 resultImg = frameImg;
                 failedFrames++;
+            } else {
+                // 验证推理结果有效性
+                if (resultImg.width() <= 0 || resultImg.height() <= 0) {
+                    qWarning() << "[AIEngine][Video] frame" << frameCount
+                               << "inference returned invalid size, using original";
+                    resultImg = frameImg;
+                    failedFrames++;
+                }
             }
 
             // 应用 outscale（如果与模型原生缩放不同）
@@ -2012,12 +2092,13 @@ void AIEngine::processVideoInternal(const QString &inputPath, const QString &out
                     effectiveOutputPath.toUtf8().constData());
                 if (!outFmtCtx) { fail(tr("无法创建输出格式上下文")); return; }
 
-                // 编码器优先级：优先使用稳定的软件/硬件编码器
-                // 注意：h264_mf 在工作线程中不稳定，需要排除
+                // 编码器优先级：优先使用 NVIDIA 硬件编码器（高性能）
+                // 注意：h264_mf 在工作线程中不稳定，已排除
                 const AVCodec *enc = nullptr;
+                QString selectedEncoderName;
                 const char* encoderPriority[] = {
-                    "libx264",      // GPL 软件编码器（需要 GPL FFmpeg 构建）
-                    "h264_nvenc",   // NVIDIA 硬件编码器（RTX/GTX 显卡）
+                    "h264_nvenc",   // NVIDIA 硬件编码器（RTX/GTX 显卡，最快）
+                    "libx264",      // GPL 软件编码器（高质量，需要 GPL FFmpeg）
                     "h264_qsv",     // Intel Quick Sync（集成显卡）
                     "h264_amf",     // AMD 硬件编码器
                     "libopenh264",  // Cisco OpenH264（BSD 许可证）
@@ -2033,6 +2114,7 @@ void AIEngine::processVideoInternal(const QString &inputPath, const QString &out
                             continue;
                         }
                         enc = candidate;
+                        selectedEncoderName = QString(enc->name);
                         qInfo() << "[AIEngine][Video] selected H.264 encoder:" << enc->name;
                     }
                 }
@@ -2041,6 +2123,7 @@ void AIEngine::processVideoInternal(const QString &inputPath, const QString &out
                 if (!enc) {
                     enc = avcodec_find_encoder(AV_CODEC_ID_MPEG4);
                     if (enc) {
+                        selectedEncoderName = QString(enc->name);
                         qInfo() << "[AIEngine][Video] using MPEG-4 fallback encoder:" << enc->name;
                     }
                 }
@@ -2061,8 +2144,36 @@ void AIEngine::processVideoInternal(const QString &inputPath, const QString &out
                     encCtx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
 
                 AVDictionary *encOpts = nullptr;
-                av_dict_set(&encOpts, "preset", "medium", 0);
-                av_dict_set(&encOpts, "crf", "18", 0);
+                
+                // 根据编码器类型配置专用参数
+                if (selectedEncoderName.contains("nvenc")) {
+                    // NVIDIA NVENC 硬件编码器专用配置
+                    av_dict_set(&encOpts, "preset", "p4", 0);       // 平衡质量和速度
+                    av_dict_set(&encOpts, "rc", "vbr", 0);          // 可变比特率
+                    av_dict_set(&encOpts, "cq", "23", 0);           // 质量级别 (0-51, 越低越好)
+                    av_dict_set(&encOpts, "b:v", "0", 0);           // 让 cq 控制质量
+                    qInfo() << "[AIEngine][Video] using NVENC hardware encoding";
+                } else if (selectedEncoderName.contains("libx264")) {
+                    // libx264 软件编码器配置
+                    av_dict_set(&encOpts, "preset", "medium", 0);   // 编码速度预设
+                    av_dict_set(&encOpts, "crf", "18", 0);          // 质量级别 (0-51)
+                    qInfo() << "[AIEngine][Video] using libx264 software encoding";
+                } else if (selectedEncoderName.contains("qsv")) {
+                    // Intel Quick Sync 配置
+                    av_dict_set(&encOpts, "preset", "medium", 0);
+                    av_dict_set(&encOpts, "global_quality", "23", 0);
+                    qInfo() << "[AIEngine][Video] using Intel QSV hardware encoding";
+                } else if (selectedEncoderName.contains("amf")) {
+                    // AMD AMF 配置
+                    av_dict_set(&encOpts, "quality", "balanced", 0);
+                    av_dict_set(&encOpts, "rc", "vbr_latency", 0);
+                    qInfo() << "[AIEngine][Video] using AMD AMF hardware encoding";
+                } else {
+                    // 默认配置（MPEG-4 等）
+                    av_dict_set(&encOpts, "q:v", "5", 0);           // 质量级别
+                    qInfo() << "[AIEngine][Video] using default encoder settings";
+                }
+                
                 if (avcodec_open2(encCtx, enc, &encOpts) < 0) {
                     av_dict_free(&encOpts);
                     fail(tr("无法打开视频编码器"));
@@ -2113,6 +2224,32 @@ void AIEngine::processVideoInternal(const QString &inputPath, const QString &out
                 if (resultImg.format() != QImage::Format_RGB888) {
                     resultImg = resultImg.convertToFormat(QImage::Format_RGB888);
                 }
+                
+                // 诊断日志：检查输入帧质量（每100帧或首帧）
+                if (frameCount == 0 || frameCount % 100 == 0) {
+                    // 计算帧的简单统计信息检测异常
+                    const uchar* bits = resultImg.constBits();
+                    int totalPixels = resultImg.width() * resultImg.height();
+                    int blackPixels = 0, whitePixels = 0;
+                    for (int i = 0; i < totalPixels * 3; i += 3) {
+                        int r = bits[i], g = bits[i+1], b = bits[i+2];
+                        if (r < 10 && g < 10 && b < 10) blackPixels++;
+                        if (r > 245 && g > 245 && b > 245) whitePixels++;
+                    }
+                    double blackRatio = 100.0 * blackPixels / totalPixels;
+                    double whiteRatio = 100.0 * whitePixels / totalPixels;
+                    qInfo() << "[AIEngine][Video][Diag] frame" << frameCount
+                            << "size:" << resultImg.width() << "x" << resultImg.height()
+                            << "blackPixels:" << QString::number(blackRatio, 'f', 1) + "%"
+                            << "whitePixels:" << QString::number(whiteRatio, 'f', 1) + "%";
+                    
+                    // 警告：大量黑色/白色像素可能表示处理失败
+                    if (blackRatio > 30.0) {
+                        qWarning() << "[AIEngine][Video][Diag] frame" << frameCount
+                                   << "has excessive black pixels - possible processing failure";
+                    }
+                }
+                
                 uint8_t *src[4] = { resultImg.bits(), nullptr, nullptr, nullptr };
                 int srcStride[4] = { static_cast<int>(resultImg.bytesPerLine()), 0, 0, 0 };
                 sws_scale(encSwsCtx, src, srcStride, 0, resultImg.height(),
@@ -2122,19 +2259,35 @@ void AIEngine::processVideoInternal(const QString &inputPath, const QString &out
 
             int sendRet = avcodec_send_frame(encCtx, encFrame);
             if (sendRet < 0) {
+                char errBuf[256];
+                av_strerror(sendRet, errBuf, sizeof(errBuf));
                 qWarning() << "[AIEngine][Video] frame" << frameCount
-                           << "avcodec_send_frame failed ret:" << sendRet;
+                           << "avcodec_send_frame failed:" << errBuf;
                 failedFrames++;
             }
             AVPacket *outPkt = av_packet_alloc();
+            int packetsWritten = 0;
             while (avcodec_receive_packet(encCtx, outPkt) == 0) {
                 av_packet_rescale_ts(outPkt, encCtx->time_base,
                     outFmtCtx->streams[outVideoIdx]->time_base);
                 outPkt->stream_index = outVideoIdx;
-                av_interleaved_write_frame(outFmtCtx, outPkt);
+                int writeRet = av_interleaved_write_frame(outFmtCtx, outPkt);
+                if (writeRet < 0) {
+                    char errBuf[256];
+                    av_strerror(writeRet, errBuf, sizeof(errBuf));
+                    qWarning() << "[AIEngine][Video] frame" << frameCount
+                               << "av_interleaved_write_frame failed:" << errBuf;
+                }
+                packetsWritten++;
                 av_packet_unref(outPkt);
             }
             av_packet_free(&outPkt);
+            
+            // 诊断：如果没有写入任何包，可能有问题
+            if (packetsWritten == 0 && frameCount > 0 && frameCount % 30 == 0) {
+                qInfo() << "[AIEngine][Video][Diag] frame" << frameCount
+                        << "no packets written (encoder buffering)";
+            }
 
             frameCount++;
             
