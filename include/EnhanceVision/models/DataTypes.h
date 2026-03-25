@@ -89,6 +89,7 @@ struct ModelInfo {
     qint64 sizeBytes = 0;      ///< 模型文件大小
     bool isAvailable = false;  ///< 文件是否存在
     bool isLoaded = false;     ///< 是否已加载到内存
+    int layerCount = 0;        ///< 模型层数（加载后设置，用于动态padding计算）
     QVariantMap supportedParams; ///< 支持的可调参数及范围
 
     ModelInfo() : category(ModelCategory::SuperResolution) {}

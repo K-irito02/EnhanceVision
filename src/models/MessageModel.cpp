@@ -795,6 +795,11 @@ bool MessageModel::removeMediaFile(const QString &messageId, int fileIndex)
         return false;
     }
 
+    const QString removedFileId = message.mediaFiles[fileIndex].id;
+    if (m_processingController && !removedFileId.isEmpty()) {
+        m_processingController->cancelMessageFileTasks(messageId, removedFileId);
+    }
+
     message.mediaFiles.removeAt(fileIndex);
     emit messageMediaFilesReloaded(messageId);
     emitMessageFileStatsChanged(messageId, message);

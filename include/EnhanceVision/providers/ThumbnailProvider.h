@@ -109,6 +109,7 @@ private slots:
 
 private:
     QMap<QString, QImage> m_thumbnails;     ///< 缩略图映射
+    QMap<QString, QString> m_idToPath;      ///< ID 到文件路径的映射（用于 processed_ 前缀的 ID）
     QSet<QString> m_pendingRequests;        ///< 正在生成中的请求
     QMutex m_mutex;                           ///< 互斥锁，保证线程安全
     QThreadPool* m_threadPool;                ///< 线程池

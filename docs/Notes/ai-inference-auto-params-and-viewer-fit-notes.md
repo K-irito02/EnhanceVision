@@ -2,12 +2,14 @@
 
 ## 概述
 
-**创建日期**: 2026-03-24
+**创建日期**: 2026-03-24  
+**最后更新**: 2026-03-24（新增 GPU OOM 自动降级 + 全参数自动计算 + 线程安全参数访问）
 
-本次改动涵盖两个独立方向：
+本次改动涵盖三个独立方向：
 
 1. **AI 推理自动参数**：为分块大小（tileSize）等依赖图像尺寸的参数实现「默认自动、可手动覆盖」机制。
 2. **媒体查看器适配**：确保超分辨率处理后的大图在嵌入式窗口和独立窗口中均能完整显示，不溢出边界。
+3. **GPU OOM 自动降级 + 全参数自动计算 + 线程安全参数访问**：推理失败时自动切换分块模式重试，新增全模型类别参数自动计算，参数读写加锁保证线程安全。
 
 ---
 
@@ -18,8 +20,8 @@
 | 文件路径 | 修改内容 |
 |----------|----------|
 | `include/EnhanceVision/models/DataTypes.h` | `AIParams` 新增 `autoTileSize` 布尔字段 |
-| `include/EnhanceVision/core/AIEngine.h` | 新增 `computeAutoTileSize(QSize)` 方法声明及 `autoParamsComputed` 信号 |
-| `src/core/AIEngine.cpp` | 实现 `computeAutoTileSize()`；`process()` 中改用自动分块决策逻辑 |
+| `include/EnhanceVision/core/AIEngine.h` | 新增 `computeAutoTileSize(QSize)`、`computeAutoParams(QSize,bool)` 方法；`autoParamsComputed`、`allAutoParamsComputed` 信号；`m_gpuOomDetected`、`m_paramsMutex` 成员；`emitError()`、`getEffectiveParamsLocked()`、`computeAutoTileSizeForModel()`、`computeAutoParamsForModel()` 私有方法 |
+| `src/core/AIEngine.cpp` | 实现全部上述新方法；`process()` 加入 GPU OOM 自动降级逻辑；`runInference()` 移除非法 `ncnn::Extractor` API 调用；参数读写全部通过 `m_paramsMutex` 保护 |
 | `qml/components/AIParamsPanel.qml` | 分块大小控件改为自动/手动双模式，新增媒体尺寸感知属性 |
 | `qml/components/EmbeddedMediaViewer.qml` | `FullShaderEffect` 改为 `anchors.fill: parent`，保留 `clip: true` |
 | `qml/components/MediaViewerWindow.qml` | `contentArea`、`videoContainer` 增加 `clip: true`；`FullShaderEffect` 改为 fill parent |
@@ -178,6 +180,122 @@ NCNN 的 Vulkan 后端没有暴露「当前剩余显存」查询接口。
 | 4x 超分结果在嵌入式窗口查看 | 图像完整显示在窗口内，不溢出 |
 | 4x 超分结果在独立窗口查看 | 图像完整显示，拖拽调整窗口大小后自适应 |
 | 独立窗口全屏 | 图像自适应全屏，无溢出 |
+
+---
+
+## 五补、GPU OOM 自动降级 + 全参数自动计算 + 线程安全参数访问
+
+### 5b.1 GPU OOM 自动降级
+
+#### 问题背景
+
+推理时若 GPU 显存不足，`ncnn::Extractor::extract()` 返回错误码 `-100`。原实现直接报错返回，用户需手动降低分块大小才能继续推理。
+
+#### 方案
+
+新增 `m_gpuOomDetected`（`std::atomic<bool>`）标志位：
+
+- `runInference()` 检测到 `extractRet == -100` 时置位 `m_gpuOomDetected = true`。
+- `process()` 在推理前检查该标志，若已置位则强制启用分块（使用 `model.tileSize` 或保守值 200）。
+- 推理失败且 `m_gpuOomDetected` 为 true 时，自动以分块模式重试一次。
+- `loadModel()` / `unloadModel()` 时重置标志，换模型后重新评估。
+- `computeAutoTileSizeForModel()` 检测到该标志时，将可用显存估算减半，输出更保守的分块大小。
+
+```cpp
+// runInference() 内
+if (extractRet == -100) {
+    m_gpuOomDetected.store(true);
+    emitError(tr("GPU 显存不足 (OOM)，将自动切换为分块模式重试"));
+}
+
+// process() 内 —— OOM 降级重试
+if (result.isNull() && m_gpuOomDetected.load() && !needTile) {
+    int fallbackTile = (currentModel.tileSize > 0) ? currentModel.tileSize : 200;
+    effectiveModel.tileSize = fallbackTile;
+    result = processTiled(workInput, effectiveModel);
+}
+```
+
+### 5b.2 全参数自动计算（`computeAutoParams`）
+
+新增 `computeAutoParams(QSize mediaSize, bool isVideo)` 方法，覆盖所有模型类别的每个支持参数：
+
+| 模型类别 | 自动计算的参数 |
+|---------|---------------|
+| 超分辨率 | tileSize, outscale, tta_mode, face_enhance, uhd_mode, fp32, denoise |
+| 去噪 | tileSize, noise_threshold, noise_level, color_denoise, sharpness_preserve |
+| 去模糊 | tileSize, deblur_strength, iterations, motion_blur |
+| 去雾 | tileSize, dehaze_strength, sky_protect, color_correct |
+| 上色 | tileSize, render_factor, artistic_mode, temporal_consistency, saturation_boost |
+| 低光增强 | tileSize, enhancement_strength, exposure_correction, noise_suppression, gamma_correction |
+| 视频插帧 | tileSize, time_step, uhd_mode, tta_spatial, tta_temporal, scale, scene_detection |
+| 图像修复 | tileSize, inpaint_radius, inpaint_method, feather_edge |
+
+计算结果通过 `allAutoParamsComputed(QVariantMap)` 信号发出，供 UI 实时更新。
+
+### 5b.3 线程安全参数访问（`m_paramsMutex`）
+
+原 `m_parameters` 的读写未加锁，多线程场景下存在数据竞争。
+
+**修复方案**：新增 `mutable QMutex m_paramsMutex`，所有参数读写路径统一加锁：
+
+| 方法 | 锁行为 |
+|------|--------|
+| `setParameter()` | 持 `m_paramsMutex` 写 |
+| `getParameter()` | 持 `m_paramsMutex` 读 |
+| `clearParameters()` | 持 `m_paramsMutex` 清空 |
+| `mergeWithDefaultParams()` | 持 `m_paramsMutex` 后调用 `getEffectiveParamsLocked()` |
+| `getEffectiveParams()` | 持 `m_paramsMutex` 后调用 `getEffectiveParamsLocked()` |
+| `process()` 推理前快照 | 持 `m_paramsMutex` 快照参数，之后释放锁再推理 |
+
+`getEffectiveParamsLocked()` 是不加锁的内部辅助，由上层持锁后调用，避免重入死锁。
+
+### 5b.4 `ncnn::Extractor` API 修复
+
+`runInference()` 原先调用了此版本 NCNN 中不存在的方法：
+
+```cpp
+// 移除（非法调用）
+ex.set_num_threads(m_opt.num_threads);   // ncnn::Extractor 无此方法
+ex.set_vulkan_compute(true);             // ncnn::Extractor 无此方法
+```
+
+这些选项已在 `updateOptions()` 中通过 `m_net.opt` 全局设置，`create_extractor()` 创建时会自动继承，无需在 Extractor 上重复设置。
+
+### 5b.5 Blob 名称兼容与“假成功”治理（本次补充）
+
+#### 问题现象
+
+日志中大量出现：
+
+- `find_blob_index_by_name data failed`
+- `find_blob_index_by_name input failed`
+- NCNN 建议 `ex.input("in0", in0)` 或 `ex.input("Input1", in0)`
+
+这说明部分模型的真实输入/输出节点名与 `models.json` 中配置不一致。旧实现仅尝试单一 blob 名称，失败后分块流程继续“跳过失败块”，容易产生：
+
+- 处理结果看似成功但画面是黑块/半成品；
+- 用户误判为“模型可用但质量差”。
+
+#### 方案
+
+1. **`runInference()` 增加 blob 候选回退**
+   - 输入候选：`model.inputBlobName` → `input` → `data` → `in0` → `Input1`
+   - 输出候选：`model.outputBlobName` → `output` → `out0` → `prob`
+   - 按顺序尝试，命中后记录实际命中的 blob 名称。
+
+2. **错误语义精确化**
+   - 输入失败统一报：`模型输入节点不匹配`；
+   - 输出失败统一报：`模型输出节点不匹配或设备不兼容`。
+
+3. **与分块完整性保护协同**
+   - `processTiled()` 已要求“全部分块成功才返回结果”；
+   - 因此 blob 不匹配时将返回失败，不再写出半成品图像。
+
+#### 效果
+
+- 同一会话切换不同模型时，对历史命名差异模型兼容性显著提升；
+- “成功但半成品”路径被阻断，失败会被明确标识并可重试/换模型。
 
 ---
 

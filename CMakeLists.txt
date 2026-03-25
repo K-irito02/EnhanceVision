@@ -135,6 +135,8 @@ qt_add_executable(EnhanceVision
     src/core/FrameCache.cpp
     src/core/TaskCoordinator.cpp
     src/core/ResourceManager.cpp
+    src/core/LifecycleSupervisor.cpp
+    src/core/CancellableTaskToken.cpp
     src/models/SessionModel.cpp
     src/models/FileModel.cpp
     src/models/ProcessingModel.cpp
@@ -160,6 +162,8 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/core/FrameCache.h
     include/EnhanceVision/core/TaskCoordinator.h
     include/EnhanceVision/core/ResourceManager.h
+    include/EnhanceVision/core/LifecycleSupervisor.h
+    include/EnhanceVision/core/CancellableTaskToken.h
     include/EnhanceVision/models/SessionModel.h
     include/EnhanceVision/models/FileModel.h
     include/EnhanceVision/models/ProcessingModel.h

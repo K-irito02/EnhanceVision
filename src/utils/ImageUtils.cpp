@@ -29,15 +29,28 @@ ImageUtils::~ImageUtils()
 QImage ImageUtils::generateThumbnail(const QString &imagePath, const QSize &size)
 {
     qDebug() << "[ImageUtils] generateThumbnail called for:" << imagePath << "size:" << size;
-    QImage image = loadImage(imagePath);
+    
+    QImageReader reader(imagePath);
+    reader.setAutoDetectImageFormat(true);
+    reader.setAllocationLimit(0);
+    
+    QSize originalSize = reader.size();
+    if (!originalSize.isValid()) {
+        qWarning() << "[ImageUtils] Failed to get image size:" << imagePath;
+        return QImage();
+    }
+    
+    QSize targetSize = originalSize.scaled(size, Qt::KeepAspectRatio);
+    reader.setScaledSize(targetSize);
+    
+    QImage image = reader.read();
     if (image.isNull()) {
         qWarning() << "[ImageUtils] Failed to load image for thumbnail:" << imagePath;
         return QImage();
     }
-    qDebug() << "[ImageUtils] Image loaded successfully, original size:" << image.size();
-    QImage result = scaleImage(image, size, true);
-    qDebug() << "[ImageUtils] Thumbnail generated, result size:" << result.size();
-    return result;
+    
+    qDebug() << "[ImageUtils] Thumbnail generated, result size:" << image.size();
+    return image;
 }
 
 QImage ImageUtils::generateVideoThumbnail(const QString &videoPath, const QSize &size)
@@ -216,6 +229,7 @@ QImage ImageUtils::loadImage(const QString &path)
 {
     QImageReader reader(path);
     reader.setAutoDetectImageFormat(true);
+    reader.setAllocationLimit(0);
     return reader.read();
 }
 

@@ -78,6 +78,16 @@ public:
     Q_INVOKABLE void cancelProcess();
 
     /**
+     * @brief 强制取消推理（立即终止）
+     */
+    Q_INVOKABLE void forceCancel();
+
+    /**
+     * @brief 检查是否被强制取消
+     */
+    bool isForceCancelled() const;
+
+    /**
      * @brief OpenCV 图像修复（同步）
      * @param input 输入图像
      * @param mask 掩码图像（非零像素为修复区域）
@@ -183,6 +193,7 @@ signals:
     void progressTextChanged(const QString &text);
     void processCompleted(const QImage &result);
     void processFileCompleted(bool success, const QString &resultPath, const QString &error);
+    void videoProcessingWarning(const QString &warning);
     void processError(const QString &error);
     void useGpuChanged(bool useGpu);
     void gpuAvailableChanged(bool available);
@@ -209,6 +220,10 @@ private:
 
     QImage processTiled(const QImage &input, const ModelInfo &model);
     QImage processSingle(const QImage &input, const ModelInfo &model);
+    
+    // 视频帧专用版本（不调用 setProgress，避免跨线程信号问题）
+    QImage processTiledNoProgress(const QImage &input, const ModelInfo &model);
+    QImage processSingleNoProgress(const QImage &input, const ModelInfo &model);
     ncnn::Mat runInference(const ncnn::Mat &input, const ModelInfo &model);
 
     QImage processWithTTA(const QImage &input, const ModelInfo &model);
@@ -218,6 +233,29 @@ private:
     void setProgress(double value, bool forceEmit = false);
     void setProcessing(bool processing);
     void emitError(const QString &error);
+
+    void processVideoInternal(const QString &inputPath, const QString &outputPath);
+
+    /**
+     * @brief 轻量级单帧推理（供视频管线逐帧调用）
+     *
+     * 与 process() 不同，此方法：
+     * - 不管理 isProcessing / progress 状态
+     * - 不发射 processCompleted / processingChanged 等信号
+     * - 不加锁 m_inferenceMutex（由调用方持有）
+     * - 支持指定 tileSize（0=由方法内部自动决策）
+     *
+     * @param input     输入图像
+     * @param model     模型信息快照（值拷贝，不访问 m_currentModel）
+     * @param tileSize  分块大小（0=自动）
+     * @return 处理后的图像，失败返回空 QImage
+     */
+    QImage processFrame(const QImage &input, const ModelInfo &model, int tileSize);
+
+    /**
+     * @brief 清理 GPU 显存（供视频管线帧间调用，防止显存累积）
+     */
+    void cleanupGpuMemory();
 
     // ── 纯 const 辅助（不持有外部锁，内部不加锁） ──
     QVariantMap getEffectiveParamsLocked(const ModelInfo &model) const;
@@ -242,6 +280,7 @@ private:
     std::atomic<double> m_progress{0.0};
     std::atomic<qint64> m_lastProgressEmitMs{0};
     std::atomic<bool> m_cancelRequested{false};
+    std::atomic<bool> m_forceCancelled{false};
     std::atomic<bool> m_gpuOomDetected{false};   // GPU OOM 自动降级标志
     bool m_gpuAvailable = false;
     bool m_useGpu = true;

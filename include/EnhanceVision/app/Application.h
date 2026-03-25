@@ -11,6 +11,8 @@
 #include <QQuickWidget>
 #include <QTranslator>
 #include <QSharedPointer>
+#include <QPointer>
+#include <QString>
 #include <memory>
 
 namespace EnhanceVision {
@@ -25,6 +27,7 @@ class SessionController;
 class ProcessingController;
 class ImageExportService;
 class ThumbnailProvider;
+class LifecycleSupervisor;
 
 class Application : public QObject
 {
@@ -50,6 +53,8 @@ private:
     void setupTranslator();
     bool switchTranslator(const QString& language);
 
+    void setupLifecycleGuard();
+
     QQuickWidget *m_mainWidget;
     std::unique_ptr<FileModel> m_fileModel;
     std::unique_ptr<MessageModel> m_messageModel;
@@ -61,6 +66,9 @@ private:
     ImageExportService *m_imageExportService;
     QSharedPointer<QTranslator> m_translator;
     QSharedPointer<QTranslator> m_qtTranslator;
+
+    LifecycleSupervisor* m_lifecycleSupervisor = nullptr;
+    bool m_mainWindowEverShown = false;
 
 private slots:
     void onLanguageChanged();

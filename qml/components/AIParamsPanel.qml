@@ -188,7 +188,7 @@ ColumnLayout {
             spacing: 6
 
             ColoredIcon {
-                source: Theme.icon(root._autoReady ? "check-circle" : "clock")
+                source: Theme.icon(root._autoReady ? "check-circle" : "loader")
                 iconSize: 12
                 color: root._autoReady ? Theme.colors.success : Theme.colors.mutedForeground
             }
@@ -210,7 +210,7 @@ ColumnLayout {
                 width: 16; height: 16; visible: root._autoReady
                 ColoredIcon {
                     anchors.centerIn: parent
-                    source: root.currentMediaIsVideo ? Theme.icon("film") : Theme.icon("image")
+                    source: root.currentMediaIsVideo ? Theme.icon("video") : Theme.icon("image")
                     iconSize: 12; color: Theme.colors.mutedForeground
                 }
                 ToolTip.visible: _strategyHover.containsMouse
@@ -286,7 +286,7 @@ ColumnLayout {
         RowLayout {
             Layout.fillWidth: true; spacing: 6
             ColoredIcon {
-                source: Theme.icon("layout"); iconSize: 13
+                source: Theme.icon("layout-grid"); iconSize: 13
                 color: root.autoTileMode ? Theme.colors.primary : Theme.colors.mutedForeground
             }
             Text { text: qsTr("分块大小"); color: Theme.colors.foreground; font.pixelSize: 12; font.weight: Font.Medium }

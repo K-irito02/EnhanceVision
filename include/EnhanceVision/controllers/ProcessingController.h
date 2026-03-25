@@ -79,6 +79,7 @@ public:
     Q_INVOKABLE void resumeQueue();
     Q_INVOKABLE void cancelTask(const QString& taskId);
     Q_INVOKABLE void cancelAllTasks();
+    Q_INVOKABLE void forceCancelAllTasks();
     Q_INVOKABLE QString addTask(const Message& message);
     Q_INVOKABLE QString sendToProcessing(int mode, const QVariantMap& params);
     Q_INVOKABLE void reorderTask(const QString& taskId, int newPosition);
@@ -92,6 +93,7 @@ public:
     bool hasTasksForMessage(const QString& messageId) const;
     
     void cancelMessageTasks(const QString& messageId);
+    void cancelMessageFileTasks(const QString& messageId, const QString& fileId);
     void cancelSessionTasks(const QString& sessionId);
     
     void pauseSessionTasks(const QString& sessionId);

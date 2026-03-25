@@ -16,13 +16,18 @@
 #include "EnhanceVision/services/ImageExportService.h"
 #include "EnhanceVision/providers/PreviewProvider.h"
 #include "EnhanceVision/providers/ThumbnailProvider.h"
+#include "EnhanceVision/core/LifecycleSupervisor.h"
 #include "EnhanceVision/utils/WindowHelper.h"
 #include "EnhanceVision/utils/SubWindowHelper.h"
 #include <QQmlEngine>
 #include <QQmlContext>
 #include <QCoreApplication>
+#include <QApplication>
+#include <QGuiApplication>
 #include <QLibraryInfo>
 #include <QQuickWindow>
+#include <QWindow>
+#include <QEvent>
 #include <QElapsedTimer>
 #include <QVector>
 #include <QPointer>
@@ -30,6 +35,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <cstdlib>
 
 namespace EnhanceVision {
 
@@ -188,18 +194,22 @@ Application::Application(QObject *parent)
 
 Application::~Application()
 {
+    qInfo() << "[Application] Destructor called";
+
     m_sessionController->saveSessions();
     delete m_mainWidget;
     SettingsController::destroyInstance();
+
+    qInfo() << "[Application] Destructor completed";
 }
 
 void Application::initialize()
 {
     m_mainWidget->setWindowFlags(Qt::FramelessWindowHint);
-    
+
     QQmlEngine *engine = m_mainWidget->engine();
     engine->addImageProvider(QStringLiteral("preview"), new PreviewProvider());
-    
+
     auto* thumbnailProvider = new ThumbnailProvider();
     engine->addImageProvider(QStringLiteral("thumbnail"), thumbnailProvider);
 
@@ -212,6 +222,8 @@ void Application::initialize()
     setupTranslator();
 
     WindowHelper::instance()->setWindow(m_mainWidget);
+
+    setupLifecycleGuard();
 
     m_sessionController->loadSessions();
     m_sessionController->restoreThumbnails();
@@ -230,6 +242,11 @@ void Application::initialize()
         for (const auto &error : errors) {
             qCritical() << "QML Error:" << error.toString();
         }
+        if (m_lifecycleSupervisor) {
+            m_lifecycleSupervisor->requestShutdown(
+                ExitReason::QmlLoadError,
+                QStringLiteral("QQuickWidget load failed"));
+        }
     }
 }
 
@@ -237,6 +254,28 @@ void Application::show()
 {
     m_mainWidget->resize(1280, 720);
     m_mainWidget->show();
+    m_mainWindowEverShown = true;
+}
+
+void Application::setupLifecycleGuard()
+{
+    m_lifecycleSupervisor = LifecycleSupervisor::instance();
+    m_lifecycleSupervisor->setProcessingController(m_processingController.get());
+    m_lifecycleSupervisor->setupWindowWatchdog(m_mainWidget);
+    m_lifecycleSupervisor->setupProcessWatchdog();
+
+    if (auto* app = qobject_cast<QApplication*>(QCoreApplication::instance())) {
+        app->setQuitOnLastWindowClosed(true);
+
+        connect(app, &QApplication::lastWindowClosed, this, [this]() {
+            qWarning() << "[Application] lastWindowClosed emitted";
+            if (m_lifecycleSupervisor) {
+                m_lifecycleSupervisor->requestShutdown(ExitReason::MainWindowClosed);
+            }
+        });
+    }
+
+    qInfo() << "[Application] Lifecycle guard setup completed";
 }
 
 void Application::registerQmlTypes()
@@ -280,11 +319,11 @@ void Application::setupQmlContext(ThumbnailProvider* thumbnailProvider)
     QQmlContext *context = m_mainWidget->rootContext();
 
     // 设置控制器之间的连接
-    m_fileController->setFileModel(m_fileModel.get());
     m_processingController->setFileController(m_fileController.get());
     m_processingController->setMessageModel(m_messageModel.get());
     m_processingController->setSessionController(m_sessionController.get());
     m_sessionController->setProcessingController(m_processingController.get());
+    m_messageModel->setProcessingController(m_processingController.get());
     
     // 连接 SessionController 和 MessageModel（用于会话切换时同步消息）
     m_sessionController->setMessageModel(m_messageModel.get());

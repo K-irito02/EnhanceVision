@@ -70,7 +70,7 @@ Item {
             queuePosition: model.queuePosition !== undefined ? model.queuePosition : 0
             errorMessage: model.errorMessage || ""
             selectable: batchMode
-            estimatedRemainingSec: model.status === 1 ? Math.max(0, Math.round((100 - (model.progress || 0)) * 0.6)) : 0
+            // estimatedRemainingSec 现在由 MessageItem 内部基于实际进度速率计算
 
             property ListModel _cachedMedia: ListModel {}
             property int _successFileCount: 0

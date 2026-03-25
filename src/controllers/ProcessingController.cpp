@@ -125,19 +125,56 @@ ProcessingController::ProcessingController(QObject* parent)
         }
     });
 
+    connect(m_aiEngine, &AIEngine::videoProcessingWarning, this, [this](const QString& warning) {
+        qWarning() << "[ProcessingController][AI] video processing warning:" << warning;
+        if (!m_activeAiTaskId.isEmpty() && m_taskMessages.contains(m_activeAiTaskId)) {
+            const QString sessionId = resolveSessionIdForMessage(m_taskMessages[m_activeAiTaskId].id);
+            updateErrorForSessionMessage(sessionId, m_taskMessages[m_activeAiTaskId].id, warning);
+        }
+    });
+
     connect(m_aiEngine, &AIEngine::processFileCompleted, this,
             [this](bool success, const QString& resultPath, const QString& error) {
-        // 仅完成当前激活的 AI 任务，避免命中错误任务导致其它会话卡住
-        if (m_activeAiTaskId.isEmpty()) {
-            qWarning() << "[ProcessingController][AI] process finished but no active task"
-                       << "success:" << success
-                       << "result:" << resultPath
-                       << "error:" << error;
-            return;
+        QString finishedTaskId = m_activeAiTaskId;
+
+        // 容错恢复：若 activeTaskId 丢失，尝试从当前 processing 的 AI 任务中恢复
+        if (finishedTaskId.isEmpty()) {
+            QString recoveredTaskId;
+            int processingAiCount = 0;
+            for (const auto& task : m_tasks) {
+                if (task.status != ProcessingStatus::Processing) {
+                    continue;
+                }
+                if (!m_taskMessages.contains(task.taskId)) {
+                    continue;
+                }
+                const Message& msg = m_taskMessages[task.taskId];
+                if (msg.mode == ProcessingMode::AIInference) {
+                    recoveredTaskId = task.taskId;
+                    processingAiCount++;
+                    if (processingAiCount > 1) {
+                        break;
+                    }
+                }
+            }
+
+            if (processingAiCount == 1 && !recoveredTaskId.isEmpty()) {
+                finishedTaskId = recoveredTaskId;
+                qWarning() << "[ProcessingController][AI] recovered missing active task id"
+                           << "recoveredTask:" << finishedTaskId;
+            } else {
+                qWarning() << "[ProcessingController][AI] process finished but no active task"
+                           << "success:" << success
+                           << "result:" << resultPath
+                           << "error:" << error
+                           << "processingAiCount:" << processingAiCount;
+                return;
+            }
         }
 
-        const QString finishedTaskId = m_activeAiTaskId;
-        m_activeAiTaskId.clear();
+        if (m_activeAiTaskId == finishedTaskId) {
+            m_activeAiTaskId.clear();
+        }
 
         qInfo() << "[ProcessingController][AI] process finished"
                 << "task:" << finishedTaskId
@@ -165,6 +202,10 @@ ProcessingController::ProcessingController(QObject* parent)
 
 ProcessingController::~ProcessingController()
 {
+    cancelAllTasks();
+    if (m_aiEngine) {
+        m_aiEngine->cancelProcess();
+    }
     m_threadPool->waitForDone();
 }
 
@@ -235,7 +276,6 @@ void ProcessingController::setSessionController(SessionController* sessionContro
 void ProcessingController::cancelTask(const QString& taskId)
 {
     // 支持按 taskId 或 messageId 取消
-    // 先检查是否是 messageId（QML 传的是 message.id）
     bool isMessageId = false;
     for (const auto& task : m_tasks) {
         if (task.messageId == taskId) {
@@ -245,83 +285,114 @@ void ProcessingController::cancelTask(const QString& taskId)
     }
 
     if (isMessageId) {
-        // 取消该消息下的所有任务
         for (int i = m_tasks.size() - 1; i >= 0; --i) {
-            if (m_tasks[i].messageId == taskId) {
-                if (m_tasks[i].status == ProcessingStatus::Pending) {
-                    m_tasks[i].status = ProcessingStatus::Cancelled;
-                    emit taskCancelled(m_tasks[i].taskId);
-                    m_tasks.removeAt(i);
-                } else if (m_tasks[i].status == ProcessingStatus::Processing) {
-                    m_tasks[i].status = ProcessingStatus::Cancelled;
-                    m_currentProcessingCount--;
-                    emit currentProcessingCountChanged();
-                    emit taskCancelled(m_tasks[i].taskId);
-                }
+            if (m_tasks[i].messageId != taskId) {
+                continue;
+            }
+
+            const QString id = m_tasks[i].taskId;
+            if (m_tasks[i].status == ProcessingStatus::Pending) {
+                m_tasks[i].status = ProcessingStatus::Cancelled;
+                cleanupTask(id);
+                emit taskCancelled(id);
+                m_tasks.removeAt(i);
+            } else if (m_tasks[i].status == ProcessingStatus::Processing) {
+                gracefulCancel(id);
             }
         }
+
         updateQueuePositions();
         syncModelTasks();
         emit queueSizeChanged();
 
-        // 更新消息状态为已取消
         if (m_messageModel) {
             m_messageModel->updateStatus(taskId, static_cast<int>(ProcessingStatus::Cancelled));
         }
+
         processNextTask();
         return;
     }
 
-    // 按 taskId 取消单个任务
     for (int i = 0; i < m_tasks.size(); ++i) {
-        if (m_tasks[i].taskId == taskId) {
-            QString messageId = m_tasks[i].messageId;
-            if (m_tasks[i].status == ProcessingStatus::Pending) {
-                m_tasks[i].status = ProcessingStatus::Cancelled;
-                m_tasks.removeAt(i);
-                updateQueuePositions();
-                emit taskCancelled(taskId);
-                emit queueSizeChanged();
-            } else if (m_tasks[i].status == ProcessingStatus::Processing) {
-                m_tasks[i].status = ProcessingStatus::Cancelled;
-                m_currentProcessingCount--;
-                emit currentProcessingCountChanged();
-                emit taskCancelled(taskId);
-            }
-            syncModelTasks();
-            syncMessageProgress(messageId);
-            syncMessageStatus(messageId);
-            processNextTask();
-            break;
+        if (m_tasks[i].taskId != taskId) {
+            continue;
         }
+
+        const QString messageId = m_tasks[i].messageId;
+
+        if (m_tasks[i].status == ProcessingStatus::Pending) {
+            m_tasks[i].status = ProcessingStatus::Cancelled;
+            cleanupTask(taskId);
+            m_tasks.removeAt(i);
+            updateQueuePositions();
+            emit taskCancelled(taskId);
+            emit queueSizeChanged();
+        } else if (m_tasks[i].status == ProcessingStatus::Processing) {
+            gracefulCancel(taskId);
+        }
+
+        syncModelTasks();
+        syncMessageProgress(messageId);
+        syncMessageStatus(messageId);
+        processNextTask();
+        break;
     }
 }
 
 void ProcessingController::cancelAllTasks()
 {
-    for (auto& task : m_tasks) {
-        if (task.status == ProcessingStatus::Pending) {
-            task.status = ProcessingStatus::Cancelled;
-            emit taskCancelled(task.taskId);
-        } else if (task.status == ProcessingStatus::Processing) {
-            task.status = ProcessingStatus::Cancelled;
-            emit taskCancelled(task.taskId);
+    for (int i = m_tasks.size() - 1; i >= 0; --i) {
+        const QString taskId = m_tasks[i].taskId;
+
+        if (m_tasks[i].status == ProcessingStatus::Pending) {
+            m_tasks[i].status = ProcessingStatus::Cancelled;
+            cleanupTask(taskId);
+            emit taskCancelled(taskId);
+            m_tasks.removeAt(i);
+            continue;
+        }
+
+        if (m_tasks[i].status == ProcessingStatus::Processing) {
+            gracefulCancel(taskId);
         }
     }
-
-    // 移除已取消的待处理任务
-    m_tasks.erase(
-        std::remove_if(m_tasks.begin(), m_tasks.end(),
-            [](const QueueTask& task) {
-                return task.status == ProcessingStatus::Cancelled &&
-                       task.startedAt.isNull();
-            }),
-        m_tasks.end()
-    );
 
     updateQueuePositions();
     syncModelTasks();
     emit queueSizeChanged();
+}
+
+void ProcessingController::forceCancelAllTasks()
+{
+    qWarning() << "[ProcessingController] Force cancelling all tasks";
+
+    // 强制取消 AI 推理
+    if (m_aiEngine) {
+        m_aiEngine->forceCancel();
+    }
+
+    // 清空线程池队列
+    if (m_threadPool) {
+        m_threadPool->clear();
+    }
+
+    // 取消所有任务
+    for (int i = m_tasks.size() - 1; i >= 0; --i) {
+        const QString taskId = m_tasks[i].taskId;
+
+        m_tasks[i].status = ProcessingStatus::Cancelled;
+        cleanupTask(taskId);
+        emit taskCancelled(taskId);
+    }
+    m_tasks.clear();
+
+    m_activeAiTaskId.clear();
+
+    updateQueuePositions();
+    syncModelTasks();
+    emit queueSizeChanged();
+
+    qWarning() << "[ProcessingController] All tasks force cancelled";
 }
 
 QString ProcessingController::addTask(const Message& message)
@@ -522,6 +593,13 @@ void ProcessingController::requestModelPreload(const QString& modelId)
         if (!m_pendingPreloadModelIds.contains(modelId)) {
             return; // 已被取消或重复
         }
+
+        // AIEngine 推理中禁止 loadModel，这里直接放弃本次预加载，避免产生无效告警。
+        if (!m_activeAiTaskId.isEmpty() || m_aiEngine->isProcessing()) {
+            m_pendingPreloadModelIds.remove(modelId);
+            return;
+        }
+
         const bool loaded = m_aiEngine->loadModel(modelId);
         m_pendingPreloadModelIds.remove(modelId);
         if (loaded) {
@@ -595,7 +673,10 @@ void ProcessingController::startTask(QueueTask& task)
                 return;
             }
 
-            const QString suffix = !fileInfo.suffix().isEmpty() ? fileInfo.suffix() : QStringLiteral("png");
+            // 视频文件输出为 .mp4，图像文件保持原格式（默认 png）
+            const bool isVideo = ImageUtils::isVideoFile(inputPath);
+            const QString suffix = isVideo ? QStringLiteral("mp4")
+                                           : (!fileInfo.suffix().isEmpty() ? fileInfo.suffix() : QStringLiteral("png"));
             const QString uniqueToken = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss_zzz") +
                                         QStringLiteral("_") + QUuid::createUuid().toString(QUuid::WithoutBraces).left(8);
             const QString outputPath = processedDir + "/" +
@@ -1774,6 +1855,41 @@ void ProcessingController::cancelMessageTasks(const QString& messageId)
     processNextTask();
 }
 
+void ProcessingController::cancelMessageFileTasks(const QString& messageId, const QString& fileId)
+{
+    if (messageId.isEmpty() || fileId.isEmpty()) {
+        return;
+    }
+
+    bool removedPendingTask = false;
+
+    for (int i = m_tasks.size() - 1; i >= 0; --i) {
+        if (m_tasks[i].messageId != messageId || m_tasks[i].fileId != fileId) {
+            continue;
+        }
+
+        const QString taskId = m_tasks[i].taskId;
+        m_taskCoordinator->requestCancellation(taskId);
+
+        if (m_tasks[i].status == ProcessingStatus::Pending) {
+            m_tasks[i].status = ProcessingStatus::Cancelled;
+            cleanupTask(taskId);
+            m_tasks.removeAt(i);
+            removedPendingTask = true;
+        } else if (m_tasks[i].status == ProcessingStatus::Processing) {
+            gracefulCancel(taskId);
+        }
+    }
+
+    if (removedPendingTask) {
+        updateQueuePositions();
+        syncModelTasks();
+        emit queueSizeChanged();
+    }
+
+    processNextTask();
+}
+
 void ProcessingController::cancelSessionTasks(const QString& sessionId)
 {
     m_taskCoordinator->cancelSessionTasks(sessionId);
@@ -1988,7 +2104,39 @@ bool ProcessingController::tryStartTask(QueueTask& task)
 void ProcessingController::gracefulCancel(const QString& taskId, int timeoutMs)
 {
     Q_UNUSED(timeoutMs);
+
     m_taskCoordinator->requestCancellation(taskId);
+
+    QueueTask* targetTask = getTask(taskId);
+    if (targetTask && targetTask->status == ProcessingStatus::Processing) {
+        // AI 推理任务需要主动通知 AIEngine 取消，否则任务可能持续占用 activeAiTaskId
+        if (m_taskMessages.contains(taskId)) {
+            const Message& msg = m_taskMessages[taskId];
+            if (msg.mode == ProcessingMode::AIInference && m_aiEngine) {
+                m_aiEngine->cancelProcess();
+            }
+        }
+
+        targetTask->status = ProcessingStatus::Cancelled;
+        emit taskCancelled(taskId);
+
+        const QString sessionId = resolveSessionIdForMessage(targetTask->messageId);
+        updateFileStatusForSessionMessage(sessionId, targetTask->messageId, targetTask->fileId,
+            ProcessingStatus::Cancelled, QString());
+        syncMessageProgress(targetTask->messageId, sessionId);
+        syncMessageStatus(targetTask->messageId, sessionId);
+
+        cleanupTask(taskId);
+        if (m_currentProcessingCount > 0) {
+            m_currentProcessingCount--;
+            emit currentProcessingCountChanged();
+        }
+
+        syncModelTaskById(taskId);
+        processNextTask();
+        return;
+    }
+
     cleanupTask(taskId);
 }
 

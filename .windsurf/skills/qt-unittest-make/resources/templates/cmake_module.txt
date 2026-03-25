@@ -1,0 +1,46 @@
+cmake_minimum_required(VERSION 3.16)
+
+# 自动推断 Qt 版本（从项目 CMakeLists.txt）
+set(QT_VERSION "{QT_VERSION}")  # 5 或 6
+
+# 自动推断项目库名称（从项目 CMakeLists.txt）
+set(PROJECT_LIBRARIES "{PROJECT_LIBRARIES}")
+
+# 收集所有测试文件
+file(GLOB TEST_SOURCES "test_*.cpp")
+
+if(NOT TEST_SOURCES)
+    message(WARNING "No test files found in ${CMAKE_CURRENT_SOURCE_DIR}")
+    return()
+endif()
+
+# 创建测试可执行文件
+add_executable(test_{module_name} ${TEST_SOURCES})
+
+# 链接依赖
+target_link_libraries(test_{module_name}
+    PRIVATE
+    GTest::gtest
+    GTest::gtest_main
+    Qt${QT_VERSION}::Test
+)
+
+# 如果项目有自定义库，添加
+if(PROJECT_LIBRARIES)
+    target_link_libraries(test_{module_name}
+        PRIVATE
+        ${PROJECT_LIBRARIES}
+    )
+endif()
+
+# 包含目录
+target_include_directories(test_{module_name}
+    PRIVATE
+    ${{CMAKE_SOURCE_DIR}}/autotests/3rdparty/stub
+    ${{CMAKE_SOURCE_DIR}}/{source_module_path}
+)
+
+# 自动发现测试
+gtest_discover_tests(test_{module_name})
+
+message(STATUS "UT: test_{module_name} configured with ${TEST_SOURCES}")

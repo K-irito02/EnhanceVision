@@ -66,8 +66,8 @@ ShaderStackTrace*
 .qmake.files
 
 # Logs
-# logs/
-# *.log
+logs/
+*.log
 
 # Temporary files
 *.tmp
@@ -80,5 +80,11 @@ ShaderStackTrace*
 Thumbs.db
 desktop.ini
 
-# 资源
-# resources/models/
+# Third-party libraries
+third_party/
+
+# AI Models (large binary files, distribute separately)
+resources/models/
+
+# Test video assets
+tests/testAssetsDirectory/video/

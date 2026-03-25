@@ -117,6 +117,7 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(256, 256);
 
     if (cacheKey.startsWith("processed_")) {
+        QString actualFilePath;
         {
             QMutexLocker locker(&m_mutex);
             if (m_thumbnails.contains(cacheKey)) {
@@ -128,6 +129,16 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
                     return ImageUtils::scaleImage(thumbnail, requestedSize, true);
                 }
                 return thumbnail;
+            }
+            if (m_idToPath.contains(cacheKey)) {
+                actualFilePath = m_idToPath.value(cacheKey);
+            }
+        }
+
+        if (!actualFilePath.isEmpty()) {
+            QFileInfo fileInfo(actualFilePath);
+            if (fileInfo.exists()) {
+                generateThumbnailAsync(actualFilePath, cacheKey, targetSize);
             }
         }
 
@@ -173,6 +184,9 @@ void ThumbnailProvider::generateThumbnailAsync(const QString &filePath, const QS
             return;
         }
         m_pendingRequests.insert(id);
+        if (id.startsWith("processed_")) {
+            m_idToPath[id] = filePath;
+        }
     }
 
     ThumbnailGenerator* generator = new ThumbnailGenerator(filePath, id, size);

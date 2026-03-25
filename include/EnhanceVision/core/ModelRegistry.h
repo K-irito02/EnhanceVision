@@ -120,6 +120,7 @@ signals:
 
 private:
     bool loadModelsJson(const QString &jsonPath);
+    bool isModelEnabledByPhase(const QString &modelId, const QString &paramFilePath) const;
     ModelCategory categoryFromString(const QString &str) const;
     QString categoryToString(ModelCategory category) const;
     QVariantMap modelInfoToVariantMap(const ModelInfo &info) const;

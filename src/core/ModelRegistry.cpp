@@ -133,6 +133,12 @@ bool ModelRegistry::loadModelsJson(const QString &jsonPath)
         QString paramFile = obj["paramFile"].toString();
         QString binFile = obj["binFile"].toString();
 
+        // 阶段性模型开关：当前仅启用 Real-ESRGAN 系列
+        if (!isModelEnabledByPhase(info.id, paramFile)) {
+            qInfo() << "[ModelRegistry] Skip model by phase gate:" << info.id;
+            continue;
+        }
+
         if (!paramFile.isEmpty() && !binFile.isEmpty()) {
             info.paramPath = m_modelsRootPath + "/" + paramFile;
             info.binPath = m_modelsRootPath + "/" + binFile;
@@ -292,6 +298,25 @@ QVariantList ModelRegistry::getAvailableModelsList() const
         }
     }
     return result;
+}
+
+bool ModelRegistry::isModelEnabledByPhase(const QString &modelId, const QString &paramFilePath) const
+{
+    const QString idLower = modelId.toLower();
+    const QString pathLower = paramFilePath.toLower();
+
+    // 当前阶段：仅保留 Real-ESRGAN 系列模型
+    // 允许 id/path 中包含以下关键词的模型通过：
+    // - realesrgan-x4plus
+    // - realesr-animevideov3
+    const bool looksLikeRealEsrgan =
+        idLower.contains("realesrgan") ||
+        idLower.contains("realesr_animevideov3") ||
+        pathLower.contains("real-esrgan") ||
+        pathLower.contains("realesrgan") ||
+        pathLower.contains("realesr-animevideov3");
+
+    return looksLikeRealEsrgan;
 }
 
 ModelCategory ModelRegistry::categoryFromString(const QString &str) const

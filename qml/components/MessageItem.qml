@@ -21,7 +21,52 @@ Rectangle {
     
     property int completedCount: 0
     property int totalFileCount: mediaFiles ? mediaFiles.count : 0
-    property int estimatedRemainingSec: 0
+    property int estimatedRemainingSec: _calculateRemainingTime()
+    
+    // 时间跟踪：用于计算剩余时间
+    property double _processingStartTime: 0  // 处理开始时间戳 (ms)
+    property int _elapsedSec: 0  // 已用时间 (秒)
+    
+    function _calculateRemainingTime() {
+        // 仅在处理状态下计算
+        if (status !== 1 || progress <= 0) return 0
+        
+        // 基于实际进度速率计算：remaining = elapsed * (100 - progress) / progress
+        if (_elapsedSec > 0 && progress > 1) {
+            var rate = _elapsedSec / progress  // 每1%进度需要的秒数
+            var remaining = Math.round(rate * (100 - progress))
+            return Math.max(0, Math.min(remaining, 3600 * 24))  // 限制最大24小时
+        }
+        
+        // 进度太小时使用保守估计（假设总共需要30秒）
+        return Math.max(0, Math.round((100 - progress) * 0.3))
+    }
+    
+    Timer {
+        id: elapsedTimer
+        interval: 1000
+        repeat: true
+        running: root.status === 1  // 仅在处理状态下运行
+        onTriggered: {
+            if (root._processingStartTime > 0) {
+                root._elapsedSec = Math.round((Date.now() - root._processingStartTime) / 1000)
+            }
+        }
+    }
+    
+    onStatusChanged: {
+        if (status === 1) {
+            // 开始处理：记录开始时间
+            if (_processingStartTime <= 0) {
+                _processingStartTime = Date.now()
+                _elapsedSec = 0
+            }
+        } else {
+            // 处理结束：重置时间跟踪
+            _processingStartTime = 0
+            _elapsedSec = 0
+        }
+    }
     
     property int successFileCount: 0
     property int failedFileCount: 0
