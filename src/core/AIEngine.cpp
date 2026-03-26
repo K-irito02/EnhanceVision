@@ -861,7 +861,9 @@ QImage AIEngine::matToQimage(const ncnn::Mat &mat, const ModelInfo &model)
         if (data[i] > maxVal) maxVal = data[i];
     }
     QImage result(w, h, QImage::Format_RGB888);
-    out.to_pixels(result.bits(), ncnn::Mat::PIXEL_RGB);
+    // 必须传入 stride（bytesPerLine），因为 Qt 可能对 scanline 做 4-byte 对齐，
+    // 导致 bytesPerLine > w*3。不传 stride 会使每行累积偏移，产生斜条纹伪影。
+    out.to_pixels(result.bits(), ncnn::Mat::PIXEL_RGB, result.bytesPerLine());
     return result;
 }
 
@@ -1245,16 +1247,40 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
                 continue;
             }
 
-            // 由于使用了镜像填充的 paddedInput，所有分块都有完整的 padding
-            // 因此裁剪位置始终是 (padding * scale, padding * scale)
-            int outPadLeft = padding * scale;
-            int outPadTop  = padding * scale;
-            int outW = actualTileW * scale;
-            int outH = actualTileH * scale;
+            // 动态计算裁剪位置：基于实际模型输出尺寸，而非假设 output = input * scale
+            // 某些模型内部有额外 padding/rounding，输出尺寸可能不是精确的 input * scale
+            const int expectedOutW = extractW * scale;
+            const int expectedOutH = extractH * scale;
+            const int actualOutW = tileResult.width();
+            const int actualOutH = tileResult.height();
 
-            if (outPadLeft + outW > tileResult.width() || outPadTop + outH > tileResult.height()) {
+            // 计算实际 padding 在输出中的像素数
+            int outPadLeft, outPadTop, outW, outH;
+            if (actualOutW == expectedOutW && actualOutH == expectedOutH) {
+                // 精确匹配：直接使用理论值
+                outPadLeft = padding * scale;
+                outPadTop  = padding * scale;
+                outW = actualTileW * scale;
+                outH = actualTileH * scale;
+            } else {
+                // 模型输出尺寸与预期不同：按比例动态计算裁剪区域
+                double scaleX = static_cast<double>(actualOutW) / extractW;
+                double scaleY = static_cast<double>(actualOutH) / extractH;
+                outPadLeft = static_cast<int>(std::round(padding * scaleX));
+                outPadTop  = static_cast<int>(std::round(padding * scaleY));
+                outW = static_cast<int>(std::round(actualTileW * scaleX));
+                outH = static_cast<int>(std::round(actualTileH * scaleY));
+            }
+
+            // 安全边界修正
+            outW = std::min(outW, actualOutW - outPadLeft);
+            outH = std::min(outH, actualOutH - outPadTop);
+
+            if (outPadLeft < 0 || outPadTop < 0 || outW <= 0 || outH <= 0 ||
+                outPadLeft + outW > actualOutW || outPadTop + outH > actualOutH) {
                 qWarning() << "[AIEngine][Tiled] tile" << tileIndex
                            << "crop region out of bounds, tileResult:" << tileResult.size()
+                           << "expected:" << expectedOutW << "x" << expectedOutH
                            << "crop:(" << outPadLeft << "," << outPadTop << ") size:" << outW << "x" << outH;
                 tileIndex++;
                 consecutiveFailures++;
@@ -1262,7 +1288,19 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
             }
 
             QImage croppedResult = tileResult.copy(outPadLeft, outPadTop, outW, outH);
-            painter.drawImage(x0 * scale, y0 * scale, croppedResult);
+
+            // 目标绘制区域
+            int dstX = x0 * scale;
+            int dstY = y0 * scale;
+            int dstW = actualTileW * scale;
+            int dstH = actualTileH * scale;
+
+            // 若裁剪尺寸与目标不一致，缩放到目标尺寸保证无缝拼接
+            if (croppedResult.width() != dstW || croppedResult.height() != dstH) {
+                croppedResult = croppedResult.scaled(dstW, dstH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            }
+
+            painter.drawImage(dstX, dstY, croppedResult);
             tileIndex++;
             successfulTiles++;
             consecutiveFailures = 0;  // 成功时重置连续失败计数
@@ -1696,16 +1734,35 @@ QImage AIEngine::processTiledNoProgress(const QImage &input, const ModelInfo &mo
                 continue;
             }
 
-            // 由于使用了镜像填充的 paddedInput，所有分块都有完整的 padding
-            // 因此裁剪位置始终是 (padding * scale, padding * scale)
-            int outPadLeft = padding * scale;
-            int outPadTop  = padding * scale;
-            int outW = actualTileW * scale;
-            int outH = actualTileH * scale;
+            // 动态计算裁剪位置：基于实际模型输出尺寸
+            const int expectedOutW = extractW * scale;
+            const int expectedOutH = extractH * scale;
+            const int actualOutW = tileResult.width();
+            const int actualOutH = tileResult.height();
 
-            if (outPadLeft + outW > tileResult.width() || outPadTop + outH > tileResult.height()) {
+            int outPadLeft, outPadTop, outW, outH;
+            if (actualOutW == expectedOutW && actualOutH == expectedOutH) {
+                outPadLeft = padding * scale;
+                outPadTop  = padding * scale;
+                outW = actualTileW * scale;
+                outH = actualTileH * scale;
+            } else {
+                double scaleX = static_cast<double>(actualOutW) / extractW;
+                double scaleY = static_cast<double>(actualOutH) / extractH;
+                outPadLeft = static_cast<int>(std::round(padding * scaleX));
+                outPadTop  = static_cast<int>(std::round(padding * scaleY));
+                outW = static_cast<int>(std::round(actualTileW * scaleX));
+                outH = static_cast<int>(std::round(actualTileH * scaleY));
+            }
+
+            outW = std::min(outW, actualOutW - outPadLeft);
+            outH = std::min(outH, actualOutH - outPadTop);
+
+            if (outPadLeft < 0 || outPadTop < 0 || outW <= 0 || outH <= 0 ||
+                outPadLeft + outW > actualOutW || outPadTop + outH > actualOutH) {
                 qWarning() << "[AIEngine][TiledNoProgress] tile" << tileIndex
                            << "crop region out of bounds, tileResult:" << tileResult.size()
+                           << "expected:" << expectedOutW << "x" << expectedOutH
                            << "crop:(" << outPadLeft << "," << outPadTop << ") size:" << outW << "x" << outH;
                 tileIndex++;
                 consecutiveFailures++;
@@ -1713,6 +1770,13 @@ QImage AIEngine::processTiledNoProgress(const QImage &input, const ModelInfo &mo
             }
 
             QImage croppedResult = tileResult.copy(outPadLeft, outPadTop, outW, outH);
+
+            int dstW = actualTileW * scale;
+            int dstH = actualTileH * scale;
+            if (croppedResult.width() != dstW || croppedResult.height() != dstH) {
+                croppedResult = croppedResult.scaled(dstW, dstH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            }
+
             painter.drawImage(x0 * scale, y0 * scale, croppedResult);
             tileIndex++;
             successfulTiles++;

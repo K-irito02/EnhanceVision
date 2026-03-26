@@ -14,6 +14,7 @@
 #include "EnhanceVision/utils/ImageUtils.h"
 #include "EnhanceVision/core/TaskCoordinator.h"
 #include "EnhanceVision/core/ResourceManager.h"
+#include "EnhanceVision/core/VideoProcessor.h"
 #include <QUuid>
 #include <QTimer>
 #include <QStandardPaths>
@@ -962,10 +963,20 @@ void ProcessingController::processShaderVideoThumbnailAsync(const QString& taskI
 {
     const QString sessionId = resolveSessionIdForMessage(messageId);
 
-    m_threadPool->start([this, taskId, sessionId, messageId, fileId, filePath, shaderParams]() {
-        QElapsedTimer timer;
-        timer.start();
+    // 生成输出路径
+    QString processedDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/processed/shader_video";
+    QDir().mkpath(processedDir);
+    QFileInfo fi(filePath);
+    QString outputPath = processedDir + "/" + fi.completeBaseName()
+                         + "_shader_" + QUuid::createUuid().toString(QUuid::WithoutBraces).left(8)
+                         + "." + fi.suffix();
 
+    qInfo() << "[ProcessingController][Shader] launching video processing"
+            << "task:" << taskId << "input:" << filePath << "output:" << outputPath;
+
+    // 先在线程池中生成缩略图，然后启动视频处理
+    m_threadPool->start([this, taskId, sessionId, messageId, fileId, filePath, outputPath, shaderParams]() {
+        // 生成处理后的缩略图（用于消息卡片预览）
         QImage videoThumb = ImageUtils::generateVideoThumbnail(filePath, QSize(512, 512));
         QImage processedThumb;
         if (!videoThumb.isNull()) {
@@ -988,41 +999,68 @@ void ProcessingController::processShaderVideoThumbnailAsync(const QString& taskI
             );
         }
 
-        const qint64 elapsedMs = timer.elapsed();
-
-        QMetaObject::invokeMethod(this, [this, taskId, sessionId, messageId, fileId, filePath, processedThumb, elapsedMs]() {
-            if (elapsedMs >= 16) {
-                qDebug() << "[Perf][ProcessingController] video thumbnail async cost:" << elapsedMs << "ms" << filePath;
-            }
-
-            if (m_taskCoordinator->isOrphaned(taskId)) {
-                cleanupTask(taskId);
-                m_currentProcessingCount--;
-                emit currentProcessingCountChanged();
-                syncModelTaskById(taskId);
-                processNextTask();
-                return;
-            }
-
+        // 设置缩略图（先在主线程设置）
+        QMetaObject::invokeMethod(this, [this, fileId, processedThumb]() {
             if (ThumbnailProvider::instance() && !processedThumb.isNull()) {
                 const QString thumbId = "processed_" + fileId;
                 ThumbnailProvider::instance()->setThumbnail(thumbId, processedThumb);
             }
-
-            updateFileStatusForSessionMessage(sessionId, messageId, fileId,
-                ProcessingStatus::Completed, filePath);
-
-            cleanupTask(taskId);
-            m_currentProcessingCount--;
-            emit currentProcessingCountChanged();
-            syncModelTaskById(taskId);
-            syncMessageProgress(messageId, sessionId);
-            syncMessageStatus(messageId, sessionId);
-            if (m_sessionController) {
-                requestSessionSync();
-            }
-            processNextTask();
         }, Qt::QueuedConnection);
+
+        // 实际处理视频：使用 VideoProcessor 逐帧应用 shader 效果
+        // processVideoAsync 内部使用 QtConcurrent::run，通过回调接收结果
+        auto* videoProcessor = new VideoProcessor();
+
+        auto progressCb = [this, taskId](int progress, const QString&) {
+            int mappedProgress = 10 + progress * 85 / 100;
+            QMetaObject::invokeMethod(this, [this, taskId, mappedProgress]() {
+                updateTaskProgress(taskId, mappedProgress);
+            }, Qt::QueuedConnection);
+        };
+
+        auto finishCb = [this, videoProcessor, taskId, sessionId, messageId, fileId, filePath, outputPath](
+                             bool success, const QString& resultPath, const QString& error) {
+            QMetaObject::invokeMethod(this, [this, videoProcessor, taskId, sessionId, messageId,
+                                              fileId, filePath, outputPath, success, resultPath, error]() {
+                qInfo() << "[ProcessingController][Shader] video processing finished"
+                        << "task:" << taskId << "success:" << success
+                        << "result:" << (success ? outputPath : "") << "error:" << error;
+
+                videoProcessor->deleteLater();
+
+                if (m_taskCoordinator->isOrphaned(taskId)) {
+                    cleanupTask(taskId);
+                    m_currentProcessingCount--;
+                    emit currentProcessingCountChanged();
+                    syncModelTaskById(taskId);
+                    processNextTask();
+                    return;
+                }
+
+                if (success) {
+                    updateFileStatusForSessionMessage(sessionId, messageId, fileId,
+                        ProcessingStatus::Completed, outputPath);
+                } else {
+                    updateFileStatusForSessionMessage(sessionId, messageId, fileId,
+                        ProcessingStatus::Failed, QString());
+                    updateErrorForSessionMessage(sessionId, messageId,
+                        error.isEmpty() ? tr("视频Shader处理失败") : error);
+                }
+
+                cleanupTask(taskId);
+                m_currentProcessingCount--;
+                emit currentProcessingCountChanged();
+                syncModelTaskById(taskId);
+                syncMessageProgress(messageId, sessionId);
+                syncMessageStatus(messageId, sessionId);
+                if (m_sessionController) {
+                    requestSessionSync();
+                }
+                processNextTask();
+            }, Qt::QueuedConnection);
+        };
+
+        videoProcessor->processVideoAsync(filePath, outputPath, shaderParams, progressCb, finishCb);
     });
 }
 

@@ -23,6 +23,8 @@ class SettingsController : public QObject
     Q_PROPERTY(QString language READ language WRITE setLanguage NOTIFY languageChanged)
     Q_PROPERTY(bool sidebarExpanded READ sidebarExpanded WRITE setSidebarExpanded NOTIFY sidebarExpandedChanged)
     Q_PROPERTY(int maxConcurrentTasks READ maxConcurrentTasks WRITE setMaxConcurrentTasks NOTIFY maxConcurrentTasksChanged)
+    Q_PROPERTY(int maxConcurrentSessions READ maxConcurrentSessions WRITE setMaxConcurrentSessions NOTIFY maxConcurrentSessionsChanged)
+    Q_PROPERTY(int maxConcurrentFilesPerMessage READ maxConcurrentFilesPerMessage WRITE setMaxConcurrentFilesPerMessage NOTIFY maxConcurrentFilesPerMessageChanged)
     Q_PROPERTY(QString defaultSavePath READ defaultSavePath WRITE setDefaultSavePath NOTIFY defaultSavePathChanged)
     Q_PROPERTY(bool autoSaveResult READ autoSaveResult WRITE setAutoSaveResult NOTIFY autoSaveResultChanged)
     Q_PROPERTY(int volume READ volume WRITE setVolume NOTIFY volumeChanged)
@@ -52,6 +54,14 @@ public:
     int maxConcurrentTasks() const;
     void setMaxConcurrentTasks(int count);
 
+    int maxConcurrentSessions() const;
+    void setMaxConcurrentSessions(int count);
+
+    int maxConcurrentFilesPerMessage() const;
+    void setMaxConcurrentFilesPerMessage(int count);
+
+    Q_INVOKABLE QString devicePerformanceHint(int sessions, int filesPerMsg) const;
+
     QString defaultSavePath() const;
     void setDefaultSavePath(const QString& path);
 
@@ -73,6 +83,8 @@ signals:
     void languageChanged();
     void sidebarExpandedChanged();
     void maxConcurrentTasksChanged();
+    void maxConcurrentSessionsChanged();
+    void maxConcurrentFilesPerMessageChanged();
     void defaultSavePathChanged();
     void autoSaveResultChanged();
     void volumeChanged();
@@ -93,6 +105,8 @@ private:
     QString m_language;
     bool m_sidebarExpanded;
     int m_maxConcurrentTasks;
+    int m_maxConcurrentSessions;
+    int m_maxConcurrentFilesPerMessage;
     QString m_defaultSavePath;
     bool m_autoSaveResult;
     int m_volume;

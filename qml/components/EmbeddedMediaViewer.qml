@@ -46,6 +46,9 @@ Item {
     readonly property bool _hasDistinctResult: currentFile && currentFile.resultPath && currentFile.originalPath && currentFile.resultPath !== currentFile.originalPath
     readonly property bool _hasShaderOrOriginal: (shaderEnabled && !messageMode) || (messageMode && _hasDistinctResult)
     readonly property string currentSource: currentFile ? (showOriginal && currentFile.originalPath ? currentFile.originalPath : currentFile.filePath) : ""
+    // 预加载路径：始终准备好原图和结果图，用于无闪烁切换
+    readonly property string _resultSource: currentFile ? (currentFile.resultPath && currentFile.resultPath !== "" ? currentFile.resultPath : currentFile.filePath) : ""
+    readonly property string _originalSource: currentFile ? (currentFile.originalPath && currentFile.originalPath !== "" ? currentFile.originalPath : currentFile.filePath) : ""
     
     signal fileRemoved(string messageId, int fileIndex)
     signal minimizeRequested(string viewerId, string title, string thumbnail)
@@ -56,6 +59,7 @@ Item {
     property bool _isPlaying: false
     property real _savedW: 800
     property real _savedH: 600
+    property bool _userDraggedPosition: false  // 用户是否手动拖动过独立窗口位置
     property real sharedVolume: SettingsController.volume / 100
     property real _volumeBeforeMute: 0.5
 
@@ -146,8 +150,11 @@ Item {
             if (detachedWindow.visibility !== Window.FullScreen) {
                 detachedWindow.width  = _savedW
                 detachedWindow.height = _savedH
-                detachedWindow.x = Math.floor((Screen.desktopAvailableWidth  - _savedW) / 2)
-                detachedWindow.y = Math.floor((Screen.desktopAvailableHeight - _savedH) / 2)
+                // 仅在用户未手动拖动过位置时才居中，否则保持拖动后的位置
+                if (!_userDraggedPosition) {
+                    detachedWindow.x = Math.floor((Screen.desktopAvailableWidth  - _savedW) / 2)
+                    detachedWindow.y = Math.floor((Screen.desktopAvailableHeight - _savedH) / 2)
+                }
             }
             detachedWindow.show()
             detachedWindow.raise()
@@ -239,7 +246,14 @@ Item {
         _savedH = detachedWindow.height
         displayMode = "embedded"
         detachedWindow.hide()
+        // 吸附回嵌入式时也需提升 z-index，确保覆盖其他嵌入窗口
+        var mainPage = _findMainPage()
+        if (mainPage && mainPage.globalZIndexCounter !== undefined) {
+            mainPage.globalZIndexCounter++
+            root.z = mainPage.globalZIndexCounter
+        }
         embeddedOverlay.visible = true
+        embeddedOverlay.forceActiveFocus()
     }
     
     function _prevFile() { if (currentIndex > 0) currentIndex-- }
@@ -655,7 +669,11 @@ Item {
         target: winHelper
         function onDraggingChanged() {
             if (!winHelper.isDragging && detachedWindow._snapHint) {
+                root._userDraggedPosition = false  // 吸附回嵌入式，重置拖动标记
                 root.switchToEmbedded()
+            } else if (!winHelper.isDragging && !detachedWindow._snapHint) {
+                // 用户拖动独立窗口到新位置（非吸附），标记位置已手动调整
+                root._userDraggedPosition = true
             }
         }
     }
@@ -753,10 +771,41 @@ Item {
             tint: viewer.shaderTint; vignette: viewer.shaderVignette
             highlights: viewer.shaderHighlights; shadows: viewer.shaderShadows
         }
-        // 普通图像层（原图或无 shader 时显示），fill parent 保证不溢出
+        // ── 无闪烁源件/结果对比：双图预加载 + opacity 切换 ──────────
+        // 结果图层（默认显示）
+        Image {
+            id: resultImageLayer
+            anchors.fill: parent
+            visible: !viewer.isVideo && viewer.messageMode && viewer._hasDistinctResult
+            opacity: viewer.showOriginal ? 0.0 : 1.0
+            source: !viewer.isVideo && viewer.messageMode ? viewer._getSource(viewer._resultSource) : ""
+            fillMode: Image.PreserveAspectFit
+            asynchronous: true; smooth: true; mipmap: true
+            Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.InOutQuad } }
+        }
+        // 原图层（showOriginal 时显示）
+        Image {
+            id: originalImageLayer
+            anchors.fill: parent
+            visible: !viewer.isVideo && viewer.messageMode && viewer._hasDistinctResult
+            opacity: viewer.showOriginal ? 1.0 : 0.0
+            source: !viewer.isVideo && viewer.messageMode && viewer._hasDistinctResult ? viewer._getSource(viewer._originalSource) : ""
+            fillMode: Image.PreserveAspectFit
+            asynchronous: true; smooth: true; mipmap: true
+            Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.InOutQuad } }
+        }
+        // 普通图像层（非消息模式 或 无对比结果时显示）
         Image {
             anchors.fill: parent
-            visible: !viewer.isVideo && viewer.currentSource && (viewer.showOriginal || !viewer.shaderEnabled || viewer.messageMode)
+            visible: !viewer.isVideo && viewer.currentSource && !viewer.messageMode && (viewer.showOriginal || !viewer.shaderEnabled)
+            source: !viewer.isVideo ? viewer._getSource(viewer.currentSource) : ""
+            fillMode: Image.PreserveAspectFit
+            asynchronous: true; smooth: true; mipmap: true
+        }
+        // 消息模式下无对比结果时的回退显示
+        Image {
+            anchors.fill: parent
+            visible: !viewer.isVideo && viewer.messageMode && !viewer._hasDistinctResult && viewer.currentSource
             source: !viewer.isVideo ? viewer._getSource(viewer.currentSource) : ""
             fillMode: Image.PreserveAspectFit
             asynchronous: true; smooth: true; mipmap: true
@@ -921,38 +970,30 @@ Item {
             opacity: navButtonsVisible ? 1.0 : 0.0
             z: 50
             
-            // 悬停状态
             property bool isHovered: pma.containsMouse
-            // 按下状态
             property bool isPressed: pma.pressed
             
-            // 背景颜色：根据状态变化
+            // 玻璃拟态背景：高对比度半透明灰色 + 边框
             color: {
-                if (isPressed) {
-                    // 按下时：更深的颜色
-                    return Theme.isDark ? Qt.rgba(1, 1, 1, 0.45) : Qt.rgba(0, 0, 0, 0.25)
-                } else if (isHovered) {
-                    // 悬停时：较亮的颜色
-                    return Theme.isDark ? Qt.rgba(1, 1, 1, 0.3) : Qt.rgba(0, 0, 0, 0.15)
-                } else {
-                    // 默认：半透明
-                    return Theme.isDark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.08)
-                }
+                if (isPressed) return Qt.rgba(0.15, 0.15, 0.15, 0.75)
+                if (isHovered) return Qt.rgba(0.2, 0.2, 0.2, 0.7)
+                return Qt.rgba(0.25, 0.25, 0.25, 0.55)
             }
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1, isHovered ? 0.25 : 0.15)
             
-            // 缩放动画：悬停放大，按下缩小
-            scale: isPressed ? 0.9 : (isHovered ? 1.15 : 1.0)
+            scale: isPressed ? 0.9 : (isHovered ? 1.1 : 1.0)
             
-            // 平滑动画
             Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
             Behavior on color { ColorAnimation { duration: 150 } }
             Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+            Behavior on border.color { ColorAnimation { duration: 150 } }
             
             ColoredIcon { 
                 anchors.centerIn: parent
                 source: Theme.icon("chevron-left")
                 iconSize: 22
-                color: Theme.isDark ? "#FFFFFF" : Theme.colors.foreground
+                color: "#FFFFFF"
             }
             
             MouseArea { 
@@ -984,38 +1025,30 @@ Item {
             opacity: navButtonsVisible ? 1.0 : 0.0
             z: 50
             
-            // 悬停状态
             property bool isHovered: nma.containsMouse
-            // 按下状态
             property bool isPressed: nma.pressed
             
-            // 背景颜色：根据状态变化
+            // 玻璃拟态背景
             color: {
-                if (isPressed) {
-                    // 按下时：更深的颜色
-                    return Theme.isDark ? Qt.rgba(1, 1, 1, 0.45) : Qt.rgba(0, 0, 0, 0.25)
-                } else if (isHovered) {
-                    // 悬停时：较亮的颜色
-                    return Theme.isDark ? Qt.rgba(1, 1, 1, 0.3) : Qt.rgba(0, 0, 0, 0.15)
-                } else {
-                    // 默认：半透明
-                    return Theme.isDark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.08)
-                }
+                if (isPressed) return Qt.rgba(0.15, 0.15, 0.15, 0.75)
+                if (isHovered) return Qt.rgba(0.2, 0.2, 0.2, 0.7)
+                return Qt.rgba(0.25, 0.25, 0.25, 0.55)
             }
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1, isHovered ? 0.25 : 0.15)
             
-            // 缩放动画：悬停放大，按下缩小
-            scale: isPressed ? 0.9 : (isHovered ? 1.15 : 1.0)
+            scale: isPressed ? 0.9 : (isHovered ? 1.1 : 1.0)
             
-            // 平滑动画
             Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
             Behavior on color { ColorAnimation { duration: 150 } }
             Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+            Behavior on border.color { ColorAnimation { duration: 150 } }
             
             ColoredIcon { 
                 anchors.centerIn: parent
                 source: Theme.icon("chevron-right")
                 iconSize: 22
-                color: Theme.isDark ? "#FFFFFF" : Theme.colors.foreground
+                color: "#FFFFFF"
             }
             
             MouseArea { 

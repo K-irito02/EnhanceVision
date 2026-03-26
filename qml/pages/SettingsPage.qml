@@ -280,11 +280,54 @@ Rectangle {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 12
-                            Text { text: qsTr("最大并发任务"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 120 }
+                            Text { text: qsTr("同时处理会话数"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 140 }
                             ComboBox {
+                                id: sessionCombo
                                 model: ["1", "2", "3", "4"]
-                                currentIndex: SettingsController.maxConcurrentTasks - 1
-                                onCurrentIndexChanged: SettingsController.maxConcurrentTasks = currentIndex + 1
+                                currentIndex: SettingsController.maxConcurrentSessions - 1
+                                onCurrentIndexChanged: SettingsController.maxConcurrentSessions = currentIndex + 1
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 12
+                            Text { text: qsTr("每消息并发文件数"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 140 }
+                            ComboBox {
+                                id: filesCombo
+                                model: ["1", "2", "3", "4"]
+                                currentIndex: SettingsController.maxConcurrentFilesPerMessage - 1
+                                onCurrentIndexChanged: SettingsController.maxConcurrentFilesPerMessage = currentIndex + 1
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: hintText.implicitHeight + 16
+                            radius: Theme.radius.sm
+                            color: {
+                                var total = (sessionCombo.currentIndex + 1) * (filesCombo.currentIndex + 1)
+                                if (total <= 2) return Qt.rgba(Theme.colors.success.r, Theme.colors.success.g, Theme.colors.success.b, 0.1)
+                                if (total <= 4) return Qt.rgba(Theme.colors.warning.r, Theme.colors.warning.g, Theme.colors.warning.b, 0.1)
+                                return Qt.rgba(Theme.colors.destructive.r, Theme.colors.destructive.g, Theme.colors.destructive.b, 0.1)
+                            }
+                            border.width: 1
+                            border.color: {
+                                var total = (sessionCombo.currentIndex + 1) * (filesCombo.currentIndex + 1)
+                                if (total <= 2) return Qt.rgba(Theme.colors.success.r, Theme.colors.success.g, Theme.colors.success.b, 0.3)
+                                if (total <= 4) return Qt.rgba(Theme.colors.warning.r, Theme.colors.warning.g, Theme.colors.warning.b, 0.3)
+                                return Qt.rgba(Theme.colors.destructive.r, Theme.colors.destructive.g, Theme.colors.destructive.b, 0.3)
+                            }
+
+                            Text {
+                                id: hintText
+                                anchors.fill: parent
+                                anchors.margins: 8
+                                text: SettingsController.devicePerformanceHint(sessionCombo.currentIndex + 1, filesCombo.currentIndex + 1)
+                                     + qsTr("\n有效并发数：%1").arg((sessionCombo.currentIndex + 1) * (filesCombo.currentIndex + 1))
+                                color: Theme.colors.foreground
+                                font.pixelSize: 12
+                                wrapMode: Text.Wrap
                             }
                         }
 
