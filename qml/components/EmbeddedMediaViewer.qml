@@ -229,8 +229,10 @@ Item {
         detachedWindow.width  = _savedW
         detachedWindow.height = _savedH
         if (gx !== undefined && gy !== undefined) {
+            // 用户通过拖动分离窗口，立即标记位置已确定，后续切换文件保持此位置
             detachedWindow.x = gx
             detachedWindow.y = gy
+            root._userDraggedPosition = true
         } else {
             detachedWindow.x = Math.floor((Screen.desktopAvailableWidth  - _savedW) / 2)
             detachedWindow.y = Math.floor((Screen.desktopAvailableHeight - _savedH) / 2)

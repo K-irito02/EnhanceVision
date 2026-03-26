@@ -63,6 +63,9 @@ public:
     qint64 totalSystemMemoryMB() const;
     qint64 availableSystemMemoryMB() const;
     
+    qint64 totalGpuMemoryMB() const;
+    qint64 availableGpuMemoryMB() const;
+    
     qint64 estimateImageMemoryMB(const QString& filePath) const;
     qint64 estimateVideoMemoryMB(const QString& filePath) const;
     qint64 estimateMemoryUsage(const QString& filePath, MediaType type) const;
@@ -93,12 +96,15 @@ private:
     std::atomic<int> m_pressureLevel{0};
     QTimer* m_monitorTimer;
     qint64 m_totalSystemMemoryMB;
+    qint64 m_totalGpuMemoryMB;
     
     static ResourceManager* s_instance;
     
     void updatePressureLevel();
     qint64 queryTotalSystemMemory() const;
     qint64 queryAvailableSystemMemory() const;
+    qint64 queryGpuHeapBudgetMB() const;
+    qint64 queryTotalGpuMemoryMB() const;
 };
 
 } // namespace EnhanceVision

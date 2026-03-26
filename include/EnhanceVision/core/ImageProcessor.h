@@ -65,6 +65,14 @@ private:
     void applyHue(QImage& image, float hue);
     void applySharpen(QImage& image, float sharpness);
     void applyDenoise(QImage& image, float denoise);
+    void applyExposure(QImage& image, float exposure);
+    void applyGamma(QImage& image, float gamma);
+    void applyTemperature(QImage& image, float temperature);
+    void applyTint(QImage& image, float tint);
+    void applyVignette(QImage& image, float vignette);
+    void applyHighlights(QImage& image, float highlights);
+    void applyShadows(QImage& image, float shadows);
+    void applyBlur(QImage& image, float blur);
 
     bool m_isProcessing;
     bool m_cancelled;

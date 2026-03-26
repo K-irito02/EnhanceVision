@@ -28,6 +28,8 @@ namespace EnhanceVision {
 class MessageModel;
 class TaskCoordinator;
 class ResourceManager;
+class ConcurrencyManager;
+class AIEnginePool;
 
 struct PendingExport {
     QString taskId;
@@ -164,10 +166,12 @@ private:
     
     TaskCoordinator* m_taskCoordinator;
     ResourceManager* m_resourceManager;
+    ConcurrencyManager* m_concurrencyManager;
     QHash<QString, TaskContext> m_taskContexts;
     int m_resourcePressure;
 
     AIEngine* m_aiEngine;
+    AIEnginePool* m_aiEnginePool;
     ModelRegistry* m_modelRegistry;
     QHash<QString, Message> m_taskMessages;
     QHash<QString, int> m_lastReportedTaskProgress;
@@ -180,8 +184,9 @@ private:
     QTimer* m_memorySyncTimer = nullptr;
     QSet<QString> m_preloadedModelIds;
     QSet<QString> m_pendingPreloadModelIds;
-    QString m_activeAiTaskId;
+    QHash<QString, QList<QMetaObject::Connection>> m_aiEngineConnections;
     QTimer* m_sessionSyncTimer;
+    
 
     QString generateTaskId();
     void refreshEffectiveConcurrencyLimit();
@@ -219,9 +224,12 @@ private:
                                           const ShaderParams& shaderParams);
     QVariantMap shaderParamsToVariantMap(const ShaderParams& params);
     
+    void finalizeTask(const QString& taskId, const QString& sessionId, const QString& messageId);
     void gracefulCancel(const QString& taskId, int timeoutMs = 5000);
     void handleOrphanedTask(const QString& taskId);
     void cleanupTask(const QString& taskId);
+    void connectAiEngineForTask(AIEngine* engine, const QString& taskId);
+    void disconnectAiEngineForTask(const QString& taskId);
     
     qint64 estimateMemoryUsage(const QString& filePath, MediaType type) const;
     void registerTaskContext(const QString& taskId, const QString& messageId, 

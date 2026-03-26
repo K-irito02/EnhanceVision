@@ -1,24 +1,65 @@
 閫傜敤浜?.NET Framework MSBuild 鐗堟湰 17.14.19+164abd434
 
   Automatic MOC and UIC for target GenericCodeGen
-  Automatic MOC and UIC for target MachineIndependent
-  Automatic MOC and UIC for target OSDependent
-  Automatic MOC and UIC for target SPIRV
-  Automatic MOC and UIC for target glslang-default-resource-limits
-  Automatic MOC and UIC for target glslang
   GenericCodeGen.vcxproj -> E:\QtAudio-VideoLearning\EnhanceVision\build\msvc2022\Release\third_party\ncnn\glslang\glslang\Release\GenericCodeGen.lib
+  Automatic MOC and UIC for target MachineIndependent
+  Automatic MOC and UIC for target glslang-default-resource-limits
+  Automatic MOC and UIC for target OSDependent
+  Automatic MOC and UIC for target glslang
+  Automatic MOC and UIC for target SPIRV
+  Automatic MOC and UIC for target test_concurrency
   MachineIndependent.vcxproj -> E:\QtAudio-VideoLearning\EnhanceVision\build\msvc2022\Release\third_party\ncnn\glslang\glslang\Release\MachineIndependent.lib
+  glslang-default-resource-limits.vcxproj -> E:\QtAudio-VideoLearning\EnhanceVision\build\msvc2022\Release\third_party\ncnn\glslang\glslang\Release\glslang-default-resource-limits.lib
   OSDependent.vcxproj -> E:\QtAudio-VideoLearning\EnhanceVision\build\msvc2022\Release\third_party\ncnn\glslang\glslang\OSDependent\Windows\Release\OSDependent.lib
   SPIRV.vcxproj -> E:\QtAudio-VideoLearning\EnhanceVision\build\msvc2022\Release\third_party\ncnn\glslang\SPIRV\Release\SPIRV.lib
-  glslang-default-resource-limits.vcxproj -> E:\QtAudio-VideoLearning\EnhanceVision\build\msvc2022\Release\third_party\ncnn\glslang\glslang\Release\glslang-default-resource-limits.lib
   glslang.vcxproj -> E:\QtAudio-VideoLearning\EnhanceVision\build\msvc2022\Release\third_party\ncnn\glslang\glslang\Release\glslang.lib
-  Automatic MOC and UIC for target test_shader_consistency
-  test_shader_consistency.vcxproj -> E:\QtAudio-VideoLearning\EnhanceVision\build\msvc2022\Release\Release\test_shader_consistency.exe
+  test_concurrency.vcxproj -> E:\QtAudio-VideoLearning\EnhanceVision\build\msvc2022\Release\Release\test_concurrency.exe
   1>Automatic MOC and UIC for target ncnn
+  Adding local dependencyE:/QtAudio-VideoLearning/EnhanceVision/build/msvc2022/Release/Release/icuuc.dll
+  E:\QtAudio-VideoLearning\EnhanceVision\build\msvc2022\Release\Release\test_concurrency.exe 64 bit, release executable
+  Direct dependencies: Qt6Core Qt6Test
+  All dependencies   : Qt6Core Qt6Test
+  To be deployed     : Qt6Core Qt6Test
+EXEC : warning : Cannot find Visual Studio installation directory, VCINSTALLDIR is not set. [E:\QtAudio-VideoLearning\EnhanceVision\build\msvc2022\Release\test_concurrency.vcxproj]
   ncnn.vcxproj -> E:\QtAudio-VideoLearning\EnhanceVision\build\msvc2022\Release\third_party\ncnn\src\Release\ncnn.lib
   Automatic MOC and UIC for target benchncnn
-  1>Automatic MOC and UIC for target EnhanceVision
   benchncnn.vcxproj -> E:\QtAudio-VideoLearning\EnhanceVision\build\msvc2022\Release\third_party\ncnn\benchmark\Release\benchncnn.exe
+  icuuc.dll is up to date.
+  Qt6Core.dll is up to date.
+  Qt6Test.dll is up to date.
+  Creating qt_ar.qm...
+  Creating qt_bg.qm...
+  Creating qt_ca.qm...
+  Creating qt_cs.qm...
+  Creating qt_da.qm...
+  Creating qt_de.qm...
+  Creating qt_en.qm...
+  Creating qt_es.qm...
+  Creating qt_fa.qm...
+  Creating qt_fi.qm...
+  Creating qt_fr.qm...
+  Creating qt_gd.qm...
+  Creating qt_he.qm...
+  Creating qt_hr.qm...
+  Creating qt_hu.qm...
+  Creating qt_it.qm...
+  Creating qt_ja.qm...
+  Creating qt_ka.qm...
+  Creating qt_ko.qm...
+  Creating qt_lg.qm...
+  Creating qt_lv.qm...
+  Creating qt_nl.qm...
+  Creating qt_nn.qm...
+  Creating qt_pl.qm...
+  Creating qt_pt_BR.qm...
+  Creating qt_ru.qm...
+  Creating qt_sk.qm...
+  Creating qt_sv.qm...
+  Creating qt_tr.qm...
+  Creating qt_uk.qm...
+  Creating qt_zh_CN.qm...
+  Creating qt_zh_TW.qm...
+  1>Automatic MOC and UIC for target EnhanceVision
   Running AUTOMOC file extraction for target EnhanceVision
   Running moc --collect-json for target EnhanceVision
   Running rcc for resource EnhanceVision_raw_qml_0_extra_qmldirs
@@ -28,12 +69,12 @@
   宸插畬鎴愪唬鐮佺殑鐢熸垚
   EnhanceVision.vcxproj -> E:\QtAudio-VideoLearning\EnhanceVision\build\msvc2022\Release\Release\EnhanceVision.exe
   -- Copying E:/QtAudio-VideoLearning/EnhanceVision/third_party/ffmpeg/bin -> E:/QtAudio-VideoLearning/EnhanceVision/build/msvc2022/Release/Release
-  Adding local dependencyE:/QtAudio-VideoLearning/EnhanceVision/build/msvc2022/Release/Release/avcodec-61.dll
-  Adding local dependencyE:/QtAudio-VideoLearning/EnhanceVision/build/msvc2022/Release/Release/avformat-61.dll
-  Adding local dependencyE:/QtAudio-VideoLearning/EnhanceVision/build/msvc2022/Release/Release/avutil-59.dll
-  Adding local dependencyE:/QtAudio-VideoLearning/EnhanceVision/build/msvc2022/Release/Release/swscale-8.dll
+  Adding local dependencyE:/QtAudio-VideoLearning/EnhanceVision/build/msvc2022/Release/Release/avcodec-62.dll
+  Adding local dependencyE:/QtAudio-VideoLearning/EnhanceVision/build/msvc2022/Release/Release/avformat-62.dll
+  Adding local dependencyE:/QtAudio-VideoLearning/EnhanceVision/build/msvc2022/Release/Release/avutil-60.dll
+  Adding local dependencyE:/QtAudio-VideoLearning/EnhanceVision/build/msvc2022/Release/Release/swscale-9.dll
   Adding local dependencyE:/QtAudio-VideoLearning/EnhanceVision/build/msvc2022/Release/Release/icuuc.dll
-  Adding local dependencyE:/QtAudio-VideoLearning/EnhanceVision/build/msvc2022/Release/Release/swresample-5.dll
+  Adding local dependencyE:/QtAudio-VideoLearning/EnhanceVision/build/msvc2022/Release/Release/swresample-6.dll
   E:\QtAudio-VideoLearning\EnhanceVision\build\msvc2022\Release\Release\EnhanceVision.exe 64 bit, release executable [QML]
   Scanning E:\QtAudio-VideoLearning\EnhanceVision\qml:
   QML imports:
@@ -93,9 +134,9 @@
   Adding in plugin type tls for module: Qt6Network
   Skipping plugin qopensslbackend.dll. Use -force-openssl or specify -openssl-root if you want to use it.
   Direct dependencies: Qt6Core Qt6Gui Qt6Network Qt6OpenGL Qt6Qml Qt6QmlMeta Qt6QmlModels Qt6QmlWorkerScript Qt6Quick Qt6QuickControls2 Qt6QuickTemplates2 Qt6QuickWidgets Qt6Widgets
-EXEC : warning : Cannot find Visual Studio installation directory, VCINSTALLDIR is not set. [E:\QtAudio-VideoLearning\EnhanceVision\build\msvc2022\Release\EnhanceVision.vcxproj]
   All dependencies   : Qt6Core Qt6Gui Qt6LabsFolderListModel Qt6LabsQmlModels Qt6Multimedia Qt6MultimediaQuick Qt6Network Qt6OpenGL Qt6Qml Qt6QmlMeta Qt6QmlModels Qt6QmlWorkerScript Qt6Quick Qt6QuickControls2 Qt6QuickControls2Basic Qt6QuickControls2BasicStyleImpl Qt6QuickControls2FluentWinUI3StyleImpl Qt6QuickControls2Fusion Qt6QuickControls2FusionStyleImpl Qt6QuickControls2Imagine Qt6QuickControls2ImagineStyleImpl Qt6QuickControls2Impl Qt6QuickControls2Material Qt6QuickControls2MaterialStyleImpl Qt6QuickControls2Universal Qt6QuickControls2UniversalStyleImpl Qt6QuickControls2WindowsStyleImpl Qt6QuickDialogs2 Qt6QuickDialogs2QuickImpl Qt6QuickDialogs2Utils Qt6QuickEffects Qt6QuickLayouts Qt6QuickShapes Qt6QuickTemplates2 Qt6QuickWidgets Qt6Widgets
   To be deployed     : Qt6Core Qt6Gui Qt6LabsFolderListModel Qt6LabsQmlModels Qt6Multimedia Qt6MultimediaQuick Qt6Network Qt6OpenGL Qt6Qml Qt6QmlMeta Qt6QmlModels Qt6QmlWorkerScript Qt6Quick Qt6Quick3DUtils Qt6QuickControls2 Qt6QuickControls2Basic Qt6QuickControls2BasicStyleImpl Qt6QuickControls2FluentWinUI3StyleImpl Qt6QuickControls2Fusion Qt6QuickControls2FusionStyleImpl Qt6QuickControls2Imagine Qt6QuickControls2ImagineStyleImpl Qt6QuickControls2Impl Qt6QuickControls2Material Qt6QuickControls2MaterialStyleImpl Qt6QuickControls2Universal Qt6QuickControls2UniversalStyleImpl Qt6QuickControls2WindowsStyleImpl Qt6QuickDialogs2 Qt6QuickDialogs2QuickImpl Qt6QuickDialogs2Utils Qt6QuickEffects Qt6QuickLayouts Qt6QuickShapes Qt6QuickTemplates2 Qt6QuickWidgets Qt6Svg Qt6Widgets
+EXEC : warning : Cannot find Visual Studio installation directory, VCINSTALLDIR is not set. [E:\QtAudio-VideoLearning\EnhanceVision\build\msvc2022\Release\EnhanceVision.vcxproj]
   icuuc.dll is up to date.
   Qt6Core.dll is up to date.
   Qt6Gui.dll is up to date.
@@ -139,11 +180,11 @@ EXEC : warning : Cannot find Visual Studio installation directory, VCINSTALLDIR 
   D3Dcompiler_47.dll is up to date.
   dxcompiler.dll is up to date.
   dxil.dll is up to date.
-  Updating avcodec-61.dll.
-  Updating avformat-61.dll.
-  Updating avutil-59.dll.
-  Updating swresample-5.dll.
-  Updating swscale-8.dll.
+  avcodec-61.dll is up to date.
+  avformat-61.dll is up to date.
+  avutil-59.dll is up to date.
+  swresample-5.dll is up to date.
+  swscale-8.dll is up to date.
   qtuiotouchplugin.dll is up to date.
   qsvgicon.dll is up to date.
   qgif.dll is up to date.

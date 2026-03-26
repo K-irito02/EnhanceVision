@@ -5,8 +5,15 @@
  */
 
 #include "EnhanceVision/controllers/SettingsController.h"
+#include "EnhanceVision/core/ResourceManager.h"
 #include <QStandardPaths>
 #include <QDir>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <dxgi.h>
+#pragma comment(lib, "dxgi.lib")
+#endif
 
 namespace EnhanceVision {
 
@@ -154,15 +161,72 @@ void SettingsController::setMaxConcurrentFilesPerMessage(int count)
 QString SettingsController::devicePerformanceHint(int sessions, int filesPerMsg) const
 {
     int total = qMax(1, sessions) * qMax(1, filesPerMsg);
-    if (total <= 2) {
-        return tr("[OK] 流畅 - 适合大多数设备，GPU/CPU 占用低");
-    } else if (total <= 4) {
-        return tr("[!] 轻微卡顿 - 中端设备可能感知延迟，高端设备流畅");
-    } else if (total <= 8) {
-        return tr("[!!] 严重卡顿 - 需要高端 GPU，普通设备可能窗口无响应");
-    } else {
-        return tr("[!!!] 可能崩溃 - 显存不足可能导致程序崩溃或系统死机");
+    
+    // 获取真实系统资源数据
+    auto* resourceMgr = ResourceManager::instance();
+    const qint64 totalMemoryMB = resourceMgr->totalSystemMemoryMB();
+    const qint64 availableMemoryMB = resourceMgr->availableSystemMemoryMB();
+    const qreal memoryUsagePercent = totalMemoryMB > 0 ? 
+        static_cast<qreal>(totalMemoryMB - availableMemoryMB) / totalMemoryMB * 100.0 : 0;
+    
+    // 获取 GPU 显存信息
+    qint64 gpuTotalMB = 0;
+    qint64 gpuAvailableMB = 0;
+    
+#ifdef Q_OS_WIN
+    IDXGIFactory* factory = nullptr;
+    if (SUCCEEDED(CreateDXGIFactory(__uuidof(IDXGIFactory), reinterpret_cast<void**>(&factory)))) {
+        IDXGIAdapter* adapter = nullptr;
+        if (SUCCEEDED(factory->EnumAdapters(0, &adapter))) {
+            DXGI_ADAPTER_DESC desc;
+            if (SUCCEEDED(adapter->GetDesc(&desc))) {
+                gpuTotalMB = static_cast<qint64>(desc.DedicatedVideoMemory / (1024 * 1024));
+            }
+            adapter->Release();
+        }
+        factory->Release();
     }
+    
+    // 估算可用显存（基于已用内存和并发任务数）
+    const int activeTasks = resourceMgr->activeTaskCount();
+    const qint64 estimatedUsedGpuMB = activeTasks * 512;  // 估算每任务约 512MB
+    gpuAvailableMB = qMax(0LL, gpuTotalMB - estimatedUsedGpuMB);
+#endif
+
+    // 根据实际设备能力评估并发设置
+    QString hint;
+    const qint64 estimatedMemoryPerTask = 512;  // MB
+    const qint64 requiredMemory = total * estimatedMemoryPerTask;
+    const qint64 requiredGpuMemory = total * 512;  // MB
+    
+    // 构建状态信息
+    QString memoryStatus = tr("内存: %1/%2 GB (已用 %3%)")
+        .arg((totalMemoryMB - availableMemoryMB) / 1024.0, 0, 'f', 1)
+        .arg(totalMemoryMB / 1024.0, 0, 'f', 1)
+        .arg(memoryUsagePercent, 0, 'f', 0);
+    
+    QString gpuStatus;
+    if (gpuTotalMB > 0) {
+        gpuStatus = tr(" | 显存: %1 GB").arg(gpuTotalMB / 1024.0, 0, 'f', 1);
+    }
+    
+    // 综合评估
+    bool memoryOk = availableMemoryMB >= requiredMemory;
+    bool gpuOk = gpuTotalMB == 0 || gpuTotalMB >= requiredGpuMemory;
+    
+    if (total <= 2 && memoryOk && gpuOk) {
+        hint = tr("[OK] 流畅 - 资源充足");
+    } else if (total <= 4 && memoryOk) {
+        hint = tr("[!] 轻微负载 - 可正常运行");
+    } else if (!memoryOk || (gpuTotalMB > 0 && gpuTotalMB < 4096 && total > 4)) {
+        hint = tr("[!!] 高负载 - 可能出现卡顿");
+    } else if (total > 8 || memoryUsagePercent > 85) {
+        hint = tr("[!!!] 资源紧张 - 建议降低并发数");
+    } else {
+        hint = tr("[!] 中等负载 - 高端设备可正常运行");
+    }
+    
+    return hint + "\n" + memoryStatus + gpuStatus;
 }
 
 QString SettingsController::defaultSavePath() const

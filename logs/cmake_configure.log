@@ -3,10 +3,10 @@
 -- OpenCV found at: E:/QtAudio-VideoLearning/EnhanceVision/third_party/opencv
 -- NCNN pre-built not found, building from source...
 -- CMAKE_INSTALL_PREFIX = C:/Program Files/EnhanceVision
--- NCNN_VERSION_STRING = 1.0.20260324
+-- NCNN_VERSION_STRING = 1.0.20260327
 -- Target arch: x86 64bit
 resources/shaders/fullshader.vert -> resources/shaders/fullshader.vert.qsb exposed as ://resources/shaders/fullshader.vert.qsb
 resources/shaders/fullshader.frag -> resources/shaders/fullshader.frag.qsb exposed as ://resources/shaders/fullshader.frag.qsb
--- Configuring done (8.8s)
--- Generating done (4.4s)
+-- Configuring done (5.7s)
+-- Generating done (3.0s)
 -- Build files have been written to: E:/QtAudio-VideoLearning/EnhanceVision/build/msvc2022/Release

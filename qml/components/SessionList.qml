@@ -238,10 +238,15 @@ Item {
                 }
 
                 onReleased: {
-                    if (sessionListView.isDragging && sessionListView.dragToIndex !== -1 &&
+                    // 只有当拖拽到不同位置时才触发移动
+                    // 支持原位放置：dragToIndex === dragFromIndex 或 dragToIndex === -1 时不移动
+                    if (sessionListView.isDragging && 
+                        sessionListView.dragToIndex !== -1 &&
+                        sessionListView.dragFromIndex !== -1 &&
                         sessionListView.dragFromIndex !== sessionListView.dragToIndex) {
                         root.moveRequested(sessionListView.dragFromIndex, sessionListView.dragToIndex)
                     }
+                    // 重置拖拽状态
                     sessionListView.isDragging = false
                     sessionListView.dragFromIndex = -1
                     sessionListView.dragToIndex = -1
@@ -254,8 +259,8 @@ Item {
                             sessionListView.isDragging = true
                             var globalY = mapToItem(sessionListView, 0, mouseY).y
                             var targetIndex = sessionListView.indexAt(sessionListView.width / 2, globalY)
-                            if (targetIndex >= 0 && targetIndex < sessionListView.count && 
-                                targetIndex !== sessionListView.dragFromIndex) {
+                            if (targetIndex >= 0 && targetIndex < sessionListView.count) {
+                                // 允许设置 dragToIndex 为原位置，这样用户可以放回原位
                                 sessionListView.dragToIndex = targetIndex
                             }
                         }

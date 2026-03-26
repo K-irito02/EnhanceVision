@@ -1,9 +1,9 @@
 # Build directories
 build/
 cmake-build-*/
-# third_party/*/build/
-# third_party/
-# third_party/ncnn/build/
+third_party/*/build/
+third_party/
+third_party/ncnn/build/
 tests/*/build/
 
 # CMake
@@ -65,7 +65,7 @@ ShaderStackTrace*
 .qt/
 .qmake.files
 
-# Logs
+Logs
 logs/
 *.log
 
@@ -81,10 +81,11 @@ Thumbs.db
 desktop.ini
 
 # Third-party libraries
-third_party/
+# third_party/
 
 # AI Models (large binary files, distribute separately)
-resources/models/
+# resources/models/
 
 # Test video assets
-tests/testAssetsDirectory/video/
+# tests/testAssetsDirectory/video/
+# tests/testAssetsDirectory/image/

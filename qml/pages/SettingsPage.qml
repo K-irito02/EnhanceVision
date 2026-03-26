@@ -305,6 +305,18 @@ Rectangle {
                             Layout.fillWidth: true
                             implicitHeight: hintText.implicitHeight + 16
                             radius: Theme.radius.sm
+                            
+                            property int refreshCounter: 0
+                            
+                            // 每2秒刷新一次设备状态
+                            Timer {
+                                id: deviceRefreshTimer
+                                interval: 2000
+                                running: true
+                                repeat: true
+                                onTriggered: parent.refreshCounter++
+                            }
+                            
                             color: {
                                 var total = (sessionCombo.currentIndex + 1) * (filesCombo.currentIndex + 1)
                                 if (total <= 2) return Qt.rgba(Theme.colors.success.r, Theme.colors.success.g, Theme.colors.success.b, 0.1)
@@ -323,8 +335,12 @@ Rectangle {
                                 id: hintText
                                 anchors.fill: parent
                                 anchors.margins: 8
-                                text: SettingsController.devicePerformanceHint(sessionCombo.currentIndex + 1, filesCombo.currentIndex + 1)
-                                     + qsTr("\n有效并发数：%1").arg((sessionCombo.currentIndex + 1) * (filesCombo.currentIndex + 1))
+                                // refreshCounter 变化触发重新计算
+                                text: {
+                                    var _ = parent.refreshCounter  // 依赖刷新计数器
+                                    return SettingsController.devicePerformanceHint(sessionCombo.currentIndex + 1, filesCombo.currentIndex + 1)
+                                         + qsTr("\n有效并发数：%1").arg((sessionCombo.currentIndex + 1) * (filesCombo.currentIndex + 1))
+                                }
                                 color: Theme.colors.foreground
                                 font.pixelSize: 12
                                 wrapMode: Text.Wrap

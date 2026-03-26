@@ -9,6 +9,7 @@
 #include <QtConcurrent/QtConcurrent>
 #include <QFile>
 #include <QDebug>
+#include <QElapsedTimer>
 
 namespace EnhanceVision {
 
@@ -71,7 +72,13 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
     AVCodecContext* videoDecoderContext = nullptr;
     AVCodecContext* videoEncoderContext = nullptr;
     SwsContext* swsContext = nullptr;
+    SwsContext* frameToImageSwsCtx = nullptr;  // 缓存的解码转换上下文
     ImageProcessor imageProcessor;
+    
+    QElapsedTimer perfTimer;
+    perfTimer.start();
+    
+    qInfo() << "[VideoProcessor] Starting video processing:" << inputPath;
 
     try {
         // 打开输入文件
@@ -88,12 +95,14 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
             throw std::runtime_error(tr("无法获取视频流信息").toStdString());
         }
 
-        // 查找视频流
+        // 查找视频流和音频流
         int videoStreamIndex = -1;
+        int audioStreamIndex = -1;
         for (unsigned int i = 0; i < inputFormatContext->nb_streams; i++) {
-            if (inputFormatContext->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            if (inputFormatContext->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO && videoStreamIndex == -1) {
                 videoStreamIndex = i;
-                break;
+            } else if (inputFormatContext->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO && audioStreamIndex == -1) {
+                audioStreamIndex = i;
             }
         }
 
@@ -152,6 +161,20 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
 
         avcodec_parameters_from_context(outVideoStream->codecpar, videoEncoderContext);
 
+        // 添加音频流到输出（如果存在）
+        AVStream* outAudioStream = nullptr;
+        int outAudioStreamIndex = -1;
+        if (audioStreamIndex != -1) {
+            outAudioStream = avformat_new_stream(outputFormatContext, nullptr);
+            if (outAudioStream) {
+                outAudioStreamIndex = outAudioStream->index;
+                // 直接复制音频流参数（不重新编码）
+                avcodec_parameters_copy(outAudioStream->codecpar, inputFormatContext->streams[audioStreamIndex]->codecpar);
+                outAudioStream->codecpar->codec_tag = 0;
+                outAudioStream->time_base = inputFormatContext->streams[audioStreamIndex]->time_base;
+            }
+        }
+
         // 打开输出文件
         if (!(outputFormatContext->oformat->flags & AVFMT_NOFILE)) {
             if (avio_open(&outputFormatContext->pb, outputPath.toUtf8().constData(), AVIO_FLAG_WRITE) < 0) {
@@ -162,13 +185,6 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         // 写文件头
         avformat_write_header(outputFormatContext, nullptr);
 
-        // 初始化图像转换上下文
-        swsContext = sws_getContext(
-            videoDecoderContext->width, videoDecoderContext->height, videoDecoderContext->pix_fmt,
-            videoEncoderContext->width, videoEncoderContext->height, videoEncoderContext->pix_fmt,
-            SWS_BILINEAR, nullptr, nullptr, nullptr
-        );
-
         // 分配帧
         AVFrame* frame = av_frame_alloc();
         AVFrame* outFrame = av_frame_alloc();
@@ -178,22 +194,36 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         av_frame_get_buffer(outFrame, 32);
 
         AVPacket* packet = av_packet_alloc();
+        
+        // 用于 BGRA -> 编码器格式转换的上下文（延迟初始化）
+        SwsContext* bgraToEncSwsCtx = nullptr;
 
-        // 获取总帧数（估算）
+        // 获取总帧数（精确计算）
         int64_t totalFrames = inputFormatContext->streams[videoStreamIndex]->nb_frames;
         if (totalFrames <= 0) {
-            totalFrames = inputFormatContext->duration * inputFormatContext->streams[videoStreamIndex]->time_base.num /
-                           inputFormatContext->streams[videoStreamIndex]->time_base.den *
-                           videoDecoderContext->framerate.num / videoDecoderContext->framerate.den;
+            // 使用 duration（以 AV_TIME_BASE 为单位）和帧率计算
+            double durationSec = static_cast<double>(inputFormatContext->duration) / AV_TIME_BASE;
+            double fps = 30.0;  // 默认帧率
+            if (videoDecoderContext->framerate.num > 0 && videoDecoderContext->framerate.den > 0) {
+                fps = static_cast<double>(videoDecoderContext->framerate.num) / videoDecoderContext->framerate.den;
+            } else if (inputFormatContext->streams[videoStreamIndex]->avg_frame_rate.num > 0 &&
+                       inputFormatContext->streams[videoStreamIndex]->avg_frame_rate.den > 0) {
+                fps = static_cast<double>(inputFormatContext->streams[videoStreamIndex]->avg_frame_rate.num) /
+                      inputFormatContext->streams[videoStreamIndex]->avg_frame_rate.den;
+            }
+            totalFrames = static_cast<int64_t>(durationSec * fps);
         }
-        if (totalFrames <= 0) totalFrames = 1000;
+        if (totalFrames <= 0) totalFrames = 100;  // 最小估算值
 
         int64_t frameCount = 0;
+        int lastReportedProgress = 0;
 
         if (progressCallback) {
-            progressCallback(10, tr("开始处理视频帧..."));
+            progressCallback(5, tr("开始处理视频帧..."));
         }
-        emit progressChanged(10, tr("开始处理视频帧..."));
+        emit progressChanged(5, tr("开始处理视频帧..."));
+        
+        qInfo() << "[VideoProcessor] Starting frame loop, totalFrames:" << totalFrames;
 
         // 解码、处理、编码循环
         while (av_read_frame(inputFormatContext, packet) >= 0) {
@@ -201,7 +231,20 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
                 throw std::runtime_error(tr("处理已取消").toStdString());
             }
 
-            if (packet->stream_index == videoStreamIndex) {
+            // 处理音频流：直接复制
+            if (packet->stream_index == audioStreamIndex && outAudioStream) {
+                AVPacket* audioPacket = av_packet_clone(packet);
+                if (audioPacket) {
+                    av_packet_rescale_ts(audioPacket, 
+                        inputFormatContext->streams[audioStreamIndex]->time_base,
+                        outAudioStream->time_base);
+                    audioPacket->stream_index = outAudioStreamIndex;
+                    av_interleaved_write_frame(outputFormatContext, audioPacket);
+                    av_packet_free(&audioPacket);
+                }
+            }
+            // 处理视频流
+            else if (packet->stream_index == videoStreamIndex) {
                 avcodec_send_packet(videoDecoderContext, packet);
 
                 while (avcodec_receive_frame(videoDecoderContext, frame) == 0) {
@@ -209,17 +252,58 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
                         throw std::runtime_error(tr("处理已取消").toStdString());
                     }
 
-                    // 将 AVFrame 转换为 QImage
-                    QImage image = frameToImage(frame, videoDecoderContext->pix_fmt);
+                    // 延迟初始化解码转换上下文
+                    if (!frameToImageSwsCtx) {
+                        frameToImageSwsCtx = sws_getContext(
+                            frame->width, frame->height, videoDecoderContext->pix_fmt,
+                            frame->width, frame->height, AV_PIX_FMT_RGB32,
+                            SWS_BILINEAR, nullptr, nullptr, nullptr
+                        );
+                        if (!frameToImageSwsCtx) {
+                            throw std::runtime_error(tr("无法创建解码转换上下文").toStdString());
+                        }
+                    }
+
+                    // 将 AVFrame 转换为 QImage（使用缓存的上下文）
+                    QImage image(frame->width, frame->height, QImage::Format_RGB32);
+                    uint8_t* dstData[4] = { image.bits(), nullptr, nullptr, nullptr };
+                    int dstLinesize[4] = { image.bytesPerLine(), 0, 0, 0 };
+                    sws_scale(frameToImageSwsCtx, frame->data, frame->linesize, 0, frame->height, dstData, dstLinesize);
+                    
+                    if (image.isNull()) {
+                        qWarning() << "[VideoProcessor] frameToImage returned null, skipping frame";
+                        continue;
+                    }
 
                     // 应用滤镜
                     QImage processedImage = imageProcessor.applyShader(image, params);
+                    if (processedImage.isNull()) {
+                        qWarning() << "[VideoProcessor] applyShader returned null, using original";
+                        processedImage = image;
+                    }
 
-                    // 将 QImage 转换回 AVFrame
+                    // 将 QImage 转换回 AVFrame (BGRA格式)
                     AVFrame* processedFrame = imageToFrame(processedImage, frame);
+                    if (!processedFrame) {
+                        qWarning() << "[VideoProcessor] imageToFrame returned null, skipping frame";
+                        continue;
+                    }
+
+                    // 延迟初始化 BGRA -> 编码器格式的转换上下文
+                    if (!bgraToEncSwsCtx) {
+                        bgraToEncSwsCtx = sws_getContext(
+                            processedFrame->width, processedFrame->height, AV_PIX_FMT_BGRA,
+                            videoEncoderContext->width, videoEncoderContext->height, videoEncoderContext->pix_fmt,
+                            SWS_BILINEAR, nullptr, nullptr, nullptr
+                        );
+                        if (!bgraToEncSwsCtx) {
+                            av_frame_free(&processedFrame);
+                            throw std::runtime_error(tr("无法创建图像格式转换上下文").toStdString());
+                        }
+                    }
 
                     // 转换为编码器像素格式
-                    sws_scale(swsContext,
+                    sws_scale(bgraToEncSwsCtx,
                               processedFrame->data, processedFrame->linesize, 0, processedFrame->height,
                               outFrame->data, outFrame->linesize);
 
@@ -240,13 +324,24 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
                     av_frame_free(&processedFrame);
 
                     frameCount++;
-                    int progress = 10 + qRound(80.0 * frameCount / totalFrames);
-                    progress = qMin(progress, 90);
+                    // 进度计算：5-90% 范围内处理帧
+                    int progress = 5 + qRound(85.0 * frameCount / totalFrames);
+                    progress = qBound(5, progress, 90);
 
-                    if (progressCallback) {
-                        progressCallback(progress, tr("正在处理第 %1 帧...").arg(frameCount));
+                    // 每处理100帧输出日志（减少日志频率）
+                    if (frameCount == 1 || frameCount % 100 == 0) {
+                        qInfo() << "[VideoProcessor] Frame" << frameCount << "/" << totalFrames 
+                                << "progress:" << progress << "% elapsed:" << perfTimer.elapsed() << "ms";
                     }
-                    emit progressChanged(progress, tr("正在处理第 %1 帧...").arg(frameCount));
+
+                    // 只在进度变化至少1%时报告，避免过多更新
+                    if (progress > lastReportedProgress) {
+                        lastReportedProgress = progress;
+                        if (progressCallback) {
+                            progressCallback(progress, tr("正在处理第 %1/%2 帧...").arg(frameCount).arg(totalFrames));
+                        }
+                        emit progressChanged(progress, tr("正在处理第 %1/%2 帧...").arg(frameCount).arg(totalFrames));
+                    }
                 }
             }
             av_packet_unref(packet);
@@ -266,6 +361,10 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         // 写文件尾
         av_write_trailer(outputFormatContext);
 
+        // 清理转换上下文
+        if (frameToImageSwsCtx) sws_freeContext(frameToImageSwsCtx);
+        if (bgraToEncSwsCtx) sws_freeContext(bgraToEncSwsCtx);
+        
         // 清理
         av_frame_free(&frame);
         av_frame_free(&outFrame);
@@ -284,13 +383,18 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         }
         emit progressChanged(100, tr("处理完成"));
 
+        qInfo() << "[VideoProcessor] Video processing completed successfully in" << perfTimer.elapsed() << "ms";
+
     } catch (const std::exception& e) {
         error = QString::fromStdString(e.what());
         success = false;
+        qWarning() << "[VideoProcessor] Video processing failed:" << error;
+        
+        // 确保清理转换上下文
+        if (frameToImageSwsCtx) sws_freeContext(frameToImageSwsCtx);
     }
 
-    // 清理资源
-    if (swsContext) sws_freeContext(swsContext);
+    // 清理资源（注意：bgraToEncSwsCtx 已在 try 块内清理）
     if (videoEncoderContext) avcodec_free_context(&videoEncoderContext);
     if (videoDecoderContext) avcodec_free_context(&videoDecoderContext);
     if (outputFormatContext) {
@@ -336,25 +440,39 @@ AVFrame* VideoProcessor::imageToFrame(const QImage& image, AVFrame* referenceFra
 {
     if (image.isNull() || !referenceFrame) return nullptr;
 
-    QImage rgbImage = image.convertToFormat(QImage::Format_RGB32);
+    // 确保图像格式正确，并创建深拷贝避免数据失效
+    QImage rgbImage = image.convertToFormat(QImage::Format_RGB32).copy();
+    if (rgbImage.isNull() || rgbImage.width() <= 0 || rgbImage.height() <= 0) {
+        qWarning() << "[VideoProcessor] imageToFrame: invalid RGB image after conversion";
+        return nullptr;
+    }
 
     AVFrame* frame = av_frame_alloc();
-    frame->format = AV_PIX_FMT_RGB32;
+    if (!frame) {
+        qWarning() << "[VideoProcessor] imageToFrame: failed to allocate frame";
+        return nullptr;
+    }
+    
+    frame->format = AV_PIX_FMT_BGRA;  // Qt的Format_RGB32实际是BGRA格式
     frame->width = rgbImage.width();
     frame->height = rgbImage.height();
-    av_frame_get_buffer(frame, 32);
+    
+    if (av_frame_get_buffer(frame, 32) < 0) {
+        qWarning() << "[VideoProcessor] imageToFrame: failed to allocate frame buffer";
+        av_frame_free(&frame);
+        return nullptr;
+    }
 
-    SwsContext* swsCtx = sws_getContext(
-        rgbImage.width(), rgbImage.height(), AV_PIX_FMT_RGB32,
-        rgbImage.width(), rgbImage.height(), AV_PIX_FMT_RGB32,
-        SWS_BILINEAR, nullptr, nullptr, nullptr
-    );
-
-    uint8_t* srcData[4] = { const_cast<uint8_t*>(rgbImage.bits()), nullptr, nullptr, nullptr };
-    int srcLinesize[4] = { rgbImage.bytesPerLine(), 0, 0, 0 };
-
-    sws_scale(swsCtx, srcData, srcLinesize, 0, rgbImage.height(), frame->data, frame->linesize);
-    sws_freeContext(swsCtx);
+    // 直接复制像素数据，避免使用sws_scale进行同格式转换
+    const int srcBytesPerLine = rgbImage.bytesPerLine();
+    const int dstBytesPerLine = frame->linesize[0];
+    const int copyBytes = qMin(srcBytesPerLine, dstBytesPerLine);
+    
+    for (int y = 0; y < rgbImage.height(); ++y) {
+        const uchar* srcLine = rgbImage.constScanLine(y);
+        uint8_t* dstLine = frame->data[0] + y * dstBytesPerLine;
+        std::memcpy(dstLine, srcLine, copyBytes);
+    }
 
     frame->pts = referenceFrame->pts;
     frame->pict_type = referenceFrame->pict_type;

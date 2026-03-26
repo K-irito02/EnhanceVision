@@ -2,6 +2,7 @@
 alwaysApply: false
 globs: ['**/src/**/*.h', '**/src/**/*.hpp', '**/src/**/*.cpp', '**/qml/**/*.qml']
 description: '架构设计 - 分层职责、模块边界、数据流与跨层约束'
+trigger: glob
 ---
 # 架构设计
 
@@ -13,11 +14,22 @@ description: '架构设计 - 分层职责、模块边界、数据流与跨层约
 
 ## 模块职责
 
-- `Controller`：状态暴露 + 业务编排
+- `Controller`：状态暴露 + 业务编排 + 并发任务管理
 - `Model`：列表数据与角色字段
 - `Provider`：图像桥接（预览/缩略图）
 - `Service`：跨模块复用业务
-- `Core`：重计算能力与引擎
+- `Core`：重计算能力与引擎 + 并发调度系统
+
+## 并发架构组件
+
+- `ConcurrencyManager`：统一并发管理门面
+- `PriorityTaskQueue`：多级优先级任务队列
+- `PriorityAdjuster`：优先级动态调整器
+- `DeadlockDetector`：死锁检测与恢复
+- `TaskTimeoutWatchdog`：超时监控器
+- `TaskRetryPolicy`：重试策略管理
+- `AIEnginePool`：AI引擎池管理
+- `ConcurrencyMonitor`：实时监控与统计
 
 ## 数据流规范
 

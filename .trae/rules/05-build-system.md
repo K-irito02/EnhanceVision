@@ -1,6 +1,5 @@
 ---
 alwaysApply: false
-globs: ['**/CMakeLists.txt', '**/CMakePresets.json', '**/*.cmake']
 description: '构建系统 - CMake预设、构建流程、发布部署与构建可复现性'
 ---
 # 构建系统

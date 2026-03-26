@@ -136,6 +136,77 @@ Breaking change: Theme.icon() now requires theme parameter
 | `build/` | 构建产物 |
 | `logs/` | 日志文件 |
 | `third_party/` | 第三方库（gitignore） |
+| `resources/models/` | AI 模型文件（大型二进制，单独分发） |
+| `tests/testAssetsDirectory/video/` | 测试视频资源（大型文件） |
+
+## 大文件处理
+
+### 提交前检查大文件
+
+在提交前，务必检查是否有大文件被暂存：
+
+```powershell
+# 检查暂存区中的大文件（>1MB）
+git ls-files -s | ForEach-Object { 
+    $size = (Get-Item $_.Split()[3] -ErrorAction SilentlyContinue).Length
+    if ($size -gt 1MB) { 
+        Write-Output "$([math]::Round($size/1MB, 2)) MB - $($_.Split()[3])" 
+    } 
+} | Sort-Object -Descending
+```
+
+### 常见大文件类型
+
+| 文件类型 | 典型大小 | 处理方式 |
+|----------|----------|----------|
+| `.bin` (NCNN模型) | 10-250 MB | 加入 .gitignore |
+| `.onnx` (ONNX模型) | 50-500 MB | 加入 .gitignore |
+| `.pt/.pth` (PyTorch) | 50-1000 MB | 加入 .gitignore |
+| `.mp4/.avi` (视频) | 变化大 | 加入 .gitignore |
+| `.dll/.so` (库文件) | 1-50 MB | 加入 .gitignore |
+
+### 撤销已暂存的大文件
+
+如果已经 `git add` 了不应提交的大文件：
+
+```powershell
+# 从暂存区移除特定目录
+git reset HEAD resources/models/
+git reset HEAD tests/testAssetsDirectory/video/
+
+# 从暂存区移除特定文件
+git reset HEAD path/to/large-file.bin
+
+# 撤销整个提交但保留更改
+git reset --soft HEAD~1
+```
+
+### 模型文件分发建议
+
+AI 模型文件应通过以下方式分发：
+
+1. **云存储**：Google Drive、OneDrive、阿里云 OSS
+2. **模型仓库**：Hugging Face、ModelScope
+3. **Git LFS**：如果必须用 Git 管理，使用 Git LFS
+4. **Release 附件**：GitHub Release 作为附件发布
+
+### .gitignore 配置示例
+
+```gitignore
+# AI Models (large binary files, distribute separately)
+resources/models/
+
+# Third-party libraries
+third_party/
+
+# Test assets
+tests/testAssetsDirectory/video/
+tests/testAssetsDirectory/audio/
+
+# Logs
+logs/
+*.log
+```
 
 ## 工作流程
 

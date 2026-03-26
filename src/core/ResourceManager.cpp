@@ -16,6 +16,10 @@
 #include <psapi.h>
 #endif
 
+#if NCNN_VULKAN
+#include <gpu.h>
+#endif
+
 namespace EnhanceVision {
 
 ResourceManager* ResourceManager::s_instance = nullptr;
@@ -31,8 +35,10 @@ ResourceManager::ResourceManager(QObject* parent)
     : QObject(parent)
     , m_monitorTimer(new QTimer(this))
     , m_totalSystemMemoryMB(0)
+    , m_totalGpuMemoryMB(0)
 {
     m_totalSystemMemoryMB = queryTotalSystemMemory();
+    m_totalGpuMemoryMB = queryTotalGpuMemoryMB();
     
     if (m_totalSystemMemoryMB > 0) {
         m_quota.maxMemoryMB = qMin(m_totalSystemMemoryMB / 2, 4096LL);
@@ -284,6 +290,54 @@ qint64 ResourceManager::queryAvailableSystemMemory() const {
     }
     
     return m_totalSystemMemoryMB / 2;
+}
+
+qint64 ResourceManager::totalGpuMemoryMB() const {
+    return m_totalGpuMemoryMB;
+}
+
+qint64 ResourceManager::availableGpuMemoryMB() const {
+    qint64 budget = queryGpuHeapBudgetMB();
+    if (budget > 0) {
+        return budget;
+    }
+    return qMax(0LL, m_quota.maxGpuMemoryMB - usedGpuMemoryMB());
+}
+
+qint64 ResourceManager::queryGpuHeapBudgetMB() const {
+#if NCNN_VULKAN
+    if (ncnn::get_gpu_count() > 0) {
+        int gpuIndex = ncnn::get_default_gpu_index();
+        const ncnn::VulkanDevice* vkdev = ncnn::get_gpu_device(gpuIndex);
+        if (vkdev) {
+            uint32_t budgetMB = vkdev->get_heap_budget();
+            if (budgetMB > 0) {
+                return static_cast<qint64>(budgetMB);
+            }
+        }
+    }
+#endif
+    return 0;
+}
+
+qint64 ResourceManager::queryTotalGpuMemoryMB() const {
+#if NCNN_VULKAN
+    if (ncnn::get_gpu_count() > 0) {
+        int gpuIndex = ncnn::get_default_gpu_index();
+        const ncnn::GpuInfo& info = ncnn::get_gpu_info(gpuIndex);
+        const VkPhysicalDeviceMemoryProperties& memProps = info.physical_device_memory_properties();
+        qint64 totalMB = 0;
+        for (uint32_t i = 0; i < memProps.memoryHeapCount; ++i) {
+            if (memProps.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
+                totalMB += static_cast<qint64>(memProps.memoryHeaps[i].size / (1024 * 1024));
+            }
+        }
+        if (totalMB > 0) {
+            return totalMB;
+        }
+    }
+#endif
+    return 0;
 }
 
 } // namespace EnhanceVision
