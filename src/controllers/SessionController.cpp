@@ -131,7 +131,7 @@ void SessionController::setProcessingController(ProcessingController* controller
 
 void SessionController::onMessageCountChanged()
 {
-    QString currentId = m_sessionModel->activeSessionId();
+    QString currentId = m_messageModel ? m_messageModel->currentSessionId() : QString();
     if (currentId.isEmpty() || !m_messageModel) return;
     
     Session* session = getSession(currentId);
