@@ -203,7 +203,7 @@ signals:
     void progressTextChanged(const QString &text);
     void processCompleted(const QImage &result);
     void processFileCompleted(bool success, const QString &resultPath, const QString &error);
-    void videoProcessingWarning(const QString &warning);
+
     void processError(const QString &error);
     void useGpuChanged(bool useGpu);
     void gpuAvailableChanged(bool available);
@@ -244,30 +244,6 @@ private:
     void setProcessing(bool processing);
     void emitError(const QString &error);
 
-    void processVideoInternal(const QString &inputPath, const QString &outputPath);
-
-    /**
-     * @brief 轻量级单帧推理（供视频管线逐帧调用）
-     *
-     * 与 process() 不同，此方法：
-     * - 不管理 isProcessing / progress 状态
-     * - 不发射 processCompleted / processingChanged 等信号
-     * - 不加锁 m_inferenceMutex（由调用方持有）
-     * - 支持指定 tileSize（0=由方法内部自动决策）
-     *
-     * @param input     输入图像
-     * @param model     模型信息快照（值拷贝，不访问 m_currentModel）
-     * @param tileSize  分块大小（0=自动）
-     * @return 处理后的图像，失败返回空 QImage
-     */
-    QImage processFrame(const QImage &input, const ModelInfo &model, int tileSize);
-
-    /**
-     * @brief 清理 GPU 显存（供视频管线帧间调用，防止显存累积）
-     */
-    void cleanupGpuMemory();
-
-    // ── 纯 const 辅助（不持有外部锁，内部不加锁） ──
     QVariantMap getEffectiveParamsLocked(const ModelInfo &model) const;
     int  computeAutoTileSizeForModel(const QSize &inputSize, const ModelInfo &model) const;
     QVariantMap computeAutoParamsForModel(const QSize &mediaSize, bool isVideo,

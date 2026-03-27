@@ -131,6 +131,9 @@ qt_add_executable(EnhanceVision
     src/core/ModelRegistry.cpp
     src/core/ProcessingEngine.cpp
     src/core/VideoProcessor.cpp
+    src/core/video/VideoResourceGuard.cpp
+    src/core/video/AIVideoProcessor.cpp
+    src/core/video/VideoProcessorFactory.cpp
     src/core/ImageProcessor.cpp
     src/core/FrameCache.cpp
     src/core/TaskCoordinator.cpp
@@ -159,6 +162,10 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/core/ModelRegistry.h
     include/EnhanceVision/core/ProcessingEngine.h
     include/EnhanceVision/core/VideoProcessor.h
+    include/EnhanceVision/core/video/VideoProcessingTypes.h
+    include/EnhanceVision/core/video/VideoResourceGuard.h
+    include/EnhanceVision/core/video/AIVideoProcessor.h
+    include/EnhanceVision/core/video/VideoProcessorFactory.h
     include/EnhanceVision/core/ImageProcessor.h
     include/EnhanceVision/core/FrameCache.h
     include/EnhanceVision/core/TaskCoordinator.h

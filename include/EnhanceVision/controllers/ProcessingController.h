@@ -21,6 +21,7 @@
 #include "EnhanceVision/models/ProcessingModel.h"
 #include "EnhanceVision/core/AIEngine.h"
 #include "EnhanceVision/core/ModelRegistry.h"
+#include "EnhanceVision/core/video/AIVideoProcessor.h"
 
 class QTimer;
 
@@ -176,10 +177,16 @@ private:
     
     QHash<QString, QSharedPointer<class VideoProcessor>> m_activeVideoProcessors;
     
+    QHash<QString, QSharedPointer<AIVideoProcessor>> m_activeAIVideoProcessors;
+    
 
     QString generateTaskId();
     void launchAiInference(AIEngine* engine, const QString& taskId, const QString& inputPath, 
                            const QString& outputPath, const Message& message);
+    void launchAIVideoProcessor(AIEngine* engine, const QString& taskId,
+                                const QString& inputPath, const QString& outputPath,
+                                const Message& message, const ModelInfo& modelInfo,
+                                const QVariantMap& effectiveParams);
     void requestSessionSync();
     void requestSessionMemorySync(const QString& messageId = QString());
     void flushSessionMemorySync();

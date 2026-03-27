@@ -16,6 +16,7 @@
 #include "EnhanceVision/core/ResourceManager.h"
 #include "EnhanceVision/core/AIEnginePool.h"
 #include "EnhanceVision/core/VideoProcessor.h"
+#include "EnhanceVision/core/video/VideoProcessorFactory.h"
 #include <QUuid>
 #include <QTimer>
 #include <QStandardPaths>
@@ -609,6 +610,7 @@ void ProcessingController::startTask(QueueTask& task)
 
     task.status = ProcessingStatus::Processing;
     task.startedAt = QDateTime::currentDateTime();
+    task.progress = 0;  // 确保进度初始化为 0
     m_currentProcessingCount++;
 
     emit taskStarted(task.taskId);
@@ -952,37 +954,7 @@ void ProcessingController::processShaderVideoThumbnailAsync(const QString& taskI
     auto videoProcessor = QSharedPointer<VideoProcessor>::create();
     m_activeVideoProcessors[taskId] = videoProcessor;
 
-    // 先异步生成缩略图（不阻塞视频处理）
-    QtConcurrent::run([this, fileId, filePath, shaderParams]() {
-        QImage videoThumb = ImageUtils::generateVideoThumbnail(filePath, QSize(512, 512));
-        QImage processedThumb;
-        if (!videoThumb.isNull()) {
-            processedThumb = ImageUtils::applyShaderEffects(
-                videoThumb,
-                shaderParams.brightness,
-                shaderParams.contrast,
-                shaderParams.saturation,
-                shaderParams.hue,
-                shaderParams.exposure,
-                shaderParams.gamma,
-                shaderParams.temperature,
-                shaderParams.tint,
-                shaderParams.vignette,
-                shaderParams.highlights,
-                shaderParams.shadows,
-                shaderParams.sharpness,
-                shaderParams.blur,
-                shaderParams.denoise
-            );
-        }
-
-        QMetaObject::invokeMethod(this, [this, fileId, processedThumb]() {
-            if (ThumbnailProvider::instance() && !processedThumb.isNull()) {
-                const QString thumbId = "processed_" + fileId;
-                ThumbnailProvider::instance()->setThumbnail(thumbId, processedThumb);
-            }
-        }, Qt::QueuedConnection);
-    });
+    // 缩略图将在视频处理完成后生成，避免读取正在写入的文件
 
     // 直接在主线程设置回调，避免嵌套异步调用
     // VideoProcessor 内部会启动自己的工作线程
@@ -1012,8 +984,27 @@ void ProcessingController::processShaderVideoThumbnailAsync(const QString& taskI
             }
 
             if (success) {
-                updateFileStatusForSessionMessage(sessionId, messageId, fileId,
-                    ProcessingStatus::Completed, outputPath);
+                // 验证输出文件完整性
+                QFileInfo outputInfo(outputPath);
+                if (!outputInfo.exists() || outputInfo.size() == 0) {
+                    qWarning() << "[ProcessingController][Shader] output file invalid"
+                               << "path:" << outputPath
+                               << "exists:" << outputInfo.exists()
+                               << "size:" << outputInfo.size();
+                    updateFileStatusForSessionMessage(sessionId, messageId, fileId,
+                        ProcessingStatus::Failed, QString());
+                    updateErrorForSessionMessage(sessionId, messageId, tr("视频输出文件无效"));
+                } else {
+                    // 成功后生成缩略图
+                    if (ThumbnailProvider::instance()) {
+                        const QString thumbId = "processed_" + fileId;
+                        ThumbnailProvider::instance()->generateThumbnailAsync(
+                            outputPath, thumbId, QSize(512, 512));
+                    }
+                    
+                    updateFileStatusForSessionMessage(sessionId, messageId, fileId,
+                        ProcessingStatus::Completed, outputPath);
+                }
             } else {
                 updateFileStatusForSessionMessage(sessionId, messageId, fileId,
                     ProcessingStatus::Failed, QString());
@@ -1733,18 +1724,27 @@ void ProcessingController::syncMessageProgress(const QString& messageId, const Q
             }
 
             totalTasks++;
-            if (task.status == ProcessingStatus::Completed) {
+            
+            if (task.status == ProcessingStatus::Processing) {
+                totalProgress += task.progress;
+            } else if (task.status == ProcessingStatus::Completed) {
                 totalProgress += 100;
             } else if (task.status == ProcessingStatus::Failed ||
                        task.status == ProcessingStatus::Cancelled) {
                 totalProgress += 100;
-            } else {
-                totalProgress += task.progress;
             }
+            // Pending 状态的任务不计入进度（不累加）
         }
     }
 
-    const int overallProgress = (totalTasks > 0) ? (totalProgress / totalTasks) : 0;
+    int overallProgress = 0;
+    if (totalTasks > 0) {
+        overallProgress = totalProgress / totalTasks;
+    }
+    
+    // 确保进度在合理范围内
+    overallProgress = qBound(0, overallProgress, 100);
+    
     updateProgressForSessionMessage(targetSessionId, messageId, overallProgress);
 }
 
@@ -2277,15 +2277,6 @@ void ProcessingController::connectAiEngineForTask(AIEngine* engine, const QStrin
         }
     });
 
-    conns << connect(engine, &AIEngine::videoProcessingWarning, this, [this, taskId](const QString& warning) {
-        qWarning() << "[ProcessingController][AI] video processing warning:" << warning
-                    << "task:" << taskId;
-        if (m_taskMessages.contains(taskId)) {
-            const QString sessionId = resolveSessionIdForMessage(m_taskMessages[taskId].id);
-            updateErrorForSessionMessage(sessionId, m_taskMessages[taskId].id, warning);
-        }
-    });
-
     conns << connect(engine, &AIEngine::processFileCompleted, this,
             [this, taskId](bool success, const QString& resultPath, const QString& error) {
         qInfo() << "[ProcessingController][AI] process finished"
@@ -2375,7 +2366,62 @@ void ProcessingController::launchAiInference(AIEngine* engine, const QString& ta
             << "outscaleEffective:" << effectiveParams.value("outscale", modelInfo.scaleFactor).toDouble()
             << "poolSlot:" << m_aiEnginePool->activeCount();
 
-    engine->processAsync(inputPath, outputPath);
+    const bool isVideo = ImageUtils::isVideoFile(inputPath);
+    if (isVideo) {
+        launchAIVideoProcessor(engine, taskId, inputPath, outputPath, message, modelInfo, effectiveParams);
+    } else {
+        engine->processAsync(inputPath, outputPath);
+    }
+}
+
+void ProcessingController::launchAIVideoProcessor(AIEngine* engine, const QString& taskId,
+                                                   const QString& inputPath, const QString& outputPath,
+                                                   const Message& message, const ModelInfo& modelInfo,
+                                                   const QVariantMap& effectiveParams)
+{
+    qInfo() << "[ProcessingController][AI] launching video processor for task:" << taskId;
+    
+    auto processor = QSharedPointer<AIVideoProcessor>::create();
+    processor->setAIEngine(engine);
+    processor->setModelInfo(modelInfo);
+    
+    VideoProcessingConfig config;
+    config.tileSize = effectiveParams.value("tileSize", modelInfo.tileSize).toInt();
+    config.outscale = effectiveParams.value("outscale", modelInfo.scaleFactor).toDouble();
+    config.useGpu = message.aiParams.useGpu && engine->gpuAvailable();
+    config.quality = 18;
+    processor->setConfig(config);
+    
+    connect(processor.data(), &AIVideoProcessor::progressChanged,
+            this, [this, taskId](double progress) {
+        updateTaskProgress(taskId, static_cast<int>(progress * 100));
+    }, Qt::QueuedConnection);
+    
+    connect(processor.data(), &AIVideoProcessor::completed,
+            this, [this, taskId, engine](bool success, const QString& result, const QString& error) {
+        m_activeAIVideoProcessors.remove(taskId);
+        m_aiEnginePool->release(taskId);
+        disconnectAiEngineForTask(taskId);
+        
+        if (success) {
+            qInfo() << "[ProcessingController][AI] video processing completed"
+                    << "task:" << taskId << "result:" << result;
+            completeTask(taskId, result);
+        } else {
+            qWarning() << "[ProcessingController][AI] video processing failed"
+                       << "task:" << taskId << "error:" << error;
+            failTask(taskId, error);
+        }
+    }, Qt::QueuedConnection);
+    
+    connect(processor.data(), &AIVideoProcessor::warning,
+            this, [this, taskId](const QString& warning) {
+        qWarning() << "[ProcessingController][AI] video processing warning:" << warning
+                   << "task:" << taskId;
+    }, Qt::QueuedConnection);
+    
+    m_activeAIVideoProcessors[taskId] = processor;
+    processor->processAsync(inputPath, outputPath);
 }
 
 } // namespace EnhanceVision

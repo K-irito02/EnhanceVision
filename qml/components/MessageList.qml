@@ -193,10 +193,15 @@ Item {
                     viewPath = nextResultPath
                 }
 
+                var processedThumbId = entry.processedThumbnailId || ""
+                if (nextStatus === 2 && nextResultPath && nextResultPath !== "") {
+                    processedThumbId = "processed_" + fileId
+                }
+
                 var thumbSource = ""
                 if (nextStatus === 2) {
-                    if (entry.processedThumbnailId && entry.processedThumbnailId !== "") {
-                        thumbSource = "image://thumbnail/" + entry.processedThumbnailId
+                    if (processedThumbId !== "") {
+                        thumbSource = "image://thumbnail/" + processedThumbId
                     } else if (nextResultPath && nextResultPath !== "") {
                         thumbSource = "image://thumbnail/" + nextResultPath
                     } else if (sourcePath !== "") {
@@ -210,6 +215,7 @@ Item {
                 _cachedMedia.setProperty(idx, "resultPath", nextResultPath)
                 _cachedMedia.setProperty(idx, "filePath", viewPath)
                 _cachedMedia.setProperty(idx, "thumbnail", thumbSource)
+                _cachedMedia.setProperty(idx, "processedThumbnailId", processedThumbId)
 
                 if (_fileStatsInitialized && oldStatus !== nextStatus) {
                     _bumpFileStats(oldStatus, nextStatus)

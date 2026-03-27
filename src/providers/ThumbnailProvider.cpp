@@ -177,12 +177,23 @@ void ThumbnailProvider::setThumbnail(const QString &id, const QImage &thumbnail)
 
 void ThumbnailProvider::generateThumbnailAsync(const QString &filePath, const QString &id, const QSize &size)
 {
-    // 检查是否已经存在缩略图或正在生成
     {
         QMutexLocker locker(&m_mutex);
         if (m_thumbnails.contains(id) || m_pendingRequests.contains(id)) {
             return;
         }
+        
+        QFileInfo fileInfo(filePath);
+        if (!fileInfo.exists()) {
+            qWarning() << "[ThumbnailProvider] File does not exist, skipping thumbnail generation:" << filePath;
+            return;
+        }
+        
+        if (fileInfo.size() == 0) {
+            qWarning() << "[ThumbnailProvider] File is empty, skipping thumbnail generation:" << filePath;
+            return;
+        }
+        
         m_pendingRequests.insert(id);
         if (id.startsWith("processed_")) {
             m_idToPath[id] = filePath;

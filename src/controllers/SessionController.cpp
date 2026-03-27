@@ -1069,11 +1069,27 @@ void SessionController::restoreThumbnails()
                     QFileInfo resultFileInfo(file.resultPath);
                     
                     if (resultFileInfo.exists()) {
+                        // 检查文件完整性
+                        if (resultFileInfo.size() == 0) {
+                            qWarning() << "[SessionController] Processed file is empty:" << file.resultPath;
+                            file.status = ProcessingStatus::Failed;
+                            missingCount++;
+                            messageModified = true;
+                            continue;
+                        }
+                        
                         QString thumbId = "processed_" + file.id;
                         QImage thumbnail;
                         
                         if (file.type == MediaType::Video) {
-                            thumbnail = ImageUtils::generateVideoThumbnail(file.resultPath, QSize(512, 512));
+                            // 对于视频文件，检查文件是否完整（修改时间检查）
+                            QDateTime lastModified = resultFileInfo.lastModified();
+                            qint64 msSinceModified = lastModified.msecsTo(QDateTime::currentDateTime());
+                            if (msSinceModified < 1000) {
+                                qInfo() << "[SessionController] Video file recently modified, skipping thumbnail:" << file.resultPath;
+                            } else {
+                                thumbnail = ImageUtils::generateVideoThumbnail(file.resultPath, QSize(512, 512));
+                            }
                         } else {
                             thumbnail = ImageUtils::generateThumbnail(file.resultPath, QSize(512, 512));
                         }

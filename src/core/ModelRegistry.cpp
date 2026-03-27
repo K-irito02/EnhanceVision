@@ -135,7 +135,6 @@ bool ModelRegistry::loadModelsJson(const QString &jsonPath)
 
         // 阶段性模型开关：当前仅启用 Real-ESRGAN 系列
         if (!isModelEnabledByPhase(info.id, paramFile)) {
-            qInfo() << "[ModelRegistry] Skip model by phase gate:" << info.id;
             continue;
         }
 
