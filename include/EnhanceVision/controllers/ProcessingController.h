@@ -104,8 +104,6 @@ public:
     void cancelVideoProcessing(const QString& taskId);
     
     void onSessionChanging(const QString& oldSessionId, const QString& newSessionId);
-    void setVisibleSessionUpdateFrozen(bool frozen);
-    bool visibleSessionUpdateFrozen() const;
 
 signals:
     void queueStatusChanged();
@@ -169,7 +167,6 @@ private:
     QHash<QString, qint64> m_lastMessageStatusSyncMs;
     QHash<QString, qint64> m_lastSessionMemorySyncMs;
     QSet<QString> m_pendingMemorySyncMessageIds;
-    bool m_freezeVisibleSessionUpdates = false;
     QTimer* m_memorySyncTimer = nullptr;
     QSet<QString> m_preloadedModelIds;
     QSet<QString> m_pendingPreloadModelIds;

@@ -1298,19 +1298,6 @@ void ProcessingController::autoRetryInterruptedFiles(const QString& messageId, c
     processNextTask();
 }
 
-void ProcessingController::setVisibleSessionUpdateFrozen(bool frozen)
-{
-    m_freezeVisibleSessionUpdates = frozen;
-    if (!m_freezeVisibleSessionUpdates) {
-        flushSessionMemorySync();
-    }
-}
-
-bool ProcessingController::visibleSessionUpdateFrozen() const
-{
-    return m_freezeVisibleSessionUpdates;
-}
-
 void ProcessingController::requestSessionMemorySync(const QString& messageId)
 {
     if (!m_sessionController) {
@@ -1328,7 +1315,7 @@ void ProcessingController::requestSessionMemorySync(const QString& messageId)
 
 void ProcessingController::flushSessionMemorySync()
 {
-    if (!m_sessionController || m_freezeVisibleSessionUpdates) {
+    if (!m_sessionController) {
         return;
     }
 
@@ -1358,7 +1345,7 @@ void ProcessingController::syncVisibleMessageIfNeeded(const QString& sessionId,
                                                       const QString& messageId,
                                                       const std::function<void()>& syncFn)
 {
-    if (!m_messageModel || !m_sessionController || sessionId.isEmpty() || m_freezeVisibleSessionUpdates) {
+    if (!m_messageModel || !m_sessionController || sessionId.isEmpty()) {
         return;
     }
 
@@ -1830,8 +1817,6 @@ void ProcessingController::resumeSessionTasks(const QString& sessionId)
 
 void ProcessingController::onSessionChanging(const QString& oldSessionId, const QString& newSessionId)
 {
-    setVisibleSessionUpdateFrozen(true);
-
     QSet<QString> oldSessionTaskIds = m_taskCoordinator->sessionTaskIds(oldSessionId);
     for (const QString& taskId : oldSessionTaskIds) {
         TaskContext ctx = m_taskCoordinator->getTaskContext(taskId);
@@ -1863,10 +1848,6 @@ void ProcessingController::onSessionChanging(const QString& oldSessionId, const 
             m_taskCoordinator->updateTaskState(taskId, ctx.state);
         }
     }
-
-    QTimer::singleShot(120, this, [this]() {
-        setVisibleSessionUpdateFrozen(false);
-    });
 }
 
 
