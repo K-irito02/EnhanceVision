@@ -224,6 +224,7 @@ private:
     void registerTaskContext(const QString& taskId, const QString& messageId, 
                              const QString& sessionId, const QString& fileId,
                              qint64 estimatedMemoryMB);
+    void validateAndRepairQueueState();
 };
 
 } // namespace EnhanceVision

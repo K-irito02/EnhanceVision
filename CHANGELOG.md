@@ -28,6 +28,14 @@
 - **完整测试覆盖**：30/30单元测试通过，覆盖所有核心组件
 
 ### Fixed
+- **任务队列管理**：修复批量删除后新任务状态不一致问题
+  - 修复 forceCancelAllTasks 中 m_currentProcessingCount 未正确重置
+  - 修复 cancelAllTasks 中 Processing 状态任务未正确移除
+  - 修复 cancelSessionTasks/cancelMessageTasks/cancelMessageFileTasks 计数器管理
+  - 修复 handleOrphanedTask 中处理计数递减问题
+  - 新增 validateAndRepairQueueState 自动检测和修复队列状态不一致
+  - 增强 processNextTask 和 addTask 的日志记录，便于问题追踪
+  - 确保批量删除后新任务立即进入处理状态，符合FIFO原则
 - **TaskTimeoutWatchdog测试**：修复超时信号测试不稳定问题
   - 缩短检查间隔从5秒到200ms
   - 增加测试等待时间确保可靠性

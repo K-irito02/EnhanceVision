@@ -245,10 +245,17 @@ void ProcessingController::cancelTask(const QString& taskId)
 
 void ProcessingController::cancelAllTasks()
 {
+    qInfo() << "[ProcessingController] cancelAllTasks called"
+            << "taskCount:" << m_tasks.size()
+            << "processingCount:" << m_currentProcessingCount;
+
+    int cancelledProcessingCount = 0;
+
     for (int i = m_tasks.size() - 1; i >= 0; --i) {
         const QString taskId = m_tasks[i].taskId;
+        const ProcessingStatus oldStatus = m_tasks[i].status;
 
-        if (m_tasks[i].status == ProcessingStatus::Pending) {
+        if (oldStatus == ProcessingStatus::Pending) {
             m_tasks[i].status = ProcessingStatus::Cancelled;
             cleanupTask(taskId);
             emit taskCancelled(taskId);
@@ -256,21 +263,67 @@ void ProcessingController::cancelAllTasks()
             continue;
         }
 
-        if (m_tasks[i].status == ProcessingStatus::Processing) {
-            gracefulCancel(taskId);
+        if (oldStatus == ProcessingStatus::Processing) {
+            // 直接取消并移除，而不是调用 gracefulCancel（它不会移除任务）
+            m_taskCoordinator->requestCancellation(taskId);
+            
+            // 取消 AI 引擎处理
+            if (m_taskMessages.contains(taskId)) {
+                const Message& msg = m_taskMessages[taskId];
+                if (msg.mode == ProcessingMode::AIInference) {
+                    AIEngine* poolEngine = m_aiEnginePool->engineForTask(taskId);
+                    if (poolEngine) {
+                        poolEngine->cancelProcess();
+                    }
+                }
+            }
+
+            m_tasks[i].status = ProcessingStatus::Cancelled;
+            cleanupTask(taskId);
+            emit taskCancelled(taskId);
+            m_tasks.removeAt(i);
+            cancelledProcessingCount++;
         }
+    }
+
+    // 修正处理计数器
+    if (cancelledProcessingCount > 0 && m_currentProcessingCount > 0) {
+        const int oldCount = m_currentProcessingCount;
+        m_currentProcessingCount = qMax(0, m_currentProcessingCount - cancelledProcessingCount);
+        qInfo() << "[ProcessingController] Adjusted processingCount from" << oldCount
+                << "to" << m_currentProcessingCount
+                << "(cancelled" << cancelledProcessingCount << "processing tasks)";
+        emit currentProcessingCountChanged();
     }
 
     updateQueuePositions();
     syncModelTasks();
     emit queueSizeChanged();
+
+    qInfo() << "[ProcessingController] cancelAllTasks completed"
+            << "remainingTasks:" << m_tasks.size()
+            << "processingCount:" << m_currentProcessingCount;
 }
 
 void ProcessingController::forceCancelAllTasks()
 {
-    qWarning() << "[ProcessingController] Force cancelling all tasks";
+    qWarning() << "[ProcessingController] Force cancelling all tasks"
+               << "currentTaskCount:" << m_tasks.size()
+               << "processingCount:" << m_currentProcessingCount;
 
-    // 强制取消 AI 推理
+    // 强制取消 AI 推理引擎池中所有活动引擎
+    // 遍历所有任务，逐个取消正在处理的 AI 引擎
+    for (const auto& task : m_tasks) {
+        if (task.status == ProcessingStatus::Processing && m_taskMessages.contains(task.taskId)) {
+            const Message& msg = m_taskMessages[task.taskId];
+            if (msg.mode == ProcessingMode::AIInference) {
+                AIEngine* poolEngine = m_aiEnginePool->engineForTask(task.taskId);
+                if (poolEngine) {
+                    poolEngine->cancelProcess();
+                }
+            }
+        }
+    }
     if (m_aiEngine) {
         m_aiEngine->forceCancel();
     }
@@ -280,25 +333,43 @@ void ProcessingController::forceCancelAllTasks()
         m_threadPool->clear();
     }
 
-    // 取消所有任务
+    // 取消所有任务并正确清理
     for (int i = m_tasks.size() - 1; i >= 0; --i) {
         const QString taskId = m_tasks[i].taskId;
+        const ProcessingStatus oldStatus = m_tasks[i].status;
 
         m_tasks[i].status = ProcessingStatus::Cancelled;
         cleanupTask(taskId);
         emit taskCancelled(taskId);
+
+        qInfo() << "[ProcessingController] Force cancelled task:" << taskId
+                << "oldStatus:" << static_cast<int>(oldStatus);
     }
     m_tasks.clear();
+
+    // 重置处理计数器 - 这是关键修复
+    const int oldCount = m_currentProcessingCount;
+    m_currentProcessingCount = 0;
+    if (oldCount != 0) {
+        qInfo() << "[ProcessingController] Reset processingCount from" << oldCount << "to 0";
+        emit currentProcessingCountChanged();
+    }
 
     updateQueuePositions();
     syncModelTasks();
     emit queueSizeChanged();
 
-    qWarning() << "[ProcessingController] All tasks force cancelled";
+    qWarning() << "[ProcessingController] All tasks force cancelled successfully";
 }
 
 QString ProcessingController::addTask(const Message& message)
 {
+    qInfo() << "[ProcessingController] addTask called"
+            << "messageId:" << message.id
+            << "fileCount:" << message.mediaFiles.size()
+            << "currentQueueSize:" << m_tasks.size()
+            << "processingCount:" << m_currentProcessingCount;
+
     QString sessionId;
     if (m_sessionController) {
         sessionId = m_sessionController->sessionIdForMessage(message.id);
@@ -330,6 +401,11 @@ QString ProcessingController::addTask(const Message& message)
 
     updateQueuePositions();
     emit queueSizeChanged();
+
+    qInfo() << "[ProcessingController] addTask completed"
+            << "newQueueSize:" << m_tasks.size()
+            << "processingCount:" << m_currentProcessingCount
+            << "willProcessImmediately:" << (m_currentProcessingCount == 0 && m_queueStatus == QueueStatus::Running);
 
     processNextTask();
 
@@ -418,12 +494,15 @@ void ProcessingController::processNextTask()
         return;
     }
 
+    // 队列状态一致性验证与自动修复
+    validateAndRepairQueueState();
+
     // 线性任务队列：一次只处理一个任务
     if (m_currentProcessingCount >= 1) {
         return;
     }
 
-    // 查找下一个待处理的任务
+    // 查找下一个待处理的任务（FIFO原则）
     QueueTask* nextTask = nullptr;
     for (auto& task : m_tasks) {
         if (task.status != ProcessingStatus::Pending) {
@@ -446,6 +525,11 @@ void ProcessingController::processNextTask()
         return;
     }
 
+    qInfo() << "[ProcessingController] processNextTask: starting task"
+            << "taskId:" << nextTask->taskId
+            << "position:" << nextTask->position
+            << "queueSize:" << m_tasks.size();
+
     if (!tryStartTask(*nextTask)) {
         // 如果启动失败，稍后重试
         QTimer::singleShot(100, this, &ProcessingController::processNextTask);
@@ -455,6 +539,50 @@ void ProcessingController::processNextTask()
 QString ProcessingController::generateTaskId()
 {
     return QUuid::createUuid().toString(QUuid::WithoutBraces);
+}
+
+void ProcessingController::validateAndRepairQueueState()
+{
+    // 统计实际处理中的任务数量
+    int actualProcessingCount = 0;
+    for (const auto& task : m_tasks) {
+        if (task.status == ProcessingStatus::Processing) {
+            actualProcessingCount++;
+        }
+    }
+
+    // 检测并修复计数器不一致
+    if (m_currentProcessingCount != actualProcessingCount) {
+        qWarning() << "[ProcessingController] Queue state inconsistency detected!"
+                   << "m_currentProcessingCount:" << m_currentProcessingCount
+                   << "actualProcessingCount:" << actualProcessingCount
+                   << "taskCount:" << m_tasks.size();
+
+        // 自动修复计数器
+        const int oldCount = m_currentProcessingCount;
+        m_currentProcessingCount = actualProcessingCount;
+        
+        qInfo() << "[ProcessingController] Auto-repaired processingCount from"
+                << oldCount << "to" << m_currentProcessingCount;
+        
+        emit currentProcessingCountChanged();
+    }
+
+    // 清理已完成/失败/取消但仍留在列表中的任务（如果超过阈值）
+    int settledTaskCount = 0;
+    for (const auto& task : m_tasks) {
+        if (task.status == ProcessingStatus::Completed ||
+            task.status == ProcessingStatus::Failed ||
+            task.status == ProcessingStatus::Cancelled) {
+            settledTaskCount++;
+        }
+    }
+
+    // 如果已结束的任务超过 50 个，自动清理
+    if (settledTaskCount > 50) {
+        qInfo() << "[ProcessingController] Auto-cleaning" << settledTaskCount << "settled tasks";
+        clearCompletedTasks();
+    }
 }
 
 void ProcessingController::preloadModel(const QString& modelId)
@@ -1701,18 +1829,56 @@ int ProcessingController::resourcePressure() const
 
 void ProcessingController::cancelMessageTasks(const QString& messageId)
 {
+    qInfo() << "[ProcessingController] cancelMessageTasks called"
+            << "messageId:" << messageId
+            << "taskCount:" << m_tasks.size()
+            << "processingCount:" << m_currentProcessingCount;
+
     m_taskCoordinator->cancelMessageTasks(messageId);
+    
+    int cancelledProcessingCount = 0;
     
     for (int i = m_tasks.size() - 1; i >= 0; --i) {
         if (m_tasks[i].messageId == messageId) {
-            if (m_tasks[i].status == ProcessingStatus::Pending) {
+            const QString taskId = m_tasks[i].taskId;
+            const ProcessingStatus oldStatus = m_tasks[i].status;
+            
+            if (oldStatus == ProcessingStatus::Pending) {
                 m_tasks[i].status = ProcessingStatus::Cancelled;
-                cleanupTask(m_tasks[i].taskId);
+                cleanupTask(taskId);
+                emit taskCancelled(taskId);
                 m_tasks.removeAt(i);
-            } else if (m_tasks[i].status == ProcessingStatus::Processing) {
-                gracefulCancel(m_tasks[i].taskId);
+            } else if (oldStatus == ProcessingStatus::Processing) {
+                // 直接取消并移除，确保计数器正确
+                m_taskCoordinator->requestCancellation(taskId);
+                
+                // 取消 AI 引擎处理
+                if (m_taskMessages.contains(taskId)) {
+                    const Message& msg = m_taskMessages[taskId];
+                    if (msg.mode == ProcessingMode::AIInference) {
+                        AIEngine* poolEngine = m_aiEnginePool->engineForTask(taskId);
+                        if (poolEngine) {
+                            poolEngine->cancelProcess();
+                        }
+                    }
+                }
+                
+                m_tasks[i].status = ProcessingStatus::Cancelled;
+                cleanupTask(taskId);
+                emit taskCancelled(taskId);
+                m_tasks.removeAt(i);
+                cancelledProcessingCount++;
             }
         }
+    }
+    
+    // 修正处理计数器
+    if (cancelledProcessingCount > 0 && m_currentProcessingCount > 0) {
+        const int oldCount = m_currentProcessingCount;
+        m_currentProcessingCount = qMax(0, m_currentProcessingCount - cancelledProcessingCount);
+        qInfo() << "[ProcessingController] cancelMessageTasks: adjusted processingCount from"
+                << oldCount << "to" << m_currentProcessingCount;
+        emit currentProcessingCountChanged();
     }
     
     updateQueuePositions();
@@ -1725,6 +1891,10 @@ void ProcessingController::cancelMessageTasks(const QString& messageId)
     
     emit messageTasksCancelled(messageId);
     processNextTask();
+
+    qInfo() << "[ProcessingController] cancelMessageTasks completed"
+            << "remainingTasks:" << m_tasks.size()
+            << "processingCount:" << m_currentProcessingCount;
 }
 
 void ProcessingController::cancelMessageFileTasks(const QString& messageId, const QString& fileId)
@@ -1733,7 +1903,13 @@ void ProcessingController::cancelMessageFileTasks(const QString& messageId, cons
         return;
     }
 
-    bool removedPendingTask = false;
+    qInfo() << "[ProcessingController] cancelMessageFileTasks called"
+            << "messageId:" << messageId
+            << "fileId:" << fileId
+            << "processingCount:" << m_currentProcessingCount;
+
+    bool removedTask = false;
+    int cancelledProcessingCount = 0;
 
     for (int i = m_tasks.size() - 1; i >= 0; --i) {
         if (m_tasks[i].messageId != messageId || m_tasks[i].fileId != fileId) {
@@ -1741,19 +1917,46 @@ void ProcessingController::cancelMessageFileTasks(const QString& messageId, cons
         }
 
         const QString taskId = m_tasks[i].taskId;
+        const ProcessingStatus oldStatus = m_tasks[i].status;
         m_taskCoordinator->requestCancellation(taskId);
 
-        if (m_tasks[i].status == ProcessingStatus::Pending) {
+        if (oldStatus == ProcessingStatus::Pending) {
             m_tasks[i].status = ProcessingStatus::Cancelled;
             cleanupTask(taskId);
+            emit taskCancelled(taskId);
             m_tasks.removeAt(i);
-            removedPendingTask = true;
-        } else if (m_tasks[i].status == ProcessingStatus::Processing) {
-            gracefulCancel(taskId);
+            removedTask = true;
+        } else if (oldStatus == ProcessingStatus::Processing) {
+            // 直接取消并移除，确保计数器正确
+            if (m_taskMessages.contains(taskId)) {
+                const Message& msg = m_taskMessages[taskId];
+                if (msg.mode == ProcessingMode::AIInference) {
+                    AIEngine* poolEngine = m_aiEnginePool->engineForTask(taskId);
+                    if (poolEngine) {
+                        poolEngine->cancelProcess();
+                    }
+                }
+            }
+            
+            m_tasks[i].status = ProcessingStatus::Cancelled;
+            cleanupTask(taskId);
+            emit taskCancelled(taskId);
+            m_tasks.removeAt(i);
+            removedTask = true;
+            cancelledProcessingCount++;
         }
     }
 
-    if (removedPendingTask) {
+    // 修正处理计数器
+    if (cancelledProcessingCount > 0 && m_currentProcessingCount > 0) {
+        const int oldCount = m_currentProcessingCount;
+        m_currentProcessingCount = qMax(0, m_currentProcessingCount - cancelledProcessingCount);
+        qInfo() << "[ProcessingController] cancelMessageFileTasks: adjusted processingCount from"
+                << oldCount << "to" << m_currentProcessingCount;
+        emit currentProcessingCountChanged();
+    }
+
+    if (removedTask) {
         updateQueuePositions();
         syncModelTasks();
         emit queueSizeChanged();
@@ -1764,9 +1967,15 @@ void ProcessingController::cancelMessageFileTasks(const QString& messageId, cons
 
 void ProcessingController::cancelSessionTasks(const QString& sessionId)
 {
+    qInfo() << "[ProcessingController] cancelSessionTasks called"
+            << "sessionId:" << sessionId
+            << "taskCount:" << m_tasks.size()
+            << "processingCount:" << m_currentProcessingCount;
+
     m_taskCoordinator->cancelSessionTasks(sessionId);
     
     QSet<QString> messageIds;
+    int cancelledProcessingCount = 0;
     
     for (int i = m_tasks.size() - 1; i >= 0; --i) {
         QString taskId = m_tasks[i].taskId;
@@ -1774,15 +1983,44 @@ void ProcessingController::cancelSessionTasks(const QString& sessionId)
         
         if (ctx.sessionId == sessionId) {
             messageIds.insert(m_tasks[i].messageId);
+            const ProcessingStatus oldStatus = m_tasks[i].status;
             
-            if (m_tasks[i].status == ProcessingStatus::Pending) {
+            if (oldStatus == ProcessingStatus::Pending) {
                 m_tasks[i].status = ProcessingStatus::Cancelled;
                 cleanupTask(taskId);
+                emit taskCancelled(taskId);
                 m_tasks.removeAt(i);
-            } else if (m_tasks[i].status == ProcessingStatus::Processing) {
-                gracefulCancel(taskId);
+            } else if (oldStatus == ProcessingStatus::Processing) {
+                // 直接取消并移除，确保计数器正确
+                m_taskCoordinator->requestCancellation(taskId);
+                
+                // 取消 AI 引擎处理
+                if (m_taskMessages.contains(taskId)) {
+                    const Message& msg = m_taskMessages[taskId];
+                    if (msg.mode == ProcessingMode::AIInference) {
+                        AIEngine* poolEngine = m_aiEnginePool->engineForTask(taskId);
+                        if (poolEngine) {
+                            poolEngine->cancelProcess();
+                        }
+                    }
+                }
+                
+                m_tasks[i].status = ProcessingStatus::Cancelled;
+                cleanupTask(taskId);
+                emit taskCancelled(taskId);
+                m_tasks.removeAt(i);
+                cancelledProcessingCount++;
             }
         }
+    }
+    
+    // 修正处理计数器
+    if (cancelledProcessingCount > 0 && m_currentProcessingCount > 0) {
+        const int oldCount = m_currentProcessingCount;
+        m_currentProcessingCount = qMax(0, m_currentProcessingCount - cancelledProcessingCount);
+        qInfo() << "[ProcessingController] cancelSessionTasks: adjusted processingCount from"
+                << oldCount << "to" << m_currentProcessingCount;
+        emit currentProcessingCountChanged();
     }
     
     updateQueuePositions();
@@ -1797,6 +2035,10 @@ void ProcessingController::cancelSessionTasks(const QString& sessionId)
     
     emit sessionTasksCancelled(sessionId);
     processNextTask();
+
+    qInfo() << "[ProcessingController] cancelSessionTasks completed"
+            << "remainingTasks:" << m_tasks.size()
+            << "processingCount:" << m_currentProcessingCount;
 }
 
 void ProcessingController::pauseSessionTasks(const QString& sessionId)
@@ -1962,19 +2204,36 @@ void ProcessingController::gracefulCancel(const QString& taskId, int timeoutMs)
 
 void ProcessingController::handleOrphanedTask(const QString& taskId)
 {
-    cleanupTask(taskId);
+    qInfo() << "[ProcessingController] handleOrphanedTask:" << taskId
+            << "processingCount:" << m_currentProcessingCount;
+
+    bool wasProcessing = false;
     
     for (int i = m_tasks.size() - 1; i >= 0; --i) {
         if (m_tasks[i].taskId == taskId) {
+            wasProcessing = (m_tasks[i].status == ProcessingStatus::Processing);
             m_tasks[i].status = ProcessingStatus::Cancelled;
             m_tasks.removeAt(i);
             break;
         }
     }
     
+    cleanupTask(taskId);
+    
+    // 如果孤儿任务是正在处理的任务，需要减少计数器
+    if (wasProcessing && m_currentProcessingCount > 0) {
+        m_currentProcessingCount--;
+        qInfo() << "[ProcessingController] handleOrphanedTask: decremented processingCount to"
+                << m_currentProcessingCount;
+        emit currentProcessingCountChanged();
+    }
+    
     updateQueuePositions();
     syncModelTasks();
     emit queueSizeChanged();
+    
+    // 触发下一个任务处理
+    processNextTask();
 }
 
 void ProcessingController::cancelVideoProcessing(const QString& taskId)
