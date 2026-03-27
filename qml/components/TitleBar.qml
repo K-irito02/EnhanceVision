@@ -77,14 +77,14 @@ Rectangle {
                 height: 28
                 radius: 7
                 gradient: Gradient {
-                    GradientStop { position: 0.0; color: "#002FA7" }
-                    GradientStop { position: 1.0; color: "#1A56DB" }
+                    GradientStop { position: 0.0; color: Theme.colors.brandGradientStart }
+                    GradientStop { position: 1.0; color: Theme.colors.brandGradientEnd }
                 }
                 
                 Text {
                     anchors.centerIn: parent
                     text: "E"
-                    color: "#FFFFFF"
+                    color: Theme.colors.textOnPrimary
                     font.pixelSize: 15
                     font.weight: Font.Bold
                     font.letterSpacing: -0.5
@@ -209,7 +209,7 @@ Rectangle {
                     Text {
                         anchors.centerIn: parent
                         text: Theme.language === "zh_CN" ? "中" : "En"
-                        color: "#FFFFFF"
+                        color: Theme.colors.textOnPrimary
                         font.pixelSize: 7
                         font.weight: Font.Bold
                     }

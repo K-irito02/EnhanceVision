@@ -104,10 +104,10 @@ Rectangle {
                                     Row {
                                         id: darkRow
                                         anchors.centerIn: parent; spacing: 6
-                                        ColoredIcon { anchors.verticalCenter: parent.verticalCenter; iconSize: 14; source: Theme.icon("moon"); color: Theme.isDark ? "#FFFFFF" : Theme.colors.icon }
-                                        Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("暗色"); font.pixelSize: 12; font.weight: Font.Medium; color: Theme.isDark ? "#FFFFFF" : Theme.colors.foreground }
+                                        ColoredIcon { anchors.verticalCenter: parent.verticalCenter; iconSize: 14; source: Theme.icon("moon"); color: Theme.isDark ? Theme.colors.textOnPrimary : Theme.colors.icon }
+                                        Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("暗色"); font.pixelSize: 12; font.weight: Font.Medium; color: Theme.isDark ? Theme.colors.textOnPrimary : Theme.colors.foreground }
                                     }
-                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { Theme.setDark(true); SettingsController.theme = "dark" } }
+                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { Theme.setDark(true) } }
                                     Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
                                 }
 
@@ -121,10 +121,10 @@ Rectangle {
                                     Row {
                                         id: lightRow
                                         anchors.centerIn: parent; spacing: 6
-                                        ColoredIcon { anchors.verticalCenter: parent.verticalCenter; iconSize: 14; source: Theme.icon("sun"); color: !Theme.isDark ? "#FFFFFF" : Theme.colors.icon }
-                                        Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("亮色"); font.pixelSize: 12; font.weight: Font.Medium; color: !Theme.isDark ? "#FFFFFF" : Theme.colors.foreground }
+                                        ColoredIcon { anchors.verticalCenter: parent.verticalCenter; iconSize: 14; source: Theme.icon("sun"); color: !Theme.isDark ? Theme.colors.textOnPrimary : Theme.colors.icon }
+                                        Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("亮色"); font.pixelSize: 12; font.weight: Font.Medium; color: !Theme.isDark ? Theme.colors.textOnPrimary : Theme.colors.foreground }
                                     }
-                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { Theme.setDark(false); SettingsController.theme = "light" } }
+                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { Theme.setDark(false) } }
                                     Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
                                 }
                             }
@@ -451,10 +451,10 @@ Rectangle {
                             Rectangle {
                                 width: 44; height: 44; radius: 11
                                 gradient: Gradient {
-                                    GradientStop { position: 0.0; color: "#002FA7" }
-                                    GradientStop { position: 1.0; color: "#1A56DB" }
+                                    GradientStop { position: 0.0; color: Theme.colors.brandGradientStart }
+                                    GradientStop { position: 1.0; color: Theme.colors.brandGradientEnd }
                                 }
-                                Text { anchors.centerIn: parent; text: "E"; color: "#FFFFFF"; font.pixelSize: 22; font.weight: Font.Bold }
+                                Text { anchors.centerIn: parent; text: "E"; color: Theme.colors.textOnPrimary; font.pixelSize: 22; font.weight: Font.Bold }
                             }
 
                             ColumnLayout {

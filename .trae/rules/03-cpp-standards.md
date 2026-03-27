@@ -8,11 +8,13 @@ trigger: glob
 
 ## 命名规范
 
-- 类/枚举：PascalCase
-- 函数/变量：camelCase
-- 成员变量：`m_` 前缀
-- 常量：`k` 前缀
-- 信号：`xxxChanged` / `xxxFinished`
+| 类型 | 风格 | 示例 |
+|------|------|------|
+| 类/枚举 | PascalCase | `AIEngine` |
+| 函数/变量 | camelCase | `processImage()` |
+| 成员变量 | `m_`前缀 | `m_modelPath` |
+| 常量 | `k`前缀 | `kMaxThreads` |
+| 信号 | `xxxChanged` | `progressChanged()` |
 
 ## Qt 接口规范
 
@@ -36,20 +38,18 @@ trigger: glob
 
 - 错误必须可观测（返回值/信号/日志）
 - 禁止吞错与静默失败
-- 异常边界清晰，避免在信号槽链路中传播异常
-- GPU OOM必须自动恢复：清理内存→重试→降级分块
-- 进度更新只允许前进，避免UI倒退体验
+- GPU OOM 必须自动恢复：清理内存 → 重试 → 降级分块
+- 进度更新只允许前进，避免 UI 倒退体验
 
 ## 多线程与并发
 
-- **线程安全**: 避免在多线程函数中使用静态变量，防止竞争条件
-- **资源隔离**: 每个线程使用独立的资源副本，避免共享状态
-- **QtConcurrent**: 异步任务使用 `QtConcurrent::run`，通过信号槽传递结果
-- **FFmpeg线程**: 视频处理中的FFmpeg上下文在线程内管理，不跨线程共享
-- **视频处理优化**: 预分配帧缓冲，复用转换上下文，避免每帧内存分配
-- **RAII资源管理**: 使用 cleanup lambda 确保异常安全，所有 FFmpeg 资源自动释放
+- **线程安全**：避免在多线程函数中使用静态变量
+- **资源隔离**：每个线程使用独立的资源副本
+- **QtConcurrent**：异步任务使用 `QtConcurrent::run`，通过信号槽传递结果
+- **FFmpeg线程**：视频处理中的 FFmpeg 上下文在线程内管理，不跨线程共享
+- **RAII资源管理**：使用 cleanup lambda 确保异常安全
 
 ## 本文件边界
 
 - 仅定义 C++ 编码规范
-- 线程与性能细则见 `07-performance.mdc`
+- 线程与性能细则见 `07-performance.md`

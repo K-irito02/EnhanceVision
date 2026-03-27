@@ -297,7 +297,7 @@ Item {
                         visible: model.isSelected
                         source: Theme.icon("check")
                         iconSize: 14
-                        color: "#FFFFFF"
+                        color: Theme.colors.textOnPrimary
                     }
                 }
 
@@ -306,7 +306,7 @@ Item {
                     width: root.expanded ? 32 : 28
                     height: root.expanded ? 32 : 28
                     radius: Theme.radius.sm
-                    color: delegateRoot.isActive ? Qt.rgba(1,1,1,0.2) : Theme.colors.accent
+                    color: delegateRoot.isActive ? Theme.colors.primary : Theme.colors.accent
                     Layout.alignment: Qt.AlignVCenter
 
                     Rectangle {
@@ -319,7 +319,7 @@ Item {
                         width: 8
                         height: 8
                         radius: 4
-                        color: "#F59E0B"
+                        color: Theme.colors.warning
 
                         SequentialAnimation on opacity {
                             running: processingIndicator.visible
@@ -334,7 +334,7 @@ Item {
                         anchors.centerIn: parent
                         source: Theme.icon("pin")
                         iconSize: 14
-                        color: delegateRoot.isActive ? "#FFFFFF" : Theme.colors.primary
+                        color: delegateRoot.isActive ? Theme.colors.textOnPrimary : Theme.colors.primary
                     }
 
                     ColoredIcon {
@@ -342,7 +342,7 @@ Item {
                         anchors.centerIn: parent
                         source: Theme.icon("message-square")
                         iconSize: 14
-                        color: delegateRoot.isActive ? "#FFFFFF" : Theme.colors.icon
+                        color: delegateRoot.isActive ? Theme.colors.textOnPrimary : Theme.colors.icon
                     }
                 }
 
@@ -353,7 +353,7 @@ Item {
 
                     Text {
                         text: model.name
-                        color: delegateRoot.isActive ? "#FFFFFF" : Theme.colors.sidebarForeground
+                        color: delegateRoot.isActive ? Theme.colors.textOnPrimary : Theme.colors.sidebarForeground
                         font.pixelSize: 13
                         font.weight: delegateRoot.isActive ? Font.DemiBold : (model.isPinned ? Font.Medium : Font.Normal)
                         elide: Text.ElideRight
@@ -374,7 +374,7 @@ Item {
                                 id: pinnedLabel
                                 anchors.centerIn: parent
                                 text: qsTr("置顶")
-                                color: delegateRoot.isActive ? "#FFFFFF" : Theme.colors.primary
+                                color: delegateRoot.isActive ? Theme.colors.textOnPrimary : Theme.colors.primary
                                 font.pixelSize: 9
                                 font.weight: Font.Medium
                             }
@@ -443,7 +443,7 @@ Item {
                     btnSize: 28
                     tooltip: qsTr("更多操作")
                     Layout.alignment: Qt.AlignVCenter
-                    iconColor: delegateRoot.isActive ? "#FFFFFF" : Theme.colors.icon
+                    iconColor: delegateRoot.isActive ? Theme.colors.textOnPrimary : Theme.colors.icon
                     
                     onClicked: {
                         contextMenu.sessionModel = model
@@ -536,12 +536,12 @@ Item {
                             ColoredIcon {
                                 source: Theme.icon("pencil")
                                 iconSize: 16
-                                color: renameMouse.containsMouse ? "#FFFFFF" : Theme.colors.foreground
+                                color: renameMouse.containsMouse ? Theme.colors.textOnPrimary : Theme.colors.foreground
                             }
                             
                             Text {
                                 text: qsTr("重命名")
-                                color: renameMouse.containsMouse ? "#FFFFFF" : Theme.colors.foreground
+                                color: renameMouse.containsMouse ? Theme.colors.textOnPrimary : Theme.colors.foreground
                                 font.pixelSize: 14
                                 verticalAlignment: Text.AlignVCenter
                             }
@@ -583,12 +583,12 @@ Item {
                             ColoredIcon {
                                 source: Theme.icon("pin")
                                 iconSize: 16
-                                color: pinMouse.containsMouse ? "#FFFFFF" : Theme.colors.foreground
+                                color: pinMouse.containsMouse ? Theme.colors.textOnPrimary : Theme.colors.foreground
                             }
                             
                             Text {
                                 text: contextMenu.sessionModel && contextMenu.sessionModel.isPinned ? qsTr("取消置顶") : qsTr("置顶")
-                                color: pinMouse.containsMouse ? "#FFFFFF" : Theme.colors.foreground
+                                color: pinMouse.containsMouse ? Theme.colors.textOnPrimary : Theme.colors.foreground
                                 font.pixelSize: 14
                                 verticalAlignment: Text.AlignVCenter
                             }
@@ -638,12 +638,12 @@ Item {
                             ColoredIcon {
                                 source: Theme.icon("eraser")
                                 iconSize: 16
-                                color: clearMouse.containsMouse && contextMenu.sessionModel && contextMenu.sessionModel.messageCount > 0 ? "#FFFFFF" : "#F59E0B"
+                                color: clearMouse.containsMouse && contextMenu.sessionModel && contextMenu.sessionModel.messageCount > 0 ? Theme.colors.textOnPrimary : Theme.colors.warning
                             }
                             
                             Text {
                                 text: qsTr("清空会话")
-                                color: clearMouse.containsMouse && contextMenu.sessionModel && contextMenu.sessionModel.messageCount > 0 ? "#FFFFFF" : Theme.colors.foreground
+                                color: clearMouse.containsMouse && contextMenu.sessionModel && contextMenu.sessionModel.messageCount > 0 ? Theme.colors.textOnPrimary : Theme.colors.foreground
                                 font.pixelSize: 14
                                 verticalAlignment: Text.AlignVCenter
                             }
@@ -685,12 +685,12 @@ Item {
                             ColoredIcon {
                                 source: Theme.icon("trash-2")
                                 iconSize: 16
-                                color: deleteMouse.containsMouse ? "#FFFFFF" : Theme.colors.destructive
+                                color: deleteMouse.containsMouse ? Theme.colors.textOnDestructive : Theme.colors.destructive
                             }
                             
                             Text {
                                 text: qsTr("删除会话")
-                                color: deleteMouse.containsMouse ? "#FFFFFF" : Theme.colors.destructive
+                                color: deleteMouse.containsMouse ? Theme.colors.textOnDestructive : Theme.colors.destructive
                                 font.pixelSize: 14
                                 verticalAlignment: Text.AlignVCenter
                             }

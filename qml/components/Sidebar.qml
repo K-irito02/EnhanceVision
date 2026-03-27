@@ -118,7 +118,7 @@ Rectangle {
                     anchors.centerIn: parent
                     source: Theme.icon("list-select")
                     iconSize: 16
-                    color: root.batchMode ? "#FFFFFF" : (Theme.isDark ? "#FFFFFF" : Theme.colors.icon)
+                    color: root.batchMode ? Theme.colors.textOnPrimary : Theme.colors.icon
                 }
                 
                 MouseArea {
@@ -195,7 +195,7 @@ Rectangle {
                     anchors.centerIn: parent
                     source: Theme.icon("plus")
                     iconSize: 16
-                    color: Theme.isDark ? "#FFFFFF" : Theme.colors.icon
+                    color: Theme.colors.icon
                 }
                 
                 MouseArea {
@@ -327,10 +327,10 @@ Rectangle {
                 height: 28
                 radius: Theme.radius.sm
                 color: clearMouse.containsMouse && root.selectedCount > 0 ? 
-                       Qt.rgba(245, 158, 11, 0.15) : "transparent"
+                       Theme.colors.warningSubtleBg : "transparent"
                 border.width: 1
                 border.color: root.selectedCount > 0 ? 
-                              (clearMouse.containsMouse ? "#F59E0B" : Theme.colors.border) : 
+                              (clearMouse.containsMouse ? Theme.colors.warningHover : Theme.colors.border) : 
                               Theme.colors.border
                 opacity: root.selectedCount > 0 ? 1.0 : 0.4
                 
@@ -338,7 +338,7 @@ Rectangle {
                     anchors.centerIn: parent
                     source: Theme.icon("eraser")
                     iconSize: 14
-                    color: root.selectedCount > 0 ? "#F59E0B" : Theme.colors.mutedForeground
+                    color: root.selectedCount > 0 ? Theme.colors.warning : Theme.colors.mutedForeground
                 }
                 
                 MouseArea {

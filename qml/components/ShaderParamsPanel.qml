@@ -204,7 +204,7 @@ ColumnLayout {
                         anchors.centerIn: parent
                         source: Theme.icon("plus")
                         iconSize: 14
-                        color: saveMouse.containsMouse ? "#FFFFFF" : Theme.colors.mutedForeground
+                        color: saveMouse.containsMouse ? Theme.colors.textOnPrimary : Theme.colors.mutedForeground
                     }
 
                     MouseArea {
@@ -278,7 +278,7 @@ ColumnLayout {
                     text: qsTr("全部")
                     font.pixelSize: 12
                     font.weight: selectedCategory === "all" ? Font.DemiBold : Font.Medium
-                    color: selectedCategory === "all" ? "#FFFFFF" : Theme.colors.foreground
+                    color: selectedCategory === "all" ? Theme.colors.textOnPrimary : Theme.colors.foreground
                 }
 
                 MouseArea {
@@ -311,7 +311,7 @@ ColumnLayout {
                         text: modelData.name
                         font.pixelSize: 12
                         font.weight: selectedCategory === ("custom_" + index) ? Font.DemiBold : Font.Medium
-                        color: selectedCategory === ("custom_" + index) ? "#FFFFFF" : Theme.colors.foreground
+                        color: selectedCategory === ("custom_" + index) ? Theme.colors.textOnPrimary : Theme.colors.foreground
                     }
 
                     MouseArea {
@@ -353,7 +353,7 @@ ColumnLayout {
                         text: categoryNames[modelData]
                         font.pixelSize: 12
                         font.weight: selectedCategory === modelData ? Font.DemiBold : Font.Medium
-                        color: selectedCategory === modelData ? "#FFFFFF" : Theme.colors.foreground
+                        color: selectedCategory === modelData ? Theme.colors.textOnPrimary : Theme.colors.foreground
                     }
 
                     MouseArea {
@@ -421,7 +421,7 @@ ColumnLayout {
                             text: modelData.name
                             font.pixelSize: 11
                             font.weight: Font.Medium
-                            color: (presetMouseCustom.containsMouse || customPresetRect.isActive) ? "#FFFFFF" : Theme.colors.foreground
+                            color: (presetMouseCustom.containsMouse || customPresetRect.isActive) ? Theme.colors.textOnPrimary : Theme.colors.foreground
                         }
 
                         MouseArea {
@@ -524,7 +524,7 @@ ColumnLayout {
                             text: modelData.name
                             font.pixelSize: 11
                             font.weight: Font.Medium
-                            color: (presetMouse.containsMouse || parent.isActive) ? "#FFFFFF" : Theme.colors.foreground
+                            color: (presetMouse.containsMouse || parent.isActive) ? Theme.colors.textOnPrimary : Theme.colors.foreground
                         }
 
                         MouseArea {
@@ -621,12 +621,12 @@ ColumnLayout {
                     ColoredIcon {
                         source: Theme.icon("pencil")
                         iconSize: 16
-                        color: renameCategoryMouse.containsMouse ? "#FFFFFF" : Theme.colors.foreground
+                        color: renameCategoryMouse.containsMouse ? Theme.colors.textOnPrimary : Theme.colors.foreground
                     }
 
                     Text {
                         text: qsTr("重命名")
-                        color: renameCategoryMouse.containsMouse ? "#FFFFFF" : Theme.colors.foreground
+                        color: renameCategoryMouse.containsMouse ? Theme.colors.textOnPrimary : Theme.colors.foreground
                         font.pixelSize: 14
                         verticalAlignment: Text.AlignVCenter
                     }
@@ -666,12 +666,12 @@ ColumnLayout {
                     ColoredIcon {
                         source: Theme.icon("trash-2")
                         iconSize: 16
-                        color: deleteCategoryMouse.containsMouse ? "#FFFFFF" : Theme.colors.destructive
+                        color: deleteCategoryMouse.containsMouse ? Theme.colors.textOnDestructive : Theme.colors.destructive
                     }
 
                     Text {
                         text: qsTr("删除")
-                        color: deleteCategoryMouse.containsMouse ? "#FFFFFF" : Theme.colors.destructive
+                        color: deleteCategoryMouse.containsMouse ? Theme.colors.textOnDestructive : Theme.colors.destructive
                         font.pixelSize: 14
                         verticalAlignment: Text.AlignVCenter
                     }
@@ -773,12 +773,12 @@ ColumnLayout {
                     ColoredIcon {
                         source: Theme.icon("pencil")
                         iconSize: 16
-                        color: renamePresetMouse.containsMouse ? "#FFFFFF" : Theme.colors.foreground
+                        color: renamePresetMouse.containsMouse ? Theme.colors.textOnPrimary : Theme.colors.foreground
                     }
 
                     Text {
                         text: qsTr("重命名")
-                        color: renamePresetMouse.containsMouse ? "#FFFFFF" : Theme.colors.foreground
+                        color: renamePresetMouse.containsMouse ? Theme.colors.textOnPrimary : Theme.colors.foreground
                         font.pixelSize: 14
                         verticalAlignment: Text.AlignVCenter
                     }
@@ -818,12 +818,12 @@ ColumnLayout {
                     ColoredIcon {
                         source: Theme.icon("trash-2")
                         iconSize: 16
-                        color: deletePresetMouse.containsMouse ? "#FFFFFF" : Theme.colors.destructive
+                        color: deletePresetMouse.containsMouse ? Theme.colors.textOnDestructive : Theme.colors.destructive
                     }
 
                     Text {
                         text: qsTr("删除")
-                        color: deletePresetMouse.containsMouse ? "#FFFFFF" : Theme.colors.destructive
+                        color: deletePresetMouse.containsMouse ? Theme.colors.textOnDestructive : Theme.colors.destructive
                         font.pixelSize: 14
                         verticalAlignment: Text.AlignVCenter
                     }
@@ -1621,7 +1621,7 @@ ColumnLayout {
                         anchors.topMargin: 4
                         height: categorySection.dropdownExpanded ? categorySection.dropdownHeight : 0
                         radius: Theme.radius.md
-                        color: Theme.isDark ? "#1E1E2E" : "#FFFFFF"
+                        color: Theme.colors.dropdownBg
                         border.width: 1
                         border.color: Theme.colors.border
                         visible: height > 0
@@ -1654,7 +1654,7 @@ ColumnLayout {
                                         text: modelData
                                         font.pixelSize: 12
                                         font.weight: Font.Medium
-                                        color: categoryItemMouse.containsMouse ? "#FFFFFF" : Theme.colors.foreground
+                                        color: categoryItemMouse.containsMouse ? Theme.colors.textOnPrimary : Theme.colors.foreground
                                     }
 
                                     MouseArea {

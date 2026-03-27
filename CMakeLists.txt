@@ -9,6 +9,17 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+# ========== Windows 响应文件支持 ==========
+# 解决 MSBuild 命令行长度限制问题（约 8191 字符）
+# 强制使用响应文件处理长命令行
+set(CMAKE_CXX_USE_RESPONSE_FILE_FOR_OBJECTS ON)
+set(CMAKE_C_USE_RESPONSE_FILE_FOR_OBJECTS ON)
+set(CMAKE_CXX_USE_RESPONSE_FILE_FOR_INCLUDES ON)
+set(CMAKE_C_USE_RESPONSE_FILE_FOR_INCLUDES ON)
+# 设置响应文件编码为 UTF-8
+set(CMAKE_CXX_RESPONSE_FILE_LINK_FLAG "@")
+set(CMAKE_C_RESPONSE_FILE_LINK_FLAG "@")
+
 # ========== 构建优化选项 ==========
 option(USE_PRECOMPILED_HEADERS "Use precompiled headers for faster compilation" ON)
 option(BUILD_NCNN_FROM_SOURCE "Build NCNN from source (disable if using pre-built)" OFF)
@@ -346,75 +357,6 @@ qt_add_qml_module(EnhanceVision
         resources/icons/detail-enhance.svg
         resources/icons/light-shadow.svg
         resources/icons/color-palette.svg
-        # 暗色主题蓝色图标
-        resources/icons-dark/alert-triangle.svg
-        resources/icons-dark/arrow-left.svg
-        resources/icons-dark/check-circle.svg
-        resources/icons-dark/check-square.svg
-        resources/icons-dark/check.svg
-        resources/icons-dark/chevron-left.svg
-        resources/icons-dark/chevron-right.svg
-        resources/icons-dark/copy.svg
-        resources/icons-dark/cpu.svg
-        resources/icons-dark/download.svg
-        resources/icons-dark/eye-off.svg
-        resources/icons-dark/eye.svg
-        resources/icons-dark/file-plus.svg
-        resources/icons-dark/folder-plus.svg
-        resources/icons-dark/folder.svg
-        resources/icons-dark/globe.svg
-        resources/icons-dark/help-circle.svg
-        resources/icons-dark/home.svg
-        resources/icons-dark/image.svg
-        resources/icons-dark/info.svg
-        resources/icons-dark/layout-grid.svg
-        resources/icons-dark/list.svg
-        resources/icons-dark/loader.svg
-        resources/icons-dark/message-square.svg
-        resources/icons-dark/minus.svg
-        resources/icons-dark/monitor.svg
-        resources/icons-dark/moon.svg
-        resources/icons-dark/panel-left.svg
-        resources/icons-dark/pause.svg
-        resources/icons-dark/pencil.svg
-        resources/icons-dark/play.svg
-        resources/icons-dark/plus.svg
-        resources/icons-dark/refresh.svg
-        resources/icons-dark/refresh-cw.svg
-        resources/icons-dark/rotate-ccw.svg
-        resources/icons-dark/save.svg
-        resources/icons-dark/send.svg
-        resources/icons-dark/settings.svg
-        resources/icons-dark/sliders.svg
-        resources/icons-dark/sparkles.svg
-        resources/icons-dark/square.svg
-        resources/icons-dark/sun.svg
-        resources/icons-dark/trash.svg
-        resources/icons-dark/trash-2.svg
-        resources/icons-dark/pin.svg
-        resources/icons-dark/edit.svg
-        resources/icons-dark/more-vertical.svg
-        resources/icons-dark/upload.svg
-        resources/icons-dark/eraser.svg
-        resources/icons-dark/list-select.svg
-        resources/icons-dark/video.svg
-        resources/icons-dark/x-circle.svg
-        resources/icons-dark/x.svg
-        resources/icons-dark/zap.svg
-        resources/icons-dark/chevron-down.svg
-        resources/icons-dark/chevron-up.svg
-        resources/icons-dark/maximize.svg
-        resources/icons-dark/minimize-2.svg
-        resources/icons-dark/volume-2.svg
-        resources/icons-dark/volume-x.svg
-        resources/icons-dark/skip-forward.svg
-        resources/icons-dark/skip-back.svg
-        resources/icons-dark/grid.svg
-        # ParamGroup 暗色图标
-        resources/icons-dark/adjust-basic.svg
-        resources/icons-dark/detail-enhance.svg
-        resources/icons-dark/light-shadow.svg
-        resources/icons-dark/color-palette.svg
 )
 
 # 编译 Shader 到 QSB 格式
@@ -495,27 +437,3 @@ if(WIN32)
         )
     endif()
 endif()
-
-# ========== 单元测试 ==========
-enable_testing()
-
-find_package(Qt6 REQUIRED COMPONENTS Test)
-
-# 注释掉缺失的测试文件，待创建后再启用
-# add_executable(test_shader_consistency
-#     tests/cpp/test_shader_consistency.cpp
-# )
-# 
-# target_link_libraries(test_shader_consistency PRIVATE
-#     Qt6::Core
-#     Qt6::Gui
-#     Qt6::Test
-# )
-# 
-# target_include_directories(test_shader_consistency PRIVATE
-#     ${CMAKE_SOURCE_DIR}/include/EnhanceVision
-# )
-
-# 注释掉缺失的测试命令
-# add_test(NAME TestShaderConsistency COMMAND test_shader_consistency)
-

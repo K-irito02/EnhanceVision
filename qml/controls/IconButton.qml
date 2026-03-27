@@ -70,7 +70,7 @@ Button {
             source: root.iconName !== "" ? Theme.icon(root.iconName) : ""
             iconSize: root.iconSize
             color: {
-                if (root.danger && root.hovered) return "#FFFFFF"
+                if (root.danger && root.hovered) return Theme.colors.textOnDestructive
                 if (root.hovered) return root.iconHoverColor
                 return root.iconColor
             }
@@ -86,7 +86,7 @@ Button {
             text: root.iconText
             visible: root.iconName === "" && root.iconText !== ""
             color: {
-                if (root.danger && root.hovered) return "#FFFFFF"
+                if (root.danger && root.hovered) return Theme.colors.textOnDestructive
                 return root.hovered ? root.iconHoverColor : root.iconColor
             }
             font.pixelSize: root.iconSize

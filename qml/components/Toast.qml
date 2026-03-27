@@ -200,7 +200,7 @@ Item {
                 text: message
                 font.pixelSize: 13
                 font.weight: Font.Medium
-                color: "#FFFFFF"
+                color: Theme.colors.textOnPrimary
                 elide: Text.ElideRight
                 maximumLineCount: 1
             }
@@ -210,8 +210,8 @@ Item {
                 btnSize: 24
                 iconName: "x"
                 iconSize: 12
-                iconColor: "#FFFFFF"
-                iconHoverColor: "#FFFFFF"
+                iconColor: Theme.colors.textOnPrimary
+                iconHoverColor: Theme.colors.textOnPrimary
                 onClicked: root.hide()
             }
         }

@@ -1,35 +1,30 @@
 # EnhanceVision QML 前端
 
-这是 EnhanceVision 图像视频画质增强工具的 QML 前端部分，基于 Qt Quick 实现。
+EnhanceVision 图像视频画质增强工具的 QML 前端部分，基于 Qt Quick 实现。
 
-> **注意**：项目总览、构建指南、使用说明请参考主 [README.md](README.md)。本文档专注于 QML 开发细节。
+> **注意**：项目总览、构建指南请参考主 [README.md](README.md)。本文档专注于 QML 开发细节。
 
 ## 架构说明
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    QML UI 层                                │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │  Pages / Components / Controls / Shaders / Styles     │  │
-│  │  · 声明式 UI 定义                                      │  │
-│  │  · 属性绑定与动画                                      │  │
-│  │  · ShaderEffect 实时滤镜                               │  │
-│  └───────────────────────────────────────────────────────┘  │
+│  Pages / Components / Controls / Shaders / Styles           │
+│  · 声明式 UI 定义                                            │
+│  · 属性绑定与动画                                            │
+│  · ShaderEffect 实时滤镜                                     │
 └─────────────────────────────────────────────────────────────┘
                           ↕ Q_PROPERTY / 信号槽
 ┌─────────────────────────────────────────────────────────────┐
 │                    C++ 业务层                               │
-│  · Controllers (QObject + Q_PROPERTY)                      │
-│  · Models (QAbstractListModel)                             │
-│  · Providers (QQuickImageProvider)                         │
+│  Controllers / Models / Providers / Services                │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 **关键优势**：
-- **零拷贝图像传输**：通过 QQuickImageProvider 直接访问 C++ 图像数据
+- **零拷贝图像传输**：QQuickImageProvider 直接访问 C++ 图像数据
 - **GPU 加速渲染**：Qt Scene Graph 自动使用 GPU 渲染
 - **实时 Shader 滤镜**：ShaderEffect 直接在 GPU 上处理图像
-- **声明式 UI**：QML 类似 React 的声明式语法，开发效率高
 
 ## 目录结构
 
@@ -46,19 +41,17 @@ qml/
 │   ├── FileList.qml        # 文件列表
 │   ├── PreviewPane.qml     # 预览面板
 │   ├── ControlPanel.qml    # 控制面板
-│   ├── MediaViewer.qml     # 媒体查看器（占位组件）
-│   ├── MediaViewerWindow.qml # 独立媒体窗口
-│   ├── EmbeddedMediaViewer.qml # 内嵌媒体查看器
-│   ├── MinimizedWindowDock.qml # 最小化停靠栏
+│   ├── EmbeddedMediaViewer.qml  # 内嵌媒体查看器
+│   ├── MediaViewerWindow.qml    # 独立媒体窗口
+│   ├── MinimizedWindowDock.qml  # 最小化停靠栏
 │   ├── SessionList.qml     # 会话列表
 │   ├── SessionBatchBar.qml # 会话批量操作栏
 │   ├── MessageList.qml     # 消息列表
-│   ├── MessageItem.qml     # 消息项
 │   ├── Toast.qml           # 提示消息
 │   ├── Dialog.qml          # 对话框
-│   ├── FullShaderEffect.qml # 完整 Shader 效果
+│   ├── FullShaderEffect.qml     # 完整 Shader 效果
 │   ├── OffscreenShaderRenderer.qml # 离屏渲染器
-│   ├── ShaderParamsPanel.qml # Shader 参数面板
+│   ├── ShaderParamsPanel.qml    # Shader 参数面板
 │   ├── AIModelPanel.qml    # AI 模型面板
 │   └── AIParamsPanel.qml   # AI 参数面板
 ├── controls/               # 控件（基础交互元素）
@@ -98,16 +91,12 @@ qml/
 
 ### Pages（页面）
 
-页面是完整的功能视图，通常占据整个窗口。
-
 | 页面 | 说明 |
 |------|------|
-| `MainPage.qml` | 主页面，包含侧边栏、文件列表、预览面板、控制面板 |
-| `SettingsPage.qml` | 设置页面，主题、语言、快捷键等配置 |
+| `MainPage.qml` | 主页面：侧边栏、文件列表、预览面板、控制面板 |
+| `SettingsPage.qml` | 设置页面：主题、语言、快捷键配置 |
 
 ### Components（组件）
-
-组件是可复用的 UI 块，用于构建页面。
 
 | 组件 | 说明 |
 |------|------|
@@ -122,8 +111,6 @@ qml/
 
 ### Controls（控件）
 
-控件是基础交互元素，用于构建组件。
-
 | 控件 | 说明 |
 |------|------|
 | `IconButton.qml` | 图标按钮，支持悬停效果 |
@@ -137,26 +124,7 @@ qml/
 
 ## 开发指南
 
-### QML 调试
-
-```powershell
-# 启用 QML 调试输出
-$env:QML_IMPORT_TRACE = "1"
-$env:QT_DEBUG_PLUGINS = "1"
-.\build\msvc2022\Debug\Debug\EnhanceVision.exe
-```
-
-### 热重载（开发模式）
-
-在 `main.cpp` 中启用 QML 热重载：
-
-```cpp
-engine->setBaseUrl(QUrl::fromLocalFile(QCoreApplication::applicationDirPath() + "/qml/"));
-```
-
-### 组件示例
-
-#### 使用 ShaderEffect
+### 使用 ShaderEffect
 
 ```qml
 import QtQuick
@@ -173,7 +141,7 @@ ShaderEffect {
 }
 ```
 
-#### 使用 C++ 模型
+### 使用 C++ 模型
 
 ```qml
 ListView {
@@ -189,7 +157,7 @@ ListView {
 }
 ```
 
-#### 响应主题变化
+### 响应主题变化
 
 ```qml
 import QtQuick
@@ -232,7 +200,6 @@ Image {
 ListView {
     model: largeModel
     cacheBuffer: 100  // 缓存额外项
-    // delegate 会被复用
 }
 
 // 避免使用 Repeater 渲染大量数据
@@ -294,32 +261,6 @@ cmake --build . --target EnhanceVision_lrelease
 | 属性 | camelCase | `currentIndex` |
 | 信号 | camelCase | `onCurrentIndexChanged` |
 | 私有属性 | _camelCase | `_internalState` |
-
-### 属性定义
-
-```qml
-Item {
-    id: root
-    
-    // 公共属性
-    property string title: ""
-    property int count: 0
-    
-    // 私有属性
-    property var _internalData: null
-    
-    // 别名
-    property alias buttonText: button.text
-    
-    // 信号
-    signal clicked()
-    
-    // 方法
-    function doSomething() {
-        // 实现
-    }
-}
-```
 
 ## 常见问题
 

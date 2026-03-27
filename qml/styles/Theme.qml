@@ -48,15 +48,22 @@ QtObject {
     // ========== 图标路径辅助 ==========
     /**
      * @brief 获取图标资源路径
-     * 暗色主题返回蓝色图标，亮色主题返回黑色图标
+     * 统一使用单套 SVG 图标资源，配合 ColoredIcon 组件动态着色
+     * 优势：单套资源维护、切换无闪烁、减少包体积
      * @param name 图标名称（不含后缀）
      * @return 图标 URL
      */
     function icon(name) {
-        // 暗色主题使用淡蓝色图标，亮色主题使用黑色图标
-        var iconPath = isDark ? "icons-dark" : "icons"
-        return "qrc:/" + iconPath + "/" + name + ".svg"
+        return "qrc:/icons/" + name + ".svg"
     }
+    
+    /**
+     * @brief 获取当前主题的默认图标颜色
+     * 用于 ColoredIcon 组件的 color 属性绑定
+     */
+    readonly property color iconColor: colors.icon
+    readonly property color iconHoverColor: colors.iconHover
+    readonly property color iconActiveColor: colors.iconActive
 
     // ========== 间距系统 (px) ==========
     readonly property var spacing: QtObject {

@@ -7,34 +7,42 @@ trigger: always_on
 
 ## 高频技能（默认优先）
 
-- `using-superpowers`：技能使用总则，任何对话开始前必须调用
-- `qt-build-and-fix`：构建、运行、编译错误修复
-- `qt-qml`：QML/Qt Quick UI 架构与组件实现
-- `git-workflow`：分支、提交、推送、回滚
-- `documentation-update`：文档、规则、笔记同步更新
-- `find-skills`：技能检索与安装决策
+| 技能 | 用途 |
+|------|------|
+| `using-superpowers` | 技能使用总则，任何对话开始前必须调用 |
+| `qt-build-and-fix` | 构建、运行、编译错误修复 |
+| `qt-qml` | QML/Qt Quick UI 架构与组件实现 |
+| `git-workflow` | 分支、提交、推送、回滚 |
+| `documentation-update` | 文档、规则、笔记同步更新 |
+| `find-skills` | 技能检索与安装决策 |
 
 ## 条件触发技能（按需启用）
 
-- `qt-unittest-make`：需要补全/生成 Qt 单元测试时启用
-- `ffmpeg-toolkit`：涉及视频/音频处理与导出时启用
-- `qt-compatibility-build`：涉及 Qt 版本兼容或迁移时启用
-- `github_actions_cicd`：需要建设或修复 CI 流水线时启用
-- `obs-cpp-qt-patterns`：需要 Qt/C++ 集成模式参考时启用
+| 技能 | 触发条件 |
+|------|----------|
+| `qt-unittest-make` | 需要补全/生成 Qt 单元测试 |
+| `ffmpeg-toolkit` | 涉及视频/音频处理与导出 |
+| `qt-compatibility-build` | 涉及 Qt 版本兼容或迁移 |
+| `github_actions_cicd` | 需要建设或修复 CI 流水线 |
+| `obs-cpp-qt-patterns` | 需要 Qt/C++ 集成模式参考 |
 
 ## 典型工作流
 
-- **任何对话开始**：`using-superpowers` → 技能检查 → 执行
-- 新功能：架构设计 → 开发实现 → 构建验证 → 文档更新
-- Bug 修复：问题定位 → 修复 → 回归验证 → 文档更新
-- 测试补全：类/模块分析 → 单测生成 → 构建验证 → 回归
-- CI 建设：本地验证 → CI 配置 → PR 校验 → 合并
+```
+任何对话开始：using-superpowers → 技能检查 → 执行
+新功能：架构设计 → 开发实现 → 构建验证 → 文档更新
+Bug修复：问题定位 → 修复 → 回归验证 → 文档更新
+测试补全：类/模块分析 → 单测生成 → 构建验证 → 回归
+CI建设：本地验证 → CI配置 → PR校验 → 合并
+```
 
 ## MCP 使用边界
 
-- 文档查询类需求再使用文档检索服务
-- 仓库协作类需求再使用 GitHub 服务
-- 复杂推理需求再使用顺序思考服务
+| 服务 | 使用场景 |
+|------|----------|
+| 文档检索服务 | 文档查询类需求 |
+| GitHub 服务 | 仓库协作类需求 |
+| 顺序思考服务 | 复杂推理需求 |
 
 ## 执行原则
 
@@ -53,5 +61,5 @@ trigger: always_on
 
 ## 本文件边界
 
-- 仅定义“技能与工具使用策略”
-- 具体编码规范与架构规则见 `02~09`
+- 仅定义"技能与工具使用策略"
+- 具体编码规范与架构规则见 `02`~`09`

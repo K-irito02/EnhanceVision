@@ -89,7 +89,9 @@ QtObject {
         readonly property color success: "#059669"
         readonly property color successSubtle: "#ECFDF5"
         readonly property color warning: "#D97706"
+        readonly property color warningHover: "#F59E0B"
         readonly property color warningSubtle: "#FFFBEB"
+        readonly property color warningSubtleBg: Qt.rgba(245, 158, 11, 0.1)
         readonly property color surface: "#FFFFFF"
         readonly property color surfaceHover: "#F5F8FC"
 
@@ -117,6 +119,19 @@ QtObject {
         readonly property color tooltip: "#FFFFFF"
         readonly property color tooltipForeground: "#0A1628"
         readonly property color tooltipBorder: "#D0DAE8"
+        
+        // ========== 交互状态颜色 ==========
+        // 悬浮白色（用于深色背景按钮）
+        readonly property color textOnPrimary: "#FFFFFF"
+        readonly property color textOnDestructive: "#FFFFFF"
+        
+        // 下拉菜单
+        readonly property color dropdownBg: "#FFFFFF"
+        readonly property color dropdownItemHover: "#F5F8FC"
+        
+        // 品牌渐变色（克莱因蓝）
+        readonly property color brandGradientStart: "#002FA7"
+        readonly property color brandGradientEnd: "#1A56DB"
     }
 
     // ========== 暗色主题 (Dark Theme) - 克莱因蓝深色系 ==========
@@ -200,8 +215,10 @@ QtObject {
         // 补充颜色
         readonly property color success: "#34D399"
         readonly property color successSubtle: "#052E16"
-        readonly property color warning: "#FBBF24"
+        readonly property color warning: "#F59E0B"
+        readonly property color warningHover: "#FBBF24"
         readonly property color warningSubtle: "#1C1A05"
+        readonly property color warningSubtleBg: Qt.rgba(245, 158, 11, 0.15)
         readonly property color surface: "#0A1428"
         readonly property color surfaceHover: "#152040"
 
@@ -229,5 +246,18 @@ QtObject {
         readonly property color tooltip: "#1E3A5F"
         readonly property color tooltipForeground: "#E8EDF5"
         readonly property color tooltipBorder: "#2A5080"
+        
+        // ========== 交互状态颜色 ==========
+        // 悬浮白色（用于深色背景按钮）
+        readonly property color textOnPrimary: "#FFFFFF"
+        readonly property color textOnDestructive: "#FFFFFF"
+        
+        // 下拉菜单
+        readonly property color dropdownBg: "#1E1E2E"
+        readonly property color dropdownItemHover: "#2A2A4A"
+        
+        // 品牌渐变色（克莱因蓝）
+        readonly property color brandGradientStart: "#002FA7"
+        readonly property color brandGradientEnd: "#1A56DB"
     }
 }
