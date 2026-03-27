@@ -40,6 +40,8 @@ public:
 
     void setPoolSize(int size);
 
+    void warmupModel(const QString& modelId);
+
 signals:
     void engineAcquired(const QString& taskId, int engineIndex);
     void engineReleased(const QString& taskId, int engineIndex);

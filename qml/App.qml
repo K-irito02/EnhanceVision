@@ -6,6 +6,7 @@ import "./components"
 import "./pages"
 import "./utils"
 import EnhanceVision.Utils
+import EnhanceVision.Controllers
 
 /**
  * @brief 应用根组件
@@ -266,6 +267,57 @@ FocusScope {
 
         Component.onCompleted: {
             NotificationManager.toastComponent = toast
+        }
+    }
+
+    // ========== 崩溃恢复提示弹窗 ==========
+    Rectangle {
+        id: crashRecoveryDialog
+        anchors.centerIn: parent
+        width: 400
+        height: crashContent.implicitHeight + 48
+        radius: Theme.radius.lg
+        color: Theme.colors.card
+        border.width: 1
+        border.color: Theme.colors.cardBorder
+        z: 30000
+        visible: SettingsController.crashDetectedOnStartup
+
+        ColumnLayout {
+            id: crashContent
+            anchors.fill: parent
+            anchors.margins: 24
+            spacing: 16
+
+            RowLayout {
+                spacing: 10
+                ColoredIcon { 
+                    iconSize: 24
+                    source: Theme.icon("alert-triangle")
+                    color: Theme.colors.warning
+                }
+                Text { 
+                    text: qsTr("检测到上次应用异常退出")
+                    color: Theme.colors.foreground
+                    font.pixelSize: 16
+                    font.weight: Font.DemiBold
+                }
+            }
+
+            Text {
+                text: qsTr("为确保稳定性，已自动关闭\"自动重新处理\"功能。\n您可以在设置中重新开启此功能。")
+                color: Theme.colors.mutedForeground
+                font.pixelSize: 13
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+
+            Button {
+                text: qsTr("知道了")
+                variant: "primary"
+                Layout.alignment: Qt.AlignRight
+                onClicked: crashRecoveryDialog.visible = false
+            }
         }
     }
 

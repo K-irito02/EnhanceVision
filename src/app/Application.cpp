@@ -196,6 +196,8 @@ Application::~Application()
 {
     qInfo() << "[Application] Destructor called";
 
+    SettingsController::instance()->markAppExiting();
+
     m_sessionController->saveSessions();
     delete m_mainWidget;
     SettingsController::destroyInstance();
@@ -225,8 +227,21 @@ void Application::initialize()
 
     setupLifecycleGuard();
 
+    if (SettingsController::instance()->checkAndHandleCrashRecovery()) {
+        QTimer::singleShot(500, this, [this]() {
+            emit crashRecoveryNeeded();
+        });
+    }
+
+    SettingsController::instance()->markAppRunning();
+
     m_sessionController->loadSessions();
     m_sessionController->restoreThumbnails();
+    
+    // 延迟检查中断任务，确保 UI 完全加载后再开始自动重处理
+    QTimer::singleShot(1000, this, [this]() {
+        m_sessionController->checkAndAutoRetryAllInterruptedTasks();
+    });
 
     m_mainWidget->setSource(QUrl(QStringLiteral("qrc:/qt/qml/EnhanceVision/qml/main.qml")));
 

@@ -79,22 +79,20 @@ signals:
 private:
     /**
      * @brief 内部视频处理函数
+     * 
+     * 处理流程：
+     * 1. 解码视频帧
+     * 2. 转换为RGB32格式
+     * 3. 应用Shader效果（与GPU算法完全一致）
+     * 4. 转换为YUV420P格式
+     * 5. 编码输出
+     * 6. 复制音频流（如果存在）
      */
     void processVideoInternal(const QString& inputPath,
                              const QString& outputPath,
                              const ShaderParams& params,
                              ProgressCallback progressCallback,
                              FinishCallback finishCallback);
-
-    /**
-     * @brief 将 AVFrame 转换为 QImage
-     */
-    QImage frameToImage(AVFrame* frame, AVPixelFormat pixelFormat);
-
-    /**
-     * @brief 将 QImage 转换为 AVFrame
-     */
-    AVFrame* imageToFrame(const QImage& image, AVFrame* referenceFrame);
 
     bool m_isProcessing;
     bool m_cancelled;

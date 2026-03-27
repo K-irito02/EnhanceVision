@@ -167,6 +167,24 @@ void AIEnginePool::setPoolSize(int size)
     qInfo() << "[AIEnginePool] pool resized to:" << m_poolSize;
 }
 
+void AIEnginePool::warmupModel(const QString& modelId)
+{
+    QMutexLocker locker(&m_mutex);
+
+    int warmedCount = 0;
+    for (auto& slot : m_slots) {
+        if (!slot.inUse && slot.engine && slot.engine->currentModelId() != modelId) {
+            slot.engine->loadModelAsync(modelId);
+            warmedCount++;
+        }
+    }
+
+    if (warmedCount > 0) {
+        qInfo() << "[AIEnginePool] warmupModel started for model:" << modelId
+                << "engines:" << warmedCount;
+    }
+}
+
 void AIEnginePool::createEngines(int count)
 {
     m_slots.reserve(count);

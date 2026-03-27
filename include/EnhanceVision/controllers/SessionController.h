@@ -111,6 +111,19 @@ public:
      * 在加载会话后调用，为已完成的文件从 resultPath 重新生成缩略图
      */
     void restoreThumbnails();
+    
+    /**
+     * @brief 检查所有会话中的中断任务并自动重新处理
+     * 在应用启动时调用，扫描所有会话中处于 Pending/Processing 状态的任务
+     * 根据设置决定是否自动重新处理
+     */
+    void checkAndAutoRetryAllInterruptedTasks();
+    
+    /**
+     * @brief 立即保存会话数据（绕过防抖）
+     * 用于任务完成后立即持久化，防止崩溃时数据丢失
+     */
+    void saveSessionsImmediately();
 
 signals:
     void autoSaveEnabledChanged();

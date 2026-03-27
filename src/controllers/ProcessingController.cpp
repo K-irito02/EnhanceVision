@@ -14,9 +14,6 @@
 #include "EnhanceVision/utils/ImageUtils.h"
 #include "EnhanceVision/core/TaskCoordinator.h"
 #include "EnhanceVision/core/ResourceManager.h"
-#include "EnhanceVision/core/ConcurrencyManager.h"
-#include "EnhanceVision/core/TaskTimeoutWatchdog.h"
-#include "EnhanceVision/core/TaskRetryPolicy.h"
 #include "EnhanceVision/core/AIEnginePool.h"
 #include "EnhanceVision/core/VideoProcessor.h"
 #include <QUuid>
@@ -28,6 +25,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QThread>
+#include <QtConcurrent>
 #include <algorithm>
 
 namespace EnhanceVision {
@@ -55,21 +53,11 @@ ProcessingController::ProcessingController(QObject* parent)
     , m_sessionController(nullptr)
     , m_taskCoordinator(TaskCoordinator::instance())
     , m_resourceManager(ResourceManager::instance())
-    , m_concurrencyManager(new ConcurrencyManager(this))
     , m_resourcePressure(0)
 {
-    m_maxConcurrentTasks = SettingsController::instance()->maxConcurrentTasks();
-    m_baseMaxConcurrentTasks = m_maxConcurrentTasks;
-    m_interactionPriorityMaxConcurrentTasks = m_maxConcurrentTasks;
-    m_importBurstMaxConcurrentTasks = m_maxConcurrentTasks;
-    m_threadPool->setMaxThreadCount(m_maxConcurrentTasks);
+    // 线性任务队列：一次只处理一个任务
+    m_threadPool->setMaxThreadCount(1);
     m_threadPool->setThreadPriority(QThread::LowPriority);
-
-    connect(SettingsController::instance(), &SettingsController::maxConcurrentTasksChanged,
-            this, [this]() {
-        m_baseMaxConcurrentTasks = SettingsController::instance()->maxConcurrentTasks();
-        refreshEffectiveConcurrencyLimit();
-    });
     
     connect(m_taskCoordinator, &TaskCoordinator::taskOrphaned,
             this, &ProcessingController::onTaskOrphaned);
@@ -82,25 +70,9 @@ ProcessingController::ProcessingController(QObject* parent)
     
     m_resourceManager->startMonitoring(2000);
 
-    connect(m_concurrencyManager, &ConcurrencyManager::taskTimedOut,
-            this, [this](const QString& taskId) {
-        qWarning() << "[ProcessingController] task timed out, forcing cancel:" << taskId;
-        gracefulCancel(taskId);
-    });
-    connect(m_concurrencyManager->watchdog(), &TaskTimeoutWatchdog::taskStalled,
-            this, [this](const QString& taskId, qint64 stallMs) {
-        qWarning() << "[ProcessingController] task stalled for" << stallMs << "ms, task:" << taskId;
-    });
-    connect(m_concurrencyManager, &ConcurrencyManager::deadlockRecoveryRequested,
-            this, [this](const QString& taskId) {
-        qWarning() << "[ProcessingController] deadlock recovery, cancelling task:" << taskId;
-        gracefulCancel(taskId);
-    });
-    m_concurrencyManager->start();
-
     m_sessionSyncTimer = new QTimer(this);
     m_sessionSyncTimer->setSingleShot(true);
-    m_sessionSyncTimer->setInterval(1800);
+    m_sessionSyncTimer->setInterval(2500);  // 增大防抖间隔，减少同步频率
     connect(m_sessionSyncTimer, &QTimer::timeout, this, [this]() {
         if (m_sessionController) {
             QElapsedTimer perfTimer;
@@ -174,11 +146,6 @@ int ProcessingController::queueSize() const
 int ProcessingController::currentProcessingCount() const
 {
     return m_currentProcessingCount;
-}
-
-int ProcessingController::maxConcurrentTasks() const
-{
-    return m_maxConcurrentTasks;
 }
 
 void ProcessingController::pauseQueue()
@@ -364,10 +331,6 @@ QString ProcessingController::addTask(const Message& message)
     updateQueuePositions();
     emit queueSizeChanged();
 
-    if (m_modelRegistry->hasModel(message.aiParams.modelId) && !m_preloadedModelIds.contains(message.aiParams.modelId)) {
-        requestModelPreload(message.aiParams.modelId);
-    }
-
     processNextTask();
 
     return message.id;
@@ -455,79 +418,37 @@ void ProcessingController::processNextTask()
         return;
     }
 
-    // 获取会话/消息级并发限制
-    auto* settings = SettingsController::instance();
-    const int maxSessions = settings->maxConcurrentSessions();
-    const int maxFilesPerMessage = settings->maxConcurrentFilesPerMessage();
+    // 线性任务队列：一次只处理一个任务
+    if (m_currentProcessingCount >= 1) {
+        return;
+    }
 
-    while (m_currentProcessingCount < m_maxConcurrentTasks) {
-        QueueTask* nextTask = nullptr;
-        for (auto& task : m_tasks) {
-            if (task.status != ProcessingStatus::Pending) {
-                continue;
-            }
-            
-            // 检查 AI 推理并发限制（基于引擎池可用性）
-            if (m_taskMessages.contains(task.taskId)) {
-                const Message& msg = m_taskMessages[task.taskId];
-                if (msg.mode == ProcessingMode::AIInference && m_aiEnginePool->availableCount() <= 0) {
-                    continue;
-                }
-                
-                // 使用 ConcurrencyManager 检查会话/消息级并发限制
-                const QString sessionId = resolveSessionIdForMessage(msg.id);
-                const int sessionActive = m_concurrencyManager->activeTasksForSession(sessionId);
-                if (sessionActive == 0 && m_concurrencyManager->activeSessionCount() >= maxSessions) {
-                    continue;
-                }
-                if (m_concurrencyManager->activeTasksForMessage(msg.id) >= maxFilesPerMessage) {
-                    continue;
-                }
-            }
-            
-            nextTask = &task;
-            break;
-        }
-
-        if (!nextTask) {
-            break;
-        }
-
-        const QString candidateTaskId = nextTask->taskId;
-        if (!tryStartTask(*nextTask)) {
-            bool stillPending = false;
-            for (const auto& task : m_tasks) {
-                if (task.taskId == candidateTaskId && task.status == ProcessingStatus::Pending) {
-                    stillPending = true;
-                    break;
-                }
-            }
-
-            if (stillPending) {
-                break;
-            }
-
+    // 查找下一个待处理的任务
+    QueueTask* nextTask = nullptr;
+    for (auto& task : m_tasks) {
+        if (task.status != ProcessingStatus::Pending) {
             continue;
         }
         
-        // 使用 ConcurrencyManager 管理并发槽位
-        if (m_taskMessages.contains(candidateTaskId)) {
-            const Message& msg = m_taskMessages[candidateTaskId];
-            const QString sessionId = resolveSessionIdForMessage(msg.id);
-            m_concurrencyManager->acquireSlot(candidateTaskId, sessionId, msg.id);
+        // 检查 AI 推理引擎池可用性
+        if (m_taskMessages.contains(task.taskId)) {
+            const Message& msg = m_taskMessages[task.taskId];
+            if (msg.mode == ProcessingMode::AIInference && m_aiEnginePool->availableCount() <= 0) {
+                continue;
+            }
         }
+        
+        nextTask = &task;
+        break;
     }
 
-    bool hasPendingTasks = false;
-    for (const auto& task : m_tasks) {
-        if (task.status == ProcessingStatus::Pending) {
-            hasPendingTasks = true;
-            break;
-        }
+    if (!nextTask) {
+        return;
     }
 
-    if (!hasPendingTasks && m_currentProcessingCount == 0 && m_importBurstMode) {
-        setImportBurstMode(false);
+    if (!tryStartTask(*nextTask)) {
+        // 如果启动失败，稍后重试
+        QTimer::singleShot(100, this, &ProcessingController::processNextTask);
     }
 }
 
@@ -536,38 +457,14 @@ QString ProcessingController::generateTaskId()
     return QUuid::createUuid().toString(QUuid::WithoutBraces);
 }
 
-void ProcessingController::requestModelPreload(const QString& modelId)
+void ProcessingController::preloadModel(const QString& modelId)
 {
-    if (modelId.isEmpty() || !m_aiEngine) {
+    if (modelId.isEmpty() || !m_aiEnginePool) {
         return;
     }
-
-    if (m_preloadedModelIds.contains(modelId) || m_pendingPreloadModelIds.contains(modelId)) {
-        return;
-    }
-
-    m_pendingPreloadModelIds.insert(modelId);
-
-    // 预加载必须在主线程执行（m_aiEngine 是主线程 QObject）
-    // 使用 QTimer::singleShot 异步但在主线程中调用，避免阻塞当前调用栈
-    QTimer::singleShot(0, this, [this, modelId]() {
-        if (!m_pendingPreloadModelIds.contains(modelId)) {
-            return; // 已被取消或重复
-        }
-
-        // AIEngine 推理中禁止 loadModel，这里直接放弃本次预加载，避免产生无效告警。
-        if (m_aiEnginePool->activeCount() > 0 || m_aiEngine->isProcessing()) {
-            m_pendingPreloadModelIds.remove(modelId);
-            return;
-        }
-
-        const bool loaded = m_aiEngine->loadModel(modelId);
-        m_pendingPreloadModelIds.remove(modelId);
-        if (loaded) {
-            m_preloadedModelIds.insert(modelId);
-            qInfo() << "[Perf][ProcessingController] model preloaded:" << modelId;
-        }
-    });
+    
+    m_aiEnginePool->warmupModel(modelId);
+    qInfo() << "[ProcessingController] preloadModel triggered for:" << modelId;
 }
 
 void ProcessingController::updateQueuePositions()
@@ -585,8 +482,6 @@ void ProcessingController::startTask(QueueTask& task)
     task.status = ProcessingStatus::Processing;
     task.startedAt = QDateTime::currentDateTime();
     m_currentProcessingCount++;
-
-    m_concurrencyManager->watchdog()->watchTask(task.taskId, m_resourceManager->quota().taskTimeoutMs);
 
     emit taskStarted(task.taskId);
     emit currentProcessingCountChanged();
@@ -653,46 +548,54 @@ void ProcessingController::startTask(QueueTask& task)
             }
             connectAiEngineForTask(engine, taskId);
 
-            // ── 模型加载在主线程完成，然后启动推理工作线程 ──────────────
-            QElapsedTimer aiStartTimer;
-            aiStartTimer.start();
-
-            if (!engine->loadModel(modelId)) {
-                failTask(taskId, tr("模型加载失败: %1").arg(modelId));
-                return;
+            // ── 异步模型加载：避免阻塞 UI 线程 ──────────────
+            if (engine->currentModelId() == modelId) {
+                // 模型已加载，直接启动推理
+                launchAiInference(engine, taskId, inputPath, outputPath, message);
+            } else {
+                // 标记任务正在等待模型加载
+                m_pendingModelLoadTaskIds.insert(taskId);
+                
+                // 连接模型加载完成信号
+                QMetaObject::Connection loadConn = connect(engine, &AIEngine::modelLoadCompleted,
+                    this, [this, engine, taskId, inputPath, outputPath, modelId]
+                          (bool success, const QString& loadedModelId, const QString& error) {
+                    m_pendingModelLoadTaskIds.remove(taskId);
+                    
+                    if (!success) {
+                        qWarning() << "[ProcessingController][AI] async model load failed"
+                                   << "task:" << taskId
+                                   << "model:" << loadedModelId
+                                   << "error:" << error;
+                        failTask(taskId, error.isEmpty() ? tr("模型加载失败: %1").arg(loadedModelId) : error);
+                        return;
+                    }
+                    
+                    qInfo() << "[ProcessingController][AI] async model load completed"
+                            << "task:" << taskId
+                            << "model:" << loadedModelId;
+                    
+                    // 检查任务是否仍然有效
+                    bool taskValid = false;
+                    for (const auto& t : m_tasks) {
+                        if (t.taskId == taskId && t.status == ProcessingStatus::Processing) {
+                            taskValid = true;
+                            break;
+                        }
+                    }
+                    
+                    if (taskValid && m_taskMessages.contains(taskId)) {
+                        const Message& msg = m_taskMessages[taskId];
+                        launchAiInference(engine, taskId, inputPath, outputPath, msg);
+                    }
+                }, Qt::SingleShotConnection);
+                
+                // 启动异步加载
+                qInfo() << "[ProcessingController][AI] starting async model load"
+                        << "task:" << taskId
+                        << "model:" << modelId;
+                engine->loadModelAsync(modelId);
             }
-
-            const qint64 loadModelCostMs = aiStartTimer.elapsed();
-            if (loadModelCostMs >= 16) {
-                qInfo() << "[Perf][ProcessingController] startTask loadModel cost:" << loadModelCostMs << "ms"
-                        << "model:" << message.aiParams.modelId;
-            }
-
-            const ModelInfo modelInfo = m_modelRegistry->getModelInfo(message.aiParams.modelId);
-            engine->setUseGpu(message.aiParams.useGpu);
-            engine->clearParameters();
-            if (message.aiParams.tileSize > 0) {
-                engine->setParameter("tileSize", message.aiParams.tileSize);
-            }
-            for (auto it = message.aiParams.modelParams.begin();
-                 it != message.aiParams.modelParams.end(); ++it) {
-                engine->setParameter(it.key(), it.value());
-            }
-
-            const QVariantMap effectiveParams = engine->getEffectiveParams();
-            qInfo() << "[ProcessingController][AI] launch"
-                    << "task:" << taskId
-                    << "model:" << message.aiParams.modelId
-                    << "input:" << inputPath
-                    << "output:" << outputPath
-                    << "gpuRequested:" << message.aiParams.useGpu
-                    << "gpuEffective:" << (engine->gpuAvailable() && engine->useGpu())
-                    << "tileSizeRequested:" << message.aiParams.tileSize
-                    << "tileSizeEffective:" << effectiveParams.value("tileSize", modelInfo.tileSize).toInt()
-                    << "outscaleEffective:" << effectiveParams.value("outscale", modelInfo.scaleFactor).toDouble()
-                    << "poolSlot:" << m_aiEnginePool->activeCount();
-
-            engine->processAsync(inputPath, outputPath);
 
             logPerfIfSlow("startTask", perfTimer.elapsed());
             return;
@@ -711,13 +614,12 @@ void ProcessingController::updateTaskProgress(const QString& taskId, int progres
     QElapsedTimer perfTimer;
     perfTimer.start();
 
-    constexpr int kProgressEmitStep = 2;
-    constexpr qint64 kProgressEmitIntervalMs = 66;
+    // 增大步长和间隔，减少 UI 更新频率以提高响应性
+    constexpr int kProgressEmitStep = 5;
+    constexpr qint64 kProgressEmitIntervalMs = 150;
 
     const int normalizedProgress = qBound(0, progress, 100);
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-
-    m_concurrencyManager->watchdog()->resetTimer(taskId);
 
     for (auto& task : m_tasks) {
         if (task.taskId == taskId) {
@@ -740,7 +642,8 @@ void ProcessingController::updateTaskProgress(const QString& taskId, int progres
                 syncModelTask(task);
 
                 if (normalizedProgress != previousProgress) {
-                    constexpr qint64 kMessageProgressSyncIntervalMs = 80;
+                    // 增大消息进度同步间隔
+                    constexpr qint64 kMessageProgressSyncIntervalMs = 200;
                     const qint64 lastMessageSyncMs = m_lastMessageProgressSyncMs.value(task.messageId, 0);
                     const bool shouldSyncMessageProgress = (normalizedProgress >= 100) ||
                                                            ((nowMs - lastMessageSyncMs) >= kMessageProgressSyncIntervalMs);
@@ -908,7 +811,6 @@ void ProcessingController::processShaderVideoThumbnailAsync(const QString& taskI
 {
     const QString sessionId = resolveSessionIdForMessage(messageId);
 
-    // 生成输出路径
     QString processedDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/processed/shader_video";
     QDir().mkpath(processedDir);
     QFileInfo fi(filePath);
@@ -919,9 +821,11 @@ void ProcessingController::processShaderVideoThumbnailAsync(const QString& taskI
     qInfo() << "[ProcessingController][Shader] launching video processing"
             << "task:" << taskId << "input:" << filePath << "output:" << outputPath;
 
-    // 先在线程池中生成缩略图，然后启动视频处理
-    m_threadPool->start([this, taskId, sessionId, messageId, fileId, filePath, outputPath, shaderParams]() {
-        // 生成处理后的缩略图（用于消息卡片预览）
+    auto videoProcessor = QSharedPointer<VideoProcessor>::create();
+    m_activeVideoProcessors[taskId] = videoProcessor;
+
+    // 先异步生成缩略图（不阻塞视频处理）
+    QtConcurrent::run([this, fileId, filePath, shaderParams]() {
         QImage videoThumb = ImageUtils::generateVideoThumbnail(filePath, QSize(512, 512));
         QImage processedThumb;
         if (!videoThumb.isNull()) {
@@ -944,56 +848,57 @@ void ProcessingController::processShaderVideoThumbnailAsync(const QString& taskI
             );
         }
 
-        // 设置缩略图（先在主线程设置）
         QMetaObject::invokeMethod(this, [this, fileId, processedThumb]() {
             if (ThumbnailProvider::instance() && !processedThumb.isNull()) {
                 const QString thumbId = "processed_" + fileId;
                 ThumbnailProvider::instance()->setThumbnail(thumbId, processedThumb);
             }
         }, Qt::QueuedConnection);
-
-        // 实际处理视频：使用 VideoProcessor 逐帧应用 shader 效果
-        // processVideoAsync 内部使用 QtConcurrent::run，通过回调接收结果
-        auto* videoProcessor = new VideoProcessor();
-
-        auto progressCb = [this, taskId](int progress, const QString&) {
-            int mappedProgress = 10 + progress * 85 / 100;
-            QMetaObject::invokeMethod(this, [this, taskId, mappedProgress]() {
-                updateTaskProgress(taskId, mappedProgress);
-            }, Qt::QueuedConnection);
-        };
-
-        auto finishCb = [this, videoProcessor, taskId, sessionId, messageId, fileId, filePath, outputPath](
-                             bool success, const QString& resultPath, const QString& error) {
-            QMetaObject::invokeMethod(this, [this, videoProcessor, taskId, sessionId, messageId,
-                                              fileId, filePath, outputPath, success, resultPath, error]() {
-                qInfo() << "[ProcessingController][Shader] video processing finished"
-                        << "task:" << taskId << "success:" << success
-                        << "result:" << (success ? outputPath : "") << "error:" << error;
-
-                videoProcessor->deleteLater();
-
-                if (m_taskCoordinator->isOrphaned(taskId)) {
-                    finalizeTask(taskId, sessionId, messageId);
-                    return;
-                }
-
-                if (success) {
-                    updateFileStatusForSessionMessage(sessionId, messageId, fileId,
-                        ProcessingStatus::Completed, outputPath);
-                } else {
-                    updateFileStatusForSessionMessage(sessionId, messageId, fileId,
-                        ProcessingStatus::Failed, QString());
-                    updateErrorForSessionMessage(sessionId, messageId,
-                        error.isEmpty() ? tr("视频Shader处理失败") : error);
-                }
-
-                finalizeTask(taskId, sessionId, messageId);
-            }, Qt::QueuedConnection);
-        };
-
-        videoProcessor->processVideoAsync(filePath, outputPath, shaderParams, progressCb, finishCb);
     });
+
+    // 直接在主线程设置回调，避免嵌套异步调用
+    // VideoProcessor 内部会启动自己的工作线程
+    auto progressCb = [this, taskId](int progress, const QString&) {
+        if (!m_activeVideoProcessors.contains(taskId)) return;
+        int mappedProgress = 10 + progress * 85 / 100;
+        QMetaObject::invokeMethod(this, [this, taskId, mappedProgress]() {
+            updateTaskProgress(taskId, mappedProgress);
+        }, Qt::QueuedConnection);
+    };
+
+    // 捕获 videoProcessor 确保生命周期延长到回调完成
+    auto finishCb = [this, videoProcessor, taskId, sessionId, messageId, fileId, outputPath](
+                        bool success, const QString& resultPath, const QString& error) {
+        Q_UNUSED(resultPath);
+        QMetaObject::invokeMethod(this, [this, videoProcessor, taskId, sessionId, messageId,
+                                          fileId, outputPath, success, error]() {
+            qInfo() << "[ProcessingController][Shader] video processing finished"
+                    << "task:" << taskId << "success:" << success
+                    << "result:" << (success ? outputPath : "") << "error:" << error;
+
+            m_activeVideoProcessors.remove(taskId);
+
+            if (m_taskCoordinator->isOrphaned(taskId)) {
+                finalizeTask(taskId, sessionId, messageId);
+                return;
+            }
+
+            if (success) {
+                updateFileStatusForSessionMessage(sessionId, messageId, fileId,
+                    ProcessingStatus::Completed, outputPath);
+            } else {
+                updateFileStatusForSessionMessage(sessionId, messageId, fileId,
+                    ProcessingStatus::Failed, QString());
+                updateErrorForSessionMessage(sessionId, messageId,
+                    error.isEmpty() ? tr("视频Shader处理失败") : error);
+            }
+
+            finalizeTask(taskId, sessionId, messageId);
+        }, Qt::QueuedConnection);
+    };
+
+    // 直接调用 processVideoAsync，它内部会启动工作线程
+    videoProcessor->processVideoAsync(filePath, outputPath, shaderParams, progressCb, finishCb);
 }
 
 QVariantMap ProcessingController::shaderParamsToVariantMap(const ShaderParams& params)
@@ -1025,7 +930,6 @@ void ProcessingController::failTask(const QString& taskId, const QString& error)
             const QString sessionId = resolveSessionIdForMessage(messageId);
 
             task.status = ProcessingStatus::Failed;
-            m_concurrencyManager->retryPolicy()->recordAttempt(taskId, error);
             emit taskFailed(taskId, error);
 
             if (!m_taskCoordinator->isOrphaned(taskId)) {
@@ -1056,7 +960,6 @@ QString ProcessingController::sendToProcessing(int mode, const QVariantMap& para
         return QString();
     }
 
-    setImportBurstMode(files.size() > 1);
 
     // 创建 Message 对象
     Message message;
@@ -1236,7 +1139,12 @@ void ProcessingController::retrySingleFailedFile(const QString& messageId, int f
         return;
     }
     
-    Message message = m_messageModel->messageById(messageId);
+    const QString sessionId = resolveSessionIdForMessage(messageId);
+    Message message = messageForSession(sessionId, messageId);
+    if (message.id.isEmpty()) {
+        message = m_messageModel->messageById(messageId);
+    }
+    
     if (message.id.isEmpty()) {
         qWarning() << "[ProcessingController] retrySingleFailedFile: Message not found:" << messageId;
         return;
@@ -1265,12 +1173,8 @@ void ProcessingController::retrySingleFailedFile(const QString& messageId, int f
     }
     m_messageModel->updateErrorMessage(messageId, QString());
     
-    // 重置文件状态
     m_messageModel->updateFileStatus(messageId, file.id,
         static_cast<int>(ProcessingStatus::Pending), QString());
-    
-    // 添加单个任务
-    const QString sessionId = resolveSessionIdForMessage(messageId);
     
     QueueTask task;
     task.taskId = generateTaskId();
@@ -1294,7 +1198,6 @@ void ProcessingController::retrySingleFailedFile(const QString& messageId, int f
     updateQueuePositions();
     emit queueSizeChanged();
     
-    // 同步到会话
     if (m_sessionController) {
         requestSessionSync();
     }
@@ -1304,14 +1207,27 @@ void ProcessingController::retrySingleFailedFile(const QString& messageId, int f
 
 void ProcessingController::autoRetryInterruptedFiles(const QString& messageId, const QString& sessionId)
 {
-    if (!m_messageModel) {
-        qWarning() << "[ProcessingController] autoRetryInterruptedFiles: MessageModel not set";
+    if (!m_sessionController) {
+        qWarning() << "[ProcessingController] autoRetryInterruptedFiles: SessionController not set";
         return;
     }
 
-    Message message = m_messageModel->messageById(messageId);
+    const QString targetSessionId = !sessionId.isEmpty()
+        ? sessionId
+        : resolveSessionIdForMessage(messageId);
+
+    // 从 Session 中获取消息，而不是从 MessageModel（支持后台会话）
+    Message message = m_sessionController->messageInSession(targetSessionId, messageId);
     if (message.id.isEmpty()) {
-        qWarning() << "[ProcessingController] autoRetryInterruptedFiles: Message not found:" << messageId;
+        // 如果 Session 中找不到，尝试从 MessageModel 获取（当前活动会话）
+        if (m_messageModel) {
+            message = m_messageModel->messageById(messageId);
+        }
+    }
+    
+    if (message.id.isEmpty()) {
+        qWarning() << "[ProcessingController] autoRetryInterruptedFiles: Message not found:"
+                   << messageId << "session:" << targetSessionId;
         return;
     }
 
@@ -1331,17 +1247,27 @@ void ProcessingController::autoRetryInterruptedFiles(const QString& messageId, c
         return;
     }
 
-    m_messageModel->updateStatus(messageId, static_cast<int>(ProcessingStatus::Processing));
-    m_messageModel->updateErrorMessage(messageId, QString());
+    // 更新 Session 中的消息状态
+    message.status = ProcessingStatus::Processing;
+    message.errorMessage.clear();
+    for (auto& file : message.mediaFiles) {
+        if (file.status == ProcessingStatus::Pending || file.status == ProcessingStatus::Processing) {
+            file.status = ProcessingStatus::Pending;
+        }
+    }
+    m_sessionController->updateMessageInSession(targetSessionId, message);
 
-    const QString targetSessionId = !sessionId.isEmpty()
-        ? sessionId
-        : resolveSessionIdForMessage(messageId);
+    // 如果是当前活动会话，同时更新 MessageModel
+    if (m_messageModel && m_sessionController->activeSessionId() == targetSessionId) {
+        m_messageModel->updateStatus(messageId, static_cast<int>(ProcessingStatus::Processing));
+        m_messageModel->updateErrorMessage(messageId, QString());
+        for (const auto& file : filesToRetry) {
+            m_messageModel->updateFileStatus(messageId, file.id,
+                static_cast<int>(ProcessingStatus::Pending), QString());
+        }
+    }
 
     for (const auto& file : filesToRetry) {
-        m_messageModel->updateFileStatus(messageId, file.id,
-            static_cast<int>(ProcessingStatus::Pending), QString());
-
         QueueTask task;
         task.taskId = generateTaskId();
         task.messageId = messageId;
@@ -1667,7 +1593,7 @@ void ProcessingController::updateQueuePositionForSessionMessage(const QString& s
 void ProcessingController::syncMessageProgress(const QString& messageId, const QString& sessionId)
 {
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-    constexpr qint64 kMessageProgressSyncDebounceMs = 100;
+    constexpr qint64 kMessageProgressSyncDebounceMs = 250;  // 增大防抖间隔
 
     const qint64 lastSyncMs = m_lastMessageProgressSyncMs.value(messageId, 0);
     if (lastSyncMs > 0 && (nowMs - lastSyncMs) < kMessageProgressSyncDebounceMs) {
@@ -1710,7 +1636,7 @@ void ProcessingController::syncMessageProgress(const QString& messageId, const Q
 void ProcessingController::syncMessageStatus(const QString& messageId, const QString& sessionId)
 {
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-    constexpr qint64 kMessageStatusSyncDebounceMs = 120;
+    constexpr qint64 kMessageStatusSyncDebounceMs = 300;  // 增大防抖间隔
 
     const qint64 lastSyncMs = m_lastMessageStatusSyncMs.value(messageId, 0);
     if (lastSyncMs > 0 && (nowMs - lastSyncMs) < kMessageStatusSyncDebounceMs) {
@@ -1938,79 +1864,11 @@ void ProcessingController::onSessionChanging(const QString& oldSessionId, const 
         }
     }
 
-    setInteractionPriorityMode(!oldSessionTaskIds.isEmpty() || !newSessionTaskIds.isEmpty());
-
     QTimer::singleShot(120, this, [this]() {
         setVisibleSessionUpdateFrozen(false);
     });
 }
 
-void ProcessingController::setMaxConcurrentTasks(int max)
-{
-    if (max <= 0) {
-        max = 1;
-    }
-
-    if (m_baseMaxConcurrentTasks != max) {
-        m_baseMaxConcurrentTasks = max;
-        refreshEffectiveConcurrencyLimit();
-    }
-}
-
-void ProcessingController::setInteractionPriorityMode(bool enabled)
-{
-    if (m_interactionPriorityMode == enabled) {
-        return;
-    }
-
-    m_interactionPriorityMode = enabled;
-    refreshEffectiveConcurrencyLimit();
-}
-
-void ProcessingController::setImportBurstMode(bool enabled)
-{
-    if (m_importBurstMode == enabled) {
-        return;
-    }
-
-    m_importBurstMode = enabled;
-    refreshEffectiveConcurrencyLimit();
-}
-
-void ProcessingController::refreshEffectiveConcurrencyLimit()
-{
-    const int base = qMax(1, m_baseMaxConcurrentTasks);
-
-    int interactionLimit = base;
-    if (m_interactionPriorityMode) {
-        interactionLimit = qMax(1, base - 1);
-    }
-
-    int importLimit = base;
-    if (m_importBurstMode) {
-        importLimit = qMax(1, base - 1);
-    }
-
-    m_interactionPriorityMaxConcurrentTasks = interactionLimit;
-    m_importBurstMaxConcurrentTasks = importLimit;
-
-    const int effective = qMax(1, qMin(base, qMin(interactionLimit, importLimit)));
-    if (m_maxConcurrentTasks == effective) {
-        return;
-    }
-
-    m_maxConcurrentTasks = effective;
-    m_threadPool->setMaxThreadCount(m_maxConcurrentTasks);
-    m_resourceManager->setMaxConcurrentTasks(m_maxConcurrentTasks);
-    emit maxConcurrentTasksChanged();
-}
-
-void ProcessingController::setResourceQuota(const ResourceQuota& quota)
-{
-    m_resourceManager->setQuota(quota);
-    m_baseMaxConcurrentTasks = qMax(1, quota.maxConcurrentTasks);
-    refreshEffectiveConcurrencyLimit();
-}
 
 void ProcessingController::onTaskOrphaned(const QString& taskId)
 {
@@ -2062,7 +1920,6 @@ bool ProcessingController::tryStartTask(QueueTask& task)
 
 void ProcessingController::finalizeTask(const QString& taskId, const QString& sessionId, const QString& messageId)
 {
-    m_concurrencyManager->releaseSlot(taskId, sessionId, messageId);
     cleanupTask(taskId);
     m_currentProcessingCount--;
 
@@ -2070,8 +1927,9 @@ void ProcessingController::finalizeTask(const QString& taskId, const QString& se
     syncModelTaskById(taskId);
     syncMessageProgress(messageId, sessionId);
     syncMessageStatus(messageId, sessionId);
+    
     if (m_sessionController) {
-        requestSessionSync();
+        m_sessionController->saveSessionsImmediately();
     }
     processNextTask();
 }
@@ -2084,11 +1942,17 @@ void ProcessingController::gracefulCancel(const QString& taskId, int timeoutMs)
 
     QueueTask* targetTask = getTask(taskId);
     if (targetTask && targetTask->status == ProcessingStatus::Processing) {
-        // AI 推理任务需要主动通知 AIEngine 取消，否则任务可能持续占用 activeAiTaskId
         if (m_taskMessages.contains(taskId)) {
             const Message& msg = m_taskMessages[taskId];
-            if (msg.mode == ProcessingMode::AIInference && m_aiEngine) {
-                m_aiEngine->cancelProcess();
+            if (msg.mode == ProcessingMode::AIInference) {
+                if (m_aiEngine) {
+                    m_aiEngine->cancelProcess();
+                }
+                AIEngine* poolEngine = m_aiEnginePool->engineForTask(taskId);
+                if (poolEngine && poolEngine != m_aiEngine) {
+                    poolEngine->cancelProcess();
+                    qInfo() << "[ProcessingController] cancelled pool engine for task:" << taskId;
+                }
             }
         }
 
@@ -2132,8 +1996,21 @@ void ProcessingController::handleOrphanedTask(const QString& taskId)
     emit queueSizeChanged();
 }
 
+void ProcessingController::cancelVideoProcessing(const QString& taskId)
+{
+    if (m_activeVideoProcessors.contains(taskId)) {
+        auto processor = m_activeVideoProcessors[taskId];
+        if (processor) {
+            processor->cancel();
+        }
+        m_activeVideoProcessors.remove(taskId);
+    }
+}
+
 void ProcessingController::cleanupTask(const QString& taskId)
 {
+    cancelVideoProcessing(taskId);
+    
     m_resourceManager->release(taskId);
     m_taskCoordinator->unregisterTask(taskId);
     m_pendingExports.remove(taskId);
@@ -2141,6 +2018,7 @@ void ProcessingController::cleanupTask(const QString& taskId)
     m_lastReportedTaskProgress.remove(taskId);
     m_lastTaskProgressUpdateMs.remove(taskId);
     m_taskMessages.remove(taskId);
+    m_pendingModelLoadTaskIds.remove(taskId);
 
     disconnectAiEngineForTask(taskId);
     m_aiEnginePool->release(taskId);
@@ -2222,6 +2100,42 @@ void ProcessingController::registerTaskContext(const QString& taskId, const QStr
     
     m_taskContexts[taskId] = ctx;
     m_taskCoordinator->registerTask(ctx);
+}
+
+void ProcessingController::launchAiInference(AIEngine* engine, const QString& taskId, 
+                                              const QString& inputPath, const QString& outputPath, 
+                                              const Message& message)
+{
+    if (!engine || taskId.isEmpty()) {
+        failTask(taskId, tr("无效的推理参数"));
+        return;
+    }
+
+    const ModelInfo modelInfo = m_modelRegistry->getModelInfo(message.aiParams.modelId);
+    engine->setUseGpu(message.aiParams.useGpu);
+    engine->clearParameters();
+    if (message.aiParams.tileSize > 0) {
+        engine->setParameter("tileSize", message.aiParams.tileSize);
+    }
+    for (auto it = message.aiParams.modelParams.begin();
+         it != message.aiParams.modelParams.end(); ++it) {
+        engine->setParameter(it.key(), it.value());
+    }
+
+    const QVariantMap effectiveParams = engine->getEffectiveParams();
+    qInfo() << "[ProcessingController][AI] launch"
+            << "task:" << taskId
+            << "model:" << message.aiParams.modelId
+            << "input:" << inputPath
+            << "output:" << outputPath
+            << "gpuRequested:" << message.aiParams.useGpu
+            << "gpuEffective:" << (engine->gpuAvailable() && engine->useGpu())
+            << "tileSizeRequested:" << message.aiParams.tileSize
+            << "tileSizeEffective:" << effectiveParams.value("tileSize", modelInfo.tileSize).toInt()
+            << "outscaleEffective:" << effectiveParams.value("outscale", modelInfo.scaleFactor).toDouble()
+            << "poolSlot:" << m_aiEnginePool->activeCount();
+
+    engine->processAsync(inputPath, outputPath);
 }
 
 } // namespace EnhanceVision

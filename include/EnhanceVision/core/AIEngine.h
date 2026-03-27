@@ -52,6 +52,15 @@ public:
     Q_INVOKABLE bool loadModel(const QString &modelId);
 
     /**
+     * @brief 异步加载模型（非阻塞，在工作线程执行）
+     * @param modelId 模型 ID
+     * 
+     * 加载完成后发射 modelLoadCompleted 信号。
+     * 适用于 UI 线程调用，避免阻塞界面。
+     */
+    Q_INVOKABLE void loadModelAsync(const QString &modelId);
+
+    /**
      * @brief 卸载当前模型
      */
     Q_INVOKABLE void unloadModel();
@@ -186,6 +195,7 @@ public:
 
 signals:
     void modelLoaded(const QString &modelId);
+    void modelLoadCompleted(bool success, const QString &modelId, const QString &error);
     void modelUnloaded();
     void modelChanged();
     void processingChanged(bool processing);

@@ -17,6 +17,13 @@ trigger: glob
 - 参数范围、默认值、步长在 UI 与 Shader 端一致
 - 禁止使用会吞掉 `0` 的默认值逻辑
 - 预览与导出必须使用同一参数来源
+- **CPU 实现必须与 GPU Shader 算法完全一致**
+- **参数处理顺序必须严格遵循 GPU Shader 顺序**：
+  ```
+  1. Exposure → 2. Brightness → 3. Contrast → 4. Saturation → 5. Hue
+  → 6. Gamma → 7. Temperature → 8. Tint → 9. Highlights → 10. Shadows
+  → 11. Vignette → 12. Blur → 13. Denoise → 14. Sharpness
+  ```
 
 ## 编译集成
 

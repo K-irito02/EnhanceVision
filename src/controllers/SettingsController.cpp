@@ -25,11 +25,12 @@ SettingsController::SettingsController(QObject* parent)
     , m_theme("dark")
     , m_language("zh_CN")
     , m_sidebarExpanded(true)
-    , m_maxConcurrentTasks(2)
-    , m_maxConcurrentSessions(1)
-    , m_maxConcurrentFilesPerMessage(2)
     , m_autoSaveResult(false)
     , m_volume(80)
+    , m_autoReprocessShaderEnabled(true)
+    , m_autoReprocessAIEnabled(true)
+    , m_lastExitClean(true)
+    , m_crashDetectedOnStartup(false)
 {
     QString configPath = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
     QString settingsFile = QDir(configPath).filePath("EnhanceVision/settings.ini");
@@ -107,128 +108,6 @@ void SettingsController::setSidebarExpanded(bool expanded)
     }
 }
 
-int SettingsController::maxConcurrentTasks() const
-{
-    return m_maxConcurrentTasks;
-}
-
-void SettingsController::setMaxConcurrentTasks(int count)
-{
-    if (m_maxConcurrentTasks != count && count > 0) {
-        m_maxConcurrentTasks = count;
-        emit maxConcurrentTasksChanged();
-        emit settingsChanged();
-    }
-}
-
-int SettingsController::maxConcurrentSessions() const
-{
-    return m_maxConcurrentSessions;
-}
-
-void SettingsController::setMaxConcurrentSessions(int count)
-{
-    count = qBound(1, count, 4);
-    if (m_maxConcurrentSessions != count) {
-        m_maxConcurrentSessions = count;
-        // 自动同步综合并发数
-        int effective = m_maxConcurrentSessions * m_maxConcurrentFilesPerMessage;
-        setMaxConcurrentTasks(effective);
-        emit maxConcurrentSessionsChanged();
-        emit settingsChanged();
-        saveSettings();
-    }
-}
-
-int SettingsController::maxConcurrentFilesPerMessage() const
-{
-    return m_maxConcurrentFilesPerMessage;
-}
-
-void SettingsController::setMaxConcurrentFilesPerMessage(int count)
-{
-    count = qBound(1, count, 4);
-    if (m_maxConcurrentFilesPerMessage != count) {
-        m_maxConcurrentFilesPerMessage = count;
-        int effective = m_maxConcurrentSessions * m_maxConcurrentFilesPerMessage;
-        setMaxConcurrentTasks(effective);
-        emit maxConcurrentFilesPerMessageChanged();
-        emit settingsChanged();
-        saveSettings();
-    }
-}
-
-QString SettingsController::devicePerformanceHint(int sessions, int filesPerMsg) const
-{
-    int total = qMax(1, sessions) * qMax(1, filesPerMsg);
-    
-    // 获取真实系统资源数据
-    auto* resourceMgr = ResourceManager::instance();
-    const qint64 totalMemoryMB = resourceMgr->totalSystemMemoryMB();
-    const qint64 availableMemoryMB = resourceMgr->availableSystemMemoryMB();
-    const qreal memoryUsagePercent = totalMemoryMB > 0 ? 
-        static_cast<qreal>(totalMemoryMB - availableMemoryMB) / totalMemoryMB * 100.0 : 0;
-    
-    // 获取 GPU 显存信息
-    qint64 gpuTotalMB = 0;
-    qint64 gpuAvailableMB = 0;
-    
-#ifdef Q_OS_WIN
-    IDXGIFactory* factory = nullptr;
-    if (SUCCEEDED(CreateDXGIFactory(__uuidof(IDXGIFactory), reinterpret_cast<void**>(&factory)))) {
-        IDXGIAdapter* adapter = nullptr;
-        if (SUCCEEDED(factory->EnumAdapters(0, &adapter))) {
-            DXGI_ADAPTER_DESC desc;
-            if (SUCCEEDED(adapter->GetDesc(&desc))) {
-                gpuTotalMB = static_cast<qint64>(desc.DedicatedVideoMemory / (1024 * 1024));
-            }
-            adapter->Release();
-        }
-        factory->Release();
-    }
-    
-    // 估算可用显存（基于已用内存和并发任务数）
-    const int activeTasks = resourceMgr->activeTaskCount();
-    const qint64 estimatedUsedGpuMB = activeTasks * 512;  // 估算每任务约 512MB
-    gpuAvailableMB = qMax(0LL, gpuTotalMB - estimatedUsedGpuMB);
-#endif
-
-    // 根据实际设备能力评估并发设置
-    QString hint;
-    const qint64 estimatedMemoryPerTask = 512;  // MB
-    const qint64 requiredMemory = total * estimatedMemoryPerTask;
-    const qint64 requiredGpuMemory = total * 512;  // MB
-    
-    // 构建状态信息
-    QString memoryStatus = tr("内存: %1/%2 GB (已用 %3%)")
-        .arg((totalMemoryMB - availableMemoryMB) / 1024.0, 0, 'f', 1)
-        .arg(totalMemoryMB / 1024.0, 0, 'f', 1)
-        .arg(memoryUsagePercent, 0, 'f', 0);
-    
-    QString gpuStatus;
-    if (gpuTotalMB > 0) {
-        gpuStatus = tr(" | 显存: %1 GB").arg(gpuTotalMB / 1024.0, 0, 'f', 1);
-    }
-    
-    // 综合评估
-    bool memoryOk = availableMemoryMB >= requiredMemory;
-    bool gpuOk = gpuTotalMB == 0 || gpuTotalMB >= requiredGpuMemory;
-    
-    if (total <= 2 && memoryOk && gpuOk) {
-        hint = tr("[OK] 流畅 - 资源充足");
-    } else if (total <= 4 && memoryOk) {
-        hint = tr("[!] 轻微负载 - 可正常运行");
-    } else if (!memoryOk || (gpuTotalMB > 0 && gpuTotalMB < 4096 && total > 4)) {
-        hint = tr("[!!] 高负载 - 可能出现卡顿");
-    } else if (total > 8 || memoryUsagePercent > 85) {
-        hint = tr("[!!!] 资源紧张 - 建议降低并发数");
-    } else {
-        hint = tr("[!] 中等负载 - 高端设备可正常运行");
-    }
-    
-    return hint + "\n" + memoryStatus + gpuStatus;
-}
-
 QString SettingsController::defaultSavePath() const
 {
     return m_defaultSavePath;
@@ -273,6 +152,105 @@ void SettingsController::setVolume(int volume)
     }
 }
 
+bool SettingsController::autoReprocessShaderEnabled() const
+{
+    return m_autoReprocessShaderEnabled;
+}
+
+void SettingsController::setAutoReprocessShaderEnabled(bool enabled)
+{
+    if (m_autoReprocessShaderEnabled != enabled) {
+        m_autoReprocessShaderEnabled = enabled;
+        emit autoReprocessShaderEnabledChanged();
+        emit autoReprocessAllEnabledChanged();
+        emit settingsChanged();
+        saveSettings();
+    }
+}
+
+bool SettingsController::autoReprocessAIEnabled() const
+{
+    return m_autoReprocessAIEnabled;
+}
+
+void SettingsController::setAutoReprocessAIEnabled(bool enabled)
+{
+    if (m_autoReprocessAIEnabled != enabled) {
+        m_autoReprocessAIEnabled = enabled;
+        emit autoReprocessAIEnabledChanged();
+        emit autoReprocessAllEnabledChanged();
+        emit settingsChanged();
+        saveSettings();
+    }
+}
+
+bool SettingsController::autoReprocessAllEnabled() const
+{
+    return m_autoReprocessShaderEnabled && m_autoReprocessAIEnabled;
+}
+
+void SettingsController::setAutoReprocessAllEnabled(bool enabled)
+{
+    if (autoReprocessAllEnabled() != enabled) {
+        m_autoReprocessShaderEnabled = enabled;
+        m_autoReprocessAIEnabled = enabled;
+        emit autoReprocessShaderEnabledChanged();
+        emit autoReprocessAIEnabledChanged();
+        emit autoReprocessAllEnabledChanged();
+        emit settingsChanged();
+        saveSettings();
+    }
+}
+
+bool SettingsController::lastExitClean() const
+{
+    return m_lastExitClean;
+}
+
+bool SettingsController::crashDetectedOnStartup() const
+{
+    return m_crashDetectedOnStartup;
+}
+
+void SettingsController::markAppRunning()
+{
+    m_lastExitClean = false;
+    m_settings->setValue("system/lastExitClean", false);
+    m_settings->sync();
+}
+
+void SettingsController::markAppExiting()
+{
+    m_lastExitClean = true;
+    m_settings->setValue("system/lastExitClean", true);
+    m_settings->sync();
+}
+
+bool SettingsController::checkAndHandleCrashRecovery()
+{
+    bool wasClean = m_settings->value("system/lastExitClean", true).toBool();
+    
+    if (!wasClean) {
+        m_crashDetectedOnStartup = true;
+        m_autoReprocessShaderEnabled = false;
+        m_autoReprocessAIEnabled = false;
+        
+        m_settings->setValue("reprocess/shaderEnabled", false);
+        m_settings->setValue("reprocess/aiEnabled", false);
+        m_settings->sync();
+        
+        emit autoReprocessShaderEnabledChanged();
+        emit autoReprocessAIEnabledChanged();
+        emit autoReprocessAllEnabledChanged();
+        emit crashDetected();
+        emit crashDetectedOnStartupChanged();
+        
+        return true;
+    }
+    
+    return false;
+}
+
 void SettingsController::saveSettings()
 {
     if (!m_settings) return;
@@ -280,12 +258,11 @@ void SettingsController::saveSettings()
     m_settings->setValue("appearance/theme", m_theme);
     m_settings->setValue("appearance/language", m_language);
     m_settings->setValue("sidebar/expanded", m_sidebarExpanded);
-    m_settings->setValue("performance/maxConcurrent", m_maxConcurrentTasks);
-    m_settings->setValue("performance/maxConcurrentSessions", m_maxConcurrentSessions);
-    m_settings->setValue("performance/maxConcurrentFilesPerMessage", m_maxConcurrentFilesPerMessage);
     m_settings->setValue("behavior/defaultSavePath", m_defaultSavePath);
     m_settings->setValue("behavior/autoSave", m_autoSaveResult);
     m_settings->setValue("audio/volume", m_volume);
+    m_settings->setValue("reprocess/shaderEnabled", m_autoReprocessShaderEnabled);
+    m_settings->setValue("reprocess/aiEnabled", m_autoReprocessAIEnabled);
     m_settings->sync();
 }
 
@@ -296,12 +273,12 @@ void SettingsController::loadSettings()
     m_theme = m_settings->value("appearance/theme", "dark").toString();
     m_language = m_settings->value("appearance/language", "zh_CN").toString();
     m_sidebarExpanded = m_settings->value("sidebar/expanded", true).toBool();
-    m_maxConcurrentTasks = m_settings->value("performance/maxConcurrent", 2).toInt();
-    m_maxConcurrentSessions = qBound(1, m_settings->value("performance/maxConcurrentSessions", 1).toInt(), 4);
-    m_maxConcurrentFilesPerMessage = qBound(1, m_settings->value("performance/maxConcurrentFilesPerMessage", 2).toInt(), 4);
     m_defaultSavePath = m_settings->value("behavior/defaultSavePath", m_defaultSavePath).toString();
     m_autoSaveResult = m_settings->value("behavior/autoSave", false).toBool();
     m_volume = m_settings->value("audio/volume", 80).toInt();
+    m_autoReprocessShaderEnabled = m_settings->value("reprocess/shaderEnabled", true).toBool();
+    m_autoReprocessAIEnabled = m_settings->value("reprocess/aiEnabled", true).toBool();
+    m_lastExitClean = m_settings->value("system/lastExitClean", true).toBool();
 }
 
 void SettingsController::resetToDefaults()
@@ -309,25 +286,25 @@ void SettingsController::resetToDefaults()
     m_theme = "dark";
     m_language = "zh_CN";
     m_sidebarExpanded = true;
-    m_maxConcurrentTasks = 2;
-    m_maxConcurrentSessions = 1;
-    m_maxConcurrentFilesPerMessage = 2;
-
     QString picturesPath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
     m_defaultSavePath = QDir(picturesPath).filePath("EnhanceVision");
 
     m_autoSaveResult = false;
     m_volume = 80;
+    m_autoReprocessShaderEnabled = true;
+    m_autoReprocessAIEnabled = true;
+    m_lastExitClean = true;
 
     emit themeChanged();
     emit languageChanged();
     emit sidebarExpandedChanged();
-    emit maxConcurrentTasksChanged();
-    emit maxConcurrentSessionsChanged();
-    emit maxConcurrentFilesPerMessageChanged();
     emit defaultSavePathChanged();
     emit autoSaveResultChanged();
     emit volumeChanged();
+    emit autoReprocessShaderEnabledChanged();
+    emit autoReprocessAIEnabledChanged();
+    emit autoReprocessAllEnabledChanged();
+    emit lastExitCleanChanged();
     emit settingsChanged();
 }
 

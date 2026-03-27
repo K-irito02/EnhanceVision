@@ -15,6 +15,7 @@
 #include <QHash>
 #include <QSet>
 #include <QElapsedTimer>
+#include <QSharedPointer>
 #include <functional>
 #include "EnhanceVision/models/DataTypes.h"
 #include "EnhanceVision/models/ProcessingModel.h"
@@ -28,7 +29,6 @@ namespace EnhanceVision {
 class MessageModel;
 class TaskCoordinator;
 class ResourceManager;
-class ConcurrencyManager;
 class AIEnginePool;
 
 struct PendingExport {
@@ -55,7 +55,6 @@ class ProcessingController : public QObject
     Q_PROPERTY(QueueStatus queueStatus READ queueStatus NOTIFY queueStatusChanged)
     Q_PROPERTY(int queueSize READ queueSize NOTIFY queueSizeChanged)
     Q_PROPERTY(int currentProcessingCount READ currentProcessingCount NOTIFY currentProcessingCountChanged)
-    Q_PROPERTY(int maxConcurrentTasks READ maxConcurrentTasks NOTIFY maxConcurrentTasksChanged)
     Q_PROPERTY(int resourcePressure READ resourcePressure NOTIFY resourcePressureChanged)
     Q_PROPERTY(EnhanceVision::ModelRegistry* modelRegistry READ modelRegistry CONSTANT)
     Q_PROPERTY(EnhanceVision::AIEngine* aiEngine READ aiEngine CONSTANT)
@@ -72,7 +71,6 @@ public:
     QueueStatus queueStatus() const;
     int queueSize() const;
     int currentProcessingCount() const;
-    int maxConcurrentTasks() const;
     int resourcePressure() const;
     ModelRegistry* modelRegistry() const;
     AIEngine* aiEngine() const;
@@ -94,6 +92,8 @@ public:
     void autoRetryInterruptedFiles(const QString& messageId, const QString& sessionId);
     bool hasTasksForMessage(const QString& messageId) const;
     
+    Q_INVOKABLE void preloadModel(const QString& modelId);
+    
     void cancelMessageTasks(const QString& messageId);
     void cancelMessageFileTasks(const QString& messageId, const QString& fileId);
     void cancelSessionTasks(const QString& sessionId);
@@ -101,20 +101,16 @@ public:
     void pauseSessionTasks(const QString& sessionId);
     void resumeSessionTasks(const QString& sessionId);
     
+    void cancelVideoProcessing(const QString& taskId);
+    
     void onSessionChanging(const QString& oldSessionId, const QString& newSessionId);
     void setVisibleSessionUpdateFrozen(bool frozen);
     bool visibleSessionUpdateFrozen() const;
-    void setInteractionPriorityMode(bool enabled);
-    void setImportBurstMode(bool enabled);
-    
-    void setMaxConcurrentTasks(int max);
-    void setResourceQuota(const ResourceQuota& quota);
 
 signals:
     void queueStatusChanged();
     void queueSizeChanged();
     void currentProcessingCountChanged();
-    void maxConcurrentTasksChanged();
     void resourcePressureChanged();
     void taskAdded(const QString& taskId);
     void taskStarted(const QString& taskId);
@@ -151,12 +147,6 @@ private:
     QList<QueueTask> m_tasks;
     QThreadPool* m_threadPool;
     int m_currentProcessingCount;
-    int m_maxConcurrentTasks;
-    int m_baseMaxConcurrentTasks;
-    int m_interactionPriorityMaxConcurrentTasks;
-    int m_importBurstMaxConcurrentTasks;
-    bool m_interactionPriorityMode = false;
-    bool m_importBurstMode = false;
     int m_taskCounter;
     class FileController* m_fileController;
     MessageModel* m_messageModel;
@@ -166,7 +156,6 @@ private:
     
     TaskCoordinator* m_taskCoordinator;
     ResourceManager* m_resourceManager;
-    ConcurrencyManager* m_concurrencyManager;
     QHash<QString, TaskContext> m_taskContexts;
     int m_resourcePressure;
 
@@ -184,13 +173,16 @@ private:
     QTimer* m_memorySyncTimer = nullptr;
     QSet<QString> m_preloadedModelIds;
     QSet<QString> m_pendingPreloadModelIds;
+    QSet<QString> m_pendingModelLoadTaskIds;
     QHash<QString, QList<QMetaObject::Connection>> m_aiEngineConnections;
     QTimer* m_sessionSyncTimer;
     
+    QHash<QString, QSharedPointer<class VideoProcessor>> m_activeVideoProcessors;
+    
 
     QString generateTaskId();
-    void refreshEffectiveConcurrencyLimit();
-    void requestModelPreload(const QString& modelId);
+    void launchAiInference(AIEngine* engine, const QString& taskId, const QString& inputPath, 
+                           const QString& outputPath, const Message& message);
     void requestSessionSync();
     void requestSessionMemorySync(const QString& messageId = QString());
     void flushSessionMemorySync();

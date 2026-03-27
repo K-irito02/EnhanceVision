@@ -6,6 +6,7 @@
 
 #include "EnhanceVision/controllers/SessionController.h"
 #include "EnhanceVision/controllers/ProcessingController.h"
+#include "EnhanceVision/controllers/SettingsController.h"
 #include "EnhanceVision/models/MessageModel.h"
 #include "EnhanceVision/core/TaskCoordinator.h"
 #include "EnhanceVision/providers/ThumbnailProvider.h"
@@ -736,12 +737,11 @@ void SessionController::loadSessionMessages(const QString& sessionId)
 
     Session* session = getSession(sessionId);
     if (session) {
-        m_messageModel->setMessages(session->messages);
-        m_messageModel->setCurrentSessionId(session->id);
-
         if (m_processingController) {
+            auto* settings = SettingsController::instance();
             QStringList interruptedMessageIds;
             interruptedMessageIds.reserve(session->messages.size());
+            bool hasStatusChanges = false;
 
             for (const Message& msg : session->messages) {
                 if (m_autoRetriedMessageIds.contains(msg.id)) {
@@ -757,10 +757,40 @@ void SessionController::loadSessionMessages(const QString& sessionId)
                 }
 
                 if (hasInterruptedFiles) {
-                    m_autoRetriedMessageIds.insert(msg.id);
-                    interruptedMessageIds.append(msg.id);
+                    bool shouldAutoReprocess = false;
+                    
+                    if (msg.mode == ProcessingMode::Shader) {
+                        shouldAutoReprocess = settings->autoReprocessShaderEnabled();
+                    } else if (msg.mode == ProcessingMode::AIInference) {
+                        shouldAutoReprocess = settings->autoReprocessAIEnabled();
+                    }
+                    
+                    if (shouldAutoReprocess) {
+                        m_autoRetriedMessageIds.insert(msg.id);
+                        interruptedMessageIds.append(msg.id);
+                    } else {
+                        for (Message& m : session->messages) {
+                            if (m.id == msg.id) {
+                                for (MediaFile& file : m.mediaFiles) {
+                                    if (file.status == ProcessingStatus::Pending || 
+                                        file.status == ProcessingStatus::Processing) {
+                                        file.status = ProcessingStatus::Failed;
+                                        hasStatusChanges = true;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
                 }
             }
+
+            if (hasStatusChanges) {
+                saveSessions();
+            }
+
+            m_messageModel->setMessages(session->messages);
+            m_messageModel->setCurrentSessionId(session->id);
 
             if (!interruptedMessageIds.isEmpty()) {
                 QTimer::singleShot(0, this, [this, sessionId, interruptedMessageIds]() {
@@ -773,6 +803,9 @@ void SessionController::loadSessionMessages(const QString& sessionId)
                     }
                 });
             }
+        } else {
+            m_messageModel->setMessages(session->messages);
+            m_messageModel->setCurrentSessionId(session->id);
         }
     }
 }
@@ -866,6 +899,15 @@ QJsonObject SessionController::messageToJson(const Message& message) const
     json["parameters"] = parametersToJson(message.parameters);
     json["shaderParams"] = shaderParamsToJson(message.shaderParams);
     
+    // 保存 AI 参数
+    QJsonObject aiParamsJson;
+    aiParamsJson["modelId"] = message.aiParams.modelId;
+    aiParamsJson["category"] = static_cast<int>(message.aiParams.category);
+    aiParamsJson["useGpu"] = message.aiParams.useGpu;
+    aiParamsJson["tileSize"] = message.aiParams.tileSize;
+    aiParamsJson["modelParams"] = QJsonObject::fromVariantMap(message.aiParams.modelParams);
+    json["aiParams"] = aiParamsJson;
+    
     return json;
 }
 
@@ -888,6 +930,16 @@ Message SessionController::jsonToMessage(const QJsonObject& json) const
     
     message.parameters = jsonToParameters(json["parameters"].toObject());
     message.shaderParams = jsonToShaderParams(json["shaderParams"].toObject());
+    
+    // 恢复 AI 参数
+    if (json.contains("aiParams")) {
+        QJsonObject aiParamsJson = json["aiParams"].toObject();
+        message.aiParams.modelId = aiParamsJson["modelId"].toString();
+        message.aiParams.category = static_cast<ModelCategory>(aiParamsJson["category"].toInt(0));
+        message.aiParams.useGpu = aiParamsJson["useGpu"].toBool(true);
+        message.aiParams.tileSize = aiParamsJson["tileSize"].toInt(0);
+        message.aiParams.modelParams = aiParamsJson["modelParams"].toObject().toVariantMap();
+    }
     
     if (message.status == ProcessingStatus::Processing) {
         message.status = ProcessingStatus::Pending;
@@ -1105,6 +1157,156 @@ void SessionController::rebuildSessionMessageIndex()
         for (const Message& message : session.messages) {
             m_messageToSessionId[message.id] = session.id;
         }
+    }
+}
+
+void SessionController::checkAndAutoRetryAllInterruptedTasks()
+{
+    if (!m_processingController) {
+        qWarning() << "[SessionController] checkAndAutoRetryAllInterruptedTasks: ProcessingController not set";
+        return;
+    }
+
+    auto* settings = SettingsController::instance();
+    if (!settings) {
+        qWarning() << "[SessionController] checkAndAutoRetryAllInterruptedTasks: SettingsController not available";
+        return;
+    }
+
+    QStringList interruptedMessageIds;
+    QHash<QString, QString> messageToSession;
+    bool hasStatusChanges = false;
+
+    QList<Session>& sessions = m_sessionModel->sessionsRef();
+    for (int sessionIdx = 0; sessionIdx < sessions.size(); ++sessionIdx) {
+        Session& session = sessions[sessionIdx];
+        
+        for (Message& msg : session.messages) {
+            if (m_autoRetriedMessageIds.contains(msg.id)) {
+                continue;
+            }
+
+            bool hasInterruptedFiles = false;
+            for (const MediaFile& file : msg.mediaFiles) {
+                if (file.status == ProcessingStatus::Pending || file.status == ProcessingStatus::Processing) {
+                    hasInterruptedFiles = true;
+                    break;
+                }
+            }
+
+            if (hasInterruptedFiles) {
+                bool shouldAutoReprocess = false;
+                
+                if (msg.mode == ProcessingMode::Shader) {
+                    shouldAutoReprocess = settings->autoReprocessShaderEnabled();
+                } else if (msg.mode == ProcessingMode::AIInference) {
+                    shouldAutoReprocess = settings->autoReprocessAIEnabled();
+                }
+                
+                if (shouldAutoReprocess) {
+                    m_autoRetriedMessageIds.insert(msg.id);
+                    interruptedMessageIds.append(msg.id);
+                    messageToSession[msg.id] = session.id;
+                    qInfo() << "[SessionController] Found interrupted task for auto-retry:"
+                            << "session:" << session.id
+                            << "message:" << msg.id
+                            << "mode:" << static_cast<int>(msg.mode);
+                } else {
+                    for (MediaFile& file : msg.mediaFiles) {
+                        if (file.status == ProcessingStatus::Pending || 
+                            file.status == ProcessingStatus::Processing) {
+                            file.status = ProcessingStatus::Failed;
+                            hasStatusChanges = true;
+                        }
+                    }
+                    
+                    int failedCount = 0;
+                    for (const MediaFile& f : msg.mediaFiles) {
+                        if (f.status == ProcessingStatus::Failed) failedCount++;
+                    }
+                    if (failedCount > 0) {
+                        msg.status = ProcessingStatus::Failed;
+                    }
+                }
+            }
+        }
+    }
+
+    if (hasStatusChanges) {
+        saveSessionsImmediately();
+    }
+
+    if (!interruptedMessageIds.isEmpty()) {
+        qInfo() << "[SessionController] Auto-retrying" << interruptedMessageIds.size() << "interrupted tasks";
+        
+        QTimer::singleShot(500, this, [this, interruptedMessageIds, messageToSession]() {
+            if (!m_processingController) {
+                return;
+            }
+
+            for (const QString& messageId : interruptedMessageIds) {
+                const QString sessionId = messageToSession.value(messageId);
+                m_processingController->autoRetryInterruptedFiles(messageId, sessionId);
+            }
+        });
+    }
+}
+
+void SessionController::saveSessionsImmediately()
+{
+    if (m_saveInProgress) {
+        m_saveQueued = true;
+        return;
+    }
+
+    if (m_saveTimer) {
+        m_saveTimer->stop();
+    }
+    m_hasPendingSave = false;
+
+    m_saveInProgress = true;
+
+    ensureDataDirectory();
+
+    QString filePath = sessionsFilePath();
+
+    QJsonObject root;
+    root["version"] = 1;
+    root["lastActiveSessionId"] = m_sessionModel->activeSessionId();
+    root["sessionCounter"] = m_sessionCounter;
+
+    QJsonArray sessionsArray;
+    for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
+        Session session = m_sessionModel->sessionAt(i);
+        sessionsArray.append(sessionToJson(session));
+    }
+    root["sessions"] = sessionsArray;
+
+    const QString tempPath = filePath + ".tmp";
+
+    QFile file(tempPath);
+    if (file.open(QIODevice::WriteOnly)) {
+        QJsonDocument doc(root);
+        file.write(doc.toJson(QJsonDocument::Indented));
+        file.close();
+
+        QFile oldFile(filePath);
+        if (oldFile.exists()) {
+            oldFile.remove();
+        }
+
+        if (!file.rename(filePath)) {
+            qWarning() << "[SessionController] saveSessionsImmediately: Failed to rename temp file";
+        }
+    } else {
+        qWarning() << "[SessionController] saveSessionsImmediately: Failed to open temp file";
+    }
+
+    m_saveInProgress = false;
+
+    if (m_saveQueued) {
+        m_saveQueued = false;
+        QTimer::singleShot(100, this, &SessionController::saveSessions);
     }
 }
 

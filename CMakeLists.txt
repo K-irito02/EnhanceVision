@@ -135,14 +135,7 @@ qt_add_executable(EnhanceVision
     src/core/FrameCache.cpp
     src/core/TaskCoordinator.cpp
     src/core/ResourceManager.cpp
-    src/core/TaskTimeoutWatchdog.cpp
-    src/core/TaskRetryPolicy.cpp
-    src/core/PriorityTaskQueue.cpp
-    src/core/PriorityAdjuster.cpp
-    src/core/DeadlockDetector.cpp
-    src/core/ConcurrencyManager.cpp
     src/core/AIEnginePool.cpp
-    src/core/ConcurrencyMonitor.cpp
     src/core/LifecycleSupervisor.cpp
     src/core/CancellableTaskToken.cpp
     src/models/SessionModel.cpp
@@ -170,14 +163,7 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/core/FrameCache.h
     include/EnhanceVision/core/TaskCoordinator.h
     include/EnhanceVision/core/ResourceManager.h
-    include/EnhanceVision/core/TaskTimeoutWatchdog.h
-    include/EnhanceVision/core/TaskRetryPolicy.h
-    include/EnhanceVision/core/PriorityTaskQueue.h
-    include/EnhanceVision/core/PriorityAdjuster.h
-    include/EnhanceVision/core/DeadlockDetector.h
-    include/EnhanceVision/core/ConcurrencyManager.h
     include/EnhanceVision/core/AIEnginePool.h
-    include/EnhanceVision/core/ConcurrencyMonitor.h
     include/EnhanceVision/core/LifecycleSupervisor.h
     include/EnhanceVision/core/CancellableTaskToken.h
     include/EnhanceVision/models/SessionModel.h
@@ -526,43 +512,3 @@ find_package(Qt6 REQUIRED COMPONENTS Test)
 # 注释掉缺失的测试命令
 # add_test(NAME TestShaderConsistency COMMAND test_shader_consistency)
 
-# 并发架构单元测试
-add_executable(test_concurrency
-    tests/cpp/test_concurrency.cpp
-    src/core/PriorityTaskQueue.cpp
-    src/core/PriorityAdjuster.cpp
-    src/core/DeadlockDetector.cpp
-    src/core/TaskTimeoutWatchdog.cpp
-    src/core/TaskRetryPolicy.cpp
-    src/core/ConcurrencyManager.cpp
-    include/EnhanceVision/core/PriorityTaskQueue.h
-    include/EnhanceVision/core/PriorityAdjuster.h
-    include/EnhanceVision/core/DeadlockDetector.h
-    include/EnhanceVision/core/TaskTimeoutWatchdog.h
-    include/EnhanceVision/core/TaskRetryPolicy.h
-    include/EnhanceVision/core/ConcurrencyManager.h
-)
-
-set_target_properties(test_concurrency PROPERTIES AUTOMOC ON)
-
-target_link_libraries(test_concurrency PRIVATE
-    Qt6::Core
-    Qt6::Gui
-    Qt6::Test
-)
-
-target_include_directories(test_concurrency PRIVATE
-    ${CMAKE_SOURCE_DIR}/include
-)
-
-add_test(NAME TestConcurrency COMMAND test_concurrency)
-
-# 测试目标 DLL 部署
-if(WIN32 AND TARGET EnhanceVision)
-    find_program(WINDEPLOYQT windeployqt PATHS "${Qt6_DIR}/../../../bin")
-    if(WINDEPLOYQT)
-        add_custom_command(TARGET test_concurrency POST_BUILD
-            COMMAND "${WINDEPLOYQT}" "$<TARGET_FILE:test_concurrency>"
-        )
-    endif()
-endif()

@@ -72,6 +72,9 @@ private:
 
 private slots:
     void onLanguageChanged();
+
+signals:
+    void crashRecoveryNeeded();
 };
 
 } // namespace EnhanceVision

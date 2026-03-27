@@ -1,10 +1,10 @@
 # Build directories
 build/
 cmake-build-*/
-third_party/*/build/
-third_party/
-third_party/ncnn/build/
-tests/*/build/
+# third_party/*/build/
+# third_party/
+# third_party/ncnn/build/
+# tests/*/build/
 
 # CMake
 CMakeFiles/
@@ -65,9 +65,9 @@ ShaderStackTrace*
 .qt/
 .qmake.files
 
-Logs
-logs/
-*.log
+# Logs
+# logs/
+# *.log
 
 # Temporary files
 *.tmp

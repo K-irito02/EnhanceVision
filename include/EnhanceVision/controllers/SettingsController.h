@@ -22,12 +22,14 @@ class SettingsController : public QObject
     Q_PROPERTY(QString theme READ theme WRITE setTheme NOTIFY themeChanged)
     Q_PROPERTY(QString language READ language WRITE setLanguage NOTIFY languageChanged)
     Q_PROPERTY(bool sidebarExpanded READ sidebarExpanded WRITE setSidebarExpanded NOTIFY sidebarExpandedChanged)
-    Q_PROPERTY(int maxConcurrentTasks READ maxConcurrentTasks WRITE setMaxConcurrentTasks NOTIFY maxConcurrentTasksChanged)
-    Q_PROPERTY(int maxConcurrentSessions READ maxConcurrentSessions WRITE setMaxConcurrentSessions NOTIFY maxConcurrentSessionsChanged)
-    Q_PROPERTY(int maxConcurrentFilesPerMessage READ maxConcurrentFilesPerMessage WRITE setMaxConcurrentFilesPerMessage NOTIFY maxConcurrentFilesPerMessageChanged)
     Q_PROPERTY(QString defaultSavePath READ defaultSavePath WRITE setDefaultSavePath NOTIFY defaultSavePathChanged)
     Q_PROPERTY(bool autoSaveResult READ autoSaveResult WRITE setAutoSaveResult NOTIFY autoSaveResultChanged)
     Q_PROPERTY(int volume READ volume WRITE setVolume NOTIFY volumeChanged)
+    Q_PROPERTY(bool autoReprocessShaderEnabled READ autoReprocessShaderEnabled WRITE setAutoReprocessShaderEnabled NOTIFY autoReprocessShaderEnabledChanged)
+    Q_PROPERTY(bool autoReprocessAIEnabled READ autoReprocessAIEnabled WRITE setAutoReprocessAIEnabled NOTIFY autoReprocessAIEnabledChanged)
+    Q_PROPERTY(bool autoReprocessAllEnabled READ autoReprocessAllEnabled WRITE setAutoReprocessAllEnabled NOTIFY autoReprocessAllEnabledChanged)
+    Q_PROPERTY(bool lastExitClean READ lastExitClean NOTIFY lastExitCleanChanged)
+    Q_PROPERTY(bool crashDetectedOnStartup READ crashDetectedOnStartup NOTIFY crashDetectedOnStartupChanged)
 
 public:
     /**
@@ -51,17 +53,6 @@ public:
     bool sidebarExpanded() const;
     void setSidebarExpanded(bool expanded);
 
-    int maxConcurrentTasks() const;
-    void setMaxConcurrentTasks(int count);
-
-    int maxConcurrentSessions() const;
-    void setMaxConcurrentSessions(int count);
-
-    int maxConcurrentFilesPerMessage() const;
-    void setMaxConcurrentFilesPerMessage(int count);
-
-    Q_INVOKABLE QString devicePerformanceHint(int sessions, int filesPerMsg) const;
-
     QString defaultSavePath() const;
     void setDefaultSavePath(const QString& path);
 
@@ -70,6 +61,22 @@ public:
 
     int volume() const;
     void setVolume(int volume);
+
+    bool autoReprocessShaderEnabled() const;
+    void setAutoReprocessShaderEnabled(bool enabled);
+
+    bool autoReprocessAIEnabled() const;
+    void setAutoReprocessAIEnabled(bool enabled);
+
+    bool autoReprocessAllEnabled() const;
+    void setAutoReprocessAllEnabled(bool enabled);
+
+    bool lastExitClean() const;
+    bool crashDetectedOnStartup() const;
+
+    void markAppRunning();
+    void markAppExiting();
+    bool checkAndHandleCrashRecovery();
 
     // Q_INVOKABLE 方法
     Q_INVOKABLE void saveSettings();
@@ -82,13 +89,16 @@ signals:
     void themeChanged();
     void languageChanged();
     void sidebarExpandedChanged();
-    void maxConcurrentTasksChanged();
-    void maxConcurrentSessionsChanged();
-    void maxConcurrentFilesPerMessageChanged();
     void defaultSavePathChanged();
     void autoSaveResultChanged();
     void volumeChanged();
     void settingsChanged();
+    void autoReprocessShaderEnabledChanged();
+    void autoReprocessAIEnabledChanged();
+    void autoReprocessAllEnabledChanged();
+    void lastExitCleanChanged();
+    void crashDetected();
+    void crashDetectedOnStartupChanged();
 
 private:
     explicit SettingsController(QObject* parent = nullptr);
@@ -104,12 +114,13 @@ private:
     QString m_theme;
     QString m_language;
     bool m_sidebarExpanded;
-    int m_maxConcurrentTasks;
-    int m_maxConcurrentSessions;
-    int m_maxConcurrentFilesPerMessage;
     QString m_defaultSavePath;
     bool m_autoSaveResult;
     int m_volume;
+    bool m_autoReprocessShaderEnabled;
+    bool m_autoReprocessAIEnabled;
+    bool m_lastExitClean;
+    bool m_crashDetectedOnStartup;
 };
 
 } // namespace EnhanceVision

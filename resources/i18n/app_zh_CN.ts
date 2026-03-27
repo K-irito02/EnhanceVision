@@ -571,6 +571,10 @@
         <translation ></translation>
     </message>
     <message>
+        <source>删除待处理任务</source>
+        <translation>删除待处理任务</translation>
+    </message>
+    <message>
         <location filename="../../qml/components/MessageItem.qml" line="260"/>
         <source>等待处理...</source>
         <translation ></translation>
@@ -1086,6 +1090,44 @@
         <location filename="../../qml/pages/SettingsPage.qml" line="230"/>
         <source>高性能图像与视频增强工具</source>
         <translation >高性能图像与视频增强工具</translation>
+    </message>
+    <message>
+        <source>处理恢复</source>
+        <translation>处理恢复</translation>
+    </message>
+    <message>
+        <source>应用启动时自动恢复未完成的处理任务</source>
+        <translation>应用启动时自动恢复未完成的处理任务</translation>
+    </message>
+    <message>
+        <source>全部开启</source>
+        <translation>全部开启</translation>
+    </message>
+    <message>
+        <source>Shader 模式</source>
+        <translation>Shader 模式</translation>
+    </message>
+    <message>
+        <source>AI 推理模式</source>
+        <translation>AI 推理模式</translation>
+    </message>
+    <message>
+        <source>关闭后，应用中途关闭时的处理任务不会自动恢复，您可以手动点击"重新处理"按钮进行处理</source>
+        <translation>关闭后，应用中途关闭时的处理任务不会自动恢复，您可以手动点击"重新处理"按钮进行处理</translation>
+    </message>
+    <message>
+        <source>检测到上次应用异常退出</source>
+        <translation>检测到上次应用异常退出</translation>
+    </message>
+    <message>
+        <source>为确保稳定性，已自动关闭"自动重新处理"功能。
+您可以在设置中重新开启此功能。</source>
+        <translation>为确保稳定性，已自动关闭"自动重新处理"功能。
+您可以在设置中重新开启此功能。</translation>
+    </message>
+    <message>
+        <source>知道了</source>
+        <translation>知道了</translation>
     </message>
 </context>
 <context>

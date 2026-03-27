@@ -84,14 +84,17 @@ int ResourceManager::activeTaskCount() const {
 }
 
 bool ResourceManager::canStartNewTask(qint64 estimatedMemoryMB, qint64 estimatedGpuMemoryMB) const {
-    if (activeTaskCount() >= m_quota.maxConcurrentTasks) {
+    // 线性任务队列：一次只处理一个任务
+    if (activeTaskCount() >= 1) {
         return false;
     }
     
+    // 检查内存是否充足
     if (usedMemoryMB() + estimatedMemoryMB > m_quota.maxMemoryMB) {
         return false;
     }
     
+    // 检查 GPU 显存是否充足
     if (usedGpuMemoryMB() + estimatedGpuMemoryMB > m_quota.maxGpuMemoryMB) {
         return false;
     }
@@ -100,21 +103,8 @@ bool ResourceManager::canStartNewTask(qint64 estimatedMemoryMB, qint64 estimated
 }
 
 int ResourceManager::recommendedConcurrency() const {
-    qint64 availableMemory = m_quota.maxMemoryMB - usedMemoryMB();
-    qint64 avgTaskMemory = 256;
-    
-    if (activeTaskCount() > 0) {
-        avgTaskMemory = usedMemoryMB() / activeTaskCount();
-    }
-    
-    if (avgTaskMemory <= 0) {
-        avgTaskMemory = 256;
-    }
-    
-    int byMemory = static_cast<int>(availableMemory / avgTaskMemory);
-    int byQuota = m_quota.maxConcurrentTasks - activeTaskCount();
-    
-    return qMax(0, qMin(byMemory, byQuota));
+    // 线性任务队列：始终返回 1
+    return 1;
 }
 
 ResourcePressure ResourceManager::pressureLevel() const {

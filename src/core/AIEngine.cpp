@@ -236,6 +236,19 @@ bool AIEngine::loadModel(const QString &modelId)
     return true;
 }
 
+void AIEngine::loadModelAsync(const QString &modelId)
+{
+    QtConcurrent::run([this, modelId]() {
+        qInfo() << "[AIEngine][loadModelAsync] starting async load for model:" << modelId;
+        bool success = loadModel(modelId);
+        QString error;
+        if (!success) {
+            error = tr("模型加载失败: %1").arg(modelId);
+        }
+        emit modelLoadCompleted(success, modelId, error);
+    });
+}
+
 void AIEngine::unloadModel()
 {
     QMutexLocker locker(&m_mutex);
@@ -277,10 +290,6 @@ QImage AIEngine::process(const QImage &input)
         emitError(tr("输入图像尺寸无效: %1x%2").arg(input.width()).arg(input.height()));
         return QImage();
     }
-
-    setProcessing(true);
-    setProgress(0.0);
-    m_cancelRequested = false;
 
     // 快照当前模型副本（避免推理过程中 loadModel 修改 m_currentModel 导致数据竞争）
     ModelInfo currentModel;
@@ -451,13 +460,12 @@ QImage AIEngine::process(const QImage &input)
 
 void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
 {
-    // 检查是否已有推理在进行
-    if (!m_inferenceMutex.tryLock()) {
+    // 检查是否已有推理在进行（使用 m_isProcessing 标志，避免锁竞争问题）
+    if (m_isProcessing.load()) {
         emit processError(tr("已有推理任务正在进行"));
         emit processFileCompleted(false, QString(), tr("已有推理任务正在进行"));
         return;
     }
-    m_inferenceMutex.unlock();
 
     // ── 在派发到工作线程之前，在主线程快照模型和参数 ─────────────────────────
     // 这样工作线程就不需要访问任何需要主线程保护的对象
@@ -473,6 +481,11 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
         QMutexLocker paramLocker(&m_paramsMutex);
         snapshotParams = getEffectiveParamsLocked(snapshotModel);
     }
+
+    // 标记推理开始（在工作线程启动前设置，避免竞争）
+    setProcessing(true);
+    setProgress(0.0);
+    m_cancelRequested = false;
 
     QtConcurrent::run([this, inputPath, outputPath, snapshotParams]() {
         QElapsedTimer perfTimer;
@@ -490,6 +503,7 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
         if (inputImage.isNull()) {
             QString error = tr("无法读取图像: %1").arg(inputPath);
             qWarning() << "[AIEngine][processAsync]" << error;
+            setProcessing(false);
             emit processError(error);
             emit processFileCompleted(false, QString(), error);
             return;
@@ -498,6 +512,7 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
         // 格式转换保障：确保输入为支持格式
         if (inputImage.format() == QImage::Format_Invalid) {
             QString error = tr("图像格式无效: %1").arg(inputPath);
+            setProcessing(false);
             emit processError(error);
             emit processFileCompleted(false, QString(), error);
             return;
@@ -519,6 +534,7 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
         disconnect(errorConn);
 
         if (m_cancelRequested) {
+            setProcessing(false);
             emit processFileCompleted(false, QString(), tr("推理已取消"));
             return;
         }
@@ -526,6 +542,7 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
         if (result.isNull()) {
             QString error = lastError.isEmpty() ? tr("推理失败，请检查模型兼容性和输入图像") : lastError;
             qWarning() << "[AIEngine][processAsync] inference failed:" << error << "input:" << inputPath;
+            setProcessing(false);
             emit processFileCompleted(false, QString(), error);
             return;
         }
@@ -537,6 +554,7 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
 
         if (!result.save(outputPath)) {
             QString error = tr("无法保存结果: %1").arg(outputPath);
+            setProcessing(false);
             emit processError(error);
             emit processFileCompleted(false, QString(), error);
             return;
@@ -557,6 +575,7 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
                     << "input:" << inputPath;
         }
 
+        setProcessing(false);
         emit processFileCompleted(true, outputPath, QString());
     });
 }
@@ -564,13 +583,19 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
 void AIEngine::cancelProcess()
 {
     m_cancelRequested = true;
+    // 立即重置 m_isProcessing 标志，允许新任务启动
+    // 异步任务会在检查点检测到 m_cancelRequested 并提前退出
+    setProcessing(false);
+    qInfo() << "[AIEngine] cancelProcess: m_cancelRequested set, m_isProcessing reset";
 }
 
 void AIEngine::forceCancel()
 {
     m_forceCancelled = true;
     m_cancelRequested = true;
-    qWarning() << "[AIEngine] Force cancel requested";
+    // 立即重置 m_isProcessing 标志，允许新任务启动
+    setProcessing(false);
+    qWarning() << "[AIEngine] Force cancel requested, m_isProcessing reset";
 }
 
 bool AIEngine::isForceCancelled() const

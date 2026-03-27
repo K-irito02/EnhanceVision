@@ -74,6 +74,7 @@ Rectangle {
     property int processingFileCount: 0
     property bool hasFailedFiles: failedFileCount > 0
     property bool allFilesSettled: totalFileCount > 0 && pendingFileCount === 0 && processingFileCount === 0
+    property bool allFilesPending: totalFileCount > 0 && pendingFileCount === totalFileCount
     property bool failedTipDismissed: false
     
     signal cancelClicked()
@@ -313,7 +314,7 @@ Rectangle {
             
             Row {
                 spacing: 2
-                visible: root.status === 2 || root.status === 3 || root.successFileCount > 0 || root.hasFailedFiles
+                visible: root.status === 2 || root.status === 3 || root.successFileCount > 0 || root.hasFailedFiles || root.allFilesPending
                 
                 IconButton {
                     iconName: "refresh-cw"; iconSize: 14; btnSize: 26
@@ -334,8 +335,8 @@ Rectangle {
                 IconButton {
                     iconName: "trash"; iconSize: 14; btnSize: 26
                     danger: true
-                    tooltip: qsTr("删除此消息")
-                    visible: root.totalFileCount > 0
+                    tooltip: root.allFilesPending ? qsTr("删除待处理任务") : qsTr("删除此消息")
+                    visible: root.totalFileCount > 0 || root.allFilesPending
                     onClicked: root.deleteClicked()
                 }
             }

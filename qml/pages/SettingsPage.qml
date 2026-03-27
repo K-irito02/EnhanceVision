@@ -209,6 +209,133 @@ Rectangle {
 
                 Rectangle {
                     Layout.fillWidth: true
+                    implicitHeight: reprocessCol.implicitHeight + 32
+                    color: Theme.colors.card
+                    border.width: 1
+                    border.color: Theme.colors.cardBorder
+                    radius: Theme.radius.lg
+
+                    ColumnLayout {
+                        id: reprocessCol
+                        anchors.fill: parent
+                        anchors.margins: 16
+                        spacing: 14
+
+                        RowLayout {
+                            spacing: 8
+                            ColoredIcon { iconSize: 18; source: Theme.icon("refresh-cw"); color: Theme.colors.icon }
+                            Text { text: qsTr("处理恢复"); color: Theme.colors.foreground; font.pixelSize: 15; font.weight: Font.DemiBold }
+                        }
+
+                        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.colors.border }
+
+                        Text { 
+                            text: qsTr("应用启动时自动恢复未完成的处理任务")
+                            color: Theme.colors.mutedForeground
+                            font.pixelSize: 12
+                            wrapMode: Text.Wrap
+                            Layout.fillWidth: true
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 12
+                            Text { text: qsTr("全部开启"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.minimumWidth: 80 }
+                            Item { Layout.fillWidth: true }
+                            Switch {
+                                id: allSwitch
+                                property bool updating: false
+                                checked: SettingsController.autoReprocessAllEnabled
+                                onCheckedChanged: {
+                                    if (!updating && pressed) {
+                                        SettingsController.autoReprocessAllEnabled = checked
+                                    }
+                                }
+                                
+                                Connections {
+                                    target: SettingsController
+                                    function onAutoReprocessAllEnabledChanged() {
+                                        allSwitch.updating = true
+                                        allSwitch.checked = SettingsController.autoReprocessAllEnabled
+                                        allSwitch.updating = false
+                                    }
+                                }
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 12
+                            Text { text: qsTr("Shader 模式"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.minimumWidth: 80 }
+                            Item { Layout.fillWidth: true }
+                            Switch {
+                                id: shaderSwitch
+                                property bool updating: false
+                                checked: SettingsController.autoReprocessShaderEnabled
+                                onCheckedChanged: {
+                                    if (!updating && pressed) {
+                                        SettingsController.autoReprocessShaderEnabled = checked
+                                    }
+                                }
+                                
+                                Connections {
+                                    target: SettingsController
+                                    function onAutoReprocessShaderEnabledChanged() {
+                                        shaderSwitch.updating = true
+                                        shaderSwitch.checked = SettingsController.autoReprocessShaderEnabled
+                                        shaderSwitch.updating = false
+                                    }
+                                }
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 12
+                            Text { text: qsTr("AI 推理模式"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.minimumWidth: 80 }
+                            Item { Layout.fillWidth: true }
+                            Switch {
+                                id: aiSwitch
+                                property bool updating: false
+                                checked: SettingsController.autoReprocessAIEnabled
+                                onCheckedChanged: {
+                                    if (!updating && pressed) {
+                                        SettingsController.autoReprocessAIEnabled = checked
+                                    }
+                                }
+                                
+                                Connections {
+                                    target: SettingsController
+                                    function onAutoReprocessAIEnabledChanged() {
+                                        aiSwitch.updating = true
+                                        aiSwitch.checked = SettingsController.autoReprocessAIEnabled
+                                        aiSwitch.updating = false
+                                    }
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: tipText.implicitHeight + 16
+                            radius: Theme.radius.sm
+                            color: Qt.rgba(Theme.colors.primary.r, Theme.colors.primary.g, Theme.colors.primary.b, 0.1)
+                            
+                            Text {
+                                id: tipText
+                                anchors.fill: parent
+                                anchors.margins: 8
+                                text: qsTr("关闭后，应用中途关闭时的处理任务不会自动恢复，您可以手动点击\"重新处理\"按钮进行处理")
+                                color: Theme.colors.primary
+                                font.pixelSize: 11
+                                wrapMode: Text.Wrap
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
                     implicitHeight: audioCol.implicitHeight + 32
                     color: Theme.colors.card
                     border.width: 1
@@ -272,80 +399,10 @@ Rectangle {
                         RowLayout {
                             spacing: 8
                             ColoredIcon { iconSize: 18; source: Theme.icon("cpu"); color: Theme.colors.icon }
-                            Text { text: qsTr("性能"); color: Theme.colors.foreground; font.pixelSize: 15; font.weight: Font.DemiBold }
+                            Text { text: qsTr("缓存"); color: Theme.colors.foreground; font.pixelSize: 15; font.weight: Font.DemiBold }
                         }
 
                         Rectangle { Layout.fillWidth: true; height: 1; color: Theme.colors.border }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 12
-                            Text { text: qsTr("同时处理会话数"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 140 }
-                            ComboBox {
-                                id: sessionCombo
-                                model: ["1", "2", "3", "4"]
-                                currentIndex: SettingsController.maxConcurrentSessions - 1
-                                onCurrentIndexChanged: SettingsController.maxConcurrentSessions = currentIndex + 1
-                            }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 12
-                            Text { text: qsTr("每消息并发文件数"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 140 }
-                            ComboBox {
-                                id: filesCombo
-                                model: ["1", "2", "3", "4"]
-                                currentIndex: SettingsController.maxConcurrentFilesPerMessage - 1
-                                onCurrentIndexChanged: SettingsController.maxConcurrentFilesPerMessage = currentIndex + 1
-                            }
-                        }
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            implicitHeight: hintText.implicitHeight + 16
-                            radius: Theme.radius.sm
-                            
-                            property int refreshCounter: 0
-                            
-                            // 每2秒刷新一次设备状态
-                            Timer {
-                                id: deviceRefreshTimer
-                                interval: 2000
-                                running: true
-                                repeat: true
-                                onTriggered: parent.refreshCounter++
-                            }
-                            
-                            color: {
-                                var total = (sessionCombo.currentIndex + 1) * (filesCombo.currentIndex + 1)
-                                if (total <= 2) return Qt.rgba(Theme.colors.success.r, Theme.colors.success.g, Theme.colors.success.b, 0.1)
-                                if (total <= 4) return Qt.rgba(Theme.colors.warning.r, Theme.colors.warning.g, Theme.colors.warning.b, 0.1)
-                                return Qt.rgba(Theme.colors.destructive.r, Theme.colors.destructive.g, Theme.colors.destructive.b, 0.1)
-                            }
-                            border.width: 1
-                            border.color: {
-                                var total = (sessionCombo.currentIndex + 1) * (filesCombo.currentIndex + 1)
-                                if (total <= 2) return Qt.rgba(Theme.colors.success.r, Theme.colors.success.g, Theme.colors.success.b, 0.3)
-                                if (total <= 4) return Qt.rgba(Theme.colors.warning.r, Theme.colors.warning.g, Theme.colors.warning.b, 0.3)
-                                return Qt.rgba(Theme.colors.destructive.r, Theme.colors.destructive.g, Theme.colors.destructive.b, 0.3)
-                            }
-
-                            Text {
-                                id: hintText
-                                anchors.fill: parent
-                                anchors.margins: 8
-                                // refreshCounter 变化触发重新计算
-                                text: {
-                                    var _ = parent.refreshCounter  // 依赖刷新计数器
-                                    return SettingsController.devicePerformanceHint(sessionCombo.currentIndex + 1, filesCombo.currentIndex + 1)
-                                         + qsTr("\n有效并发数：%1").arg((sessionCombo.currentIndex + 1) * (filesCombo.currentIndex + 1))
-                                }
-                                color: Theme.colors.foreground
-                                font.pixelSize: 12
-                                wrapMode: Text.Wrap
-                            }
-                        }
 
                         RowLayout {
                             Layout.fillWidth: true
