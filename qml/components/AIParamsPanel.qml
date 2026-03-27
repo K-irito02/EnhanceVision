@@ -242,7 +242,7 @@ ColumnLayout {
                 if (!engine.gpuAvailable) return qsTr("不可用")
                 return root.useGpu ? qsTr("Vulkan") : qsTr("CPU 模式")
             }
-            color: (!engine || !engine.gpuAvailable) ? "#e74c3c"
+            color: (!engine || !engine.gpuAvailable) ? Theme.colors.destructive
                    : root.useGpu ? Theme.colors.primary : Theme.colors.mutedForeground
         }
 
@@ -310,7 +310,7 @@ ColumnLayout {
                 Text {
                     id: _tileModeLbl; anchors.centerIn: parent
                     text: root.autoTileMode ? qsTr("自动") : qsTr("手动")
-                    color: root.autoTileMode ? "#ffffff" : Theme.colors.foreground; font.pixelSize: 10
+                    color: root.autoTileMode ? Theme.colors.textOnPrimary : Theme.colors.foreground; font.pixelSize: 10
                 }
                 MouseArea {
                     anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -530,13 +530,13 @@ ColumnLayout {
         property bool   isWarning: false
         Layout.fillWidth: true
         height: _bannerTxt.implicitHeight + 12; radius: Theme.radius.sm
-        color: isWarning ? "#1ae74c3c" : Theme.colors.primarySubtle
-        border.width: 1; border.color: isWarning ? "#e74c3c" : Theme.colors.primary
+        color: isWarning ? Theme.colors.warningSubtleBg : Theme.colors.primarySubtle
+        border.width: 1; border.color: isWarning ? Theme.colors.warning : Theme.colors.primary
         Text {
             id: _bannerTxt
             anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 8 }
             text: parent.text; wrapMode: Text.WordWrap; font.pixelSize: 10
-            color: parent.isWarning ? "#e74c3c" : Theme.colors.primary
+            color: parent.isWarning ? Theme.colors.warning : Theme.colors.primary
         }
     }
 } 

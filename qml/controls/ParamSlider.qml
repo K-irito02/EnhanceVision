@@ -52,7 +52,7 @@ ColumnLayout {
                 text: "−"
                 font.pixelSize: 14
                 font.weight: Font.Bold
-                color: minusMouse.pressed ? "#FFFFFF" : Theme.colors.primary
+                color: minusMouse.pressed ? Theme.colors.textOnPrimary : Theme.colors.primary
             }
 
             MouseArea {
@@ -90,7 +90,7 @@ ColumnLayout {
                 text: "+"
                 font.pixelSize: 14
                 font.weight: Font.Bold
-                color: plusMouse.pressed ? "#FFFFFF" : Theme.colors.primary
+                color: plusMouse.pressed ? Theme.colors.textOnPrimary : Theme.colors.primary
             }
 
             MouseArea {
@@ -203,8 +203,8 @@ ColumnLayout {
 
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
-                    GradientStop { position: 0.0; color: Theme.isDark ? "#1E56D0" : "#002FA7" }
-                    GradientStop { position: 1.0; color: Theme.isDark ? "#3B82F6" : "#1A56DB" }
+                    GradientStop { position: 0.0; color: Theme.colors.primary }
+                    GradientStop { position: 1.0; color: Theme.colors.primaryLight }
                 }
 
                 Behavior on width {
@@ -220,9 +220,9 @@ ColumnLayout {
             height: 16
             radius: 8
 
-            color: slider.pressed ? "#3B82F6" : "#1E56D0"
+            color: slider.pressed ? Theme.colors.primaryLight : Theme.colors.primary
             border.width: 2
-            border.color: slider.pressed ? "#60A5FA" : (slider.hovered ? "#3B82F6" : "#1E56D0")
+            border.color: slider.pressed ? Theme.colors.accentForeground : (slider.hovered ? Theme.colors.primaryLight : Theme.colors.primary)
 
             scale: slider.pressed ? 1.12 : (slider.hovered ? 1.06 : 1.0)
             Behavior on scale {

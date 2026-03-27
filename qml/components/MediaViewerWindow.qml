@@ -845,7 +845,7 @@ Window {
                 anchors.centerIn: parent
                 source: Theme.icon("chevron-left")
                 iconSize: 22
-                color: "#FFFFFF"
+                color: Theme.colors.textOnPrimary
             }
 
             MouseArea {
@@ -898,7 +898,7 @@ Window {
                 anchors.centerIn: parent
                 source: Theme.icon("chevron-right")
                 iconSize: 22
-                color: "#FFFFFF"
+                color: Theme.colors.textOnPrimary
             }
 
             MouseArea {
@@ -1291,7 +1291,7 @@ Window {
                                 anchors.centerIn: parent
                                 source: Theme.icon("play")
                                 iconSize: 8
-                                color: "#FFFFFF"
+                                color: Theme.colors.textOnPrimary
                             }
                         }
                     }
@@ -1324,7 +1324,7 @@ Window {
                         Text {
                             anchors.centerIn: parent
                             text: "\u00D7"
-                            color: "#FFFFFF"
+                            color: Theme.colors.textOnPrimary
                             font.pixelSize: 10
                             font.weight: Font.Bold
                         }

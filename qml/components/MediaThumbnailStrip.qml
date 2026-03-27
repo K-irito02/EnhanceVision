@@ -516,7 +516,7 @@ Item {
                                     anchors.centerIn: parent
                                     source: Theme.icon("play")
                                     iconSize: 10
-                                    color: "#FFFFFF"
+                                    color: Theme.colors.textOnPrimary
                                 }
                             }
 
@@ -529,7 +529,7 @@ Item {
                                     anchors.centerIn: parent
                                     source: Theme.icon("loader")
                                     iconSize: 20
-                                    color: "#FFFFFF"
+                                    color: Theme.colors.textOnPrimary
                                     opacity: 0.8
                                     RotationAnimation on rotation {
                                         from: 0; to: 360
@@ -578,7 +578,7 @@ Item {
                             Text {
                                 anchors.centerIn: parent
                                 text: "\u00D7"
-                                color: "#FFFFFF"
+                                color: Theme.colors.textOnPrimary
                                 font.pixelSize: 14
                                 font.weight: Font.Bold
                             }
@@ -615,7 +615,7 @@ Item {
                             Text {
                                 anchors.centerIn: parent
                                 text: "\u00D7"
-                                color: "#FFFFFF"
+                                color: Theme.colors.textOnPrimary
                                 font.pixelSize: 14
                                 font.weight: Font.Bold
                             }
@@ -850,7 +850,7 @@ Item {
                                     anchors.centerIn: parent
                                     source: Theme.icon("play")
                                     iconSize: 10
-                                    color: "#FFFFFF"
+                                    color: Theme.colors.textOnPrimary
                                 }
                             }
 
@@ -863,7 +863,7 @@ Item {
                                     anchors.centerIn: parent
                                     source: Theme.icon("loader")
                                     iconSize: 20
-                                    color: "#FFFFFF"
+                                    color: Theme.colors.textOnPrimary
                                     opacity: 0.8
                                     RotationAnimation on rotation {
                                         from: 0; to: 360
@@ -912,7 +912,7 @@ Item {
                             Text {
                                 anchors.centerIn: parent
                                 text: "\u00D7"
-                                color: "#FFFFFF"
+                                color: Theme.colors.textOnPrimary
                                 font.pixelSize: 14
                                 font.weight: Font.Bold
                             }
@@ -949,7 +949,7 @@ Item {
                             Text {
                                 anchors.centerIn: parent
                                 text: "\u00D7"
-                                color: "#FFFFFF"
+                                color: Theme.colors.textOnPrimary
                                 font.pixelSize: 14
                                 font.weight: Font.Bold
                             }
@@ -988,7 +988,7 @@ Item {
                         anchors.centerIn: parent
                         source: Theme.icon("chevron-up")
                         iconSize: 16
-                        color: "#FFFFFF"
+                        color: Theme.colors.textOnPrimary
                     }
 
                     MouseArea {

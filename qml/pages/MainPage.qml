@@ -116,15 +116,15 @@ Rectangle {
                     height: 80
                     radius: 20
                     gradient: Gradient {
-                        GradientStop { position: 0.0; color: "#002FA7" }
-                        GradientStop { position: 1.0; color: "#1E56D0" }
+                        GradientStop { position: 0.0; color: Theme.colors.brandGradientStart }
+                        GradientStop { position: 1.0; color: Theme.colors.brandGradientEnd }
                     }
                     
                     ColoredIcon {
                         anchors.centerIn: parent
                         source: Theme.icon("sparkles")
                         iconSize: 36
-                        color: "#FFFFFF"
+                        color: Theme.colors.textOnPrimary
                     }
                 }
                 
@@ -162,13 +162,13 @@ Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
                             source: Theme.icon("upload")
                             iconSize: 18
-                            color: "#FFFFFF"
+                            color: Theme.colors.textOnPrimary
                         }
                         
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             text: qsTr("添加文件")
-                            color: "#FFFFFF"
+                            color: Theme.colors.textOnPrimary
                             font.pixelSize: 14
                             font.weight: Font.DemiBold
                         }
