@@ -355,6 +355,31 @@ Item {
         color: Theme.colors.background
         z: root.z
         
+        // 关键：阻止点击事件穿透到底层的消息列表
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.AllButtons
+            hoverEnabled: true
+            onPressed: function(mouse) {
+                mouse.accepted = true
+            }
+            onReleased: function(mouse) {
+                mouse.accepted = true
+            }
+            onClicked: function(mouse) {
+                mouse.accepted = true
+            }
+            onDoubleClicked: function(mouse) {
+                mouse.accepted = true
+            }
+            onPressAndHold: function(mouse) {
+                mouse.accepted = true
+            }
+            onWheel: function(wheel) {
+                wheel.accepted = true
+            }
+        }
+        
         Rectangle {
             id: titleBar
             anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
@@ -503,13 +528,6 @@ Item {
             
             Component.onCompleted: root._mediaPlayer = this
         }
-        
-        Keys.onPressed: function(e) {
-            if (e.key === Qt.Key_Escape) root.close()
-            else if (e.key === Qt.Key_Left) root._prevFile()
-            else if (e.key === Qt.Key_Right) root._nextFile()
-            else if (e.key === Qt.Key_Space && root.isVideo) vidPlayer.togglePlay()
-        }
     }
     
     // === 独立窗口模式 ===
@@ -653,12 +671,6 @@ Item {
                 Text { anchors.centerIn: parent; text: qsTr("松开鼠标吸附到消息区域"); color: Theme.colors.foreground; font { pixelSize: 16; weight: Font.Medium } }
             }
         }
-        
-        Shortcut { sequence: "Escape"; onActivated: { if (detachedWindow.visibility === Window.FullScreen) { detachedWindow.showNormal(); detachedWindow.x = detachedWindow._savedX; detachedWindow.y = detachedWindow._savedY; detachedWindow.width = detachedWindow._savedW; detachedWindow.height = detachedWindow._savedH } else root.close() } }
-        Shortcut { sequence: "Left"; onActivated: root._prevFile() }
-        Shortcut { sequence: "Right"; onActivated: root._nextFile() }
-        Shortcut { sequence: "Space"; onActivated: if (root.isVideo) vidPlayer.togglePlay() }
-        Shortcut { sequence: "F"; onActivated: { if (detachedWindow.visibility === Window.FullScreen) { detachedWindow.showNormal(); detachedWindow.x = detachedWindow._savedX; detachedWindow.y = detachedWindow._savedY; detachedWindow.width = detachedWindow._savedW; detachedWindow.height = detachedWindow._savedH } else { winHelper.saveNormalGeometry(); detachedWindow._savedX = detachedWindow.x; detachedWindow._savedY = detachedWindow.y; detachedWindow._savedW = detachedWindow.width; detachedWindow._savedH = detachedWindow.height; detachedWindow.showFullScreen() } } }
     }
     
     Connections {
@@ -813,22 +825,36 @@ Item {
             asynchronous: true; smooth: true; mipmap: true
         }
         
-        // 图片区域的鼠标检测
+        // 图片区域的鼠标检测（用于显示导航按钮，同时拦截所有点击事件防止穿透）
+        // 注意：视频模式下禁用此 MouseArea，让视频区域的 MouseArea 处理点击事件
         MouseArea {
             anchors.fill: parent
             hoverEnabled: true
-            propagateComposedEvents: true
-            acceptedButtons: Qt.NoButton
+            acceptedButtons: Qt.AllButtons
             z: 10
+            enabled: !viewer.isVideo
             
+            onPressed: function(mouse) {
+                mouse.accepted = true
+            }
+            onReleased: function(mouse) {
+                mouse.accepted = true
+            }
+            onClicked: function(mouse) {
+                mouse.accepted = true
+            }
+            onDoubleClicked: function(mouse) {
+                mouse.accepted = true
+            }
             onPositionChanged: {
                 showNavButtonsAndResetTimer()
             }
-            onEntered: {
-                showNavButtonsAndResetTimer()
-            }
-            onExited: {
-                startAutoHideIfNeeded()
+            onContainsMouseChanged: {
+                if (containsMouse) {
+                    showNavButtonsAndResetTimer()
+                } else {
+                    startAutoHideIfNeeded()
+                }
             }
         }
         
@@ -946,10 +972,15 @@ Item {
                 id: videoClickArea
                 anchors.fill: parent
                 hoverEnabled: true
-                propagateComposedEvents: true
-                acceptedButtons: Qt.LeftButton
+                acceptedButtons: Qt.AllButtons
                 z: 2
                 
+                onPressed: function(mouse) {
+                    mouse.accepted = true
+                }
+                onReleased: function(mouse) {
+                    mouse.accepted = true
+                }
                 onPositionChanged: {
                     showNavButtonsAndResetTimer()
                 }
@@ -962,8 +993,13 @@ Item {
                 }
                 
                 onClicked: function(mouse) {
-                    if (videoPlayer) videoPlayer.togglePlay()
-                    mouse.accepted = false
+                    if (mouse.button === Qt.LeftButton && videoPlayer) {
+                        videoPlayer.togglePlay()
+                    }
+                    mouse.accepted = true
+                }
+                onDoubleClicked: function(mouse) {
+                    mouse.accepted = true
                 }
             }
         }
@@ -977,11 +1013,14 @@ Item {
             height: 44
             radius: 22
             visible: viewer.currentIndex > 0
+            // 关键修复：enabled 必须同时考虑 visible 和 navButtonsVisible
+            // 当 navButtonsVisible 为 false 时（opacity: 0），按钮不应响应点击
+            enabled: visible && navButtonsVisible
             opacity: navButtonsVisible ? 1.0 : 0.0
             z: 50
             
-            property bool isHovered: pma.containsMouse
-            property bool isPressed: pma.pressed
+            property bool isHovered: pma.containsMouse && enabled
+            property bool isPressed: pma.pressed && enabled
             
             // 玻璃拟态背景：高对比度半透明灰色 + 边框
             color: {
@@ -1010,6 +1049,7 @@ Item {
                 id: pma
                 anchors.fill: parent
                 hoverEnabled: true
+                enabled: parent.enabled
                 cursorShape: Qt.PointingHandCursor
                 onClicked: viewer._prevFile()
                 onEntered: {
@@ -1032,11 +1072,14 @@ Item {
             height: 44
             radius: 22
             visible: viewer.currentIndex < viewer.mediaFiles.length - 1
+            // 关键修复：enabled 必须同时考虑 visible 和 navButtonsVisible
+            // 当 navButtonsVisible 为 false 时（opacity: 0），按钮不应响应点击
+            enabled: visible && navButtonsVisible
             opacity: navButtonsVisible ? 1.0 : 0.0
             z: 50
             
-            property bool isHovered: nma.containsMouse
-            property bool isPressed: nma.pressed
+            property bool isHovered: nma.containsMouse && enabled
+            property bool isPressed: nma.pressed && enabled
             
             // 玻璃拟态背景
             color: {
@@ -1065,6 +1108,7 @@ Item {
                 id: nma
                 anchors.fill: parent
                 hoverEnabled: true
+                enabled: parent.enabled
                 cursorShape: Qt.PointingHandCursor
                 onClicked: viewer._nextFile()
                 onEntered: {
