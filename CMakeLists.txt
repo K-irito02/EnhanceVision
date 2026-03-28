@@ -139,6 +139,7 @@ qt_add_executable(EnhanceVision
     src/app/Application.cpp
     src/app/MainWindow.cpp
     src/core/AIEngine.cpp
+    src/core/ProgressReporter.cpp
     src/core/ModelRegistry.cpp
     src/core/ProcessingEngine.cpp
     src/core/VideoProcessor.cpp
@@ -163,6 +164,7 @@ qt_add_executable(EnhanceVision
     src/utils/ImageUtils.cpp
     src/utils/WindowHelper.cpp
     src/utils/SubWindowHelper.cpp
+    src/utils/ProgressValidator.cpp
     src/controllers/SettingsController.cpp
     src/controllers/SessionController.cpp
     src/controllers/FileController.cpp
@@ -171,6 +173,7 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/app/Application.h
     include/EnhanceVision/app/MainWindow.h
     include/EnhanceVision/core/AIEngine.h
+    include/EnhanceVision/core/ProgressReporter.h
     include/EnhanceVision/core/ModelRegistry.h
     include/EnhanceVision/core/ProcessingEngine.h
     include/EnhanceVision/core/VideoProcessor.h
@@ -197,6 +200,7 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/utils/ImageUtils.h
     include/EnhanceVision/utils/WindowHelper.h
     include/EnhanceVision/utils/SubWindowHelper.h
+    include/EnhanceVision/utils/ProgressValidator.h
     include/EnhanceVision/controllers/SettingsController.h
     include/EnhanceVision/controllers/SessionController.h
     include/EnhanceVision/controllers/FileController.h

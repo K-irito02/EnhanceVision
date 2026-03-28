@@ -805,12 +805,10 @@ void ProcessingController::updateTaskProgress(const QString& taskId, int progres
     QElapsedTimer perfTimer;
     perfTimer.start();
 
-    // 【关键修复】更新任务心跳到 TaskStateManager
     TaskStateManager::instance()->updateTaskProgress(taskId, progress);
 
-    // 增大步长和间隔，减少 UI 更新频率以提高响应性
-    constexpr int kProgressEmitStep = 5;
-    constexpr qint64 kProgressEmitIntervalMs = 150;
+    constexpr int kProgressEmitStep = 2;
+    constexpr qint64 kProgressEmitIntervalMs = 100;
 
     const int normalizedProgress = qBound(0, progress, 100);
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
@@ -824,11 +822,10 @@ void ProcessingController::updateTaskProgress(const QString& taskId, int progres
             const qint64 lastUpdateMs = m_lastTaskProgressUpdateMs.value(taskId, 0);
 
             const bool firstEmit = (lastReported < 0);
-            const bool reachedTerminal = (normalizedProgress >= 100);
             const bool crossedStep = (lastReported < 0) || (normalizedProgress - lastReported >= kProgressEmitStep);
             const bool timeoutReached = (nowMs - lastUpdateMs) >= kProgressEmitIntervalMs;
 
-            if (firstEmit || reachedTerminal || crossedStep || timeoutReached || normalizedProgress < lastReported) {
+            if (firstEmit || crossedStep || timeoutReached || normalizedProgress < lastReported) {
                 m_lastReportedTaskProgress[taskId] = normalizedProgress;
                 m_lastTaskProgressUpdateMs[taskId] = nowMs;
 
@@ -836,11 +833,9 @@ void ProcessingController::updateTaskProgress(const QString& taskId, int progres
                 syncModelTask(task);
 
                 if (normalizedProgress != previousProgress) {
-                    // 增大消息进度同步间隔
-                    constexpr qint64 kMessageProgressSyncIntervalMs = 200;
+                    constexpr qint64 kMessageProgressSyncIntervalMs = 150;
                     const qint64 lastMessageSyncMs = m_lastMessageProgressSyncMs.value(task.messageId, 0);
-                    const bool shouldSyncMessageProgress = (normalizedProgress >= 100) ||
-                                                           ((nowMs - lastMessageSyncMs) >= kMessageProgressSyncIntervalMs);
+                    const bool shouldSyncMessageProgress = ((nowMs - lastMessageSyncMs) >= kMessageProgressSyncIntervalMs);
                     if (shouldSyncMessageProgress) {
                         syncMessageProgress(task.messageId);
                     }
@@ -872,6 +867,11 @@ void ProcessingController::completeTask(const QString& taskId, const QString& re
                 logPerfIfSlow("completeTask", perfTimer.elapsed());
                 return;
             } else {
+                m_tasks[i].progress = 99;
+                emit taskProgress(taskId, 99);
+                syncModelTask(m_tasks[i]);
+                syncMessageProgress(messageId);
+                
                 m_tasks[i].status = ProcessingStatus::Completed;
                 m_tasks[i].progress = 100;
                 emit taskCompleted(taskId, resultPath);
@@ -1338,9 +1338,6 @@ void ProcessingController::retrySingleFailedFile(const QString& messageId, int f
                    << "status:" << static_cast<int>(file.status);
         return;
     }
-    
-    qDebug() << "[ProcessingController] Retrying single file:" << fileIndex << "for message:" << messageId 
-             << "current status:" << static_cast<int>(file.status);
     
     if (message.status == ProcessingStatus::Failed || message.status == ProcessingStatus::Pending) {
         m_messageModel->updateStatus(messageId, static_cast<int>(ProcessingStatus::Processing));

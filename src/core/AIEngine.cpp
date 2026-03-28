@@ -6,6 +6,7 @@
 
 #include "EnhanceVision/core/AIEngine.h"
 #include "EnhanceVision/core/ModelRegistry.h"
+#include "EnhanceVision/core/ProgressReporter.h"
 #include "EnhanceVision/utils/ImageUtils.h"
 #include <QFile>
 #include <QDir>
@@ -24,6 +25,7 @@ namespace EnhanceVision {
 
 AIEngine::AIEngine(QObject *parent)
     : QObject(parent)
+    , m_progressReporter(std::make_unique<ProgressReporter>(this))
 {
     initVulkan();
 }
@@ -764,25 +766,34 @@ void AIEngine::emitError(const QString &error)
     }
 }
 
+ProgressReporter* AIEngine::progressReporter()
+{
+    return m_progressReporter.get();
+}
+
 // ========== 内部方法 ==========
 
 void AIEngine::setProgress(double value, bool forceEmit)
 {
+    if (m_progressReporter) {
+        if (forceEmit) {
+            m_progressReporter->forceUpdate(value);
+        } else {
+            m_progressReporter->setProgress(value);
+        }
+        return;
+    }
+    
     constexpr double kProgressEmitDelta = 0.01;
     constexpr qint64 kProgressEmitIntervalMs = 66;
     const double clampedValue = std::clamp(value, 0.0, 1.0);
     
-    // 防止进度条倒退：只有在以下情况才更新进度
-    // 1. 新值大于当前值（正常前进）
-    // 2. 新值为 0（重置）或 1.0（完成）
-    // 3. 强制发射
     double previous = m_progress.load();
     const bool isReset = (clampedValue < 0.01);
     const bool isComplete = (clampedValue >= 0.99);
     const bool isForward = (clampedValue > previous);
     
     if (!forceEmit && !isReset && !isComplete && !isForward) {
-        // 进度在倒退且不是重置/完成，忽略此次更新
         return;
     }
     
@@ -970,10 +981,11 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
 
 QImage AIEngine::processSingle(const QImage &input, const ModelInfo &model)
 {
-    setProgress(0.1);
+    setProgress(0.02);
     qInfo() << "[AIEngine][Single] start processing"
             << "input:" << input.size()
             << "format:" << input.format();
+    setProgress(0.05);
     ncnn::Mat in = qimageToMat(input, model);
     if (in.empty()) {
         qWarning() << "[AIEngine][Single] qimageToMat failed";
@@ -982,16 +994,15 @@ QImage AIEngine::processSingle(const QImage &input, const ModelInfo &model)
     qInfo() << "[AIEngine][Single] input mat created"
             << "w:" << in.w << "h:" << in.h << "c:" << in.c;
     if (m_cancelRequested) return QImage();
-    setProgress(0.3);
+    setProgress(0.15);
     ncnn::Mat out = runInference(in, model);
     qInfo() << "[AIEngine][Single] inference done output mat:"
             << "w:" << out.w << "h:" << out.h << "c:" << out.c;
-    // 推理失败防护：runInference 已记录日志并 emitError
     if (out.empty() || out.w <= 0 || out.h <= 0) {
         return QImage();
     }
     if (m_cancelRequested) return QImage();
-    setProgress(0.8);
+    setProgress(0.85);
     QImage result = matToQimage(out, model);
     qInfo() << "[AIEngine][Single] result created"
             << "size:" << result.size()
@@ -1003,12 +1014,15 @@ QImage AIEngine::processSingle(const QImage &input, const ModelInfo &model)
 
 QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
 {
-    // 防御性检查：确保输入有效
+    setProgress(0.01);
+    
     if (input.isNull() || input.width() <= 0 || input.height() <= 0) {
         qWarning() << "[AIEngine][Tiled] invalid input image, returning null";
         return QImage();
     }
 
+    setProgress(0.02);
+    
     int tileSize = model.tileSize;
     int scale = model.scaleFactor;
     int w = input.width();
@@ -1025,6 +1039,8 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
         qWarning() << "[AIEngine][Tiled] tileSize is 0 or negative, falling back to processSingle";
         return processSingle(input, model);
     }
+
+    setProgress(0.03);
 
     // ── 动态计算 padding：复杂模型需要更大的重叠区域避免边界伪影 ──────────
     // Real-ESRGAN 等大模型的感受野很大，需要足够的上下文才能产生一致的输出
@@ -1178,10 +1194,14 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
             << "outputSize:" << (w * scale) << "x" << (h * scale)
             << "paddedInput:" << paddedW << "x" << paddedH;
 
+    setProgress(0.10);
+    
     QImage output(w * scale, h * scale, QImage::Format_RGB888);
     output.fill(Qt::black);
     QPainter painter(&output);
     painter.setCompositionMode(QPainter::CompositionMode_Source);
+    
+    setProgress(0.15);
 
     qInfo() << "[AIEngine][Tiled] processing"
             << "input:" << w << "x" << h
@@ -1191,8 +1211,8 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
 
     int tileIndex = 0;
     int successfulTiles = 0;
-    int consecutiveFailures = 0;  // 连续失败计数，用于快速失败检测
-    const int kMaxConsecutiveFailures = 2;  // 连续失败超过此数即认为 GPU 状态损坏
+    int consecutiveFailures = 0;
+    const int kMaxConsecutiveFailures = 2;
 
     for (int ty = 0; ty < tilesY; ++ty) {
         for (int tx = 0; tx < tilesX; ++tx) {
@@ -1236,9 +1256,9 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
                 qWarning() << "[AIEngine][Tiled] tile" << tileIndex << "inference failed";
                 tileIndex++;
                 consecutiveFailures++;
-                setProgress(0.1 + 0.85 * tileIndex / totalTiles);
+                double tileProgress = 0.15 + 0.70 * static_cast<double>(tileIndex) / totalTiles;
+                setProgress(tileProgress);
                 
-                // 如果检测到 GPU OOM，立即返回让调用者用更小分块重试
                 if (m_gpuOomDetected.load()) {
                     qWarning() << "[AIEngine][Tiled] GPU OOM detected, aborting to allow retry with smaller tiles";
                     painter.end();
@@ -1311,13 +1331,15 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
             painter.drawImage(dstX, dstY, croppedResult);
             tileIndex++;
             successfulTiles++;
-            consecutiveFailures = 0;  // 成功时重置连续失败计数
-            setProgress(0.1 + 0.85 * tileIndex / totalTiles);
+            consecutiveFailures = 0;
+            double tileProgress = 0.15 + 0.70 * static_cast<double>(tileIndex) / totalTiles;
+            setProgress(tileProgress);
         }
     }
     painter.end();
+    
+    setProgress(0.85);
 
-    // 只有所有分块都成功才返回结果
     if (successfulTiles < totalTiles) {
         int failedTiles = totalTiles - successfulTiles;
         qWarning() << "[AIEngine][Tiled] tiled inference incomplete"
@@ -1327,6 +1349,8 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
         emitError(tr("推理未完整完成（%1/%2 分块成功）").arg(successfulTiles).arg(totalTiles));
         return QImage();
     }
+    
+    setProgress(0.95);
 
     qInfo() << "[AIEngine][Tiled] all" << totalTiles << "tiles processed successfully";
     return output;
@@ -1334,6 +1358,8 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
 
 QImage AIEngine::processWithTTA(const QImage &input, const ModelInfo &model)
 {
+    setProgress(0.02);
+    
     QList<QImage> transformed;
     transformed.append(input);
     transformed.append(input.mirrored(true, false));
@@ -1347,16 +1373,19 @@ QImage AIEngine::processWithTTA(const QImage &input, const ModelInfo &model)
     transformed.append(rotated90.mirrored(false, true));
     transformed.append(rotated90.mirrored(true, true));
 
+    setProgress(0.05);
+    
     const int totalSteps = transformed.size();
     QList<QImage> results;
 
     for (int i = 0; i < totalSteps; ++i) {
         if (m_cancelRequested) {
-            qDebug() << "[AIEngine] TTA processing cancelled at step" << (i + 1) << "/" << totalSteps;
+            Q_UNUSED(i)
             return QImage();
         }
         emit progressTextChanged(tr("TTA 处理中: %1/%2").arg(i + 1).arg(totalSteps));
-        setProgress(0.1 + 0.8 * static_cast<double>(i) / totalSteps);
+        double stepProgress = 0.05 + 0.85 * static_cast<double>(i) / totalSteps;
+        setProgress(stepProgress);
 
         QImage result = processSingle(transformed[i], model);
         if (result.isNull()) {
@@ -1381,8 +1410,12 @@ QImage AIEngine::processWithTTA(const QImage &input, const ModelInfo &model)
         qWarning() << "[AIEngine] TTA: all steps failed, returning null";
         return QImage();
     }
+    
+    setProgress(0.92);
     emit progressTextChanged(tr("合并 TTA 结果..."));
-    return mergeTTAResults(results);
+    QImage merged = mergeTTAResults(results);
+    setProgress(0.95);
+    return merged;
 }
 
 QImage AIEngine::mergeTTAResults(const QList<QImage> &results)

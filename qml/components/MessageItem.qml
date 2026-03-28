@@ -23,22 +23,40 @@ Rectangle {
     property int totalFileCount: mediaFiles ? mediaFiles.count : 0
     property int estimatedRemainingSec: _calculateRemainingTime()
     
-    // 时间跟踪：用于计算剩余时间
-    property double _processingStartTime: 0  // 处理开始时间戳 (ms)
-    property int _elapsedSec: 0  // 已用时间 (秒)
+    property var _timeSamples: []
+    property real _lastProgress: 0
+    
+    property double _processingStartTime: 0
+    property int _elapsedSec: 0
     
     function _calculateRemainingTime() {
-        // 仅在处理状态下计算
         if (status !== 1 || progress <= 0) return 0
         
-        // 基于实际进度速率计算：remaining = elapsed * (100 - progress) / progress
-        if (_elapsedSec > 0 && progress > 1) {
-            var rate = _elapsedSec / progress  // 每1%进度需要的秒数
-            var remaining = Math.round(rate * (100 - progress))
-            return Math.max(0, Math.min(remaining, 3600 * 24))  // 限制最大24小时
+        if (_lastProgress > 0 && progress < _lastProgress - 10) {
+            _timeSamples = []
+            _lastProgress = progress
+            return 0
         }
         
-        // 进度太小时使用保守估计（假设总共需要30秒）
+        if (_elapsedSec > 0 && progress > 1) {
+            var rate = _elapsedSec / progress
+            var remaining = Math.round(rate * (100 - progress))
+            
+            _timeSamples.push(remaining)
+            if (_timeSamples.length > 5) {
+                _timeSamples.shift()
+            }
+            
+            var smoothed = 0
+            for (var i = 0; i < _timeSamples.length; i++) {
+                smoothed += _timeSamples[i]
+            }
+            smoothed = Math.round(smoothed / _timeSamples.length)
+            
+            _lastProgress = progress
+            return Math.max(0, Math.min(smoothed, 3600 * 24))
+        }
+        
         return Math.max(0, Math.round((100 - progress) * 0.3))
     }
     
@@ -466,13 +484,14 @@ Rectangle {
                 Rectangle {
                     width: {
                         if (root.status === 0) return 0
-                        return parent.width * (root.progress / 100)
+                        if (root.status === 2) return parent.width
+                        return parent.width * (Math.min(root.progress, 100) / 100)
                     }
                     height: parent.height; radius: parent.radius
                     color: Theme.colors.primary
                     
                     Behavior on width {
-                        NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
+                        NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
                     }
                 }
                 

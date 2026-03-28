@@ -38,6 +38,7 @@ struct AIVideoProcessor::Impl {
 AIVideoProcessor::AIVideoProcessor(QObject* parent)
     : QObject(parent)
     , m_impl(std::make_unique<Impl>())
+    , m_progressReporter(std::make_unique<ProgressReporter>(this))
 {
 }
 
@@ -102,6 +103,10 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
             << "output:" << outputPath;
     
     setProcessing(true);
+    
+    if (m_progressReporter) {
+        m_progressReporter->reset();
+    }
     
     VideoResourceGuard guard;
     guard.setCancelled(false);
@@ -283,11 +288,13 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
             frameCount++;
             
             if (totalFrames > 0) {
-                const double prog = static_cast<double>(frameCount) / totalFrames;
+                const double prog = 0.05 + 0.90 * static_cast<double>(frameCount) / totalFrames;
                 updateProgress(prog);
             }
         }
     }
+    
+    updateProgress(0.96);
     
     if (encoderInitialized && guard.encoderContext()) {
         avcodec_send_frame(guard.encoderContext(), nullptr);
@@ -364,8 +371,15 @@ QImage AIVideoProcessor::processFrame(const QImage& input)
     return result;
 }
 
-void AIVideoProcessor::updateProgress(double progress)
+void AIVideoProcessor::updateProgress(double progress, const QString& stage)
 {
+    if (m_progressReporter) {
+        m_progressReporter->setProgress(progress, stage);
+        m_impl->progress.store(progress);
+        emit progressChanged(progress);
+        return;
+    }
+    
     constexpr double kProgressEmitDelta = 0.01;
     constexpr qint64 kProgressEmitIntervalMs = 100;
     
@@ -379,6 +393,18 @@ void AIVideoProcessor::updateProgress(double progress)
         m_impl->lastProgressEmitMs.store(now);
         emit progressChanged(progress);
     }
+}
+
+double AIVideoProcessor::estimateProgressByTime(int frameCount, qint64 elapsedMs)
+{
+    if (frameCount <= 0 || elapsedMs <= 0) {
+        return 0.0;
+    }
+    
+    double avgFrameTimeMs = static_cast<double>(elapsedMs) / frameCount;
+    const int estimatedTotalFrames = 60 * 30;
+    double progress = static_cast<double>(frameCount) / estimatedTotalFrames;
+    return std::min(0.95, progress);
 }
 
 void AIVideoProcessor::setProcessing(bool processing)

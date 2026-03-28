@@ -9,6 +9,7 @@
 
 #include "VideoProcessingTypes.h"
 #include "VideoResourceGuard.h"
+#include "EnhanceVision/core/ProgressReporter.h"
 #include <QObject>
 #include <QImage>
 #include <QMutex>
@@ -47,12 +48,14 @@ signals:
 private:
     void processInternal(const QString& inputPath, const QString& outputPath);
     QImage processFrame(const QImage& input);
-    void updateProgress(double progress);
+    void updateProgress(double progress, const QString& stage = QString());
     void setProcessing(bool processing);
     void emitCompleted(bool success, const QString& resultPath, const QString& error);
+    double estimateProgressByTime(int frameCount, qint64 elapsedMs);
     
     struct Impl;
     std::unique_ptr<Impl> m_impl;
+    std::unique_ptr<ProgressReporter> m_progressReporter;
 };
 
 } // namespace EnhanceVision

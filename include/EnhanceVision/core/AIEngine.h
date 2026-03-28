@@ -22,6 +22,7 @@
 namespace EnhanceVision {
 
 class ModelRegistry;
+class ProgressReporter;
 
 /**
  * @brief NCNN AI 推理引擎
@@ -242,7 +243,9 @@ private:
 
     void setProgress(double value, bool forceEmit = false);
     void setProcessing(bool processing);
-    void emitError(const QString &error);
+    void emitError(const QString& error);
+    
+    ProgressReporter* progressReporter();
 
     QVariantMap getEffectiveParamsLocked(const ModelInfo &model) const;
     int  computeAutoTileSizeForModel(const QSize &inputSize, const ModelInfo &model) const;
@@ -285,6 +288,9 @@ private:
     // 当前持有的 Vulkan allocator（需在 updateOptions 前显式释放）
     ncnn::VkAllocator* m_blobVkAllocator = nullptr;
     ncnn::VkAllocator* m_stagingVkAllocator = nullptr;
+    
+    // 进度报告器
+    std::unique_ptr<ProgressReporter> m_progressReporter;
 };
 
 } // namespace EnhanceVision
