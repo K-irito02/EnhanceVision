@@ -9,6 +9,7 @@
 #include "EnhanceVision/controllers/SettingsController.h"
 #include "EnhanceVision/models/MessageModel.h"
 #include "EnhanceVision/core/TaskCoordinator.h"
+#include "EnhanceVision/core/TaskStateManager.h"
 #include "EnhanceVision/providers/ThumbnailProvider.h"
 #include "EnhanceVision/utils/ImageUtils.h"
 #include <QUuid>
@@ -751,6 +752,22 @@ void SessionController::loadSessionMessages(const QString& sessionId)
                 bool hasInterruptedFiles = false;
                 for (const MediaFile& file : msg.mediaFiles) {
                     if (file.status == ProcessingStatus::Pending || file.status == ProcessingStatus::Processing) {
+                        // 【关键修复】检查任务是否在队列中（无论是等待还是执行中）
+                        QString taskId = findTaskIdForFile(msg.id, file.id);
+                        
+                        if (!taskId.isEmpty()) {
+                            // 任务在队列中，检查是否正在执行
+                            if (TaskStateManager::instance()->isTaskActive(taskId)) {
+                                // 任务正在执行，不是中断
+                                continue;
+                            }
+                            
+                            // 任务在队列中等待（Pending 状态），也不是中断
+                            // 【重要】等待中的任务不应该被标记为失败
+                            continue;
+                        }
+                        
+                        // 任务既不在队列中，也不在执行中，才是真正中断的任务
                         hasInterruptedFiles = true;
                         break;
                     }
@@ -769,11 +786,15 @@ void SessionController::loadSessionMessages(const QString& sessionId)
                         m_autoRetriedMessageIds.insert(msg.id);
                         interruptedMessageIds.append(msg.id);
                     } else {
+                        // 只有真正中断的任务才标记为失败
                         for (Message& m : session->messages) {
                             if (m.id == msg.id) {
                                 for (MediaFile& file : m.mediaFiles) {
-                                    if (file.status == ProcessingStatus::Pending || 
-                                        file.status == ProcessingStatus::Processing) {
+                                    QString taskId = findTaskIdForFile(msg.id, file.id);
+                                    // 再次确认任务不在队列中
+                                    if ((file.status == ProcessingStatus::Pending || 
+                                         file.status == ProcessingStatus::Processing) &&
+                                        taskId.isEmpty()) {
                                         file.status = ProcessingStatus::Failed;
                                         hasStatusChanges = true;
                                     }
@@ -1324,6 +1345,22 @@ void SessionController::saveSessionsImmediately()
         m_saveQueued = false;
         QTimer::singleShot(100, this, &SessionController::saveSessions);
     }
+}
+
+QString SessionController::findTaskIdForFile(const QString& messageId, const QString& fileId) const
+{
+    if (!m_processingController) {
+        return QString();
+    }
+    
+    QList<QueueTask> tasks = m_processingController->getAllTasks();
+    for (const QueueTask& task : tasks) {
+        if (task.messageId == messageId && task.fileId == fileId) {
+            return task.taskId;
+        }
+    }
+    
+    return QString();
 }
 
 } // namespace EnhanceVision

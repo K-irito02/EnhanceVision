@@ -148,6 +148,7 @@ qt_add_executable(EnhanceVision
     src/core/ImageProcessor.cpp
     src/core/FrameCache.cpp
     src/core/TaskCoordinator.cpp
+    src/core/TaskStateManager.cpp
     src/core/ResourceManager.cpp
     src/core/AIEnginePool.cpp
     src/core/LifecycleSupervisor.cpp
@@ -180,6 +181,7 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/core/ImageProcessor.h
     include/EnhanceVision/core/FrameCache.h
     include/EnhanceVision/core/TaskCoordinator.h
+    include/EnhanceVision/core/TaskStateManager.h
     include/EnhanceVision/core/ResourceManager.h
     include/EnhanceVision/core/AIEnginePool.h
     include/EnhanceVision/core/LifecycleSupervisor.h

@@ -613,11 +613,17 @@ void ProcessingController::startTask(QueueTask& task)
     task.progress = 0;  // 确保进度初始化为 0
     m_currentProcessingCount++;
 
+    const QString startedSessionId = resolveSessionIdForMessage(task.messageId);
+    
+    // 【关键修复】注册活动任务到 TaskStateManager
+    TaskStateManager::instance()->registerActiveTask(
+        task.taskId, task.messageId, startedSessionId, task.fileId
+    );
+
     emit taskStarted(task.taskId);
     emit currentProcessingCountChanged();
     syncModelTask(task);
 
-    const QString startedSessionId = resolveSessionIdForMessage(task.messageId);
     updateFileStatusForSessionMessage(startedSessionId, task.messageId, task.fileId,
         ProcessingStatus::Processing, QString());
     syncMessageStatus(task.messageId, startedSessionId);
@@ -743,6 +749,9 @@ void ProcessingController::updateTaskProgress(const QString& taskId, int progres
 {
     QElapsedTimer perfTimer;
     perfTimer.start();
+
+    // 【关键修复】更新任务心跳到 TaskStateManager
+    TaskStateManager::instance()->updateTaskProgress(taskId, progress);
 
     // 增大步长和间隔，减少 UI 更新频率以提高响应性
     constexpr int kProgressEmitStep = 5;
@@ -2249,6 +2258,9 @@ void ProcessingController::cancelVideoProcessing(const QString& taskId)
 
 void ProcessingController::cleanupTask(const QString& taskId)
 {
+    // 【关键修复】从 TaskStateManager 注销活动任务
+    TaskStateManager::instance()->unregisterActiveTask(taskId);
+    
     cancelVideoProcessing(taskId);
     
     m_resourceManager->release(taskId);
