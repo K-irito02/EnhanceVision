@@ -32,6 +32,47 @@ int ProgressReporter::estimatedRemainingSec() const
     return m_estimatedRemainingSec.load();
 }
 
+bool ProgressReporter::isValid() const
+{
+    return m_progress.load() >= 0.0;
+}
+
+QObject* ProgressReporter::asQObject()
+{
+    return this;
+}
+
+int ProgressReporter::totalSteps() const
+{
+    return m_totalSteps.load();
+}
+
+int ProgressReporter::currentStep() const
+{
+    return m_currentStep.load();
+}
+
+QString ProgressReporter::subStage() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_subStage;
+}
+
+int ProgressReporter::batchTotal() const
+{
+    return m_batchTotal.load();
+}
+
+int ProgressReporter::batchCompleted() const
+{
+    return m_batchCompleted.load();
+}
+
+bool ProgressReporter::isBatchMode() const
+{
+    return m_batchMode.load();
+}
+
 void ProgressReporter::setProgress(double value, const QString& stage)
 {
     const double clampedValue = std::clamp(value, 0.0, 1.0);
@@ -52,13 +93,7 @@ void ProgressReporter::setProgress(double value, const QString& stage)
         if (m_stage != stage) {
             m_stage = stage;
             locker.unlock();
-            if (QThread::currentThread() == thread()) {
-                emit stageChanged(stage);
-            } else {
-                QMetaObject::invokeMethod(this, [this, stage]() {
-                    emit stageChanged(stage);
-                }, Qt::QueuedConnection);
-            }
+            emitSignals(m_progress.load(), stage);
         }
     }
     
@@ -78,7 +113,7 @@ void ProgressReporter::setProgress(double value, const QString& stage)
             QMutexLocker locker(&m_mutex);
             m_progressHistory.push_back(smoothedValue);
             m_timeHistory.push_back(nowMs);
-            while (m_progressHistory.size() > kMaxHistorySize) {
+            while (m_progressHistory.size() > static_cast<size_t>(kMaxHistorySize)) {
                 m_progressHistory.pop_front();
                 m_timeHistory.pop_front();
             }
@@ -86,14 +121,88 @@ void ProgressReporter::setProgress(double value, const QString& stage)
         
         updateEstimatedRemainingTime();
         
-        if (QThread::currentThread() == thread()) {
-            emit progressChanged(smoothedValue);
-        } else {
-            QMetaObject::invokeMethod(this, [this, smoothedValue]() {
-                emit progressChanged(smoothedValue);
-            }, Qt::QueuedConnection);
+        QString currentStage;
+        {
+            QMutexLocker locker(&m_mutex);
+            currentStage = m_stage;
+        }
+        emitSignals(smoothedValue, currentStage);
+    }
+}
+
+void ProgressReporter::setProgress(double value, int step, int totalSteps, const QString& stage)
+{
+    if (totalSteps > 0) {
+        m_totalSteps.store(totalSteps);
+        m_currentStep.store(step);
+    }
+    
+    setProgress(value, stage);
+}
+
+void ProgressReporter::setSubProgress(double subProgress, const QString& subStage)
+{
+    m_subProgress.store(std::clamp(subProgress, 0.0, 1.0));
+    
+    if (!subStage.isEmpty()) {
+        QMutexLocker locker(&m_mutex);
+        if (m_subStage != subStage) {
+            m_subStage = subStage;
+            locker.unlock();
+            
+            if (QThread::currentThread() == thread()) {
+                emit subStageChanged(subStage);
+            } else {
+                QMetaObject::invokeMethod(this, [this, subStage]() {
+                    emit subStageChanged(subStage);
+                }, Qt::QueuedConnection);
+            }
         }
     }
+}
+
+void ProgressReporter::beginBatch(int totalItems, const QString& stage)
+{
+    m_batchTotal.store(totalItems);
+    m_batchCompleted.store(0);
+    m_batchMode.store(true);
+    
+    if (!stage.isEmpty()) {
+        QMutexLocker locker(&m_mutex);
+        m_stage = stage;
+    }
+    
+    setProgress(0.0, stage);
+}
+
+void ProgressReporter::updateBatch(int completedItems, const QString& subStage)
+{
+    if (!m_batchMode.load()) {
+        return;
+    }
+    
+    const int total = m_batchTotal.load();
+    m_batchCompleted.store(completedItems);
+    
+    if (total > 0) {
+        double progress = static_cast<double>(completedItems) / total;
+        setProgress(progress, subStage);
+    }
+    
+    if (QThread::currentThread() == thread()) {
+        emit batchProgressChanged(completedItems, total);
+    } else {
+        QMetaObject::invokeMethod(this, [this, completedItems, total]() {
+            emit batchProgressChanged(completedItems, total);
+        }, Qt::QueuedConnection);
+    }
+}
+
+void ProgressReporter::endBatch()
+{
+    m_batchMode.store(false);
+    m_batchCompleted.store(m_batchTotal.load());
+    setProgress(1.0);
 }
 
 void ProgressReporter::reset()
@@ -103,10 +212,17 @@ void ProgressReporter::reset()
     m_estimatedRemainingSec.store(0);
     m_startTimeMs.store(QDateTime::currentMSecsSinceEpoch());
     m_lastEmitMs.store(0);
+    m_totalSteps.store(1);
+    m_currentStep.store(0);
+    m_subProgress.store(0.0);
+    m_batchTotal.store(0);
+    m_batchCompleted.store(0);
+    m_batchMode.store(false);
     
     {
         QMutexLocker locker(&m_mutex);
         m_stage.clear();
+        m_subStage.clear();
         m_progressHistory.clear();
         m_timeHistory.clear();
     }
@@ -135,19 +251,7 @@ void ProgressReporter::forceUpdate(double value, const QString& stage)
         m_stage = stage;
     }
     
-    if (QThread::currentThread() == thread()) {
-        emit progressChanged(clampedValue);
-        if (!stage.isEmpty()) {
-            emit stageChanged(stage);
-        }
-    } else {
-        QMetaObject::invokeMethod(this, [this, clampedValue, stage]() {
-            emit progressChanged(clampedValue);
-            if (!stage.isEmpty()) {
-                emit stageChanged(stage);
-            }
-        }, Qt::QueuedConnection);
-    }
+    emitSignals(clampedValue, stage);
 }
 
 double ProgressReporter::smoothProgress(double rawValue)
@@ -209,12 +313,30 @@ void ProgressReporter::updateEstimatedRemainingTime()
 bool ProgressReporter::isAnomalyJump(double newValue) const
 {
     double current = m_rawProgress.load();
+    double delta = newValue - current;
     
-    if (newValue < current) {
-        return (current - newValue) > kAnomalyThreshold;
+    if (delta < 0) {
+        return true;
     }
     
-    return false;
+    return delta > kAnomalyThreshold;
+}
+
+void ProgressReporter::emitSignals(double progress, const QString& stage)
+{
+    if (QThread::currentThread() == thread()) {
+        emit progressChanged(progress);
+        if (!stage.isEmpty()) {
+            emit stageChanged(stage);
+        }
+    } else {
+        QMetaObject::invokeMethod(this, [this, progress, stage]() {
+            emit progressChanged(progress);
+            if (!stage.isEmpty()) {
+                emit stageChanged(stage);
+            }
+        }, Qt::QueuedConnection);
+    }
 }
 
 } // namespace EnhanceVision

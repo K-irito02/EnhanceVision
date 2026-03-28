@@ -8,6 +8,7 @@
  * 2. 使用scanLine直接访问像素数据
  * 3. 减少不必要的QImage副本
  * 4. 完善边界处理
+ * 5. 细粒度进度报告
  */
 
 #ifndef ENHANCEVISION_IMAGEPROCESSOR_H
@@ -22,12 +23,19 @@
 
 namespace EnhanceVision {
 
-/**
- * @brief 图像处理器类
- * 负责图像处理、Shader 参数应用、进度回调
- * 
- * 算法与GPU Shader完全一致，确保前后端效果一致性
- */
+class ProgressReporter;
+
+enum class ProcessingStage {
+    Idle = 0,
+    Loading,
+    Preprocessing,
+    ColorAdjust,
+    Effects,
+    Postprocessing,
+    Saving,
+    Completed
+};
+
 class ImageProcessor : public QObject
 {
     Q_OBJECT
@@ -36,26 +44,14 @@ public:
     explicit ImageProcessor(QObject *parent = nullptr);
     ~ImageProcessor() override;
 
-    /**
-     * @brief 应用Shader效果到图像
-     * @param input 输入图像
-     * @param params Shader参数
-     * @return 处理后的图像
-     */
     QImage applyShader(const QImage& input, const ShaderParams& params);
 
-    /**
-     * @brief 异步处理图像
-     */
     void processImageAsync(const QString& inputPath,
                           const QString& outputPath,
                           const ShaderParams& params,
                           ProgressCallback progressCallback = nullptr,
                           FinishCallback finishCallback = nullptr);
 
-    /**
-     * @brief 带取消/暂停令牌的异步处理
-     */
     void processImageAsyncWithTokens(const QString& inputPath,
                                      const QString& outputPath,
                                      const ShaderParams& params,
@@ -64,16 +60,26 @@ public:
                                      ProgressCallback progressCallback = nullptr,
                                      FinishCallback finishCallback = nullptr);
 
+    void processImageAsyncWithReporter(const QString& inputPath,
+                                       const QString& outputPath,
+                                       const ShaderParams& params,
+                                       ProgressReporter* reporter,
+                                       ProgressCallback progressCallback = nullptr,
+                                       FinishCallback finishCallback = nullptr);
+
     void cancel();
     void interrupt();
     bool isProcessing() const;
     bool shouldContinue() const;
     void waitIfPaused();
+    
+    ProcessingStage currentStage() const;
 
 signals:
     void progressChanged(int progress, const QString& status);
     void finished(bool success, const QString& resultPath, const QString& error);
     void cancelled();
+    void stageChanged(ProcessingStage stage);
 
 private:
     void applyExposure(QImage& image, float exposure);
@@ -100,11 +106,28 @@ private:
                                     const std::vector<std::vector<QRgb>>& neighborPixels,
                                     const std::vector<QRgb>& originalPixels,
                                     int width, int height);
+    
+    void reportProgress(int progress, const QString& status);
+    void reportStageProgress(ProcessingStage stage, double stageProgress);
+    QString stageToString(ProcessingStage stage) const;
 
     bool m_isProcessing;
     bool m_cancelled;
     std::shared_ptr<std::atomic<bool>> m_cancelToken;
     std::shared_ptr<std::atomic<bool>> m_pauseToken;
+    ProgressReporter* m_reporter;
+    std::atomic<ProcessingStage> m_currentStage{ProcessingStage::Idle};
+    
+    static constexpr int kProgressLoadingStart = 0;
+    static constexpr int kProgressLoadingEnd = 15;
+    static constexpr int kProgressPreprocessStart = 15;
+    static constexpr int kProgressPreprocessEnd = 20;
+    static constexpr int kProgressColorAdjustStart = 20;
+    static constexpr int kProgressColorAdjustEnd = 60;
+    static constexpr int kProgressEffectsStart = 60;
+    static constexpr int kProgressEffectsEnd = 85;
+    static constexpr int kProgressSavingStart = 85;
+    static constexpr int kProgressSavingEnd = 100;
 };
 
 } // namespace EnhanceVision

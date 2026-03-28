@@ -140,6 +140,7 @@ qt_add_executable(EnhanceVision
     src/app/MainWindow.cpp
     src/core/AIEngine.cpp
     src/core/ProgressReporter.cpp
+    src/core/ProgressManager.cpp
     src/core/ModelRegistry.cpp
     src/core/ProcessingEngine.cpp
     src/core/VideoProcessor.cpp
@@ -174,6 +175,8 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/app/MainWindow.h
     include/EnhanceVision/core/AIEngine.h
     include/EnhanceVision/core/ProgressReporter.h
+    include/EnhanceVision/core/ProgressManager.h
+    include/EnhanceVision/core/IProgressProvider.h
     include/EnhanceVision/core/ModelRegistry.h
     include/EnhanceVision/core/ProcessingEngine.h
     include/EnhanceVision/core/VideoProcessor.h

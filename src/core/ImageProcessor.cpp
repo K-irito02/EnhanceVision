@@ -8,9 +8,11 @@
  * 2. 使用scanLine直接访问像素数据
  * 3. 减少不必要的QImage副本
  * 4. 完善边界处理
+ * 5. 细粒度进度报告
  */
 
 #include "EnhanceVision/core/ImageProcessor.h"
+#include "EnhanceVision/core/ProgressReporter.h"
 #include <QColor>
 #include <QFile>
 #include <QtConcurrent/QtConcurrent>
@@ -112,6 +114,7 @@ ImageProcessor::ImageProcessor(QObject *parent)
     : QObject(parent)
     , m_isProcessing(false)
     , m_cancelled(false)
+    , m_reporter(nullptr)
 {
 }
 
@@ -119,6 +122,69 @@ ImageProcessor::~ImageProcessor()
 {
     cancel();
     interrupt();
+}
+
+ProcessingStage ImageProcessor::currentStage() const
+{
+    return m_currentStage.load();
+}
+
+QString ImageProcessor::stageToString(ProcessingStage stage) const
+{
+    switch (stage) {
+        case ProcessingStage::Idle: return tr("空闲");
+        case ProcessingStage::Loading: return tr("加载图像");
+        case ProcessingStage::Preprocessing: return tr("预处理");
+        case ProcessingStage::ColorAdjust: return tr("颜色调整");
+        case ProcessingStage::Effects: return tr("应用特效");
+        case ProcessingStage::Postprocessing: return tr("后处理");
+        case ProcessingStage::Saving: return tr("保存结果");
+        case ProcessingStage::Completed: return tr("完成");
+        default: return QString();
+    }
+}
+
+void ImageProcessor::reportProgress(int progress, const QString& status)
+{
+    emit progressChanged(progress, status);
+}
+
+void ImageProcessor::reportStageProgress(ProcessingStage stage, double stageProgress)
+{
+    m_currentStage.store(stage);
+    emit stageChanged(stage);
+    
+    if (m_reporter) {
+        double overallProgress = 0.0;
+        switch (stage) {
+            case ProcessingStage::Loading:
+                overallProgress = kProgressLoadingStart + 
+                    (kProgressLoadingEnd - kProgressLoadingStart) * stageProgress;
+                break;
+            case ProcessingStage::Preprocessing:
+                overallProgress = kProgressPreprocessStart + 
+                    (kProgressPreprocessEnd - kProgressPreprocessStart) * stageProgress;
+                break;
+            case ProcessingStage::ColorAdjust:
+                overallProgress = kProgressColorAdjustStart + 
+                    (kProgressColorAdjustEnd - kProgressColorAdjustStart) * stageProgress;
+                break;
+            case ProcessingStage::Effects:
+                overallProgress = kProgressEffectsStart + 
+                    (kProgressEffectsEnd - kProgressEffectsStart) * stageProgress;
+                break;
+            case ProcessingStage::Saving:
+                overallProgress = kProgressSavingStart + 
+                    (kProgressSavingEnd - kProgressSavingStart) * stageProgress;
+                break;
+            case ProcessingStage::Completed:
+                overallProgress = 1.0;
+                break;
+            default:
+                break;
+        }
+        m_reporter->setProgress(overallProgress / 100.0, stageToString(stage));
+    }
 }
 
 QImage ImageProcessor::applyShader(const QImage& input, const ShaderParams& params)
@@ -459,6 +525,20 @@ void ImageProcessor::processImageAsyncWithTokens(const QString& inputPath,
                                                   ProgressCallback progressCallback,
                                                   FinishCallback finishCallback)
 {
+    processImageAsyncWithReporter(inputPath, outputPath, params, nullptr,
+                                  progressCallback, finishCallback);
+    
+    m_cancelToken = cancelToken;
+    m_pauseToken = pauseToken;
+}
+
+void ImageProcessor::processImageAsyncWithReporter(const QString& inputPath,
+                                                    const QString& outputPath,
+                                                    const ShaderParams& params,
+                                                    ProgressReporter* reporter,
+                                                    ProgressCallback progressCallback,
+                                                    FinishCallback finishCallback)
+{
     if (m_isProcessing) {
         if (finishCallback) {
             finishCallback(false, QString(), tr("已有处理任务正在进行"));
@@ -469,10 +549,14 @@ void ImageProcessor::processImageAsyncWithTokens(const QString& inputPath,
 
     m_isProcessing = true;
     m_cancelled = false;
-    m_cancelToken = cancelToken;
-    m_pauseToken = pauseToken;
+    m_reporter = reporter;
 
-    QtConcurrent::run([this, inputPath, outputPath, params, progressCallback, finishCallback, cancelToken]() {
+    if (m_reporter) {
+        m_reporter->reset();
+        m_reporter->beginBatch(5, tr("处理图像"));
+    }
+
+    QtConcurrent::run([this, inputPath, outputPath, params, progressCallback, finishCallback]() {
         bool success = false;
         QString error;
         QString resultPath;
@@ -482,10 +566,9 @@ void ImageProcessor::processImageAsyncWithTokens(const QString& inputPath,
                 throw std::runtime_error(tr("处理已取消").toStdString());
             }
 
-            if (progressCallback) {
-                progressCallback(10, tr("正在读取图像..."));
-            }
-            emit progressChanged(10, tr("正在读取图像..."));
+            reportStageProgress(ProcessingStage::Loading, 0.0);
+            if (progressCallback) progressCallback(kProgressLoadingStart, tr("正在读取图像..."));
+            emit progressChanged(kProgressLoadingStart, tr("正在读取图像..."));
 
             QImage inputImage(inputPath);
             if (inputImage.isNull()) {
@@ -496,32 +579,192 @@ void ImageProcessor::processImageAsyncWithTokens(const QString& inputPath,
                 throw std::runtime_error(tr("处理已取消").toStdString());
             }
 
-            if (progressCallback) {
-                progressCallback(30, tr("正在应用滤镜..."));
-            }
-            emit progressChanged(30, tr("正在应用滤镜..."));
+            reportStageProgress(ProcessingStage::Loading, 1.0);
+            if (progressCallback) progressCallback(kProgressLoadingEnd, tr("图像加载完成"));
+            emit progressChanged(kProgressLoadingEnd, tr("图像加载完成"));
 
-            QImage resultImage = applyShader(inputImage, params);
+            reportStageProgress(ProcessingStage::Preprocessing, 0.0);
+            QImage result = inputImage.convertToFormat(QImage::Format_RGB32);
+            int width = result.width();
+            int height = result.height();
+            int totalPixels = width * height;
+            
+            reportStageProgress(ProcessingStage::Preprocessing, 1.0);
 
             if (!shouldContinue()) {
                 throw std::runtime_error(tr("处理已取消").toStdString());
             }
 
-            if (progressCallback) {
-                progressCallback(80, tr("正在保存结果..."));
-            }
-            emit progressChanged(80, tr("正在保存结果..."));
+            reportStageProgress(ProcessingStage::ColorAdjust, 0.0);
+            
+            int pixelReportInterval = std::max(1, totalPixels / 20);
+            int nextReportPixel = pixelReportInterval;
+            int pixelsProcessed = 0;
 
-            if (!resultImage.save(outputPath)) {
+            for (int y = 0; y < height; ++y) {
+                QRgb* line = reinterpret_cast<QRgb*>(result.scanLine(y));
+                
+                for (int x = 0; x < width; ++x) {
+                    float r = qRed(line[x]) / 255.0f;
+                    float g = qGreen(line[x]) / 255.0f;
+                    float b = qBlue(line[x]) / 255.0f;
+                    
+                    if (std::abs(params.exposure) > 0.001f) {
+                        float factor = std::pow(2.0f, params.exposure);
+                        r *= factor;
+                        g *= factor;
+                        b *= factor;
+                    }
+                    
+                    if (std::abs(params.brightness) > 0.001f) {
+                        r = qBound(0.0f, r + params.brightness, 1.0f);
+                        g = qBound(0.0f, g + params.brightness, 1.0f);
+                        b = qBound(0.0f, b + params.brightness, 1.0f);
+                    }
+                    
+                    if (std::abs(params.contrast - 1.0f) > 0.001f) {
+                        r = qBound(0.0f, (r - 0.5f) * params.contrast + 0.5f, 1.0f);
+                        g = qBound(0.0f, (g - 0.5f) * params.contrast + 0.5f, 1.0f);
+                        b = qBound(0.0f, (b - 0.5f) * params.contrast + 0.5f, 1.0f);
+                    }
+                    
+                    if (std::abs(params.saturation - 1.0f) > 0.001f) {
+                        float gray = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+                        r = qBound(0.0f, gray + params.saturation * (r - gray), 1.0f);
+                        g = qBound(0.0f, gray + params.saturation * (g - gray), 1.0f);
+                        b = qBound(0.0f, gray + params.saturation * (b - gray), 1.0f);
+                    }
+                    
+                    if (std::abs(params.hue) > 0.001f) {
+                        float h, s, v;
+                        rgb2hsv(r, g, b, h, s, v);
+                        h = std::fmod(h + params.hue + 1.0f, 1.0f);
+                        hsv2rgb(h, s, v, r, g, b);
+                    }
+                    
+                    if (std::abs(params.gamma - 1.0f) > 0.001f) {
+                        float invGamma = 1.0f / params.gamma;
+                        r = std::pow(r, invGamma);
+                        g = std::pow(g, invGamma);
+                        b = std::pow(b, invGamma);
+                    }
+                    
+                    if (std::abs(params.temperature) > 0.001f) {
+                        r = qBound(0.0f, r + params.temperature * 0.2f, 1.0f);
+                        b = qBound(0.0f, b - params.temperature * 0.2f, 1.0f);
+                    }
+                    
+                    if (std::abs(params.tint) > 0.001f) {
+                        g = qBound(0.0f, g + params.tint * 0.2f, 1.0f);
+                    }
+                    
+                    if (std::abs(params.highlights) > 0.001f) {
+                        float luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+                        if (luminance > 0.5f) {
+                            float factor = (luminance - 0.5f) * 2.0f;
+                            float adjustment = params.highlights * factor * 0.3f;
+                            r = qBound(0.0f, r + adjustment, 1.0f);
+                            g = qBound(0.0f, g + adjustment, 1.0f);
+                            b = qBound(0.0f, b + adjustment, 1.0f);
+                        }
+                    }
+                    
+                    if (std::abs(params.shadows) > 0.001f) {
+                        float luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+                        if (luminance < 0.5f) {
+                            float factor = (0.5f - luminance) * 2.0f;
+                            float adjustment = params.shadows * factor * 0.3f;
+                            r = qBound(0.0f, r + adjustment, 1.0f);
+                            g = qBound(0.0f, g + adjustment, 1.0f);
+                            b = qBound(0.0f, b + adjustment, 1.0f);
+                        }
+                    }
+                    
+                    if (params.vignette > 0.001f) {
+                        float centerX = 0.5f;
+                        float centerY = 0.5f;
+                        float texX = static_cast<float>(x) / width;
+                        float texY = static_cast<float>(y) / height;
+                        float dist = std::sqrt((texX - centerX) * (texX - centerX) + 
+                                               (texY - centerY) * (texY - centerY)) * 1.414f;
+                        float vignetteFactor = qBound(0.0f, 1.0f - params.vignette * dist * dist, 1.0f);
+                        r *= vignetteFactor;
+                        g *= vignetteFactor;
+                        b *= vignetteFactor;
+                    }
+                    
+                    line[x] = qRgb(clampChannel(r), clampChannel(g), clampChannel(b));
+                    
+                    pixelsProcessed++;
+                    if (pixelsProcessed >= nextReportPixel) {
+                        double stageProgress = static_cast<double>(pixelsProcessed) / totalPixels;
+                        int overallProgress = static_cast<int>(kProgressColorAdjustStart + 
+                            (kProgressColorAdjustEnd - kProgressColorAdjustStart) * stageProgress);
+                        
+                        if (m_reporter) {
+                            m_reporter->setSubProgress(stageProgress, tr("颜色调整"));
+                        }
+                        if (progressCallback) progressCallback(overallProgress, tr("应用颜色调整..."));
+                        emit progressChanged(overallProgress, tr("应用颜色调整..."));
+                        
+                        nextReportPixel += pixelReportInterval;
+                        
+                        if (!shouldContinue()) {
+                            throw std::runtime_error(tr("处理已取消").toStdString());
+                        }
+                    }
+                }
+            }
+
+            reportStageProgress(ProcessingStage::Effects, 0.0);
+            
+            int effectProgress = kProgressEffectsStart;
+            const int effectProgressStep = (kProgressEffectsEnd - kProgressEffectsStart) / 3;
+            
+            if (params.blur > 0.001f) {
+                if (progressCallback) progressCallback(effectProgress, tr("应用模糊效果..."));
+                emit progressChanged(effectProgress, tr("应用模糊效果..."));
+                applyBlur(result, params.blur);
+                effectProgress += effectProgressStep;
+            }
+            
+            if (params.denoise > 0.001f) {
+                if (progressCallback) progressCallback(effectProgress, tr("应用降噪效果..."));
+                emit progressChanged(effectProgress, tr("应用降噪效果..."));
+                applyDenoise(result, params.denoise);
+                effectProgress += effectProgressStep;
+            }
+            
+            if (params.sharpness > 0.001f) {
+                if (progressCallback) progressCallback(effectProgress, tr("应用锐化效果..."));
+                emit progressChanged(effectProgress, tr("应用锐化效果..."));
+                applySharpen(result, params.sharpness);
+            }
+
+            reportStageProgress(ProcessingStage::Effects, 1.0);
+
+            if (!shouldContinue()) {
+                throw std::runtime_error(tr("处理已取消").toStdString());
+            }
+
+            reportStageProgress(ProcessingStage::Saving, 0.0);
+            if (progressCallback) progressCallback(kProgressSavingStart, tr("正在保存结果..."));
+            emit progressChanged(kProgressSavingStart, tr("正在保存结果..."));
+
+            if (!result.save(outputPath)) {
                 throw std::runtime_error(tr("无法保存图像文件").toStdString());
             }
 
             resultPath = outputPath;
             success = true;
 
-            if (progressCallback) {
-                progressCallback(100, tr("处理完成"));
+            reportStageProgress(ProcessingStage::Saving, 1.0);
+            reportStageProgress(ProcessingStage::Completed, 1.0);
+            
+            if (m_reporter) {
+                m_reporter->endBatch();
             }
+            if (progressCallback) progressCallback(100, tr("处理完成"));
             emit progressChanged(100, tr("处理完成"));
 
         } catch (const std::exception& e) {
@@ -532,8 +775,9 @@ void ImageProcessor::processImageAsyncWithTokens(const QString& inputPath,
         m_isProcessing = false;
         m_cancelToken.reset();
         m_pauseToken.reset();
+        m_reporter = nullptr;
 
-        if (m_cancelled || (cancelToken && cancelToken->load())) {
+        if (m_cancelled || (m_cancelToken && m_cancelToken->load())) {
             emit cancelled();
             if (finishCallback) {
                 finishCallback(false, QString(), tr("处理已取消"));

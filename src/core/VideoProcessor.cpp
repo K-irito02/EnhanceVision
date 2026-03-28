@@ -8,10 +8,12 @@
  * 2. 支持不同大小比例和格式的视频文件
  * 3. 保留原始音频流
  * 4. 高质量编码输出
+ * 5. 精确帧级进度映射
  */
 
 #include "EnhanceVision/core/VideoProcessor.h"
 #include "EnhanceVision/core/ImageProcessor.h"
+#include "EnhanceVision/core/ProgressReporter.h"
 #include <QtConcurrent/QtConcurrent>
 #include <QFile>
 #include <QFileInfo>
@@ -23,6 +25,7 @@ VideoProcessor::VideoProcessor(QObject *parent)
     : QObject(parent)
     , m_isProcessing(false)
     , m_cancelled(false)
+    , m_reporter(nullptr)
 {
 }
 
@@ -31,11 +34,83 @@ VideoProcessor::~VideoProcessor()
     cancel();
 }
 
+VideoProcessingStage VideoProcessor::currentStage() const
+{
+    return m_currentStage.load();
+}
+
+QString VideoProcessor::stageToString(VideoProcessingStage stage) const
+{
+    switch (stage) {
+        case VideoProcessingStage::Idle: return tr("空闲");
+        case VideoProcessingStage::Opening: return tr("打开文件");
+        case VideoProcessingStage::DecodingInit: return tr("初始化解码器");
+        case VideoProcessingStage::EncodingInit: return tr("初始化编码器");
+        case VideoProcessingStage::FrameProcessing: return tr("处理帧");
+        case VideoProcessingStage::EncodingFinalize: return tr("完成编码");
+        case VideoProcessingStage::Writing: return tr("写入文件");
+        case VideoProcessingStage::Completed: return tr("完成");
+        default: return QString();
+    }
+}
+
+void VideoProcessor::reportStageProgress(VideoProcessingStage stage, double stageProgress)
+{
+    m_currentStage.store(stage);
+    emit stageChanged(stage);
+    
+    if (m_reporter) {
+        double overallProgress = 0.0;
+        switch (stage) {
+            case VideoProcessingStage::Opening:
+                overallProgress = kProgressOpeningStart + 
+                    (kProgressOpeningEnd - kProgressOpeningStart) * stageProgress;
+                break;
+            case VideoProcessingStage::DecodingInit:
+                overallProgress = kProgressDecodingInitStart + 
+                    (kProgressDecodingInitEnd - kProgressDecodingInitStart) * stageProgress;
+                break;
+            case VideoProcessingStage::EncodingInit:
+                overallProgress = kProgressEncodingInitStart + 
+                    (kProgressEncodingInitEnd - kProgressEncodingInitStart) * stageProgress;
+                break;
+            case VideoProcessingStage::FrameProcessing:
+                overallProgress = kProgressFrameProcessingStart + 
+                    (kProgressFrameProcessingEnd - kProgressFrameProcessingStart) * stageProgress;
+                break;
+            case VideoProcessingStage::EncodingFinalize:
+                overallProgress = kProgressEncodingFinalizeStart + 
+                    (kProgressEncodingFinalizeEnd - kProgressEncodingFinalizeStart) * stageProgress;
+                break;
+            case VideoProcessingStage::Writing:
+                overallProgress = kProgressWritingStart + 
+                    (kProgressWritingEnd - kProgressWritingStart) * stageProgress;
+                break;
+            case VideoProcessingStage::Completed:
+                overallProgress = 100.0;
+                break;
+            default:
+                break;
+        }
+        m_reporter->setProgress(overallProgress / 100.0, stageToString(stage));
+    }
+}
+
 void VideoProcessor::processVideoAsync(const QString& inputPath,
                                        const QString& outputPath,
                                        const ShaderParams& params,
                                        ProgressCallback progressCallback,
                                        FinishCallback finishCallback)
+{
+    processVideoAsyncWithReporter(inputPath, outputPath, params, nullptr, progressCallback, finishCallback);
+}
+
+void VideoProcessor::processVideoAsyncWithReporter(const QString& inputPath,
+                                                    const QString& outputPath,
+                                                    const ShaderParams& params,
+                                                    ProgressReporter* reporter,
+                                                    ProgressCallback progressCallback,
+                                                    FinishCallback finishCallback)
 {
     if (m_isProcessing) {
         if (finishCallback) {
@@ -47,9 +122,15 @@ void VideoProcessor::processVideoAsync(const QString& inputPath,
 
     m_isProcessing = true;
     m_cancelled = false;
+    m_reporter = reporter;
+
+    if (m_reporter) {
+        m_reporter->reset();
+        m_reporter->beginBatch(6, tr("处理视频"));
+    }
 
     QtConcurrent::run([this, inputPath, outputPath, params, progressCallback, finishCallback]() {
-        processVideoInternal(inputPath, outputPath, params, progressCallback, finishCallback);
+        processVideoInternal(inputPath, outputPath, params, m_reporter, progressCallback, finishCallback);
     });
 }
 
@@ -66,6 +147,7 @@ bool VideoProcessor::isProcessing() const
 void VideoProcessor::processVideoInternal(const QString& inputPath,
                                           const QString& outputPath,
                                           const ShaderParams& params,
+                                          ProgressReporter* reporter,
                                           ProgressCallback progressCallback,
                                           FinishCallback finishCallback)
 {
@@ -109,12 +191,18 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         if (inputFormatContext) avformat_close_input(&inputFormatContext);
     };
 
+    auto reportProgress = [&](int progress, const QString& status) {
+        if (progressCallback) progressCallback(progress, status);
+        emit progressChanged(progress, status);
+    };
+
     try {
-        // ========== 阶段1: 打开输入文件并分析流 ==========
-        if (progressCallback) {
-            progressCallback(2, tr("正在分析视频文件..."));
+        if (m_cancelled) {
+            throw std::runtime_error(tr("处理已取消").toStdString());
         }
-        emit progressChanged(2, tr("正在分析视频文件..."));
+
+        reportStageProgress(VideoProcessingStage::Opening, 0.0);
+        reportProgress(kProgressOpeningStart, tr("正在分析视频文件..."));
 
         if (avformat_open_input(&inputFormatContext, inputPath.toUtf8().constData(), nullptr, nullptr) != 0) {
             throw std::runtime_error(tr("无法打开输入视频文件").toStdString());
@@ -124,7 +212,6 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
             throw std::runtime_error(tr("无法获取视频流信息").toStdString());
         }
 
-        // 查找视频流和音频流
         for (unsigned int i = 0; i < inputFormatContext->nb_streams; i++) {
             AVMediaType codecType = inputFormatContext->streams[i]->codecpar->codec_type;
             if (codecType == AVMEDIA_TYPE_VIDEO && videoStreamIndex == -1) {
@@ -140,11 +227,15 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
 
         AVStream* inVideoStream = inputFormatContext->streams[videoStreamIndex];
 
-        // ========== 阶段2: 初始化视频解码器 ==========
-        if (progressCallback) {
-            progressCallback(5, tr("正在初始化解码器..."));
+        reportStageProgress(VideoProcessingStage::Opening, 1.0);
+        reportProgress(kProgressOpeningEnd, tr("文件分析完成"));
+
+        if (m_cancelled) {
+            throw std::runtime_error(tr("处理已取消").toStdString());
         }
-        emit progressChanged(5, tr("正在初始化解码器..."));
+
+        reportStageProgress(VideoProcessingStage::DecodingInit, 0.0);
+        reportProgress(kProgressDecodingInitStart, tr("正在初始化解码器..."));
 
         const AVCodec* decoder = avcodec_find_decoder(inVideoStream->codecpar->codec_id);
         if (!decoder) {
@@ -160,7 +251,6 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
             throw std::runtime_error(tr("无法复制解码器参数").toStdString());
         }
 
-        // 设置多线程解码
         videoDecoderContext->thread_count = qMin(QThread::idealThreadCount(), 8);
 
         if (avcodec_open2(videoDecoderContext, decoder, nullptr) < 0) {
@@ -171,28 +261,27 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         int srcHeight = videoDecoderContext->height;
         AVPixelFormat srcPixFmt = videoDecoderContext->pix_fmt;
 
-        qDebug() << "[VideoProcessor] Input:" << srcWidth << "x" << srcHeight 
-                 << "PixFmt:" << av_get_pix_fmt_name(srcPixFmt);
+        reportStageProgress(VideoProcessingStage::DecodingInit, 1.0);
+        reportProgress(kProgressDecodingInitEnd, tr("解码器初始化完成"));
 
-        // ========== 阶段3: 初始化输出格式和编码器 ==========
-        if (progressCallback) {
-            progressCallback(8, tr("正在初始化编码器..."));
+        if (m_cancelled) {
+            throw std::runtime_error(tr("处理已取消").toStdString());
         }
-        emit progressChanged(8, tr("正在初始化编码器..."));
+
+        reportStageProgress(VideoProcessingStage::EncodingInit, 0.0);
+        reportProgress(kProgressEncodingInitStart, tr("正在初始化编码器..."));
 
         if (avformat_alloc_output_context2(&outputFormatContext, nullptr, nullptr, 
                                             outputPath.toUtf8().constData()) < 0) {
             throw std::runtime_error(tr("无法创建输出格式上下文").toStdString());
         }
 
-        // 创建输出视频流
         AVStream* outVideoStream = avformat_new_stream(outputFormatContext, nullptr);
         if (!outVideoStream) {
             throw std::runtime_error(tr("无法创建输出视频流").toStdString());
         }
         outVideoStreamIndex = outVideoStream->index;
 
-        // 选择编码器：优先H.264
         const AVCodec* encoder = avcodec_find_encoder(AV_CODEC_ID_H264);
         if (!encoder) {
             encoder = avcodec_find_encoder(outputFormatContext->oformat->video_codec);
@@ -206,13 +295,11 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
             throw std::runtime_error(tr("无法分配编码器上下文").toStdString());
         }
 
-        // 配置编码器参数
         videoEncoderContext->width = srcWidth;
         videoEncoderContext->height = srcHeight;
         videoEncoderContext->sample_aspect_ratio = videoDecoderContext->sample_aspect_ratio;
         videoEncoderContext->pix_fmt = AV_PIX_FMT_YUV420P;
         
-        // 使用输入视频的时间基和帧率
         if (inVideoStream->avg_frame_rate.num > 0 && inVideoStream->avg_frame_rate.den > 0) {
             videoEncoderContext->framerate = inVideoStream->avg_frame_rate;
         } else if (videoDecoderContext->framerate.num > 0 && videoDecoderContext->framerate.den > 0) {
@@ -222,7 +309,6 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         }
         videoEncoderContext->time_base = av_inv_q(videoEncoderContext->framerate);
 
-        // 高质量编码设置
         videoEncoderContext->bit_rate = static_cast<int64_t>(srcWidth) * srcHeight * 4;
         videoEncoderContext->gop_size = 12;
         videoEncoderContext->max_b_frames = 2;
@@ -232,7 +318,6 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
             videoEncoderContext->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
         }
 
-        // 设置编码质量
         AVDictionary* encoderOpts = nullptr;
         av_dict_set(&encoderOpts, "preset", "medium", 0);
         av_dict_set(&encoderOpts, "crf", "18", 0);
@@ -248,7 +333,6 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         }
         outVideoStream->time_base = videoEncoderContext->time_base;
 
-        // ========== 阶段4: 复制音频流（如果存在） ==========
         AVStream* outAudioStream = nullptr;
         if (audioStreamIndex >= 0) {
             AVStream* inAudioStream = inputFormatContext->streams[audioStreamIndex];
@@ -257,7 +341,6 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
                 outAudioStreamIndex = outAudioStream->index;
                 if (avcodec_parameters_copy(outAudioStream->codecpar, inAudioStream->codecpar) >= 0) {
                     outAudioStream->time_base = inAudioStream->time_base;
-                    qDebug() << "[VideoProcessor] Audio stream will be copied";
                 } else {
                     outAudioStreamIndex = -1;
                     qWarning() << "[VideoProcessor] Failed to copy audio parameters";
@@ -265,7 +348,6 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
             }
         }
 
-        // ========== 阶段5: 打开输出文件 ==========
         if (!(outputFormatContext->oformat->flags & AVFMT_NOFILE)) {
             if (avio_open(&outputFormatContext->pb, outputPath.toUtf8().constData(), AVIO_FLAG_WRITE) < 0) {
                 throw std::runtime_error(tr("无法打开输出文件").toStdString());
@@ -276,8 +358,13 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
             throw std::runtime_error(tr("无法写入文件头").toStdString());
         }
 
-        // ========== 阶段6: 初始化图像转换上下文 ==========
-        // 解码后 -> RGB32 (用于 QImage 处理)
+        reportStageProgress(VideoProcessingStage::EncodingInit, 1.0);
+        reportProgress(kProgressEncodingInitEnd, tr("编码器初始化完成"));
+
+        if (m_cancelled) {
+            throw std::runtime_error(tr("处理已取消").toStdString());
+        }
+
         swsContextToRGB = sws_getContext(
             srcWidth, srcHeight, srcPixFmt,
             srcWidth, srcHeight, AV_PIX_FMT_RGB32,
@@ -287,7 +374,6 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
             throw std::runtime_error(tr("无法创建RGB转换上下文").toStdString());
         }
 
-        // RGB32 -> YUV420P (用于编码)
         swsContextToYUV = sws_getContext(
             srcWidth, srcHeight, AV_PIX_FMT_RGB32,
             srcWidth, srcHeight, AV_PIX_FMT_YUV420P,
@@ -297,7 +383,6 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
             throw std::runtime_error(tr("无法创建YUV转换上下文").toStdString());
         }
 
-        // ========== 阶段7: 分配帧缓冲 ==========
         frame = av_frame_alloc();
         rgbFrame = av_frame_alloc();
         outFrame = av_frame_alloc();
@@ -307,7 +392,6 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
             throw std::runtime_error(tr("无法分配帧缓冲").toStdString());
         }
 
-        // 配置RGB帧
         rgbFrame->format = AV_PIX_FMT_RGB32;
         rgbFrame->width = srcWidth;
         rgbFrame->height = srcHeight;
@@ -315,7 +399,6 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
             throw std::runtime_error(tr("无法分配RGB帧缓冲").toStdString());
         }
 
-        // 配置输出帧
         outFrame->format = AV_PIX_FMT_YUV420P;
         outFrame->width = srcWidth;
         outFrame->height = srcHeight;
@@ -323,7 +406,6 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
             throw std::runtime_error(tr("无法分配输出帧缓冲").toStdString());
         }
 
-        // ========== 阶段8: 估算总帧数 ==========
         int64_t totalFrames = inVideoStream->nb_frames;
         if (totalFrames <= 0 && inputFormatContext->duration > 0) {
             double fps = av_q2d(videoEncoderContext->framerate);
@@ -335,16 +417,13 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         }
         if (totalFrames <= 0) totalFrames = 1000;
 
-        qDebug() << "[VideoProcessor] Estimated frames:" << totalFrames;
-
-        // ========== 阶段9: 主处理循环 ==========
-        if (progressCallback) {
-            progressCallback(10, tr("开始处理视频帧..."));
-        }
-        emit progressChanged(10, tr("开始处理视频帧..."));
+        reportStageProgress(VideoProcessingStage::FrameProcessing, 0.0);
+        reportProgress(kProgressFrameProcessingStart, tr("开始处理视频帧..."));
 
         int64_t frameCount = 0;
         int64_t encodedPts = 0;
+        int lastReportedPercent = kProgressFrameProcessingStart;
+        const int frameProgressRange = kProgressFrameProcessingEnd - kProgressFrameProcessingStart;
 
         while (av_read_frame(inputFormatContext, packet) >= 0) {
             if (m_cancelled) {
@@ -353,7 +432,6 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
             }
 
             if (packet->stream_index == videoStreamIndex) {
-                // 视频帧处理
                 int ret = avcodec_send_packet(videoDecoderContext, packet);
                 if (ret < 0 && ret != AVERROR(EAGAIN) && ret != AVERROR_EOF) {
                     qWarning() << "[VideoProcessor] Decode send packet error:" << ret;
@@ -364,19 +442,15 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
                         throw std::runtime_error(tr("处理已取消").toStdString());
                     }
 
-                    // 转换为RGB32
                     sws_scale(swsContextToRGB,
                               frame->data, frame->linesize, 0, frame->height,
                               rgbFrame->data, rgbFrame->linesize);
 
-                    // 创建QImage（不复制数据，直接使用rgbFrame的缓冲）
                     QImage image(rgbFrame->data[0], srcWidth, srcHeight, 
                                  rgbFrame->linesize[0], QImage::Format_RGB32);
                     
-                    // 应用Shader效果（使用与GPU完全一致的算法）
                     QImage processedImage = imageProcessor.applyShader(image, params);
 
-                    // 将处理后的图像数据复制回rgbFrame
                     QImage converted = processedImage.convertToFormat(QImage::Format_RGB32);
                     if (converted.bytesPerLine() == rgbFrame->linesize[0]) {
                         memcpy(rgbFrame->data[0], converted.constBits(), 
@@ -389,15 +463,12 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
                         }
                     }
 
-                    // 转换为YUV420P用于编码
                     sws_scale(swsContextToYUV,
                               rgbFrame->data, rgbFrame->linesize, 0, srcHeight,
                               outFrame->data, outFrame->linesize);
 
-                    // 设置PTS
                     outFrame->pts = encodedPts++;
 
-                    // 编码
                     ret = avcodec_send_frame(videoEncoderContext, outFrame);
                     if (ret < 0 && ret != AVERROR(EAGAIN)) {
                         qWarning() << "[VideoProcessor] Encode send frame error:" << ret;
@@ -419,19 +490,22 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
 
                     frameCount++;
                     
-                    // 更新进度（每10帧或达到特定百分比时）
-                    if (frameCount % 10 == 0 || frameCount == 1) {
-                        int progress = 10 + qRound(80.0 * frameCount / totalFrames);
-                        progress = qBound(10, progress, 90);
-
-                        if (progressCallback) {
-                            progressCallback(progress, tr("正在处理第 %1 帧...").arg(frameCount));
+                    double frameProgress = static_cast<double>(frameCount) / totalFrames;
+                    int currentPercent = static_cast<int>(
+                        kProgressFrameProcessingStart + frameProgressRange * frameProgress);
+                    currentPercent = qBound(kProgressFrameProcessingStart, currentPercent, kProgressFrameProcessingEnd - 1);
+                    
+                    if (currentPercent - lastReportedPercent >= 1 || frameCount == 1) {
+                        QString statusMsg = tr("正在处理第 %1/%2 帧...").arg(frameCount).arg(totalFrames);
+                        
+                        if (reporter) {
+                            reporter->setSubProgress(frameProgress, statusMsg);
                         }
-                        emit progressChanged(progress, tr("正在处理第 %1 帧...").arg(frameCount));
+                        reportProgress(currentPercent, statusMsg);
+                        lastReportedPercent = currentPercent;
                     }
                 }
             } else if (packet->stream_index == audioStreamIndex && outAudioStreamIndex >= 0) {
-                // 复制音频包
                 AVPacket* audioPacket = av_packet_clone(packet);
                 if (audioPacket) {
                     av_packet_rescale_ts(audioPacket,
@@ -450,11 +524,14 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
             av_packet_unref(packet);
         }
 
-        // ========== 阶段10: 刷新编码器 ==========
-        if (progressCallback) {
-            progressCallback(92, tr("正在完成编码..."));
+        reportStageProgress(VideoProcessingStage::FrameProcessing, 1.0);
+
+        if (m_cancelled) {
+            throw std::runtime_error(tr("处理已取消").toStdString());
         }
-        emit progressChanged(92, tr("正在完成编码..."));
+
+        reportStageProgress(VideoProcessingStage::EncodingFinalize, 0.0);
+        reportProgress(kProgressEncodingFinalizeStart, tr("正在完成编码..."));
 
         avcodec_send_frame(videoEncoderContext, nullptr);
         AVPacket* outPacket = av_packet_alloc();
@@ -466,11 +543,14 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         }
         av_packet_free(&outPacket);
 
-        // ========== 阶段11: 写入文件尾 ==========
-        if (progressCallback) {
-            progressCallback(96, tr("正在写入文件..."));
+        reportStageProgress(VideoProcessingStage::EncodingFinalize, 1.0);
+
+        if (m_cancelled) {
+            throw std::runtime_error(tr("处理已取消").toStdString());
         }
-        emit progressChanged(96, tr("正在写入文件..."));
+
+        reportStageProgress(VideoProcessingStage::Writing, 0.0);
+        reportProgress(kProgressWritingStart, tr("正在写入文件..."));
 
         if (av_write_trailer(outputFormatContext) < 0) {
             throw std::runtime_error(tr("无法写入文件尾").toStdString());
@@ -479,19 +559,23 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         resultPath = outputPath;
         success = true;
 
-        qDebug() << "[VideoProcessor] Completed. Processed" << frameCount << "frames";
-
-        if (progressCallback) {
-            progressCallback(100, tr("处理完成"));
+        reportStageProgress(VideoProcessingStage::Writing, 1.0);
+        reportStageProgress(VideoProcessingStage::Completed, 1.0);
+        
+        if (reporter) {
+            reporter->endBatch();
         }
-        emit progressChanged(100, tr("处理完成"));
+        reportProgress(100, tr("处理完成"));
 
     } catch (const std::exception& e) {
         error = QString::fromStdString(e.what());
         success = false;
         qWarning() << "[VideoProcessor] Error:" << error;
         
-        // 删除不完整的输出文件
+        if (reporter) {
+            reporter->reset();
+        }
+        
         if (!success && QFile::exists(outputPath)) {
             QFile::remove(outputPath);
         }
@@ -499,11 +583,19 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
 
     cleanup();
     m_isProcessing = false;
+    m_reporter = nullptr;
 
-    if (finishCallback) {
-        finishCallback(success, resultPath, error);
+    if (m_cancelled) {
+        if (finishCallback) {
+            finishCallback(false, QString(), tr("处理已取消"));
+        }
+        emit finished(false, QString(), tr("处理已取消"));
+    } else {
+        if (finishCallback) {
+            finishCallback(success, resultPath, error);
+        }
+        emit finished(success, resultPath, error);
     }
-    emit finished(success, resultPath, error);
 }
 
 } // namespace EnhanceVision

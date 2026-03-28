@@ -92,6 +92,9 @@ ProcessingController::ProcessingController(QObject* parent)
     m_modelRegistry = new ModelRegistry(this);
     m_aiEngine = new AIEngine(this);
     m_aiEnginePool = new AIEnginePool(2, m_modelRegistry, this);
+    
+    // 初始化统一进度管理器
+    m_progressManager = std::make_unique<ProgressManager>(this);
 
     QString modelsPath = QCoreApplication::applicationDirPath() + "/models";
     if (!QDir(modelsPath).exists()) {
@@ -246,10 +249,6 @@ void ProcessingController::cancelTask(const QString& taskId)
 
 void ProcessingController::cancelAllTasks()
 {
-    qInfo() << "[ProcessingController] cancelAllTasks called"
-            << "taskCount:" << m_tasks.size()
-            << "processingCount:" << m_currentProcessingCount;
-
     int cancelledProcessingCount = 0;
 
     for (int i = m_tasks.size() - 1; i >= 0; --i) {
@@ -289,21 +288,13 @@ void ProcessingController::cancelAllTasks()
 
     // 修正处理计数器
     if (cancelledProcessingCount > 0 && m_currentProcessingCount > 0) {
-        const int oldCount = m_currentProcessingCount;
         m_currentProcessingCount = qMax(0, m_currentProcessingCount - cancelledProcessingCount);
-        qInfo() << "[ProcessingController] Adjusted processingCount from" << oldCount
-                << "to" << m_currentProcessingCount
-                << "(cancelled" << cancelledProcessingCount << "processing tasks)";
         emit currentProcessingCountChanged();
     }
 
     updateQueuePositions();
     syncModelTasks();
     emit queueSizeChanged();
-
-    qInfo() << "[ProcessingController] cancelAllTasks completed"
-            << "remainingTasks:" << m_tasks.size()
-            << "processingCount:" << m_currentProcessingCount;
 }
 
 void ProcessingController::forceCancelAllTasks()
@@ -342,9 +333,6 @@ void ProcessingController::forceCancelAllTasks()
         m_tasks[i].status = ProcessingStatus::Cancelled;
         cleanupTask(taskId);
         emit taskCancelled(taskId);
-
-        qInfo() << "[ProcessingController] Force cancelled task:" << taskId
-                << "oldStatus:" << static_cast<int>(oldStatus);
     }
     m_tasks.clear();
 
@@ -352,7 +340,6 @@ void ProcessingController::forceCancelAllTasks()
     const int oldCount = m_currentProcessingCount;
     m_currentProcessingCount = 0;
     if (oldCount != 0) {
-        qInfo() << "[ProcessingController] Reset processingCount from" << oldCount << "to 0";
         emit currentProcessingCountChanged();
     }
 
@@ -365,12 +352,6 @@ void ProcessingController::forceCancelAllTasks()
 
 QString ProcessingController::addTask(const Message& message)
 {
-    qInfo() << "[ProcessingController] addTask called"
-            << "messageId:" << message.id
-            << "fileCount:" << message.mediaFiles.size()
-            << "currentQueueSize:" << m_tasks.size()
-            << "processingCount:" << m_currentProcessingCount;
-
     QString sessionId;
     if (m_sessionController) {
         sessionId = m_sessionController->sessionIdForMessage(message.id);
@@ -402,11 +383,6 @@ QString ProcessingController::addTask(const Message& message)
 
     updateQueuePositions();
     emit queueSizeChanged();
-
-    qInfo() << "[ProcessingController] addTask completed"
-            << "newQueueSize:" << m_tasks.size()
-            << "processingCount:" << m_currentProcessingCount
-            << "willProcessImmediately:" << (m_currentProcessingCount == 0 && m_queueStatus == QueueStatus::Running);
 
     processNextTask();
 
@@ -526,11 +502,6 @@ void ProcessingController::processNextTask()
         return;
     }
 
-    qInfo() << "[ProcessingController] processNextTask: starting task"
-            << "taskId:" << nextTask->taskId
-            << "position:" << nextTask->position
-            << "queueSize:" << m_tasks.size();
-
     if (!tryStartTask(*nextTask)) {
         // 如果启动失败，稍后重试
         QTimer::singleShot(100, this, &ProcessingController::processNextTask);
@@ -563,9 +534,6 @@ void ProcessingController::validateAndRepairQueueState()
         const int oldCount = m_currentProcessingCount;
         m_currentProcessingCount = actualProcessingCount;
         
-        qInfo() << "[ProcessingController] Auto-repaired processingCount from"
-                << oldCount << "to" << m_currentProcessingCount;
-        
         emit currentProcessingCountChanged();
     }
 
@@ -581,7 +549,6 @@ void ProcessingController::validateAndRepairQueueState()
 
     // 如果已结束的任务超过 50 个，自动清理
     if (settledTaskCount > 50) {
-        qInfo() << "[ProcessingController] Auto-cleaning" << settledTaskCount << "settled tasks";
         clearCompletedTasks();
     }
 }
@@ -593,7 +560,6 @@ void ProcessingController::preloadModel(const QString& modelId)
     }
     
     m_aiEnginePool->warmupModel(modelId);
-    qInfo() << "[ProcessingController] preloadModel triggered for:" << modelId;
 }
 
 void ProcessingController::updateQueuePositions()
@@ -762,10 +728,6 @@ void ProcessingController::startTask(QueueTask& task)
                         return;
                     }
                     
-                    qInfo() << "[ProcessingController][AI] async model load completed"
-                            << "task:" << taskId
-                            << "model:" << loadedModelId;
-                    
                     // 检查任务是否仍然有效
                     bool taskValid = false;
                     for (const auto& t : m_tasks) {
@@ -782,9 +744,6 @@ void ProcessingController::startTask(QueueTask& task)
                 }, Qt::SingleShotConnection);
                 
                 // 启动异步加载
-                qInfo() << "[ProcessingController][AI] starting async model load"
-                        << "task:" << taskId
-                        << "model:" << modelId;
                 engine->loadModelAsync(modelId);
             }
 
@@ -1003,9 +962,6 @@ void ProcessingController::processShaderVideoThumbnailAsync(const QString& taskI
                          + "_shader_" + QUuid::createUuid().toString(QUuid::WithoutBraces).left(8)
                          + "." + fi.suffix();
 
-    qInfo() << "[ProcessingController][Shader] launching video processing"
-            << "task:" << taskId << "input:" << filePath << "output:" << outputPath;
-
     auto videoProcessor = QSharedPointer<VideoProcessor>::create();
     m_activeVideoProcessors[taskId] = videoProcessor;
 
@@ -1027,10 +983,6 @@ void ProcessingController::processShaderVideoThumbnailAsync(const QString& taskI
         Q_UNUSED(resultPath);
         QMetaObject::invokeMethod(this, [this, videoProcessor, taskId, sessionId, messageId,
                                           fileId, outputPath, success, error]() {
-            qInfo() << "[ProcessingController][Shader] video processing finished"
-                    << "task:" << taskId << "success:" << success
-                    << "result:" << (success ? outputPath : "") << "error:" << error;
-
             m_activeVideoProcessors.remove(taskId);
 
             if (m_taskCoordinator->isOrphaned(taskId)) {
@@ -1881,11 +1833,6 @@ int ProcessingController::resourcePressure() const
 
 void ProcessingController::cancelMessageTasks(const QString& messageId)
 {
-    qInfo() << "[ProcessingController] cancelMessageTasks called"
-            << "messageId:" << messageId
-            << "taskCount:" << m_tasks.size()
-            << "processingCount:" << m_currentProcessingCount;
-
     m_taskCoordinator->cancelMessageTasks(messageId);
     
     int cancelledProcessingCount = 0;
@@ -1926,10 +1873,7 @@ void ProcessingController::cancelMessageTasks(const QString& messageId)
     
     // 修正处理计数器
     if (cancelledProcessingCount > 0 && m_currentProcessingCount > 0) {
-        const int oldCount = m_currentProcessingCount;
         m_currentProcessingCount = qMax(0, m_currentProcessingCount - cancelledProcessingCount);
-        qInfo() << "[ProcessingController] cancelMessageTasks: adjusted processingCount from"
-                << oldCount << "to" << m_currentProcessingCount;
         emit currentProcessingCountChanged();
     }
     
@@ -1943,10 +1887,6 @@ void ProcessingController::cancelMessageTasks(const QString& messageId)
     
     emit messageTasksCancelled(messageId);
     processNextTask();
-
-    qInfo() << "[ProcessingController] cancelMessageTasks completed"
-            << "remainingTasks:" << m_tasks.size()
-            << "processingCount:" << m_currentProcessingCount;
 }
 
 void ProcessingController::cancelMessageFileTasks(const QString& messageId, const QString& fileId)
@@ -1954,11 +1894,6 @@ void ProcessingController::cancelMessageFileTasks(const QString& messageId, cons
     if (messageId.isEmpty() || fileId.isEmpty()) {
         return;
     }
-
-    qInfo() << "[ProcessingController] cancelMessageFileTasks called"
-            << "messageId:" << messageId
-            << "fileId:" << fileId
-            << "processingCount:" << m_currentProcessingCount;
 
     bool removedTask = false;
     int cancelledProcessingCount = 0;
@@ -2001,10 +1936,7 @@ void ProcessingController::cancelMessageFileTasks(const QString& messageId, cons
 
     // 修正处理计数器
     if (cancelledProcessingCount > 0 && m_currentProcessingCount > 0) {
-        const int oldCount = m_currentProcessingCount;
         m_currentProcessingCount = qMax(0, m_currentProcessingCount - cancelledProcessingCount);
-        qInfo() << "[ProcessingController] cancelMessageFileTasks: adjusted processingCount from"
-                << oldCount << "to" << m_currentProcessingCount;
         emit currentProcessingCountChanged();
     }
 
@@ -2019,11 +1951,6 @@ void ProcessingController::cancelMessageFileTasks(const QString& messageId, cons
 
 void ProcessingController::cancelSessionTasks(const QString& sessionId)
 {
-    qInfo() << "[ProcessingController] cancelSessionTasks called"
-            << "sessionId:" << sessionId
-            << "taskCount:" << m_tasks.size()
-            << "processingCount:" << m_currentProcessingCount;
-
     m_taskCoordinator->cancelSessionTasks(sessionId);
     
     QSet<QString> messageIds;
@@ -2068,10 +1995,7 @@ void ProcessingController::cancelSessionTasks(const QString& sessionId)
     
     // 修正处理计数器
     if (cancelledProcessingCount > 0 && m_currentProcessingCount > 0) {
-        const int oldCount = m_currentProcessingCount;
         m_currentProcessingCount = qMax(0, m_currentProcessingCount - cancelledProcessingCount);
-        qInfo() << "[ProcessingController] cancelSessionTasks: adjusted processingCount from"
-                << oldCount << "to" << m_currentProcessingCount;
         emit currentProcessingCountChanged();
     }
     
@@ -2087,10 +2011,6 @@ void ProcessingController::cancelSessionTasks(const QString& sessionId)
     
     emit sessionTasksCancelled(sessionId);
     processNextTask();
-
-    qInfo() << "[ProcessingController] cancelSessionTasks completed"
-            << "remainingTasks:" << m_tasks.size()
-            << "processingCount:" << m_currentProcessingCount;
 }
 
 void ProcessingController::pauseSessionTasks(const QString& sessionId)
@@ -2172,9 +2092,6 @@ bool ProcessingController::tryStartTask(QueueTask& task)
     if (m_taskMessages.contains(task.taskId)) {
         const Message& message = m_taskMessages[task.taskId];
         if (message.mode == ProcessingMode::AIInference && m_aiEnginePool->availableCount() <= 0) {
-            qInfo() << "[ProcessingController][AI] engine pool exhausted, waiting"
-                    << "pendingTask:" << task.taskId
-                    << "poolActive:" << m_aiEnginePool->activeCount();
             return false;
         }
     }
@@ -2226,7 +2143,6 @@ void ProcessingController::gracefulCancel(const QString& taskId, int timeoutMs)
                 AIEngine* poolEngine = m_aiEnginePool->engineForTask(taskId);
                 if (poolEngine && poolEngine != m_aiEngine) {
                     poolEngine->cancelProcess();
-                    qInfo() << "[ProcessingController] cancelled pool engine for task:" << taskId;
                 }
             }
         }
@@ -2256,9 +2172,6 @@ void ProcessingController::gracefulCancel(const QString& taskId, int timeoutMs)
 
 void ProcessingController::handleOrphanedTask(const QString& taskId)
 {
-    qInfo() << "[ProcessingController] handleOrphanedTask:" << taskId
-            << "processingCount:" << m_currentProcessingCount;
-
     bool wasProcessing = false;
     
     for (int i = m_tasks.size() - 1; i >= 0; --i) {
@@ -2275,8 +2188,6 @@ void ProcessingController::handleOrphanedTask(const QString& taskId)
     // 如果孤儿任务是正在处理的任务，需要减少计数器
     if (wasProcessing && m_currentProcessingCount > 0) {
         m_currentProcessingCount--;
-        qInfo() << "[ProcessingController] handleOrphanedTask: decremented processingCount to"
-                << m_currentProcessingCount;
         emit currentProcessingCountChanged();
     }
     
@@ -2341,12 +2252,6 @@ void ProcessingController::connectAiEngineForTask(AIEngine* engine, const QStrin
 
     conns << connect(engine, &AIEngine::processFileCompleted, this,
             [this, taskId](bool success, const QString& resultPath, const QString& error) {
-        qInfo() << "[ProcessingController][AI] process finished"
-                << "task:" << taskId
-                << "success:" << success
-                << "result:" << resultPath
-                << "error:" << error;
-
         if (success) {
             QFileInfo resultInfo(resultPath);
             if (resultPath.isEmpty() || !resultInfo.exists() || resultInfo.size() <= 0) {
@@ -2416,17 +2321,6 @@ void ProcessingController::launchAiInference(AIEngine* engine, const QString& ta
     }
 
     const QVariantMap effectiveParams = engine->getEffectiveParams();
-    qInfo() << "[ProcessingController][AI] launch"
-            << "task:" << taskId
-            << "model:" << message.aiParams.modelId
-            << "input:" << inputPath
-            << "output:" << outputPath
-            << "gpuRequested:" << message.aiParams.useGpu
-            << "gpuEffective:" << (engine->gpuAvailable() && engine->useGpu())
-            << "tileSizeRequested:" << message.aiParams.tileSize
-            << "tileSizeEffective:" << effectiveParams.value("tileSize", modelInfo.tileSize).toInt()
-            << "outscaleEffective:" << effectiveParams.value("outscale", modelInfo.scaleFactor).toDouble()
-            << "poolSlot:" << m_aiEnginePool->activeCount();
 
     const bool isVideo = ImageUtils::isVideoFile(inputPath);
     if (isVideo) {
@@ -2441,8 +2335,6 @@ void ProcessingController::launchAIVideoProcessor(AIEngine* engine, const QStrin
                                                    const Message& message, const ModelInfo& modelInfo,
                                                    const QVariantMap& effectiveParams)
 {
-    qInfo() << "[ProcessingController][AI] launching video processor for task:" << taskId;
-    
     auto processor = QSharedPointer<AIVideoProcessor>::create();
     processor->setAIEngine(engine);
     processor->setModelInfo(modelInfo);
@@ -2466,12 +2358,8 @@ void ProcessingController::launchAIVideoProcessor(AIEngine* engine, const QStrin
         disconnectAiEngineForTask(taskId);
         
         if (success) {
-            qInfo() << "[ProcessingController][AI] video processing completed"
-                    << "task:" << taskId << "result:" << result;
             completeTask(taskId, result);
         } else {
-            qWarning() << "[ProcessingController][AI] video processing failed"
-                       << "task:" << taskId << "error:" << error;
             failTask(taskId, error);
         }
     }, Qt::QueuedConnection);
@@ -2484,6 +2372,48 @@ void ProcessingController::launchAIVideoProcessor(AIEngine* engine, const QStrin
     
     m_activeAIVideoProcessors[taskId] = processor;
     processor->processAsync(inputPath, outputPath);
+}
+
+QVariantMap ProcessingController::getTaskProgress(const QString& taskId) const
+{
+    if (!m_progressManager || !m_progressManager->hasProvider(taskId)) {
+        QVariantMap result;
+        result[QStringLiteral("progress")] = 0;
+        result[QStringLiteral("stage")] = QString();
+        result[QStringLiteral("estimatedRemainingSec")] = -1;
+        result[QStringLiteral("isValid")] = false;
+        return result;
+    }
+    
+    return m_progressManager->getProgressInfo(taskId);
+}
+
+QVariantMap ProcessingController::getMessageProgress(const QString& messageId) const
+{
+    QStringList taskIds;
+    
+    for (const auto& task : m_tasks) {
+        if (task.messageId == messageId) {
+            taskIds.append(task.taskId);
+        }
+    }
+    
+    if (taskIds.isEmpty() || !m_progressManager) {
+        QVariantMap result;
+        result[QStringLiteral("progress")] = 0;
+        result[QStringLiteral("stage")] = QString();
+        result[QStringLiteral("estimatedRemainingSec")] = -1;
+        result[QStringLiteral("isValid")] = false;
+        return result;
+    }
+    
+    ProgressManager::ProgressInfo info = m_progressManager->getAggregatedProgress(taskIds);
+    QVariantMap result;
+    result[QStringLiteral("progress")] = info.progress;
+    result[QStringLiteral("stage")] = info.stage;
+    result[QStringLiteral("estimatedRemainingSec")] = info.estimatedRemainingSec;
+    result[QStringLiteral("isValid")] = info.isValid;
+    return result;
 }
 
 } // namespace EnhanceVision

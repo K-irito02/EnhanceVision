@@ -24,6 +24,7 @@
 #include "EnhanceVision/core/TaskStateManager.h"
 #include "EnhanceVision/core/ImageProcessor.h"
 #include "EnhanceVision/core/video/AIVideoProcessor.h"
+#include "EnhanceVision/core/ProgressManager.h"
 
 class QTimer;
 
@@ -96,6 +97,9 @@ public:
     bool hasTasksForMessage(const QString& messageId) const;
     
     Q_INVOKABLE void preloadModel(const QString& modelId);
+    
+    Q_INVOKABLE QVariantMap getTaskProgress(const QString& taskId) const;
+    Q_INVOKABLE QVariantMap getMessageProgress(const QString& messageId) const;
     
     void cancelMessageTasks(const QString& messageId);
     void cancelMessageFileTasks(const QString& messageId, const QString& fileId);
@@ -182,6 +186,10 @@ private:
     QHash<QString, QSharedPointer<AIVideoProcessor>> m_activeAIVideoProcessors;
     
     QHash<QString, QSharedPointer<ImageProcessor>> m_activeImageProcessors;
+    
+    std::unique_ptr<ProgressManager> m_progressManager;
+    QHash<QString, QString> m_taskToProgressId;
+    QHash<QString, ProgressReporter*> m_taskProgressReporters;
     
 
     QString generateTaskId();
