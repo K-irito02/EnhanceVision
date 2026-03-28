@@ -12,7 +12,7 @@ import "../controls"
  */
 Rectangle {
     id: root
-    color: Theme.isDark ? "#040608" : "#0A1020"
+    color: Theme.colors.overlay
 
     /** @brief 要查看的媒体文件列表 */
     property var mediaFiles: []

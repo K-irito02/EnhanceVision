@@ -17,7 +17,18 @@
 |----------|----------|
 | `qml/pages/SettingsPage.qml` | 移除重复的 `SettingsController.theme` 调用 |
 | `qml/components/ShaderParamsPanel.qml` | 替换硬编码颜色为语义化颜色变量 |
-| `qml/styles/Colors.qml` | 重命名 `onPrimary`/`onDestructive` 为 `textOnPrimary`/`textOnDestructive` |
+| `qml/components/MediaViewerWindow.qml` | 替换硬编码颜色 |
+| `qml/components/EmbeddedMediaViewer.qml` | 替换硬编码颜色 |
+| `qml/components/MediaThumbnailStrip.qml` | 替换硬编码颜色 |
+| `qml/components/ControlPanel.qml` | 替换硬编码颜色 |
+| `qml/components/PreviewPane.qml` | 替换硬编码颜色 |
+| `qml/components/AIModelPanel.qml` | 替换硬编码颜色 |
+| `qml/components/MinimizedWindowDock.qml` | 替换硬编码颜色 |
+| `qml/components/MediaViewer.qml` | 替换硬编码颜色 |
+| `qml/controls/ParamSlider.qml` | 替换硬编码颜色 |
+| `qml/controls/Slider.qml` | 替换硬编码颜色 |
+| `qml/pages/MainPage.qml` | 替换硬编码颜色 |
+| `qml/styles/Colors.qml` | 重命名属性，添加 `overlay` 颜色 |
 | `CMakeLists.txt` | 启用响应文件支持，移除 icons-dark 引用 |
 | `resources/qml.qrc` | 移除 icons-dark 资源引用 |
 | `resources/icons/*.svg` | 修改 stroke 颜色为白色以支持动态着色 |
@@ -35,8 +46,9 @@
 - ✅ 消除状态同步冗余：`Theme.setDark()` 内部已处理持久化
 - ✅ 移除双图标集：减少 50% 图标文件（136 → 68）
 - ✅ 图标动态着色：暗色主题下图标显示淡蓝色
-- ✅ 修复硬编码颜色：使用 `Theme.colors.*` 语义化变量
+- ✅ 修复硬编码颜色：使用 `Theme.colors.*` 语义化变量（约 90 处）
 - ✅ 解决 Windows 命令行长度限制：启用响应文件支持
+- ✅ 新增 `overlay` 颜色属性：用于媒体查看器背景遮罩
 
 ---
 

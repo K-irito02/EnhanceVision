@@ -271,7 +271,7 @@ Rectangle {
                     anchors.centerIn: parent
                     source: Theme.icon("check")
                     iconSize: 10
-                    color: "#FFFFFF"
+                    color: Theme.colors.textOnPrimary
                     visible: selected
                 }
             }

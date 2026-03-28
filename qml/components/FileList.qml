@@ -192,7 +192,7 @@ Rectangle {
                                     anchors.centerIn: parent
                                     source: Theme.icon("play")
                                     iconSize: 10
-                                    color: "#FFFFFF"
+                                    color: Theme.colors.textOnPrimary
                                 }
                             }
                         }

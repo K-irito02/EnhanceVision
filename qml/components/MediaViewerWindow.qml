@@ -1058,7 +1058,7 @@ Window {
                                 
                                 // 计算渐变颜色：从浅蓝到深蓝
                                 function getSpeedColor() {
-                                    var colors = ["#7CB9E8", "#5B9BD5", "#3A7FC2", "#1E5FAF", "#0D4A9C", "#002FA7"]
+                                    var colors = [Theme.colors.primaryLight, Theme.colors.primary, Theme.colors.primary, Theme.colors.primary, Theme.colors.primary, Theme.colors.primary]
                                     return colors[index]
                                 }
                                 

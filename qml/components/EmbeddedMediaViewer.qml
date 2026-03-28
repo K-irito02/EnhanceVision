@@ -711,7 +711,7 @@ Item {
 
         Rectangle {
             anchors.fill: parent
-            color: "#000000"
+            color: Theme.colors.overlay
             z: -1
         }
         
@@ -995,7 +995,7 @@ Item {
                 anchors.centerIn: parent
                 source: Theme.icon("chevron-left")
                 iconSize: 22
-                color: "#FFFFFF"
+                color: Theme.colors.textOnPrimary
             }
             
             MouseArea { 
@@ -1050,7 +1050,7 @@ Item {
                 anchors.centerIn: parent
                 source: Theme.icon("chevron-right")
                 iconSize: 22
-                color: "#FFFFFF"
+                color: Theme.colors.textOnPrimary
             }
             
             MouseArea { 
@@ -1109,7 +1109,7 @@ Item {
                                 // 计算渐变颜色：从浅蓝到深蓝
                                 function getSpeedColor() {
                                     // 0.5x -> 浅蓝, 3.0x -> 深蓝
-                                    var colors = ["#7CB9E8", "#5B9BD5", "#3A7FC2", "#1E5FAF", "#0D4A9C", "#002FA7"]
+                                    var colors = [Theme.colors.primaryLight, Theme.colors.primary, Theme.colors.primary, Theme.colors.primary, Theme.colors.primary, Theme.colors.primary]
                                     return colors[index]
                                 }
                                 
@@ -1308,7 +1308,7 @@ Item {
                             anchors.centerIn: parent
                             source: Theme.icon("play")
                             iconSize: 8
-                            color: "#FFFFFF"
+                            color: Theme.colors.textOnPrimary
                         }
                     }
                 }
@@ -1335,7 +1335,7 @@ Item {
                     Text {
                         anchors.centerIn: parent
                         text: "\u00D7"
-                        color: "#FFFFFF"
+                        color: Theme.colors.textOnPrimary
                         font.pixelSize: 10
                         font.weight: Font.Bold
                     }

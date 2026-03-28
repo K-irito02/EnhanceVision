@@ -48,7 +48,7 @@ Item {
             width: 16
             height: 16
             radius: 8
-            color: "#FFFFFF"
+            color: Theme.colors.textOnPrimary
 
             Behavior on x {
                 NumberAnimation {

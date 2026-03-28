@@ -114,6 +114,9 @@ QtObject {
         readonly property color mediaControlTextMuted: "#5A6A85"
         readonly property color mediaControlOverlay: Qt.rgba(255, 255, 255, 0.85)
         readonly property color mediaControlOverlayHover: Qt.rgba(240, 244, 250, 0.92)
+        
+        // 遮罩层（用于媒体查看器背景）
+        readonly property color overlay: "#000000"
 
         // Tooltip 提示框
         readonly property color tooltip: "#FFFFFF"
@@ -241,6 +244,9 @@ QtObject {
         readonly property color mediaControlTextMuted: "#7A8BA8"
         readonly property color mediaControlOverlay: Qt.rgba(10, 20, 40, 0.88)
         readonly property color mediaControlOverlayHover: Qt.rgba(15, 32, 64, 0.92)
+        
+        // 遮罩层（用于媒体查看器背景）
+        readonly property color overlay: "#040608"
 
         // Tooltip 提示框 - 淡蓝色背景
         readonly property color tooltip: "#1E3A5F"
