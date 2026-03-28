@@ -8,6 +8,7 @@
 #include "EnhanceVision/core/ResourceManager.h"
 #include <QStandardPaths>
 #include <QDir>
+#include <QStringList>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -31,6 +32,7 @@ SettingsController::SettingsController(QObject* parent)
     , m_autoReprocessAIEnabled(true)
     , m_lastExitClean(true)
     , m_crashDetectedOnStartup(false)
+    , m_lastExitReason()
 {
     QString configPath = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
     QString settingsFile = QDir(configPath).filePath("EnhanceVision/settings.ini");
@@ -212,10 +214,17 @@ bool SettingsController::crashDetectedOnStartup() const
     return m_crashDetectedOnStartup;
 }
 
+QString SettingsController::lastExitReason() const
+{
+    return m_lastExitReason;
+}
+
 void SettingsController::markAppRunning()
 {
     m_lastExitClean = false;
+    m_lastExitReason.clear();
     m_settings->setValue("system/lastExitClean", false);
+    m_settings->remove("system/lastExitReason");
     m_settings->sync();
 }
 
@@ -226,29 +235,59 @@ void SettingsController::markAppExiting()
     m_settings->sync();
 }
 
+void SettingsController::markNormalExit(const QString& reason)
+{
+    m_lastExitClean = true;
+    m_lastExitReason = reason;
+    m_settings->setValue("system/lastExitClean", true);
+    m_settings->setValue("system/lastExitReason", reason);
+    m_settings->sync();
+    qInfo() << "[SettingsController] Normal exit marked with reason:" << reason;
+}
+
 bool SettingsController::checkAndHandleCrashRecovery()
 {
     bool wasClean = m_settings->value("system/lastExitClean", true).toBool();
+    QString lastReason = m_settings->value("system/lastExitReason", QString()).toString();
     
-    if (!wasClean) {
-        m_crashDetectedOnStartup = true;
-        m_autoReprocessShaderEnabled = false;
-        m_autoReprocessAIEnabled = false;
-        
-        m_settings->setValue("reprocess/shaderEnabled", false);
-        m_settings->setValue("reprocess/aiEnabled", false);
-        m_settings->sync();
-        
-        emit autoReprocessShaderEnabledChanged();
-        emit autoReprocessAIEnabledChanged();
-        emit autoReprocessAllEnabledChanged();
-        emit crashDetected();
-        emit crashDetectedOnStartupChanged();
-        
-        return true;
+    qInfo() << "[SettingsController] Checking crash recovery: lastExitClean=" << wasClean 
+            << ", lastExitReason=" << lastReason;
+    
+    if (wasClean) {
+        qInfo() << "[SettingsController] Last exit was clean, no crash recovery needed";
+        return false;
     }
     
-    return false;
+    QStringList normalReasons = {
+        QStringLiteral("normal"),
+        QStringLiteral("main_window_closed"),
+        QStringLiteral("user_request")
+    };
+    
+    if (!lastReason.isEmpty() && normalReasons.contains(lastReason)) {
+        qInfo() << "[SettingsController] Exit reason recorded as normal:" << lastReason 
+                << ", treating as normal exit";
+        return false;
+    }
+    
+    qWarning() << "[SettingsController] Abnormal exit detected! lastExitClean=" << wasClean
+               << ", lastExitReason=" << lastReason;
+    
+    m_crashDetectedOnStartup = true;
+    m_autoReprocessShaderEnabled = false;
+    m_autoReprocessAIEnabled = false;
+    
+    m_settings->setValue("reprocess/shaderEnabled", false);
+    m_settings->setValue("reprocess/aiEnabled", false);
+    m_settings->sync();
+    
+    emit autoReprocessShaderEnabledChanged();
+    emit autoReprocessAIEnabledChanged();
+    emit autoReprocessAllEnabledChanged();
+    emit crashDetected();
+    emit crashDetectedOnStartupChanged();
+    
+    return true;
 }
 
 void SettingsController::saveSettings()
@@ -279,6 +318,7 @@ void SettingsController::loadSettings()
     m_autoReprocessShaderEnabled = m_settings->value("reprocess/shaderEnabled", true).toBool();
     m_autoReprocessAIEnabled = m_settings->value("reprocess/aiEnabled", true).toBool();
     m_lastExitClean = m_settings->value("system/lastExitClean", true).toBool();
+    m_lastExitReason = m_settings->value("system/lastExitReason", QString()).toString();
 }
 
 void SettingsController::resetToDefaults()
@@ -294,6 +334,7 @@ void SettingsController::resetToDefaults()
     m_autoReprocessShaderEnabled = true;
     m_autoReprocessAIEnabled = true;
     m_lastExitClean = true;
+    m_lastExitReason.clear();
 
     emit themeChanged();
     emit languageChanged();

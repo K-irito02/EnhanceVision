@@ -30,6 +30,7 @@ class SettingsController : public QObject
     Q_PROPERTY(bool autoReprocessAllEnabled READ autoReprocessAllEnabled WRITE setAutoReprocessAllEnabled NOTIFY autoReprocessAllEnabledChanged)
     Q_PROPERTY(bool lastExitClean READ lastExitClean NOTIFY lastExitCleanChanged)
     Q_PROPERTY(bool crashDetectedOnStartup READ crashDetectedOnStartup NOTIFY crashDetectedOnStartupChanged)
+    Q_PROPERTY(QString lastExitReason READ lastExitReason NOTIFY lastExitReasonChanged)
 
 public:
     /**
@@ -73,9 +74,11 @@ public:
 
     bool lastExitClean() const;
     bool crashDetectedOnStartup() const;
+    QString lastExitReason() const;
 
     void markAppRunning();
     void markAppExiting();
+    void markNormalExit(const QString& reason = QStringLiteral("normal"));
     bool checkAndHandleCrashRecovery();
 
     // Q_INVOKABLE 方法
@@ -99,6 +102,7 @@ signals:
     void lastExitCleanChanged();
     void crashDetected();
     void crashDetectedOnStartupChanged();
+    void lastExitReasonChanged();
 
 private:
     explicit SettingsController(QObject* parent = nullptr);
@@ -121,6 +125,7 @@ private:
     bool m_autoReprocessAIEnabled;
     bool m_lastExitClean;
     bool m_crashDetectedOnStartup;
+    QString m_lastExitReason;
 };
 
 } // namespace EnhanceVision

@@ -196,8 +196,6 @@ Application::~Application()
 {
     qInfo() << "[Application] Destructor called";
 
-    SettingsController::instance()->markAppExiting();
-
     m_sessionController->saveSessions();
     delete m_mainWidget;
     SettingsController::destroyInstance();

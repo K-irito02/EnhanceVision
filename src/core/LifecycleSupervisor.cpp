@@ -1,5 +1,6 @@
 #include "EnhanceVision/core/LifecycleSupervisor.h"
 #include "EnhanceVision/controllers/ProcessingController.h"
+#include "EnhanceVision/controllers/SettingsController.h"
 #include <QWidget>
 #include <QThreadPool>
 #include <QCoreApplication>
@@ -94,6 +95,15 @@ void LifecycleSupervisor::requestShutdown(ExitReason reason, const QString& deta
     QString fullReason = detail.isEmpty() ? reasonStr : QString("%1 | %2").arg(reasonStr, detail);
 
     qWarning() << "[LifecycleSupervisor] Shutdown requested:" << fullReason;
+
+    bool isNormalExit = (reason == ExitReason::Normal ||
+                         reason == ExitReason::MainWindowClosed ||
+                         reason == ExitReason::UserRequest);
+
+    if (isNormalExit) {
+        SettingsController::instance()->markNormalExit(reasonStr);
+    }
+
     emit shutdownRequested(reason, detail);
 
     transitionTo(LifecycleState::ShutdownRequested);
