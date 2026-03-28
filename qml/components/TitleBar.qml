@@ -172,14 +172,6 @@ Rectangle {
                 onClicked: root.toggleBrowseMode()
             }
             
-            // 快捷键说明按钮
-            IconButton {
-                iconName: "help-circle"
-                iconSize: 16
-                tooltip: qsTr("快捷键说明")
-                onClicked: _showShortcuts()
-            }
-            
             // 主题切换按钮
             IconButton {
                 iconName: Theme.isDark ? "sun" : "moon"

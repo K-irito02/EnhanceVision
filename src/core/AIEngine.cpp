@@ -190,17 +190,7 @@ bool AIEngine::loadModel(const QString &modelId)
     // 加载新模型
     m_net.opt = m_opt;
 
-    qInfo() << "[AIEngine][loadModel] loading model:"
-            << "id:" << modelId
-            << "param:" << info.paramPath
-            << "bin:" << info.binPath
-            << "inputBlob:" << info.inputBlobName
-            << "outputBlob:" << info.outputBlobName
-            << "tileSize:" << info.tileSize
-            << "scale:" << info.scaleFactor
-            << "sizeBytes:" << info.sizeBytes
-            << "sizeMB:" << (info.sizeBytes / (1024.0 * 1024.0))
-            << "useVulkan:" << m_opt.use_vulkan_compute;
+    qInfo() << "[AIEngine][loadModel] loading model:" << modelId;
 
     int ret = m_net.load_param(info.paramPath.toStdString().c_str());
     if (ret != 0) {
@@ -215,9 +205,7 @@ bool AIEngine::loadModel(const QString &modelId)
         return false;
     }
 
-    const int loadedLayerCount = static_cast<int>(m_net.layers().size());
-    qInfo() << "[AIEngine][loadModel] model loaded successfully"
-            << "layers:" << loadedLayerCount;
+    qInfo() << "[AIEngine][loadModel] model loaded:" << modelId;
 
     m_currentModelId = modelId;
     m_currentModel = info;
@@ -232,7 +220,6 @@ bool AIEngine::loadModel(const QString &modelId)
 void AIEngine::loadModelAsync(const QString &modelId)
 {
     QtConcurrent::run([this, modelId]() {
-        qInfo() << "[AIEngine][loadModelAsync] starting async load for model:" << modelId;
         bool success = loadModel(modelId);
         QString error;
         if (!success) {
@@ -316,23 +303,12 @@ QImage AIEngine::process(const QImage &input)
     double outscale = effectiveParams.value("outscale", currentModel.scaleFactor).toDouble();
     bool ttaMode = effectiveParams.value("tta_mode", false).toBool();
 
-    qInfo() << "[AIEngine] process start"
-            << "model:" << currentModelId
-            << "input:" << input.size()
-            << "gpuEnabled:" << (m_gpuAvailable && m_useGpu)
-            << "tileSize:" << tileSize
-            << "modelScale:" << currentModel.scaleFactor
-            << "outscale:" << outscale
-            << "tta:" << ttaMode;
-
     // 极大图像安全检查：若 tileSize==0 且图像超过安全阈值，强制启用分块
     QImage workInput = input;
     if (tileSize == 0 && currentModel.tileSize > 0) {
         const qint64 pixels = static_cast<qint64>(input.width()) * input.height();
         if (pixels > 1024LL * 1024) {
             tileSize = currentModel.tileSize;
-            qInfo() << "[AIEngine] Large image override: forcing tileSize=" << tileSize
-                    << "for input" << input.width() << "x" << input.height();
         }
     }
 
@@ -383,8 +359,7 @@ QImage AIEngine::process(const QImage &input)
         
         for (int i = 0; i < numFallbacks && result.isNull(); ++i) {
             int fallbackTile = fallbackTiles[i];
-            qWarning() << "[AIEngine] OOM retry attempt" << (i + 1) << "with tileSize=" << fallbackTile
-                       << "progressBeforeRetry:" << progressBeforeRetry;
+            qWarning() << "[AIEngine] OOM retry attempt" << (i + 1) << "with tileSize=" << fallbackTile;
             
             // 尝试清理 GPU 内存
 #if NCNN_VULKAN
@@ -526,16 +501,11 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
 
         if (result.isNull()) {
             QString error = lastError.isEmpty() ? tr("推理失败，请检查模型兼容性和输入图像") : lastError;
-            qWarning() << "[AIEngine][processAsync] inference failed:" << error << "input:" << inputPath;
+            qWarning() << "[AIEngine] inference failed:" << error;
             setProcessing(false);
             emit processFileCompleted(false, QString(), error);
             return;
         }
-
-        qInfo() << "[AIEngine][Save] saving result:"
-                << "size:" << result.size()
-                << "format:" << result.format()
-                << "outputPath:" << outputPath;
 
         if (!result.save(outputPath)) {
             QString error = tr("无法保存结果: %1").arg(outputPath);
@@ -543,21 +513,6 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
             emit processError(error);
             emit processFileCompleted(false, QString(), error);
             return;
-        }
-
-        QImage savedCheck(outputPath);
-        qInfo() << "[AIEngine][Save] saved image verification:"
-                << "loaded:" << !savedCheck.isNull()
-                << "size:" << savedCheck.size();
-
-        const qint64 totalCostMs = perfTimer.elapsed();
-        const qint64 saveCostMs = totalCostMs - loadInputCostMs - processCostMs;
-        if (totalCostMs >= 24) {
-            qInfo() << "[Perf][AIEngine] processAsync cost:" << totalCostMs << "ms"
-                    << "load:" << loadInputCostMs << "ms"
-                    << "infer:" << processCostMs << "ms"
-                    << "save:" << saveCostMs << "ms"
-                    << "input:" << inputPath;
         }
 
         setProcessing(false);
@@ -568,10 +523,7 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
 void AIEngine::cancelProcess()
 {
     m_cancelRequested = true;
-    // 立即重置 m_isProcessing 标志，允许新任务启动
-    // 异步任务会在检查点检测到 m_cancelRequested 并提前退出
     setProcessing(false);
-    qInfo() << "[AIEngine] cancelProcess: m_cancelRequested set, m_isProcessing reset";
 }
 
 void AIEngine::forceCancel()
@@ -982,32 +934,21 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
 QImage AIEngine::processSingle(const QImage &input, const ModelInfo &model)
 {
     setProgress(0.02);
-    qInfo() << "[AIEngine][Single] start processing"
-            << "input:" << input.size()
-            << "format:" << input.format();
     setProgress(0.05);
     ncnn::Mat in = qimageToMat(input, model);
     if (in.empty()) {
         qWarning() << "[AIEngine][Single] qimageToMat failed";
         return QImage();
     }
-    qInfo() << "[AIEngine][Single] input mat created"
-            << "w:" << in.w << "h:" << in.h << "c:" << in.c;
     if (m_cancelRequested) return QImage();
     setProgress(0.15);
     ncnn::Mat out = runInference(in, model);
-    qInfo() << "[AIEngine][Single] inference done output mat:"
-            << "w:" << out.w << "h:" << out.h << "c:" << out.c;
     if (out.empty() || out.w <= 0 || out.h <= 0) {
         return QImage();
     }
     if (m_cancelRequested) return QImage();
     setProgress(0.85);
     QImage result = matToQimage(out, model);
-    qInfo() << "[AIEngine][Single] result created"
-            << "size:" << result.size()
-            << "format:" << result.format()
-            << "isNull:" << result.isNull();
     setProgress(0.95);
     return result;
 }
@@ -1017,7 +958,7 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
     setProgress(0.01);
     
     if (input.isNull() || input.width() <= 0 || input.height() <= 0) {
-        qWarning() << "[AIEngine][Tiled] invalid input image, returning null";
+        qWarning() << "[AIEngine] invalid input image";
         return QImage();
     }
 
@@ -1028,57 +969,38 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
     int w = input.width();
     int h = input.height();
 
-    qInfo() << "[AIEngine][Tiled] entry"
-            << "inputSize:" << w << "x" << h
-            << "inputFormat:" << input.format()
-            << "tileSize:" << tileSize
-            << "scale:" << scale
-            << "layerCount:" << model.layerCount;
-
     if (tileSize <= 0) {
-        qWarning() << "[AIEngine][Tiled] tileSize is 0 or negative, falling back to processSingle";
+        qWarning() << "[AIEngine] invalid tileSize, falling back to processSingle";
         return processSingle(input, model);
     }
 
     setProgress(0.03);
 
-    // ── 动态计算 padding：复杂模型需要更大的重叠区域避免边界伪影 ──────────
-    // Real-ESRGAN 等大模型的感受野很大，需要足够的上下文才能产生一致的输出
     int padding = model.tilePadding;
-    const int layerCount = model.layerCount;  // 使用缓存的层数，避免直接访问 m_net
+    const int layerCount = model.layerCount;
     if (layerCount > 500) {
-        padding = std::max(padding, 64);  // 超大模型（如 realesrgan_x4plus 999层）
+        padding = std::max(padding, 64);
     } else if (layerCount > 200) {
-        padding = std::max(padding, 48);  // 大模型（如 realesrgan_x4plus_anime 268层）
+        padding = std::max(padding, 48);
     } else if (layerCount > 50) {
-        padding = std::max(padding, 24);  // 中等模型
+        padding = std::max(padding, 24);
     }
     
-    // ── 为边界分块提供完整 padding：使用简单黑色填充 ──────────────────────
-    // 注：复杂的镜像填充在某些 QImage 格式上可能导致崩溃，使用简单填充更稳定
-    // 转换为 RGB888 格式确保兼容性
     QImage normalizedInput;
     if (input.format() == QImage::Format_RGB888) {
         normalizedInput = input;
     } else {
         normalizedInput = input.convertToFormat(QImage::Format_RGB888);
-        qInfo() << "[AIEngine][Tiled] format converted"
-                << "from:" << input.format()
-                << "to:" << normalizedInput.format()
-                << "bytesPerLine:" << normalizedInput.bytesPerLine()
-                << "expectedBytesPerLine:" << (w * 3);
     }
 
     if (normalizedInput.isNull() || normalizedInput.format() != QImage::Format_RGB888) {
-        qWarning() << "[AIEngine][Tiled] failed to normalize input format"
-                   << "isNull:" << normalizedInput.isNull()
-                   << "format:" << normalizedInput.format();
+        qWarning() << "[AIEngine] failed to normalize input format";
         return processSingle(input, model);
     }
 
     QImage paddedInput(w + 2 * padding, h + 2 * padding, QImage::Format_RGB888);
     if (paddedInput.isNull()) {
-        qWarning() << "[AIEngine][Tiled] failed to create padded image";
+        qWarning() << "[AIEngine] failed to create padded image";
         return processSingle(input, model);
     }
     paddedInput.fill(Qt::black);

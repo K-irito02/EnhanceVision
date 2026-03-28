@@ -552,12 +552,6 @@ Rectangle {
         }
     }
     
-    // ========== 快捷键 ==========
-    Shortcut {
-        sequence: "Ctrl+O"
-        onActivated: fileDialog.open()
-    }
-    
     // ========== 内部方法 ==========
     function _getShaderParam(paramName, defaultValue) {
         var p = root.parent

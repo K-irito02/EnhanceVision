@@ -216,21 +216,6 @@ Window {
         }
     }
 
-    Shortcut {
-        sequence: "Escape"
-        onActivated: {
-            if (root.visibility === Window.FullScreen) {
-                _exitFullscreen()
-            } else {
-                root.close()
-            }
-        }
-    }
-    Shortcut { sequence: "Left";  onActivated: _prevFile() }
-    Shortcut { sequence: "Right"; onActivated: _nextFile() }
-    Shortcut { sequence: "Space"; onActivated: if (isVideo) videoPlayer.togglePlay() }
-    Shortcut { sequence: "F";     onActivated: _toggleFullscreen() }
-
     function _toggleFullscreen() {
         if (root.visibility === Window.FullScreen) {
             _exitFullscreen()
@@ -466,7 +451,6 @@ Window {
                     id: shaderImageClickArea
                     anchors.fill: parent
                     hoverEnabled: true
-                    propagateComposedEvents: true
                     acceptedButtons: Qt.LeftButton
 
                     onContainsMouseChanged: {
@@ -533,7 +517,6 @@ Window {
                     id: imageClickArea
                     anchors.fill: parent
                     hoverEnabled: true
-                    propagateComposedEvents: true
                     acceptedButtons: Qt.LeftButton
 
                     onContainsMouseChanged: {
@@ -766,30 +749,25 @@ Window {
                     id: videoClickArea
                     anchors.fill: parent
                     hoverEnabled: true
-                    propagateComposedEvents: true
                     acceptedButtons: Qt.LeftButton
                     z: 3
 
                     onContainsMouseChanged: {
-                        root._mouseInContentArea = containsMouse
                         if (containsMouse) {
-                            root.hoverActive = true
-                            hideButtonsTimer.stop()
-                        } else if (!root._buttonsHovered) {
-                            hideButtonsTimer.restart()
+                            root.showNavButtonsAndResetTimer()
+                        } else {
+                            root.startAutoHideIfNeeded()
                         }
                     }
                     
                     onPositionChanged: {
-                        root.hoverActive = true
-                        hideButtonsTimer.restart()
+                        root.showNavButtonsAndResetTimer()
                     }
 
-                    onClicked: function(mouse) {
+                    onClicked: {
                         if (mediaPlayer) {
                             mediaPlayer.togglePlay()
                         }
-                        mouse.accepted = false
                     }
 
                     onDoubleClicked: {
@@ -825,11 +803,14 @@ Window {
             anchors.verticalCenter: contentArea.verticalCenter
             width: 44; height: 44; radius: 22
             visible: currentIndex > 0
+            // 关键修复：enabled 必须同时考虑 visible 和 navButtonsVisible
+            // 当 navButtonsVisible 为 false 时（opacity: 0），按钮不应响应点击
+            enabled: visible && navButtonsVisible
             opacity: navButtonsVisible ? 1.0 : 0.0
             z: 50
             
-            property bool isHovered: prevMouse.containsMouse
-            property bool isPressed: prevMouse.pressed
+            property bool isHovered: prevMouse.containsMouse && enabled
+            property bool isPressed: prevMouse.pressed && enabled
             
             // 玻璃拟态背景
             color: {
@@ -858,6 +839,7 @@ Window {
                 id: prevMouse
                 anchors.fill: parent
                 hoverEnabled: true
+                enabled: parent.enabled
                 cursorShape: Qt.PointingHandCursor
                 onClicked: _prevFile()
                 onEntered: {
@@ -878,11 +860,14 @@ Window {
             anchors.verticalCenter: contentArea.verticalCenter
             width: 44; height: 44; radius: 22
             visible: currentIndex < mediaFiles.length - 1
+            // 关键修复：enabled 必须同时考虑 visible 和 navButtonsVisible
+            // 当 navButtonsVisible 为 false 时（opacity: 0），按钮不应响应点击
+            enabled: visible && navButtonsVisible
             opacity: navButtonsVisible ? 1.0 : 0.0
             z: 50
             
-            property bool isHovered: nextMouse.containsMouse
-            property bool isPressed: nextMouse.pressed
+            property bool isHovered: nextMouse.containsMouse && enabled
+            property bool isPressed: nextMouse.pressed && enabled
             
             // 玻璃拟态背景
             color: {
@@ -911,6 +896,7 @@ Window {
                 id: nextMouse
                 anchors.fill: parent
                 hoverEnabled: true
+                enabled: parent.enabled
                 cursorShape: Qt.PointingHandCursor
                 onClicked: _nextFile()
                 onEntered: {

@@ -2,6 +2,26 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="zh_CN">
 <context>
+    <name>App</name>
+    <message>
+        <location filename="../../qml/App.qml" line="300"/>
+        <source>检测到上次应用异常退出</source>
+        <translation>检测到上次应用异常退出</translation>
+    </message>
+    <message>
+        <location filename="../../qml/App.qml" line="308"/>
+        <source>为确保稳定性，已自动关闭"自动重新处理"功能。
+您可以在设置中重新开启此功能。</source>
+        <translation>为确保稳定性，已自动关闭"自动重新处理"功能。
+您可以在设置中重新开启此功能。</translation>
+    </message>
+    <message>
+        <location filename="../../qml/App.qml" line="316"/>
+        <source>知道了</source>
+        <translation>知道了</translation>
+    </message>
+</context>
+<context>
     <name>ControlPanel</name>
     <message>
         <location filename="../../qml/components/ControlPanel.qml" line="117"/>
@@ -184,32 +204,32 @@
     <message>
         <location filename="../../src/controllers/FileController.cpp" line="93"/>
         <source>不支持的文件格式: %1</source>
-        <translation ></translation>
+        <translation>不支持的文件格式: %1</translation>
     </message>
     <message>
         <location filename="../../src/controllers/FileController.cpp" line="191"/>
         <source>图片文件</source>
-        <translation ></translation>
+        <translation>图片文件</translation>
     </message>
     <message>
         <location filename="../../src/controllers/FileController.cpp" line="199"/>
         <source>视频文件</source>
-        <translation ></translation>
+        <translation>视频文件</translation>
     </message>
     <message>
         <location filename="../../src/controllers/FileController.cpp" line="207"/>
         <source>所有支持的文件</source>
-        <translation ></translation>
+        <translation>所有支持的文件</translation>
     </message>
     <message>
         <location filename="../../src/controllers/FileController.cpp" line="211"/>
         <source>所有文件 (*.*)</source>
-        <translation >所有文件 (*.*)</translation>
+        <translation>所有文件 (*.*)</translation>
     </message>
     <message>
         <location filename="../../src/controllers/FileController.cpp" line="225"/>
         <source>保存文件失败: %1</source>
-        <translation ></translation>
+        <translation>保存文件失败: %1</translation>
     </message>
 </context>
 <context>
@@ -260,37 +280,37 @@
     <message>
         <location filename="../../src/models/FileModel.cpp" line="95"/>
         <source>文件不存在: %1</source>
-        <translation ></translation>
+        <translation>文件不存在: %1</translation>
     </message>
     <message>
         <location filename="../../src/models/FileModel.cpp" line="101"/>
         <source>不支持的文件格式: %1</source>
-        <translation ></translation>
+        <translation>不支持的文件格式: %1</translation>
     </message>
     <message>
         <location filename="../../src/models/FileModel.cpp" line="107"/>
         <source>文件大小超过限制 (最大 2GB): %1</source>
-        <translation ></translation>
+        <translation>文件大小超过限制 (最大 2GB): %1</translation>
     </message>
     <message>
         <location filename="../../src/models/FileModel.cpp" line="237"/>
         <source>%1 B</source>
-        <translation ></translation>
+        <translation>%1 B</translation>
     </message>
     <message>
         <location filename="../../src/models/FileModel.cpp" line="239"/>
         <source>%1 KB</source>
-        <translation ></translation>
+        <translation>%1 KB</translation>
     </message>
     <message>
         <location filename="../../src/models/FileModel.cpp" line="241"/>
         <source>%1 MB</source>
-        <translation ></translation>
+        <translation>%1 MB</translation>
     </message>
     <message>
         <location filename="../../src/models/FileModel.cpp" line="243"/>
         <source>%1 GB</source>
-        <translation ></translation>
+        <translation>%1 GB</translation>
     </message>
 </context>
 <context>
@@ -299,48 +319,48 @@
         <location filename="../../src/core/ImageProcessor.cpp" line="73"/>
         <location filename="../../src/core/ImageProcessor.cpp" line="75"/>
         <source>已有处理任务正在进行</source>
-        <translation ></translation>
+        <translation>已有处理任务正在进行</translation>
     </message>
     <message>
         <location filename="../../src/core/ImageProcessor.cpp" line="90"/>
         <location filename="../../src/core/ImageProcessor.cpp" line="92"/>
         <source>正在读取图像...</source>
-        <translation ></translation>
+        <translation>正在读取图像...</translation>
     </message>
     <message>
         <location filename="../../src/core/ImageProcessor.cpp" line="95"/>
         <location filename="../../src/core/ImageProcessor.cpp" line="110"/>
         <location filename="../../src/core/ImageProcessor.cpp" line="116"/>
         <source>处理已取消</source>
-        <translation ></translation>
+        <translation>处理已取消</translation>
     </message>
     <message>
         <location filename="../../src/core/ImageProcessor.cpp" line="100"/>
         <source>无法读取图像文件</source>
-        <translation ></translation>
+        <translation>无法读取图像文件</translation>
     </message>
     <message>
         <location filename="../../src/core/ImageProcessor.cpp" line="105"/>
         <location filename="../../src/core/ImageProcessor.cpp" line="107"/>
         <source>正在应用滤镜...</source>
-        <translation ></translation>
+        <translation>正在应用滤镜...</translation>
     </message>
     <message>
         <location filename="../../src/core/ImageProcessor.cpp" line="121"/>
         <location filename="../../src/core/ImageProcessor.cpp" line="123"/>
         <source>正在保存结果...</source>
-        <translation ></translation>
+        <translation>正在保存结果...</translation>
     </message>
     <message>
         <location filename="../../src/core/ImageProcessor.cpp" line="126"/>
         <source>无法保存图像文件</source>
-        <translation ></translation>
+        <translation>无法保存图像文件</translation>
     </message>
     <message>
         <location filename="../../src/core/ImageProcessor.cpp" line="133"/>
         <location filename="../../src/core/ImageProcessor.cpp" line="135"/>
         <source>处理完成</source>
-        <translation ></translation>
+        <translation>处理完成</translation>
     </message>
 </context>
 <context>
@@ -415,46 +435,46 @@
     <message>
         <location filename="../../qml/components/MediaThumbnailStrip.qml" line="339"/>
         <source>展开查看全部 %1 个文件</source>
-        <translation ></translation>
+        <translation>展开查看全部 %1 个文件</translation>
     </message>
     <message>
         <location filename="../../qml/components/MediaThumbnailStrip.qml" line="349"/>
         <source>暂无已完成的文件</source>
-        <translation ></translation>
+        <translation>暂无已完成的文件</translation>
     </message>
     <message>
         <location filename="../../qml/components/MediaThumbnailStrip.qml" line="349"/>
         <source>暂无文件</source>
-        <translation ></translation>
+        <translation>暂无文件</translation>
     </message>
     <message>
         <location filename="../../qml/components/MediaThumbnailStrip.qml" line="583"/>
         <source>收缩</source>
-        <translation ></translation>
+        <translation>收缩</translation>
     </message>
     <message>
         <location filename="../../qml/components/MediaThumbnailStrip.qml" line="614"/>
         <location filename="../../qml/components/MediaThumbnailStrip.qml" line="619"/>
         <source>放大查看</source>
-        <translation ></translation>
+        <translation>放大查看</translation>
     </message>
     <message>
         <location filename="../../qml/components/MediaThumbnailStrip.qml" line="625"/>
         <location filename="../../qml/components/MediaThumbnailStrip.qml" line="630"/>
         <source>保存</source>
-        <translation ></translation>
+        <translation>保存</translation>
     </message>
     <message>
         <location filename="../../qml/components/MediaThumbnailStrip.qml" line="638"/>
         <location filename="../../qml/components/MediaThumbnailStrip.qml" line="643"/>
         <source>删除</source>
-        <translation >删除</translation>
+        <translation>删除</translation>
     </message>
     <message>
         <location filename="../../qml/components/MediaThumbnailStrip.qml" line="804"/>
         <location filename="../../qml/components/MediaThumbnailStrip.qml" line="809"/>
         <source>重新处理</source>
-        <translation >重新处理</translation>
+        <translation>重新处理</translation>
     </message>
 </context>
 <context>
@@ -462,12 +482,12 @@
     <message>
         <location filename="../../qml/components/MediaViewer.qml" line="54"/>
         <source>媒体查看器</source>
-        <translation >媒体查看器</translation>
+        <translation>媒体查看器</translation>
     </message>
     <message>
         <location filename="../../qml/components/MediaViewer.qml" line="62"/>
         <source>点击文件缩略图以预览</source>
-        <translation ></translation>
+        <translation>点击文件缩略图以预览</translation>
     </message>
 </context>
 <context>
@@ -528,47 +548,47 @@
     <message>
         <location filename="../../qml/components/MessageItem.qml" line="112"/>
         <source>排队中</source>
-        <translation ></translation>
+        <translation>排队中</translation>
     </message>
     <message>
         <location filename="../../qml/components/MessageItem.qml" line="113"/>
         <source>处理中</source>
-        <translation ></translation>
+        <translation>处理中</translation>
     </message>
     <message>
         <location filename="../../qml/components/MessageItem.qml" line="114"/>
         <source>已完成</source>
-        <translation ></translation>
+        <translation>已完成</translation>
     </message>
     <message>
         <location filename="../../qml/components/MessageItem.qml" line="115"/>
         <source>失败</source>
-        <translation ></translation>
+        <translation>失败</translation>
     </message>
     <message>
         <location filename="../../qml/components/MessageItem.qml" line="116"/>
         <source>已取消</source>
-        <translation ></translation>
+        <translation>已取消</translation>
     </message>
     <message>
         <location filename="../../qml/components/MessageItem.qml" line="117"/>
         <source>未知</source>
-        <translation ></translation>
+        <translation>未知</translation>
     </message>
     <message>
         <location filename="../../qml/components/MessageItem.qml" line="210"/>
         <source>下载全部已处理文件</source>
-        <translation ></translation>
+        <translation>下载全部已处理文件</translation>
     </message>
     <message>
         <location filename="../../qml/components/MessageItem.qml" line="217"/>
         <source>编辑文件</source>
-        <translation ></translation>
+        <translation>编辑文件</translation>
     </message>
     <message>
         <location filename="../../qml/components/MessageItem.qml" line="225"/>
         <source>删除此消息</source>
-        <translation ></translation>
+        <translation>删除此消息</translation>
     </message>
     <message>
         <source>删除待处理任务</source>
@@ -577,47 +597,47 @@
     <message>
         <location filename="../../qml/components/MessageItem.qml" line="260"/>
         <source>等待处理...</source>
-        <translation ></translation>
+        <translation>等待处理...</translation>
     </message>
     <message>
         <location filename="../../qml/components/MessageItem.qml" line="261"/>
         <source>处理进度</source>
-        <translation ></translation>
+        <translation>处理进度</translation>
     </message>
     <message>
         <location filename="../../qml/components/MessageItem.qml" line="272"/>
         <source>%1/%2 文件</source>
-        <translation ></translation>
+        <translation>%1/%2 文件</translation>
     </message>
     <message>
         <location filename="../../qml/components/MessageItem.qml" line="290"/>
         <source>预计 %1h%2m</source>
-        <translation ></translation>
+        <translation>预计 %1h%2m</translation>
     </message>
     <message>
         <location filename="../../qml/components/MessageItem.qml" line="291"/>
         <source>预计 %1m%2s</source>
-        <translation ></translation>
+        <translation>预计 %1m%2s</translation>
     </message>
     <message>
         <location filename="../../qml/components/MessageItem.qml" line="292"/>
         <source>预计 %1s</source>
-        <translation ></translation>
+        <translation>预计 %1s</translation>
     </message>
     <message>
         <location filename="../../qml/components/MessageItem.qml" line="417"/>
         <source>队列 #%1</source>
-        <translation ></translation>
+        <translation>队列 #%1</translation>
     </message>
     <message>
         <location filename="../../qml/components/MessageItem.qml" line="427"/>
         <source>%1 个文件</source>
-        <translation >%1 个文件</translation>
+        <translation>%1 个文件</translation>
     </message>
     <message>
         <location filename="../../qml/components/MessageItem.qml" line="203"/>
         <source>重新处理失败文件</source>
-        <translation >重新处理失败文件</translation>
+        <translation>重新处理失败文件</translation>
     </message>
     <message>
         <location filename="../../qml/components/MessageItem.qml" line="210"/>
@@ -672,58 +692,58 @@
         <location filename="../../src/models/MessageModel.cpp" line="233"/>
         <location filename="../../src/models/MessageModel.cpp" line="577"/>
         <source>消息不存在: %1</source>
-        <translation ></translation>
+        <translation>消息不存在: %1</translation>
     </message>
     <message>
         <location filename="../../src/models/MessageModel.cpp" line="352"/>
         <source>待处理</source>
-        <translation ></translation>
+        <translation>待处理</translation>
     </message>
     <message>
         <location filename="../../src/models/MessageModel.cpp" line="354"/>
         <source>处理中</source>
-        <translation ></translation>
+        <translation>处理中</translation>
     </message>
     <message>
         <location filename="../../src/models/MessageModel.cpp" line="356"/>
         <source>已完成</source>
-        <translation ></translation>
+        <translation>已完成</translation>
     </message>
     <message>
         <location filename="../../src/models/MessageModel.cpp" line="358"/>
         <source>失败</source>
-        <translation ></translation>
+        <translation>失败</translation>
     </message>
     <message>
         <location filename="../../src/models/MessageModel.cpp" line="360"/>
         <source>已取消</source>
-        <translation ></translation>
+        <translation>已取消</translation>
     </message>
     <message>
         <location filename="../../src/models/MessageModel.cpp" line="362"/>
         <location filename="../../src/models/MessageModel.cpp" line="394"/>
         <source>未知</source>
-        <translation ></translation>
+        <translation>未知</translation>
     </message>
     <message>
         <location filename="../../src/models/MessageModel.cpp" line="388"/>
         <source>Shader 滤镜</source>
-        <translation ></translation>
+        <translation>Shader 滤镜</translation>
     </message>
     <message>
         <location filename="../../src/models/MessageModel.cpp" line="390"/>
         <source>AI 推理</source>
-        <translation ></translation>
+        <translation>AI 推理</translation>
     </message>
     <message>
         <location filename="../../src/models/MessageModel.cpp" line="392"/>
         <source>浏览</source>
-        <translation ></translation>
+        <translation>浏览</translation>
     </message>
     <message>
         <location filename="../../src/models/MessageModel.cpp" line="583"/>
         <source>文件索引无效: %1</source>
-        <translation ></translation>
+        <translation>文件索引无效: %1</translation>
     </message>
 </context>
 <context>
@@ -841,27 +861,27 @@
     <message>
         <location filename="../../qml/components/PreviewPane.qml" line="43"/>
         <source>预览</source>
-        <translation ></translation>
+        <translation>预览</translation>
     </message>
     <message>
         <location filename="../../qml/components/PreviewPane.qml" line="67"/>
         <source>原图</source>
-        <translation ></translation>
+        <translation>原图</translation>
     </message>
     <message>
         <location filename="../../qml/components/PreviewPane.qml" line="94"/>
         <source>效果</source>
-        <translation ></translation>
+        <translation>效果</translation>
     </message>
     <message>
         <location filename="../../qml/components/PreviewPane.qml" line="143"/>
         <source>选择文件以预览</source>
-        <translation ></translation>
+        <translation>选择文件以预览</translation>
     </message>
     <message>
         <location filename="../../qml/components/PreviewPane.qml" line="151"/>
         <source>支持 JPG、PNG、BMP、WebP、MP4 等格式</source>
-        <translation ></translation>
+        <translation>支持 JPG、PNG、BMP、WebP、MP4 等格式</translation>
     </message>
 </context>
 <context>
@@ -869,7 +889,7 @@
     <message>
         <location filename="../../src/core/ProcessingEngine.cpp" line="218"/>
         <source>未找到媒体文件</source>
-        <translation ></translation>
+        <translation>未找到媒体文件</translation>
     </message>
 </context>
 <context>
@@ -877,37 +897,37 @@
     <message>
         <location filename="../../qml/components/SessionBatchBar.qml" line="69"/>
         <source>退出批量</source>
-        <translation ></translation>
+        <translation>退出批量</translation>
     </message>
     <message>
         <location filename="../../qml/components/SessionBatchBar.qml" line="69"/>
         <source>批量操作</source>
-        <translation >批量操作</translation>
+        <translation>批量操作</translation>
     </message>
     <message>
         <location filename="../../qml/components/SessionBatchBar.qml" line="87"/>
         <source>已选 %1/%2</source>
-        <translation ></translation>
+        <translation>已选 %1/%2</translation>
     </message>
     <message>
         <location filename="../../qml/components/SessionBatchBar.qml" line="122"/>
         <source>取消全选</source>
-        <translation >取消全选</translation>
+        <translation>取消全选</translation>
     </message>
     <message>
         <location filename="../../qml/components/SessionBatchBar.qml" line="122"/>
         <source>全选</source>
-        <translation >全选</translation>
+        <translation>全选</translation>
     </message>
     <message>
         <location filename="../../qml/components/SessionBatchBar.qml" line="150"/>
         <source>清空选中会话</source>
-        <translation >清空选中会话</translation>
+        <translation>清空选中会话</translation>
     </message>
     <message>
         <location filename="../../qml/components/SessionBatchBar.qml" line="162"/>
         <source>删除选中会话</source>
-        <translation >删除选中会话</translation>
+        <translation>删除选中会话</translation>
     </message>
 </context>
 <context>
@@ -915,7 +935,7 @@
     <message>
         <location filename="../../src/controllers/SessionController.cpp" line="342"/>
         <source>未命名会话 %1</source>
-        <translation ></translation>
+        <translation>未命名会话 %1</translation>
     </message>
 </context>
 <context>
@@ -924,42 +944,42 @@
         <location filename="../../qml/components/SessionList.qml" line="372"/>
         <location filename="../../qml/components/SessionList.qml" line="586"/>
         <source>置顶</source>
-        <translation ></translation>
+        <translation>置顶</translation>
     </message>
     <message>
         <location filename="../../qml/components/SessionList.qml" line="440"/>
         <source>更多操作</source>
-        <translation ></translation>
+        <translation>更多操作</translation>
     </message>
     <message>
         <location filename="../../qml/components/SessionList.qml" line="539"/>
         <source>重命名</source>
-        <translation ></translation>
+        <translation>重命名</translation>
     </message>
     <message>
         <location filename="../../qml/components/SessionList.qml" line="586"/>
         <source>取消置顶</source>
-        <translation ></translation>
+        <translation>取消置顶</translation>
     </message>
     <message>
         <location filename="../../qml/components/SessionList.qml" line="641"/>
         <source>清空会话</source>
-        <translation >清空会话</translation>
+        <translation>清空会话</translation>
     </message>
     <message>
         <location filename="../../qml/components/SessionList.qml" line="688"/>
         <source>删除会话</source>
-        <translation >删除会话</translation>
+        <translation>删除会话</translation>
     </message>
     <message>
         <location filename="../../qml/components/SessionList.qml" line="739"/>
         <source>暂无会话</source>
-        <translation ></translation>
+        <translation>暂无会话</translation>
     </message>
     <message>
         <location filename="../../qml/components/SessionList.qml" line="747"/>
         <source>点击 + 创建新会话</source>
-        <translation ></translation>
+        <translation>点击 + 创建新会话</translation>
     </message>
 </context>
 <context>
@@ -971,27 +991,27 @@
         <location filename="../../src/models/SessionModel.cpp" line="212"/>
         <location filename="../../src/models/SessionModel.cpp" line="359"/>
         <source>会话不存在: %1</source>
-        <translation ></translation>
+        <translation>会话不存在: %1</translation>
     </message>
     <message>
         <location filename="../../src/models/SessionModel.cpp" line="159"/>
         <source>会话名称不能为空</source>
-        <translation ></translation>
+        <translation>会话名称不能为空</translation>
     </message>
     <message>
         <location filename="../../src/models/SessionModel.cpp" line="164"/>
         <source>会话名称不能超过50个字符</source>
-        <translation ></translation>
+        <translation>会话名称不能超过50个字符</translation>
     </message>
     <message>
         <location filename="../../src/models/SessionModel.cpp" line="326"/>
         <source>未命名会话 %1</source>
-        <translation ></translation>
+        <translation>未命名会话 %1</translation>
     </message>
     <message>
         <location filename="../../src/models/SessionModel.cpp" line="390"/>
         <source>不能跨越置顶区域移动会话</source>
-        <translation ></translation>
+        <translation>不能跨越置顶区域移动会话</translation>
     </message>
 </context>
 <context>
@@ -1310,241 +1330,241 @@
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="436"/>
         <source>胶片</source>
-        <translation ></translation>
+        <translation>胶片</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="437"/>
         <source>褪色</source>
-        <translation ></translation>
+        <translation>褪色</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="438"/>
         <source>老照片</source>
-        <translation ></translation>
+        <translation>老照片</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="439"/>
         <source>柯达</source>
-        <translation ></translation>
+        <translation>柯达</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="440"/>
         <source>富士</source>
-        <translation ></translation>
+        <translation>富士</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="441"/>
         <source>宝丽来</source>
-        <translation ></translation>
+        <translation>宝丽来</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="442"/>
         <source>年代感</source>
-        <translation ></translation>
+        <translation>年代感</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="444"/>
         <source>银幕</source>
-        <translation ></translation>
+        <translation>银幕</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="445"/>
         <source>好莱坞</source>
-        <translation ></translation>
+        <translation>好莱坞</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="446"/>
         <source>黑色电影</source>
-        <translation ></translation>
+        <translation>黑色电影</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="447"/>
         <source>科幻</source>
-        <translation ></translation>
+        <translation>科幻</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="448"/>
         <source>赛博朋克</source>
-        <translation ></translation>
+        <translation>赛博朋克</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="449"/>
         <source>末日</source>
-        <translation ></translation>
+        <translation>末日</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="451"/>
         <source>高调黑白</source>
-        <translation ></translation>
+        <translation>高调黑白</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="452"/>
         <source>低调黑白</source>
-        <translation ></translation>
+        <translation>低调黑白</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="453"/>
         <source>银盐</source>
-        <translation ></translation>
+        <translation>银盐</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="454"/>
         <source>戏剧黑白</source>
-        <translation ></translation>
+        <translation>戏剧黑白</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="455"/>
         <source>人像</source>
-        <translation ></translation>
+        <translation>人像</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="456"/>
         <source>风景</source>
-        <translation ></translation>
+        <translation>风景</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="457"/>
         <source>日落</source>
-        <translation ></translation>
+        <translation>日落</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="458"/>
         <source>清晨</source>
-        <translation ></translation>
+        <translation>清晨</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="459"/>
         <source>夜景</source>
-        <translation ></translation>
+        <translation>夜景</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="460"/>
         <source>星空</source>
-        <translation ></translation>
+        <translation>星空</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="461"/>
         <source>海洋</source>
-        <translation ></translation>
+        <translation>海洋</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="462"/>
         <source>都市</source>
-        <translation ></translation>
+        <translation>都市</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="463"/>
         <source>建筑</source>
-        <translation ></translation>
+        <translation>建筑</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="464"/>
         <source>美食</source>
-        <translation ></translation>
+        <translation>美食</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="465"/>
         <source>HDR</source>
-        <translation ></translation>
+        <translation>HDR</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="466"/>
         <source>梦幻</source>
-        <translation ></translation>
+        <translation>梦幻</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="467"/>
         <source>朦胧</source>
-        <translation ></translation>
+        <translation>朦胧</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="468"/>
         <source>水墨</source>
-        <translation ></translation>
+        <translation>水墨</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="469"/>
         <source>哥特</source>
-        <translation ></translation>
+        <translation>哥特</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="470"/>
         <source>波普</source>
-        <translation ></translation>
+        <translation>波普</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="471"/>
         <source>素描</source>
-        <translation ></translation>
+        <translation>素描</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="472"/>
         <source>ins风</source>
-        <translation ></translation>
+        <translation>ins风</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="473"/>
         <source>日系</source>
-        <translation ></translation>
+        <translation>日系</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="474"/>
         <source>韩系</source>
-        <translation ></translation>
+        <translation>韩系</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="475"/>
         <source>港风</source>
-        <translation ></translation>
+        <translation>港风</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="476"/>
         <source>莫兰迪</source>
-        <translation ></translation>
+        <translation>莫兰迪</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="477"/>
         <source>奶油</source>
-        <translation ></translation>
+        <translation>奶油</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="478"/>
         <source>高级灰</source>
-        <translation ></translation>
+        <translation>高级灰</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="598"/>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="750"/>
         <source>重命名</source>
-        <translation ></translation>
+        <translation>重命名</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="643"/>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="795"/>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="975"/>
         <source>删除</source>
-        <translation >删除</translation>
+        <translation>删除</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="822"/>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="883"/>
         <source>删除类别</source>
-        <translation ></translation>
+        <translation>删除类别</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="902"/>
         <source>确定要删除该类别吗？此操作无法撤销。</source>
-        <translation ></translation>
+        <translation>确定要删除该类别吗？此操作无法撤销。</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="930"/>
         <source>该类别下有 %1 个风格将一并删除</source>
-        <translation ></translation>
+        <translation>该类别下有 %1 个风格将一并删除</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="935"/>
         <source>该类别下没有任何风格</source>
-        <translation ></translation>
+        <translation>该类别下没有任何风格</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="969"/>
@@ -1553,99 +1573,99 @@
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1375"/>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1657"/>
         <source>取消</source>
-        <translation >取消</translation>
+        <translation>取消</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1114"/>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1235"/>
         <source>类别名称</source>
-        <translation ></translation>
+        <translation>类别名称</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1123"/>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1245"/>
         <source>输入类别名称</source>
-        <translation ></translation>
+        <translation>输入类别名称</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1140"/>
         <source>创建</source>
-        <translation ></translation>
+        <translation>创建</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1158"/>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1217"/>
         <source>重命名类别</source>
-        <translation ></translation>
+        <translation>重命名类别</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1261"/>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1381"/>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1663"/>
         <source>保存</source>
-        <translation ></translation>
+        <translation>保存</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1278"/>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1337"/>
         <source>重命名风格</source>
-        <translation ></translation>
+        <translation>重命名风格</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1355"/>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1472"/>
         <source>风格名称</source>
-        <translation ></translation>
+        <translation>风格名称</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1365"/>
         <source>输入风格名称</source>
-        <translation ></translation>
+        <translation>输入风格名称</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1481"/>
         <source>例如：我的风格</source>
-        <translation ></translation>
+        <translation>例如：我的风格</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1486"/>
         <source>所属类别</source>
-        <translation ></translation>
+        <translation>所属类别</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1538"/>
         <source>输入或选择类别</source>
-        <translation ></translation>
+        <translation>输入或选择类别</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1759"/>
         <source>自定义</source>
-        <translation ></translation>
+        <translation>自定义</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1783"/>
         <source>基础调整</source>
-        <translation ></translation>
+        <translation>基础调整</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1792"/>
         <source>亮度</source>
-        <translation ></translation>
+        <translation>亮度</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1806"/>
         <source>对比度</source>
-        <translation ></translation>
+        <translation>对比度</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1820"/>
         <source>饱和度</source>
-        <translation ></translation>
+        <translation>饱和度</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1834"/>
         <source>色相</source>
-        <translation ></translation>
+        <translation>色相</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1863"/>
@@ -1653,67 +1673,67 @@
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="2065"/>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="2160"/>
         <source>重置</source>
-        <translation ></translation>
+        <translation>重置</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1892"/>
         <source>细节增强</source>
-        <translation ></translation>
+        <translation>细节增强</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1901"/>
         <source>锐度</source>
-        <translation ></translation>
+        <translation>锐度</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1915"/>
         <source>模糊</source>
-        <translation ></translation>
+        <translation>模糊</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1929"/>
         <source>降噪</source>
-        <translation ></translation>
+        <translation>降噪</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1985"/>
         <source>光影调整</source>
-        <translation ></translation>
+        <translation>光影调整</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="1994"/>
         <source>曝光</source>
-        <translation ></translation>
+        <translation>曝光</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="2008"/>
         <source>伽马</source>
-        <translation ></translation>
+        <translation>伽马</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="2022"/>
         <source>高光</source>
-        <translation ></translation>
+        <translation>高光</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="2036"/>
         <source>阴影</source>
-        <translation ></translation>
+        <translation>阴影</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="2094"/>
         <source>色彩调整</source>
-        <translation ></translation>
+        <translation>色彩调整</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="2103"/>
         <source>色温</source>
-        <translation ></translation>
+        <translation>色温</translation>
     </message>
     <message>
         <location filename="../../qml/components/ShaderParamsPanel.qml" line="2131"/>
         <source>晕影</source>
-        <translation ></translation>
+        <translation>晕影</translation>
     </message>
 </context>
 <context>
@@ -1786,7 +1806,7 @@
     <message>
         <location filename="../../qml/components/Sidebar.qml" line="250"/>
         <source>%1/%2</source>
-        <translation ></translation>
+        <translation>%1/%2</translation>
     </message>
     <message>
         <location filename="../../qml/components/Sidebar.qml" line="289"/>
@@ -1854,12 +1874,12 @@
     <message>
         <location filename="../../qml/components/TitleBar.qml" line="195"/>
         <source>Switch to English</source>
-        <translation ></translation>
+        <translation>切换到英文</translation>
     </message>
     <message>
         <location filename="../../qml/components/TitleBar.qml" line="195"/>
         <source>切换到中文</source>
-        <translation ></translation>
+        <translation>切换到中文</translation>
     </message>
     <message>
         <location filename="../../qml/components/TitleBar.qml" line="223"/>
@@ -1893,93 +1913,93 @@
         <location filename="../../src/core/VideoProcessor.cpp" line="35"/>
         <location filename="../../src/core/VideoProcessor.cpp" line="37"/>
         <source>已有处理任务正在进行</source>
-        <translation ></translation>
+        <translation>已有处理任务正在进行</translation>
     </message>
     <message>
         <location filename="../../src/core/VideoProcessor.cpp" line="79"/>
         <location filename="../../src/core/VideoProcessor.cpp" line="81"/>
         <source>正在打开视频文件...</source>
-        <translation ></translation>
+        <translation>正在打开视频文件...</translation>
     </message>
     <message>
         <location filename="../../src/core/VideoProcessor.cpp" line="84"/>
         <source>无法打开输入视频文件</source>
-        <translation ></translation>
+        <translation>无法打开输入视频文件</translation>
     </message>
     <message>
         <location filename="../../src/core/VideoProcessor.cpp" line="88"/>
         <source>无法获取视频流信息</source>
-        <translation ></translation>
+        <translation>无法获取视频流信息</translation>
     </message>
     <message>
         <location filename="../../src/core/VideoProcessor.cpp" line="101"/>
         <source>未找到视频流</source>
-        <translation ></translation>
+        <translation>未找到视频流</translation>
     </message>
     <message>
         <location filename="../../src/core/VideoProcessor.cpp" line="107"/>
         <source>未找到合适的解码器</source>
-        <translation ></translation>
+        <translation>未找到合适的解码器</translation>
     </message>
     <message>
         <location filename="../../src/core/VideoProcessor.cpp" line="113"/>
         <source>无法打开解码器</source>
-        <translation ></translation>
+        <translation>无法打开解码器</translation>
     </message>
     <message>
         <location filename="../../src/core/VideoProcessor.cpp" line="119"/>
         <source>无法创建输出格式上下文</source>
-        <translation ></translation>
+        <translation>无法创建输出格式上下文</translation>
     </message>
     <message>
         <location filename="../../src/core/VideoProcessor.cpp" line="125"/>
         <source>无法创建输出视频流</source>
-        <translation ></translation>
+        <translation>无法创建输出视频流</translation>
     </message>
     <message>
         <location filename="../../src/core/VideoProcessor.cpp" line="134"/>
         <source>未找到合适的编码器</source>
-        <translation ></translation>
+        <translation>未找到合适的编码器</translation>
     </message>
     <message>
         <location filename="../../src/core/VideoProcessor.cpp" line="150"/>
         <source>无法打开编码器</source>
-        <translation ></translation>
+        <translation>无法打开编码器</translation>
     </message>
     <message>
         <location filename="../../src/core/VideoProcessor.cpp" line="158"/>
         <source>无法打开输出文件</source>
-        <translation ></translation>
+        <translation>无法打开输出文件</translation>
     </message>
     <message>
         <location filename="../../src/core/VideoProcessor.cpp" line="194"/>
         <location filename="../../src/core/VideoProcessor.cpp" line="196"/>
         <source>开始处理视频帧...</source>
-        <translation ></translation>
+        <translation>开始处理视频帧...</translation>
     </message>
     <message>
         <location filename="../../src/core/VideoProcessor.cpp" line="201"/>
         <location filename="../../src/core/VideoProcessor.cpp" line="209"/>
         <source>处理已取消</source>
-        <translation ></translation>
+        <translation>处理已取消</translation>
     </message>
     <message>
         <location filename="../../src/core/VideoProcessor.cpp" line="247"/>
         <location filename="../../src/core/VideoProcessor.cpp" line="249"/>
         <source>正在处理第 %1 帧...</source>
-        <translation ></translation>
+        <translation>正在处理第 %1 帧...</translation>
     </message>
     <message>
         <location filename="../../src/core/VideoProcessor.cpp" line="275"/>
         <location filename="../../src/core/VideoProcessor.cpp" line="277"/>
         <source>正在完成...</source>
-        <translation ></translation>
+        <translation>正在完成...</translation>
     </message>
     <message>
         <location filename="../../src/core/VideoProcessor.cpp" line="283"/>
         <location filename="../../src/core/VideoProcessor.cpp" line="285"/>
         <source>处理完成</source>
-        <translation ></translation>
+        <translation>处理完成</translation>
     </message>
 </context>
 <context>

@@ -25,6 +25,7 @@ trigger: always_on
 | `qt-compatibility-build` | 涉及 Qt 版本兼容或迁移 |
 | `github_actions_cicd` | 需要建设或修复 CI 流水线 |
 | `obs-cpp-qt-patterns` | 需要 Qt/C++ 集成模式参考 |
+| `gitignore-bypass` | 需要访问被 .gitignore 排除的文件/目录时
 
 ## 典型工作流
 

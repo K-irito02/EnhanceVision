@@ -185,6 +185,8 @@ private:
     ShaderParams jsonToShaderParams(const QJsonObject& json) const;
     QJsonObject parametersToJson(const QVariantMap& params) const;
     QVariantMap jsonToParameters(const QJsonObject& json) const;
+    
+    QString findTaskIdForFile(const QString& messageId, const QString& fileId) const;
 };
 
 } // namespace EnhanceVision

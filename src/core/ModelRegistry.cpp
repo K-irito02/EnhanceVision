@@ -152,12 +152,8 @@ bool ModelRegistry::loadModelsJson(const QString &jsonPath)
                 QFileInfo fp(info.paramPath);
                 info.sizeBytes += fp.size();
             } else {
-                if (!paramExists) {
-                    qDebug() << "[ModelRegistry] Missing param:" << info.paramPath;
-                }
-                if (!binExists) {
-                    qDebug() << "[ModelRegistry] Missing bin:" << info.binPath;
-                }
+                Q_UNUSED(paramExists)
+                Q_UNUSED(binExists)
             }
         } else {
             // OpenCV 等无模型文件的方法，标记为可用

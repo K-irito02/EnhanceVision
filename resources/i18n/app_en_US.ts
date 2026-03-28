@@ -2,6 +2,25 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="en_US">
 <context>
+    <name>App</name>
+    <message>
+        <location filename="../../qml/App.qml" line="300"/>
+        <source>检测到上次应用异常退出</source>
+        <translation>Abnormal exit detected</translation>
+    </message>
+    <message>
+        <location filename="../../qml/App.qml" line="308"/>
+        <source>为确保稳定性，已自动关闭"自动重新处理"功能。
+您可以在设置中重新开启此功能。</source>
+        <translation>Auto-reprocess has been disabled for stability. You can re-enable it in Settings.</translation>
+    </message>
+    <message>
+        <location filename="../../qml/App.qml" line="316"/>
+        <source>知道了</source>
+        <translation>OK</translation>
+    </message>
+</context>
+<context>
     <name>ControlPanel</name>
     <message>
         <location filename="../../qml/components/ControlPanel.qml" line="117"/>

@@ -28,8 +28,6 @@ ImageUtils::~ImageUtils()
 
 QImage ImageUtils::generateThumbnail(const QString &imagePath, const QSize &size)
 {
-    qDebug() << "[ImageUtils] generateThumbnail called for:" << imagePath << "size:" << size;
-    
     QImageReader reader(imagePath);
     reader.setAutoDetectImageFormat(true);
     reader.setAllocationLimit(0);
@@ -49,7 +47,6 @@ QImage ImageUtils::generateThumbnail(const QString &imagePath, const QSize &size
         return QImage();
     }
     
-    qDebug() << "[ImageUtils] Thumbnail generated, result size:" << image.size();
     return image;
 }
 
