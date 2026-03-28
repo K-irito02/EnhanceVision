@@ -98,10 +98,6 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
     QElapsedTimer perfTimer;
     perfTimer.start();
     
-    qInfo() << "[AIVideoProcessor] processInternal starting"
-            << "input:" << inputPath
-            << "output:" << outputPath;
-    
     setProcessing(true);
     
     if (m_progressReporter) {
@@ -133,10 +129,6 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
     const int scale = m_impl->modelInfo.scaleFactor;
     const int outW = (srcW * scale) & ~1;
     const int outH = (srcH * scale) & ~1;
-    
-    qInfo() << "[AIVideoProcessor] video info:"
-            << "srcW:" << srcW << "srcH:" << srcH
-            << "scale:" << scale << "outW:" << outW << "outH:" << outH;
     
     QString effectiveOutputPath = outputPath;
     QFileInfo outInfo(outputPath);
@@ -172,7 +164,6 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
     while (guard.readFrame(pkt)) {
         if (m_impl->cancelled.load()) {
             av_packet_unref(pkt);
-            qInfo() << "[AIVideoProcessor] Cancelled at frame" << frameCount;
             cleanupFrames();
             setProcessing(false);
             emitCompleted(false, QString(), tr("视频处理已取消"));
@@ -201,7 +192,6 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
         
         while (avcodec_receive_frame(decCtx, decFrame) == 0) {
             if (m_impl->cancelled.load()) {
-                qInfo() << "[AIVideoProcessor] Cancelled at frame receive" << frameCount;
                 cleanupFrames();
                 setProcessing(false);
                 emitCompleted(false, QString(), tr("视频处理已取消"));

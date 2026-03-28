@@ -17,7 +17,6 @@ AIEnginePool::AIEnginePool(int poolSize, ModelRegistry* registry, QObject* paren
     , m_poolSize(qMax(1, poolSize))
 {
     createEngines(m_poolSize);
-    qInfo() << "[AIEnginePool] created with pool size:" << m_poolSize;
 }
 
 AIEnginePool::~AIEnginePool()
@@ -39,11 +38,6 @@ AIEngine* AIEnginePool::acquire(const QString& taskId)
             m_slots[i].inUse = true;
             m_slots[i].taskId = taskId;
             m_taskToSlot[taskId] = i;
-
-            qInfo() << "[AIEnginePool] engine acquired"
-                    << "task:" << taskId
-                    << "slot:" << i
-                    << "available:" << availableCount();
 
             emit engineAcquired(taskId, i);
             return m_slots[i].engine;
@@ -67,11 +61,6 @@ void AIEnginePool::release(const QString& taskId)
     if (idx >= 0 && idx < m_slots.size()) {
         m_slots[idx].inUse = false;
         m_slots[idx].taskId.clear();
-
-        qInfo() << "[AIEnginePool] engine released"
-                << "task:" << taskId
-                << "slot:" << idx
-                << "available:" << availableCount();
 
         emit engineReleased(taskId, idx);
     }
@@ -164,24 +153,16 @@ void AIEnginePool::setPoolSize(int size)
     }
 
     m_poolSize = m_slots.size();
-    qInfo() << "[AIEnginePool] pool resized to:" << m_poolSize;
 }
 
 void AIEnginePool::warmupModel(const QString& modelId)
 {
     QMutexLocker locker(&m_mutex);
 
-    int warmedCount = 0;
     for (auto& slot : m_slots) {
         if (!slot.inUse && slot.engine && slot.engine->currentModelId() != modelId) {
             slot.engine->loadModelAsync(modelId);
-            warmedCount++;
         }
-    }
-
-    if (warmedCount > 0) {
-        qInfo() << "[AIEnginePool] warmupModel started for model:" << modelId
-                << "engines:" << warmedCount;
     }
 }
 

@@ -210,7 +210,7 @@ bool AIEngine::loadModel(const QString &modelId)
     m_currentModelId = modelId;
     m_currentModel = info;
     m_currentModel.isLoaded = true;
-    m_currentModel.layerCount = loadedLayerCount;
+    m_currentModel.layerCount = static_cast<int>(m_net.layers().size());
 
     emit modelLoaded(modelId);
     emit modelChanged();
@@ -1125,12 +1125,6 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
     
     setProgress(0.15);
 
-    qInfo() << "[AIEngine][Tiled] processing"
-            << "input:" << w << "x" << h
-            << "output:" << (w * scale) << "x" << (h * scale)
-            << "tiles:" << tilesX << "x" << tilesY << "=" << totalTiles
-            << "tileSize:" << tileSize << "padding:" << padding;
-
     int tileIndex = 0;
     int successfulTiles = 0;
     int consecutiveFailures = 0;
@@ -1530,15 +1524,6 @@ QVariantMap AIEngine::computeAutoParamsForModel(const QSize &mediaSize, bool isV
     default: break;
     }
 
-    qInfo() << "[AIEngine][AutoParams]"
-             << "model:" << modelId
-             << "mediaSize:" << w << "x" << h
-             << "isVideo:" << isVideo
-             << "aspectRatio:" << aspectRatio
-             << "isUltraWide:" << isUltraWide
-             << "isPortrait:" << isPortrait
-             << "category:" << static_cast<int>(model.category)
-             << "result:" << result;
     return result;
 }
 
@@ -1640,15 +1625,6 @@ int AIEngine::computeAutoTileSizeForModel(const QSize &inputSize, const ModelInf
         return 0;
     }
 
-    qInfo() << "[AIEngine][AutoTile]"
-            << "input:" << w << "x" << h
-            << "scale:" << scale
-            << "layers:" << layerCount
-            << "sizeBytes:" << model.sizeBytes
-            << "kFactor:" << kFactor
-            << "availableMB:" << availableMB
-            << "memForBestTile:" << memForTile(bestTile)
-            << "bestTile:" << bestTile;
     return bestTile;
 }
 

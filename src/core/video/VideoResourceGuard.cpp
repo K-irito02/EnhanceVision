@@ -181,10 +181,6 @@ bool VideoResourceGuard::openDecoder()
     
     m_impl->frameRate = av_q2d(m_impl->decCtx->framerate);
     
-    qInfo() << "[VideoResourceGuard] decoder opened:" << dec->name
-            << "size:" << m_impl->decCtx->width << "x" << m_impl->decCtx->height
-            << "fps:" << m_impl->frameRate;
-    
     return true;
 }
 
@@ -229,7 +225,6 @@ bool VideoResourceGuard::openEncoder(int width, int height)
         if (candidate) {
             enc = candidate;
             selectedEncoderName = QString(enc->name);
-            qInfo() << "[VideoResourceGuard] selected H.264 encoder:" << enc->name;
         }
     }
     
@@ -237,7 +232,6 @@ bool VideoResourceGuard::openEncoder(int width, int height)
         enc = avcodec_find_encoder(AV_CODEC_ID_MPEG4);
         if (enc) {
             selectedEncoderName = QString(enc->name);
-            qInfo() << "[VideoResourceGuard] using MPEG-4 fallback encoder:" << enc->name;
         }
     }
     
@@ -312,10 +306,6 @@ bool VideoResourceGuard::openEncoder(int width, int height)
         width, height, AV_PIX_FMT_RGB24,
         width, height, AV_PIX_FMT_YUV420P,
         SWS_BILINEAR, nullptr, nullptr, nullptr);
-    
-    qInfo() << "[VideoResourceGuard] encoder initialized"
-            << "outputSize:" << m_impl->encCtx->width << "x" << m_impl->encCtx->height
-            << "codec:" << enc->name;
     
     return true;
 }

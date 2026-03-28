@@ -552,7 +552,8 @@ Item {
                                     var status = thumbDelegate.itemData ? thumbDelegate.itemData.status : 0
                                     contextMenu.targetIndex = thumbDelegate.index
                                     contextMenu.fileStatus = status
-                                    contextMenu.popup()
+                                    var globalPos = mapToGlobal(mouse.x, mouse.y)
+                                    contextMenu.showAt(globalPos.x, globalPos.y)
                                 } else {
                                     if (!root.messageMode || thumbDelegate.isSuccess) {
                                         root.viewFile(thumbDelegate.itemData ? thumbDelegate.itemData.origIndex : thumbDelegate.index)
@@ -886,7 +887,8 @@ Item {
                                     var status = thumbDelegate.itemData ? thumbDelegate.itemData.status : 0
                                     contextMenu.targetIndex = thumbDelegate.index
                                     contextMenu.fileStatus = status
-                                    contextMenu.popup()
+                                    var globalPos = mapToGlobal(mouse.x, mouse.y)
+                                    contextMenu.showAt(globalPos.x, globalPos.y)
                                 } else {
                                     if (!root.messageMode || thumbDelegate.isSuccess) {
                                         root.viewFile(thumbDelegate.itemData ? thumbDelegate.itemData.origIndex : thumbDelegate.index)
@@ -1001,79 +1003,297 @@ Item {
         }
     }
 
-    Menu {
+    Popup {
         id: contextMenu
         property int targetIndex: -1
         property int fileStatus: 0
         readonly property bool isSuccess: fileStatus === 2
         readonly property bool isFailedOrCancelled: fileStatus === 3 || fileStatus === 4
-        width: 160
-        background: Rectangle { color: Theme.colors.popover; border.width: 1; border.color: Theme.colors.border; radius: Theme.radius.md }
         
-        MenuItem {
-            visible: !root.messageMode || contextMenu.isSuccess
-            height: visible ? 32 : 0
-            text: qsTr("放大查看")
-            background: Rectangle { color: parent.highlighted ? Theme.colors.surfaceHover : "transparent"; radius: Theme.radius.sm }
-            contentItem: Row {
-                spacing: 8; leftPadding: 8
-                ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("eye"); iconSize: 14; color: Theme.colors.foreground }
-                Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("放大查看"); color: Theme.colors.foreground; font.pixelSize: 13 }
+        parent: Overlay.overlay
+        padding: 6
+        modal: false
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        
+        function showAt(globalX, globalY) {
+            var menuWidth = 160
+            var menuHeight = calculateMenuHeight()
+            var margin = 8
+            var offsetX = 4
+            var offsetY = 4
+            
+            var overlayPos = parent.mapFromGlobal(globalX, globalY)
+            
+            var finalX = overlayPos.x + offsetX
+            var finalY = overlayPos.y + offsetY
+            
+            if (finalX + menuWidth + margin > parent.width) {
+                finalX = overlayPos.x - menuWidth - offsetX
             }
-            onTriggered: { if (contextMenu.targetIndex >= 0) { var item = filteredModel.get(contextMenu.targetIndex); root.viewFile(item ? item.origIndex : contextMenu.targetIndex) } }
-        }
-
-        MenuItem {
-            visible: root.messageMode && contextMenu.isSuccess
-            height: visible ? 32 : 0
-            text: qsTr("保存")
-            background: Rectangle { color: parent.highlighted ? Theme.colors.surfaceHover : "transparent"; radius: Theme.radius.sm }
-            contentItem: Row {
-                spacing: 8; leftPadding: 8
-                ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("save"); iconSize: 14; color: Theme.colors.foreground }
-                Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("保存"); color: Theme.colors.foreground; font.pixelSize: 13 }
+            if (finalY + menuHeight + margin > parent.height) {
+                finalY = overlayPos.y - menuHeight - offsetY
             }
-            onTriggered: { if (contextMenu.targetIndex >= 0) { var item = filteredModel.get(contextMenu.targetIndex); root.saveFile(item ? item.origIndex : contextMenu.targetIndex) } }
+            
+            finalX = Math.max(margin, Math.min(finalX, parent.width - menuWidth - margin))
+            finalY = Math.max(margin, Math.min(finalY, parent.height - menuHeight - margin))
+            
+            contextMenu.x = finalX
+            contextMenu.y = finalY
+            contextMenu.open()
         }
-
-        MenuItem {
-            visible: root.messageMode && contextMenu.isFailedOrCancelled
-            height: visible ? 32 : 0
-            text: qsTr("重新处理")
-            background: Rectangle { color: parent.highlighted ? Theme.colors.surfaceHover : "transparent"; radius: Theme.radius.sm }
-            contentItem: Row {
-                spacing: 8; leftPadding: 8
-                ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("refresh-cw"); iconSize: 14; color: Theme.colors.foreground }
-                Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("重新处理"); color: Theme.colors.foreground; font.pixelSize: 13 }
+        
+        function calculateMenuHeight() {
+            var itemHeight = 34
+            var separatorHeight = 9
+            var padding = 12
+            var spacing = 3
+            var count = 0
+            var hasSeparator = false
+            
+            if (!root.messageMode || contextMenu.isSuccess) count++
+            if (root.messageMode && contextMenu.isSuccess) count++
+            if (root.messageMode && contextMenu.isFailedOrCancelled) count++
+            if (count > 0) hasSeparator = true
+            count++ // 删除项始终显示
+            
+            var height = padding * 2 + count * itemHeight + (count - 1) * spacing
+            if (hasSeparator) height += separatorHeight + spacing
+            
+            return height
+        }
+        
+        background: Rectangle {
+            implicitWidth: 160
+            color: Theme.colors.popover
+            border.width: 1
+            border.color: Theme.colors.border
+            radius: Theme.radius.lg
+            
+            Rectangle {
+                anchors.fill: parent
+                anchors.margins: -10
+                color: "transparent"
+                border.width: 10
+                border.color: "transparent"
+                z: -1
+                
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    radius: Theme.radius.lg + 3
+                    color: Qt.rgba(0, 0, 0, Theme.isDark ? 0.4 : 0.1)
+                    z: -1
+                }
             }
-            onTriggered: { if (contextMenu.targetIndex >= 0) { var item = filteredModel.get(contextMenu.targetIndex); root.retryFailedFile(item ? item.origIndex : contextMenu.targetIndex) } }
         }
-
-        MenuSeparator { 
-            visible: true
-            height: 9
-            contentItem: Rectangle { implicitHeight: 1; color: Theme.colors.border } 
-        }
-
-        MenuItem {
-            visible: true
-            height: 32
-            text: qsTr("删除")
-            background: Rectangle { color: parent.highlighted ? Theme.colors.destructiveSubtle : "transparent"; radius: Theme.radius.sm }
-            contentItem: Row {
-                spacing: 8; leftPadding: 8
-                ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("trash"); iconSize: 14; color: Theme.colors.destructive }
-                Text { anchors.verticalCenter: parent.verticalCenter; text: qsTr("删除"); color: Theme.colors.destructive; font.pixelSize: 13 }
-            }
-            onTriggered: { 
-                if (contextMenu.targetIndex >= 0) { 
-                    var item = filteredModel.get(contextMenu.targetIndex)
-                    var origIndex = item ? item.origIndex : contextMenu.targetIndex
-                    root.deleteFile(origIndex)
-                    if (root.messageId !== "") {
-                        root.fileRemoved(root.messageId, origIndex)
+        
+        contentItem: ColumnLayout {
+            spacing: 3
+            
+            Rectangle {
+                visible: !root.messageMode || contextMenu.isSuccess
+                Layout.fillWidth: true
+                Layout.leftMargin: 3
+                Layout.rightMargin: 3
+                height: 34
+                radius: Theme.radius.sm
+                color: viewMouse.containsMouse ? Theme.colors.primary : "transparent"
+                
+                Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
+                
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 12
+                    spacing: 10
+                    
+                    ColoredIcon {
+                        source: Theme.icon("eye")
+                        iconSize: 16
+                        color: viewMouse.containsMouse ? Theme.colors.textOnPrimary : Theme.colors.foreground
                     }
-                } 
+                    
+                    Text {
+                        text: qsTr("放大查看")
+                        color: viewMouse.containsMouse ? Theme.colors.textOnPrimary : Theme.colors.foreground
+                        font.pixelSize: 14
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    
+                    Item { Layout.fillWidth: true }
+                }
+                
+                MouseArea {
+                    id: viewMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        contextMenu.close()
+                        if (contextMenu.targetIndex >= 0) {
+                            var item = filteredModel.get(contextMenu.targetIndex)
+                            root.viewFile(item ? item.origIndex : contextMenu.targetIndex)
+                        }
+                    }
+                }
+            }
+            
+            Rectangle {
+                visible: root.messageMode && contextMenu.isSuccess
+                Layout.fillWidth: true
+                Layout.leftMargin: 3
+                Layout.rightMargin: 3
+                height: 34
+                radius: Theme.radius.sm
+                color: saveMouse.containsMouse ? Theme.colors.primary : "transparent"
+                
+                Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
+                
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 12
+                    spacing: 10
+                    
+                    ColoredIcon {
+                        source: Theme.icon("save")
+                        iconSize: 16
+                        color: saveMouse.containsMouse ? Theme.colors.textOnPrimary : Theme.colors.foreground
+                    }
+                    
+                    Text {
+                        text: qsTr("保存")
+                        color: saveMouse.containsMouse ? Theme.colors.textOnPrimary : Theme.colors.foreground
+                        font.pixelSize: 14
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    
+                    Item { Layout.fillWidth: true }
+                }
+                
+                MouseArea {
+                    id: saveMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        contextMenu.close()
+                        if (contextMenu.targetIndex >= 0) {
+                            var item = filteredModel.get(contextMenu.targetIndex)
+                            root.saveFile(item ? item.origIndex : contextMenu.targetIndex)
+                        }
+                    }
+                }
+            }
+            
+            Rectangle {
+                visible: root.messageMode && contextMenu.isFailedOrCancelled
+                Layout.fillWidth: true
+                Layout.leftMargin: 3
+                Layout.rightMargin: 3
+                height: 34
+                radius: Theme.radius.sm
+                color: retryMouse.containsMouse ? Theme.colors.primary : "transparent"
+                
+                Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
+                
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 12
+                    spacing: 10
+                    
+                    ColoredIcon {
+                        source: Theme.icon("refresh-cw")
+                        iconSize: 16
+                        color: retryMouse.containsMouse ? Theme.colors.textOnPrimary : Theme.colors.foreground
+                    }
+                    
+                    Text {
+                        text: qsTr("重新处理")
+                        color: retryMouse.containsMouse ? Theme.colors.textOnPrimary : Theme.colors.foreground
+                        font.pixelSize: 14
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    
+                    Item { Layout.fillWidth: true }
+                }
+                
+                MouseArea {
+                    id: retryMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        contextMenu.close()
+                        if (contextMenu.targetIndex >= 0) {
+                            var item = filteredModel.get(contextMenu.targetIndex)
+                            root.retryFailedFile(item ? item.origIndex : contextMenu.targetIndex)
+                        }
+                    }
+                }
+            }
+            
+            Rectangle {
+                visible: (!root.messageMode || contextMenu.isSuccess) || 
+                         (root.messageMode && contextMenu.isSuccess) || 
+                         (root.messageMode && contextMenu.isFailedOrCancelled)
+                Layout.fillWidth: true
+                Layout.leftMargin: 8
+                Layout.rightMargin: 8
+                height: 1
+                color: Theme.colors.border
+            }
+            
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.leftMargin: 3
+                Layout.rightMargin: 3
+                height: 34
+                radius: Theme.radius.sm
+                color: deleteMouse.containsMouse ? Theme.colors.destructive : "transparent"
+                
+                Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
+                
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 12
+                    spacing: 10
+                    
+                    ColoredIcon {
+                        source: Theme.icon("trash")
+                        iconSize: 16
+                        color: deleteMouse.containsMouse ? Theme.colors.textOnDestructive : Theme.colors.destructive
+                    }
+                    
+                    Text {
+                        text: qsTr("删除")
+                        color: deleteMouse.containsMouse ? Theme.colors.textOnDestructive : Theme.colors.destructive
+                        font.pixelSize: 14
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    
+                    Item { Layout.fillWidth: true }
+                }
+                
+                MouseArea {
+                    id: deleteMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        contextMenu.close()
+                        if (contextMenu.targetIndex >= 0) {
+                            var item = filteredModel.get(contextMenu.targetIndex)
+                            var origIndex = item ? item.origIndex : contextMenu.targetIndex
+                            root.deleteFile(origIndex)
+                            if (root.messageId !== "") {
+                                root.fileRemoved(root.messageId, origIndex)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
