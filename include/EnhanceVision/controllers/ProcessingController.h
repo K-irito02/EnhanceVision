@@ -21,6 +21,8 @@
 #include "EnhanceVision/models/ProcessingModel.h"
 #include "EnhanceVision/core/AIEngine.h"
 #include "EnhanceVision/core/ModelRegistry.h"
+#include "EnhanceVision/core/TaskStateManager.h"
+#include "EnhanceVision/core/ImageProcessor.h"
 #include "EnhanceVision/core/video/AIVideoProcessor.h"
 
 class QTimer;
@@ -178,6 +180,8 @@ private:
     QHash<QString, QSharedPointer<class VideoProcessor>> m_activeVideoProcessors;
     
     QHash<QString, QSharedPointer<AIVideoProcessor>> m_activeAIVideoProcessors;
+    
+    QHash<QString, QSharedPointer<ImageProcessor>> m_activeImageProcessors;
     
 
     QString generateTaskId();

@@ -631,9 +631,64 @@ void ProcessingController::startTask(QueueTask& task)
 
     QString taskId = task.taskId;
     
-    // 检查是否为 AI 推理模式
     if (m_taskMessages.contains(taskId)) {
         const Message& message = m_taskMessages[taskId];
+        
+        if (message.mode == ProcessingMode::Shader) {
+            QString inputPath;
+            for (const auto& file : message.mediaFiles) {
+                for (const auto& t : m_tasks) {
+                    if (t.taskId == taskId && t.fileId == file.id) {
+                        inputPath = file.filePath;
+                        break;
+                    }
+                }
+                if (!inputPath.isEmpty()) break;
+            }
+            
+            if (inputPath.isEmpty()) {
+                failTask(taskId, tr("未找到媒体文件"));
+                return;
+            }
+            
+            if (ImageUtils::isImageFile(inputPath)) {
+                QFileInfo fileInfo(inputPath);
+                QString processedDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/processed";
+                QDir().mkpath(processedDir);
+                QString outputPath = processedDir + "/" + QUuid::createUuid().toString(QUuid::WithoutBraces) + ".png";
+                
+                auto processor = QSharedPointer<ImageProcessor>::create();
+                m_activeImageProcessors[taskId] = processor;
+                
+                connect(processor.data(), &ImageProcessor::progressChanged,
+                        this, [this, taskId](int progress, const QString&) {
+                    updateTaskProgress(taskId, progress);
+                }, Qt::QueuedConnection);
+                
+                connect(processor.data(), &ImageProcessor::finished,
+                        this, [this, taskId](bool success, const QString& resultPath, const QString& error) {
+                    m_activeImageProcessors.remove(taskId);
+                    
+                    if (success) {
+                        completeTask(taskId, resultPath);
+                    } else {
+                        failTask(taskId, error);
+                    }
+                }, Qt::QueuedConnection);
+                
+                processor->processImageAsync(inputPath, outputPath, message.shaderParams);
+                
+                logPerfIfSlow("startTask", perfTimer.elapsed());
+                return;
+            }
+            
+            QTimer::singleShot(10, this, [this, taskId]() {
+                completeTask(taskId, "");
+            });
+            logPerfIfSlow("startTask", perfTimer.elapsed());
+            return;
+        }
+        
         if (message.mode == ProcessingMode::AIInference) {
             // AI 推理模式：使用 AIEngine 处理
             QString modelId = message.aiParams.modelId;
@@ -827,27 +882,18 @@ void ProcessingController::completeTask(const QString& taskId, const QString& re
                 for (const MediaFile& mf : msg.mediaFiles) {
                     if (mf.id == fileId) {
                         if (msg.mode == ProcessingMode::Shader && ImageUtils::isImageFile(mf.filePath)) {
-                            QString processedDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/processed";
-                            QDir().mkpath(processedDir);
-                            QString processedPath = processedDir + "/" + QUuid::createUuid().toString(QUuid::WithoutBraces) + ".png";
-
-                            PendingExport pending;
-                            pending.taskId = taskId;
-                            pending.messageId = messageId;
-                            pending.sessionId = sessionId;
-                            pending.fileId = fileId;
-                            pending.originalPath = mf.filePath;
-                            pending.outputPath = processedPath;
-                            pending.shaderParams = shaderParamsToVariantMap(msg.shaderParams);
-
-                            if (m_taskContexts.contains(taskId)) {
-                                pending.estimatedMemoryMB = m_taskContexts[taskId].estimatedMemoryMB;
-                                pending.estimatedGpuMemoryMB = m_taskContexts[taskId].estimatedGpuMemoryMB;
+                            const QString finalPath = !resultPath.isEmpty() ? resultPath : mf.filePath;
+                            
+                            if (!finalPath.isEmpty() && ThumbnailProvider::instance()) {
+                                const QString thumbId = "processed_" + fileId;
+                                ThumbnailProvider::instance()->generateThumbnailAsync(finalPath, thumbId, QSize(512, 512));
                             }
-
-                            m_pendingExports[taskId] = pending;
-                            emit requestShaderExport(taskId, mf.filePath, pending.shaderParams, processedPath);
+                            
+                            updateFileStatusForSessionMessage(sessionId, messageId, fileId,
+                                ProcessingStatus::Completed, finalPath);
                             fileHandled = true;
+                            
+                            finalizeTask(taskId, sessionId, messageId);
                         } else if (msg.mode == ProcessingMode::Shader && ImageUtils::isVideoFile(mf.filePath)) {
                             processShaderVideoThumbnailAsync(
                                 taskId,
@@ -2262,6 +2308,13 @@ void ProcessingController::cleanupTask(const QString& taskId)
     TaskStateManager::instance()->unregisterActiveTask(taskId);
     
     cancelVideoProcessing(taskId);
+    
+    if (m_activeImageProcessors.contains(taskId)) {
+        auto processor = m_activeImageProcessors.take(taskId);
+        if (processor) {
+            processor->cancel();
+        }
+    }
     
     m_resourceManager->release(taskId);
     m_taskCoordinator->unregisterTask(taskId);
