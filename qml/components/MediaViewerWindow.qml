@@ -616,26 +616,32 @@ Window {
                     Behavior on opacity { NumberAnimation { duration: 200 } }
                 }
 
-                // VideoOutput接收视频流
                 VideoOutput {
                     id: videoOutput
                     anchors.fill: parent
                     z: 0
-                    // 当应用Shader时隐藏原始输出
                     visible: !videoContainer._applyVideoShader
                 }
                 
-                // ShaderEffectSource捕获VideoOutput内容
                 ShaderEffectSource {
                     id: videoShaderSource
                     sourceItem: videoOutput
-                    sourceRect: Qt.rect(0, 0, 0, 0)
-                    live: true
+                    live: videoContainer._applyVideoShader
                     hideSource: videoContainer._applyVideoShader
                     visible: false
+                    textureSize: {
+                        var maxVideoSize = 1280
+                        var srcW = videoOutput.sourceRect.width > 0 ? videoOutput.sourceRect.width : videoOutput.width
+                        var srcH = videoOutput.sourceRect.height > 0 ? videoOutput.sourceRect.height : videoOutput.height
+                        if (srcW <= 0 || srcH <= 0) return Qt.size(512, 512)
+                        var scale = Math.min(1.0, maxVideoSize / Math.max(srcW, srcH))
+                        return Qt.size(Math.floor(srcW * scale), Math.floor(srcH * scale))
+                    }
+                    recursive: false
+                    mipmap: false
+                    smooth: true
                 }
                 
-                // 应用Shader效果的视频显示
                 ShaderEffect {
                     id: videoShaderEffect
                     anchors.fill: parent

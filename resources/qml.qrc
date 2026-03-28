@@ -30,6 +30,8 @@
         <file>../qml/components/DialogTitleBar.qml</file>
         <file>../qml/components/Toast.qml</file>
         <file>../qml/components/OffscreenShaderRenderer.qml</file>
+        <file>../qml/components/MultiPassShaderEffect.qml</file>
+        <file>../qml/components/SeparableBlurEffect.qml</file>
         
         <!-- 自定义控件 -->
         <file>../qml/controls/Button.qml</file>
@@ -145,6 +147,9 @@
         <file>shaders/saturation.frag</file>
         <file>shaders/sharpen.frag</file>
         <file>shaders/blur.frag</file>
+        <file>shaders/blur.vert</file>
+        <file>shaders/blur_horizontal.frag</file>
+        <file>shaders/blur_vertical.frag</file>
         <file>shaders/hue.frag</file>
         <file>shaders/exposure.frag</file>
         <file>shaders/gamma.frag</file>
@@ -155,6 +160,8 @@
         <file>shaders/shadows.frag</file>
         <file>shaders/full_shader.vert</file>
         <file>shaders/full_shader.frag</file>
+        <file>shaders/fullshader.vert</file>
+        <file>shaders/fullshader.frag</file>
     </qresource>
     
     <qresource prefix="/i18n">

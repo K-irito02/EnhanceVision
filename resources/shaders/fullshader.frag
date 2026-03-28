@@ -41,6 +41,32 @@ vec3 hsv2rgb(vec3 c) {
     return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
 }
 
+float quickMedian3(float a, float b, float c) {
+    return max(min(a, b), min(max(a, b), c));
+}
+
+float quickMedian9(float v[9]) {
+    float min1 = min(min(v[0], v[1]), v[2]);
+    float min2 = min(min(v[3], v[4]), v[5]);
+    float min3 = min(min(v[6], v[7]), v[8]);
+    float max1 = max(max(v[0], v[1]), v[2]);
+    float max2 = max(max(v[3], v[4]), v[5]);
+    float max3 = max(max(v[6], v[7]), v[8]);
+    
+    float mid1 = v[0] + v[1] + v[2] - min1 - max1;
+    float mid2 = v[3] + v[4] + v[5] - min2 - max2;
+    float mid3 = v[6] + v[7] + v[8] - min3 - max3;
+    
+    float minMid = min(min(mid1, mid2), mid3);
+    float maxMid = max(max(mid1, mid2), mid3);
+    float centerMid = mid1 + mid2 + mid3 - minMid - maxMid;
+    
+    float minMin = min(min1, min(min2, min3));
+    float maxMax = max(max1, max(max2, max3));
+    
+    return quickMedian3(minMin, centerMid, maxMax);
+}
+
 void main() {
     vec2 texCoord = qt_TexCoord0;
     vec4 color = texture(source, texCoord);
@@ -50,62 +76,60 @@ void main() {
     
     vec2 texelSize = 1.0 / imgSize;
     
-    vec3 neighborColors[9];
-    neighborColors[0] = texture(source, texCoord + vec2(-texelSize.x, -texelSize.y)).rgb;
-    neighborColors[1] = texture(source, texCoord + vec2(0.0, -texelSize.y)).rgb;
-    neighborColors[2] = texture(source, texCoord + vec2(texelSize.x, -texelSize.y)).rgb;
-    neighborColors[3] = texture(source, texCoord + vec2(-texelSize.x, 0.0)).rgb;
-    neighborColors[4] = texture(source, texCoord).rgb;
-    neighborColors[5] = texture(source, texCoord + vec2(texelSize.x, 0.0)).rgb;
-    neighborColors[6] = texture(source, texCoord + vec2(-texelSize.x, texelSize.y)).rgb;
-    neighborColors[7] = texture(source, texCoord + vec2(0.0, texelSize.y)).rgb;
-    neighborColors[8] = texture(source, texCoord + vec2(texelSize.x, texelSize.y)).rgb;
+    bool needDenoise = denoise > 0.001;
+    bool needSharpness = sharpness > 0.001;
+    bool needNeighbors = needDenoise || needSharpness;
+    bool needBlur = blurAmount > 0.001;
     
-    // 1. Exposure
+    vec3 neighborColors[9];
+    if (needNeighbors) {
+        neighborColors[0] = texture(source, texCoord + vec2(-texelSize.x, -texelSize.y)).rgb;
+        neighborColors[1] = texture(source, texCoord + vec2(0.0, -texelSize.y)).rgb;
+        neighborColors[2] = texture(source, texCoord + vec2(texelSize.x, -texelSize.y)).rgb;
+        neighborColors[3] = texture(source, texCoord + vec2(-texelSize.x, 0.0)).rgb;
+        neighborColors[4] = texture(source, texCoord).rgb;
+        neighborColors[5] = texture(source, texCoord + vec2(texelSize.x, 0.0)).rgb;
+        neighborColors[6] = texture(source, texCoord + vec2(-texelSize.x, texelSize.y)).rgb;
+        neighborColors[7] = texture(source, texCoord + vec2(0.0, texelSize.y)).rgb;
+        neighborColors[8] = texture(source, texCoord + vec2(texelSize.x, texelSize.y)).rgb;
+    }
+    
     if (abs(exposure) > 0.001) {
         rgb = rgb * pow(2.0, exposure);
     }
     
-    // 2. Brightness
     if (abs(brightness) > 0.001) {
         rgb = clamp(rgb + brightness, 0.0, 1.0);
     }
     
-    // 3. Contrast
     if (abs(contrast - 1.0) > 0.001) {
         rgb = clamp((rgb - 0.5) * contrast + 0.5, 0.0, 1.0);
     }
     
-    // 4. Saturation
     if (abs(saturation - 1.0) > 0.001) {
         float gray = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
         rgb = clamp(gray + saturation * (rgb - gray), 0.0, 1.0);
     }
     
-    // 5. Hue
     if (abs(hue) > 0.001) {
         vec3 hsv = rgb2hsv(rgb);
         hsv.x = fract(hsv.x + hue);
         rgb = hsv2rgb(hsv);
     }
     
-    // 6. Gamma
     if (abs(gamma - 1.0) > 0.001) {
         rgb = pow(rgb, vec3(1.0 / gamma));
     }
     
-    // 7. Temperature (enhanced coefficient: 0.1 -> 0.2)
     if (abs(temperature) > 0.001) {
         rgb.r = clamp(rgb.r + temperature * 0.2, 0.0, 1.0);
         rgb.b = clamp(rgb.b - temperature * 0.2, 0.0, 1.0);
     }
     
-    // 8. Tint (enhanced coefficient: 0.1 -> 0.2)
     if (abs(tint) > 0.001) {
         rgb.g = clamp(rgb.g + tint * 0.2, 0.0, 1.0);
     }
     
-    // 9. Highlights (enhanced coefficient: 0.2 -> 0.3)
     if (abs(highlights) > 0.001) {
         float luminance = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
         if (luminance > 0.5) {
@@ -115,7 +139,6 @@ void main() {
         }
     }
     
-    // 10. Shadows (enhanced coefficient: 0.2 -> 0.3)
     if (abs(shadows) > 0.001) {
         float luminance = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
         if (luminance < 0.5) {
@@ -125,7 +148,6 @@ void main() {
         }
     }
     
-    // 11. Vignette
     if (vignette > 0.001) {
         vec2 center = vec2(0.5, 0.5);
         float dist = distance(texCoord, center) * 1.414;
@@ -134,29 +156,31 @@ void main() {
         rgb *= vignetteFactor;
     }
     
-    // 12. Blur (moved before denoise for better results)
-    if (blurAmount > 0.001) {
+    if (needBlur) {
         vec3 blurColor = vec3(0.0);
-        float blurRadius = blurAmount * 2.0;
-        float totalWeight = 0.0;
+        float blurRadius = blurAmount * 1.5;
         
-        for (int x = -2; x <= 2; x++) {
-            for (int y = -2; y <= 2; y++) {
-                vec2 offset = vec2(float(x), float(y)) * texelSize * blurRadius;
-                float weight = 1.0 - length(vec2(float(x), float(y))) / 3.0;
-                weight = max(weight, 0.0);
-                blurColor += texture(source, texCoord + offset).rgb * weight;
-                totalWeight += weight;
-            }
+        float weights[5];
+        weights[0] = 0.227027;
+        weights[1] = 0.1945946;
+        weights[2] = 0.1216216;
+        weights[3] = 0.054054;
+        weights[4] = 0.016216;
+        
+        blurColor = rgb * weights[0];
+        
+        for (int i = 1; i <= 4; i++) {
+            vec2 offset = vec2(float(i)) * texelSize * blurRadius;
+            blurColor += texture(source, texCoord + vec2(offset.x, 0.0)).rgb * weights[i];
+            blurColor += texture(source, texCoord - vec2(offset.x, 0.0)).rgb * weights[i];
+            blurColor += texture(source, texCoord + vec2(0.0, offset.y)).rgb * weights[i];
+            blurColor += texture(source, texCoord - vec2(0.0, offset.y)).rgb * weights[i];
         }
         
-        if (totalWeight > 0.0) {
-            rgb = mix(rgb, blurColor / totalWeight, blurAmount * 0.7);
-        }
+        rgb = mix(rgb, blurColor, blurAmount * 0.6);
     }
     
-    // 13. Denoise (moved after blur, enhanced coefficient: 0.5 -> 0.8)
-    if (denoise > 0.001) {
+    if (needDenoise) {
         float rValues[9];
         float gValues[9];
         float bValues[9];
@@ -167,20 +191,15 @@ void main() {
             bValues[i] = neighborColors[i].b;
         }
         
-        for (int i = 0; i < 5; i++) {
-            for (int j = i + 1; j < 9; j++) {
-                if (rValues[j] < rValues[i]) { float t = rValues[i]; rValues[i] = rValues[j]; rValues[j] = t; }
-                if (gValues[j] < gValues[i]) { float t = gValues[i]; gValues[i] = gValues[j]; gValues[j] = t; }
-                if (bValues[j] < bValues[i]) { float t = bValues[i]; bValues[i] = bValues[j]; bValues[j] = t; }
-            }
-        }
+        float medianR = quickMedian9(rValues);
+        float medianG = quickMedian9(gValues);
+        float medianB = quickMedian9(bValues);
         
-        vec3 medianColor = vec3(rValues[4], gValues[4], bValues[4]);
+        vec3 medianColor = vec3(medianR, medianG, medianB);
         rgb = mix(rgb, medianColor, denoise * 0.8);
     }
     
-    // 14. Sharpness (moved after denoise, with edge protection)
-    if (sharpness > 0.001) {
+    if (needSharpness) {
         vec3 blurColor = (neighborColors[3] + neighborColors[5] + neighborColors[1] + neighborColors[7]) * 0.25;
         vec3 sharpenAmount = originalColor - blurColor;
         

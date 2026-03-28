@@ -372,6 +372,16 @@ qt6_add_shaders(EnhanceVision "fullshader"
         resources/shaders/fullshader.frag
 )
 
+qt6_add_shaders(EnhanceVision "blurshaders"
+    PRECOMPILE
+    OPTIMIZED
+    PREFIX
+        "/"
+    FILES
+        resources/shaders/blur_horizontal.frag
+        resources/shaders/blur_vertical.frag
+)
+
 # 链接库
 target_link_libraries(EnhanceVision PRIVATE
     Qt6::Core

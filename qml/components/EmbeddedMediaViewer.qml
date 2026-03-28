@@ -880,20 +880,28 @@ Item {
                 id: vo
                 anchors.fill: parent
                 z: 0
-                // 当应用Shader时隐藏原始输出，由ShaderEffectSource捕获
                 visible: !parent._applyVideoShader
             }
             
-            // ShaderEffectSource捕获VideoOutput内容
             ShaderEffectSource {
                 id: videoShaderSource
                 sourceItem: vo
-                live: true
+                live: parent._applyVideoShader
                 hideSource: parent._applyVideoShader
                 visible: false
+                textureSize: {
+                    var maxVideoSize = 1280
+                    var srcW = vo.sourceRect.width > 0 ? vo.sourceRect.width : vo.width
+                    var srcH = vo.sourceRect.height > 0 ? vo.sourceRect.height : vo.height
+                    if (srcW <= 0 || srcH <= 0) return Qt.size(512, 512)
+                    var scale = Math.min(1.0, maxVideoSize / Math.max(srcW, srcH))
+                    return Qt.size(Math.floor(srcW * scale), Math.floor(srcH * scale))
+                }
+                recursive: false
+                mipmap: false
+                smooth: true
             }
             
-            // 应用Shader效果的视频显示
             ShaderEffect {
                 id: videoShaderEffect
                 anchors.fill: parent
