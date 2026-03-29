@@ -33,6 +33,7 @@ SettingsController::SettingsController(QObject* parent)
     , m_lastExitClean(true)
     , m_crashDetectedOnStartup(false)
     , m_lastExitReason()
+    , m_videoAutoPlay(true)
 {
     QString configPath = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
     QString settingsFile = QDir(configPath).filePath("EnhanceVision/settings.ini");
@@ -204,6 +205,21 @@ void SettingsController::setAutoReprocessAllEnabled(bool enabled)
     }
 }
 
+bool SettingsController::videoAutoPlay() const
+{
+    return m_videoAutoPlay;
+}
+
+void SettingsController::setVideoAutoPlay(bool autoPlay)
+{
+    if (m_videoAutoPlay != autoPlay) {
+        m_videoAutoPlay = autoPlay;
+        emit videoAutoPlayChanged();
+        emit settingsChanged();
+        saveSettings();
+    }
+}
+
 bool SettingsController::lastExitClean() const
 {
     return m_lastExitClean;
@@ -302,6 +318,7 @@ void SettingsController::saveSettings()
     m_settings->setValue("audio/volume", m_volume);
     m_settings->setValue("reprocess/shaderEnabled", m_autoReprocessShaderEnabled);
     m_settings->setValue("reprocess/aiEnabled", m_autoReprocessAIEnabled);
+    m_settings->setValue("video/autoPlay", m_videoAutoPlay);
     m_settings->sync();
 }
 
@@ -319,6 +336,7 @@ void SettingsController::loadSettings()
     m_autoReprocessAIEnabled = m_settings->value("reprocess/aiEnabled", true).toBool();
     m_lastExitClean = m_settings->value("system/lastExitClean", true).toBool();
     m_lastExitReason = m_settings->value("system/lastExitReason", QString()).toString();
+    m_videoAutoPlay = m_settings->value("video/autoPlay", true).toBool();
 }
 
 void SettingsController::resetToDefaults()
@@ -335,6 +353,7 @@ void SettingsController::resetToDefaults()
     m_autoReprocessAIEnabled = true;
     m_lastExitClean = true;
     m_lastExitReason.clear();
+    m_videoAutoPlay = true;
 
     emit themeChanged();
     emit languageChanged();
@@ -346,6 +365,7 @@ void SettingsController::resetToDefaults()
     emit autoReprocessAIEnabledChanged();
     emit autoReprocessAllEnabledChanged();
     emit lastExitCleanChanged();
+    emit videoAutoPlayChanged();
     emit settingsChanged();
 }
 

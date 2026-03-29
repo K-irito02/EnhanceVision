@@ -31,6 +31,7 @@ class SettingsController : public QObject
     Q_PROPERTY(bool lastExitClean READ lastExitClean NOTIFY lastExitCleanChanged)
     Q_PROPERTY(bool crashDetectedOnStartup READ crashDetectedOnStartup NOTIFY crashDetectedOnStartupChanged)
     Q_PROPERTY(QString lastExitReason READ lastExitReason NOTIFY lastExitReasonChanged)
+    Q_PROPERTY(bool videoAutoPlay READ videoAutoPlay WRITE setVideoAutoPlay NOTIFY videoAutoPlayChanged)
 
 public:
     /**
@@ -72,6 +73,9 @@ public:
     bool autoReprocessAllEnabled() const;
     void setAutoReprocessAllEnabled(bool enabled);
 
+    bool videoAutoPlay() const;
+    void setVideoAutoPlay(bool autoPlay);
+
     bool lastExitClean() const;
     bool crashDetectedOnStartup() const;
     QString lastExitReason() const;
@@ -103,6 +107,7 @@ signals:
     void crashDetected();
     void crashDetectedOnStartupChanged();
     void lastExitReasonChanged();
+    void videoAutoPlayChanged();
 
 private:
     explicit SettingsController(QObject* parent = nullptr);
@@ -126,6 +131,7 @@ private:
     bool m_lastExitClean;
     bool m_crashDetectedOnStartup;
     QString m_lastExitReason;
+    bool m_videoAutoPlay;
 };
 
 } // namespace EnhanceVision

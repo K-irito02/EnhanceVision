@@ -198,6 +198,10 @@
         <source>静音</source>
         <translation >静音</translation>
     </message>
+    <message>
+        <source>自动播放</source>
+        <translation >自动播放</translation>
+    </message>
 </context>
 <context>
     <name>FileController</name>
@@ -541,6 +545,10 @@
         <location filename="../../qml/components/MediaViewerWindow.qml" line="960"/>
         <source>静音</source>
         <translation >静音</translation>
+    </message>
+    <message>
+        <source>自动播放</source>
+        <translation >自动播放</translation>
     </message>
 </context>
 <context>
@@ -1080,6 +1088,16 @@
         <location filename="../../qml/pages/SettingsPage.qml" line="235"/>
         <source>默认音量</source>
         <translation >默认音量</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="256"/>
+        <source>视频</source>
+        <translation >视频</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="265"/>
+        <source>自动播放</source>
+        <translation >自动播放</translation>
     </message>
     <message>
         <location filename="../../qml/pages/SettingsPage.qml" line="274"/>

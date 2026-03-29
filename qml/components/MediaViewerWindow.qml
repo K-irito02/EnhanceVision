@@ -93,6 +93,7 @@ Window {
     property bool _userDraggedPosition: false  // 用户是否手动拖动过窗口位置
     property var mediaPlayer: null
     property real _volumeBeforeMute: 0.5
+    property bool autoPlayEnabled: SettingsController.videoAutoPlay
 
     // ========== 导航按钮状态管理 ==========
     property bool navButtonsVisible: false
@@ -701,6 +702,11 @@ Window {
                                 src = "file:///" + src
                             }
                             videoPlayer.source = src
+                            if (autoPlayEnabled && videoPlayer.playbackState === MediaPlayer.StoppedState) {
+                                Qt.callLater(function() {
+                                    videoPlayer.play()
+                                })
+                            }
                         } else {
                             videoPlayer.source = ""
                         }
@@ -709,6 +715,10 @@ Window {
                         if (!isVideo) {
                             videoPlayer.stop()
                             videoPlayer.source = ""
+                        } else if (autoPlayEnabled && currentSource && currentSource !== "") {
+                            Qt.callLater(function() {
+                                videoPlayer.play()
+                            })
                         }
                     }
                 }
@@ -1114,6 +1124,45 @@ Window {
                     }
 
                     Item { Layout.fillWidth: true }
+
+                    Row {
+                        spacing: 4
+
+                        Rectangle {
+                            id: autoPlayBtn
+                            width: autoPlayText.implicitWidth + 16
+                            height: 26
+                            radius: 5
+                            color: SettingsController.videoAutoPlay 
+                                   ? Theme.colors.primary 
+                                   : (Theme.isDark 
+                                      ? (autoPlayMouse.containsMouse ? Qt.rgba(1,1,1,0.12) : Qt.rgba(1,1,1,0.06))
+                                      : (autoPlayMouse.containsMouse ? Qt.rgba(0,0,0,0.08) : Qt.rgba(0,0,0,0.04)))
+                            border.width: SettingsController.videoAutoPlay ? 0 : 1
+                            border.color: Theme.colors.mediaControlBorder
+
+                            Text {
+                                id: autoPlayText
+                                anchors.centerIn: parent
+                                text: qsTr("自动播放")
+                                color: SettingsController.videoAutoPlay ? "#FFFFFF" : Theme.colors.mediaControlTextMuted
+                                font.pixelSize: 11
+                                font.weight: SettingsController.videoAutoPlay ? Font.Bold : Font.Normal
+                            }
+
+                            MouseArea {
+                                id: autoPlayMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: SettingsController.videoAutoPlay = !SettingsController.videoAutoPlay
+                            }
+
+                            Behavior on color { ColorAnimation { duration: 100 } }
+                        }
+                    }
+
+                    Item { width: 8 }
 
                     Row {
                         spacing: 6

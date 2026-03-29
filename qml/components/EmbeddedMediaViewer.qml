@@ -62,6 +62,7 @@ Item {
     property bool _userDraggedPosition: false  // 用户是否手动拖动过独立窗口位置
     property real sharedVolume: SettingsController.volume / 100
     property real _volumeBeforeMute: 0.5
+    property bool autoPlayEnabled: SettingsController.videoAutoPlay
 
     // ========== 窗口尺寸智能调整 ==========
     // 根据媒体分辨率与 AI 放大倍数计算理想窗口尺寸
@@ -701,6 +702,12 @@ Item {
                     vidPlayer.stop()
                 }
                 vidPlayer.source = root._getSource(root.currentSource)
+                // 自动播放
+                if (autoPlayEnabled) {
+                    Qt.callLater(function() {
+                        vidPlayer.play()
+                    })
+                }
             }
         }
         function onIsVideoChanged() {
@@ -709,6 +716,11 @@ Item {
                 vidPlayer.stop()
                 root._videoEnded = false
                 root._isPlaying = false
+            } else if (root.isVideo && autoPlayEnabled && root.currentSource) {
+                // 切换到视频时自动播放
+                Qt.callLater(function() {
+                    vidPlayer.play()
+                })
             }
         }
     }
@@ -1222,6 +1234,44 @@ Item {
                             }
                         }
                 }
+
+                Row {
+                    spacing: 4
+
+                    Rectangle {
+                        id: autoPlayBtn
+                        width: autoPlayText.implicitWidth + 16
+                        height: 26
+                        radius: 5
+                        color: SettingsController.videoAutoPlay 
+                               ? Theme.colors.primary 
+                               : (Theme.isDark 
+                                  ? (autoPlayMouse.containsMouse ? Qt.rgba(1,1,1,0.12) : Qt.rgba(1,1,1,0.06))
+                                  : (autoPlayMouse.containsMouse ? Qt.rgba(0,0,0,0.08) : Qt.rgba(0,0,0,0.04)))
+                        border.width: SettingsController.videoAutoPlay ? 0 : 1
+                        border.color: Theme.colors.mediaControlBorder
+
+                        Text {
+                            id: autoPlayText
+                            anchors.centerIn: parent
+                            text: qsTr("自动播放")
+                            color: SettingsController.videoAutoPlay ? "#FFFFFF" : Theme.colors.mediaControlTextMuted
+                            font.pixelSize: 11
+                            font.weight: SettingsController.videoAutoPlay ? Font.Bold : Font.Normal
+                        }
+
+                        MouseArea {
+                            id: autoPlayMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: SettingsController.videoAutoPlay = !SettingsController.videoAutoPlay
+                        }
+
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                    }
+                }
+
                 Item { Layout.fillWidth: true }
                 IconButton { 
                     iconName: audioOutput && audioOutput.volume > 0 ? "volume-2" : "volume-x"

@@ -384,6 +384,54 @@ Rectangle {
 
                 Rectangle {
                     Layout.fillWidth: true
+                    implicitHeight: videoCol.implicitHeight + 32
+                    color: Theme.colors.card
+                    border.width: 1
+                    border.color: Theme.colors.cardBorder
+                    radius: Theme.radius.lg
+
+                    ColumnLayout {
+                        id: videoCol
+                        anchors.fill: parent
+                        anchors.margins: 16
+                        spacing: 14
+
+                        RowLayout {
+                            spacing: 8
+                            ColoredIcon { iconSize: 18; source: Theme.icon("video"); color: Theme.colors.icon }
+                            Text { text: qsTr("视频"); color: Theme.colors.foreground; font.pixelSize: 15; font.weight: Font.DemiBold }
+                        }
+
+                        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.colors.border }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 12
+
+                            Text { text: qsTr("自动播放"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.minimumWidth: 80 }
+
+                            Item { Layout.fillWidth: true }
+
+                            Switch {
+                                id: videoAutoPlaySwitch
+                                checked: SettingsController.videoAutoPlay
+                                onToggled: {
+                                    SettingsController.videoAutoPlay = checked
+                                }
+
+                                Connections {
+                                    target: SettingsController
+                                    function onVideoAutoPlayChanged() {
+                                        videoAutoPlaySwitch.checked = SettingsController.videoAutoPlay
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
                     implicitHeight: perfCol.implicitHeight + 32
                     color: Theme.colors.card
                     border.width: 1
