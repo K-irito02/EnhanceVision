@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- 左侧源件框 -->
+    <rect x="2" y="6" width="7" height="12" rx="1"/>
+    <!-- 左侧进度条 -->
+    <line x1="4" y1="15" x2="7" y2="15"/>
+    <!-- 左侧进度点（实心表示开启） -->
+    <circle cx="5.5" cy="15" r="1.5" fill="currentColor" stroke="none"/>
+    <!-- 中间同步箭头 -->
+    <path d="M11 10h4"/>
+    <path d="M13 7l3 3-3 3"/>
+    <path d="M15 14h-4"/>
+    <path d="M13 17l-3-3 3-3"/>
+    <!-- 右侧结果框 -->
+    <rect x="17" y="6" width="5" height="12" rx="1"/>
+    <!-- 右侧进度条 -->
+    <line x1="18" y1="15" x2="21" y2="15"/>
+    <!-- 右侧进度点（实心表示开启） -->
+    <circle cx="19.5" cy="15" r="1.5" fill="currentColor" stroke="none"/>
+</svg>

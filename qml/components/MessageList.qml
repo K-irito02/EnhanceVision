@@ -10,36 +10,11 @@ Item {
     property bool batchMode: false
     property var selectedIds: []
     readonly property bool _hasRealModel: typeof messageModel !== "undefined"
-    property int _delegateRebuildCalls: 0
-    property double _delegateRebuildTotalMs: 0
-    property double _delegateRebuildMaxMs: 0
-    property double _lastDelegateRebuildLogMs: 0
     
     property Item viewerContainer: null
     property var pendingViewer: null
     property var messageViewer: null
     property var minimizedDock: null
-
-    function _recordDelegateRebuild(costMs) {
-        _delegateRebuildCalls += 1
-        _delegateRebuildTotalMs += costMs
-        _delegateRebuildMaxMs = Math.max(_delegateRebuildMaxMs, costMs)
-
-        var nowMs = Date.now()
-        if (_lastDelegateRebuildLogMs <= 0) {
-            _lastDelegateRebuildLogMs = nowMs
-        }
-
-        if ((nowMs - _lastDelegateRebuildLogMs) >= 2000) {
-            console.info("[Perf][MessageList] _buildMediaForDelegate calls:", _delegateRebuildCalls,
-                         "avgMs:", _delegateRebuildCalls > 0 ? (_delegateRebuildTotalMs / _delegateRebuildCalls).toFixed(2) : "0",
-                         "maxMs:", _delegateRebuildMaxMs.toFixed(2))
-            _delegateRebuildCalls = 0
-            _delegateRebuildTotalMs = 0
-            _delegateRebuildMaxMs = 0
-            _lastDelegateRebuildLogMs = nowMs
-        }
-    }
 
     ListView {
         id: messageList
@@ -223,14 +198,11 @@ Item {
             }
 
             function _buildMediaForDelegate() {
-                var beginMs = Date.now()
-
                 if (!(root._hasRealModel && model.mediaFiles)) {
                     if (_cachedMedia.count === 0) {
                         root._buildDemoMedia(_cachedMedia, model.status)
                     }
                     _resetFileStatsFromModel()
-                    root._recordDelegateRebuild(Date.now() - beginMs)
                     return
                 }
 
@@ -278,7 +250,6 @@ Item {
                 }
 
                 _resetFileStatsFromModel()
-                root._recordDelegateRebuild(Date.now() - beginMs)
             }
 
             onCancelClicked: {

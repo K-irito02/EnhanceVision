@@ -19,6 +19,12 @@ Item {
     property string messageId: ""
     property string viewerId: "viewer-" + Date.now()
     
+    onShowOriginalChanged: {
+        if (isVideo && _mediaPlayer) {
+            playbackController.prepareSourceResultSwitch()
+        }
+    }
+    
     property bool shaderEnabled: false
     property real shaderBrightness: 0.0
     property real shaderContrast: 1.0
@@ -55,14 +61,23 @@ Item {
     signal closed()
     
     property var _mediaPlayer: null
-    property bool _videoEnded: false
     property bool _isPlaying: false
     property real _savedW: 800
     property real _savedH: 600
-    property bool _userDraggedPosition: false  // 用户是否手动拖动过独立窗口位置
+    property bool _userDraggedPosition: false
     property real sharedVolume: SettingsController.volume / 100
     property real _volumeBeforeMute: 0.5
-    property bool autoPlayEnabled: SettingsController.videoAutoPlay
+    
+    VideoPlaybackController {
+        id: playbackController
+        mediaPlayer: _mediaPlayer
+        isVideo: root.isVideo
+        currentSource: root.currentSource
+        currentFile: root.currentFile
+        
+        onProgressRestored: function(position) {
+        }
+    }
 
     // ========== 窗口尺寸智能调整 ==========
     // 根据媒体分辨率与 AI 放大倍数计算理想窗口尺寸
@@ -178,8 +193,11 @@ Item {
         isMinimized = false
         embeddedOverlay.visible = false
         detachedWindow.close()
-        root.z = messageMode ? 1000 : 1001  // 重置为基础层级
-        if (isVideo && _mediaPlayer) _mediaPlayer.stop()
+        root.z = messageMode ? 1000 : 1001
+        if (isVideo && _mediaPlayer) {
+            _mediaPlayer.stop()
+        }
+        playbackController._resetState()
         closed()
     }
     
@@ -262,7 +280,15 @@ Item {
     function _prevFile() { if (currentIndex > 0) currentIndex-- }
     function _nextFile() { if (currentIndex < mediaFiles.length - 1) currentIndex++ }
     function _getSource(s) { return !s ? "" : (s.startsWith("file:///") || s.startsWith("qrc:/") ? s : "file:///" + s) }
-    function _formatTime(ms) { var s = Math.floor(ms/1000); return Math.floor(s/60).toString().padStart(2,'0') + ":" + (s%60).toString().padStart(2,'0') }
+    function _formatTime(ms) { 
+        if (ms === undefined || ms === null || isNaN(ms) || ms < 0) return "00:00"
+        var s = Math.floor(ms/1000)
+        var h = Math.floor(s/3600)
+        var m = Math.floor((s%3600)/60)
+        var sec = s%60
+        if (h > 0) return h.toString() + ":" + m.toString().padStart(2,'0') + ":" + sec.toString().padStart(2,'0')
+        return Math.floor(s/60).toString().padStart(2,'0') + ":" + (s%60).toString().padStart(2,'0') 
+    }
     
     function _isOverContainer(gx, gy) {
         if (!containerItem) return false
@@ -511,23 +537,40 @@ Item {
             id: vidPlayer
             videoOutput: displayMode === "embedded" ? contentArea.videoOutput : detContentArea.videoOutput
             audioOutput: displayMode === "embedded" ? contentArea.audioOutput : detContentArea.audioOutput
-            function togglePlay() { playbackState === MediaPlayer.PlayingState ? pause() : play() }
+            function togglePlay() { 
+                if (playbackState === MediaPlayer.PlayingState) {
+                    pause()
+                } else {
+                    play()
+                }
+            }
             
             onPlaybackStateChanged: {
-                if (playbackState === MediaPlayer.StoppedState) {
-                    root._isPlaying = false
-                    if (position > 0 && duration > 0 && position >= duration - 500) {
-                        root._videoEnded = true
-                    }
-                } else if (playbackState === MediaPlayer.PlayingState) {
+                if (playbackState === MediaPlayer.PlayingState) {
                     root._isPlaying = true
-                    root._videoEnded = false
-                } else if (playbackState === MediaPlayer.PausedState) {
+                } else {
                     root._isPlaying = false
                 }
             }
             
-            Component.onCompleted: root._mediaPlayer = this
+            onMediaStatusChanged: {
+                // 传递所有状态给控制器处理
+                playbackController.handleMediaStatusChanged(mediaStatus)
+                if (mediaStatus === MediaPlayer.InvalidMedia) {
+                    playbackController.handleMediaError(error, errorString)
+                }
+            }
+            
+            onErrorChanged: {
+                if (error !== MediaPlayer.NoError) {
+                    playbackController.handleMediaError(error, errorString)
+                }
+            }
+            
+            Component.onCompleted: {
+                root._mediaPlayer = this
+                playbackController.mediaPlayer = this
+            }
         }
     }
     
@@ -697,31 +740,29 @@ Item {
         target: root
         function onCurrentSourceChanged() {
             if (root.isVideo && root.currentSource) {
-                // 先停止当前播放，避免状态混乱
-                if (vidPlayer.playbackState === MediaPlayer.PlayingState) {
-                    vidPlayer.stop()
+                var src = root._getSource(root.currentSource)
+                vidPlayer.source = src
+                // 只有在非源件/结果切换模式时才调用 handleFileOpen
+                if (playbackController._switchMode !== 2) {
+                    playbackController.handleFileOpen()
                 }
-                vidPlayer.source = root._getSource(root.currentSource)
-                // 自动播放
-                if (autoPlayEnabled) {
-                    Qt.callLater(function() {
-                        vidPlayer.play()
-                    })
+            } else {
+                if (vidPlayer) {
+                    vidPlayer.source = ""
                 }
+                playbackController._resetState()
             }
         }
         function onIsVideoChanged() {
-            // 当从视频切换到图片时，停止视频播放
-            if (!root.isVideo && vidPlayer.playbackState !== MediaPlayer.StoppedState) {
+            if (!root.isVideo && vidPlayer && vidPlayer.playbackState !== MediaPlayer.StoppedState) {
                 vidPlayer.stop()
-                root._videoEnded = false
                 root._isPlaying = false
-            } else if (root.isVideo && autoPlayEnabled && root.currentSource) {
-                // 切换到视频时自动播放
-                Qt.callLater(function() {
-                    vidPlayer.play()
-                })
             }
+            playbackController._resetState()
+        }
+        
+        function onCurrentIndexChanged() {
+            playbackController._resetState()
         }
     }
     
@@ -883,7 +924,7 @@ Item {
                 asynchronous: true
                 smooth: true
                 mipmap: true
-                visible: viewer.isVideo && videoPlayer && (videoPlayer.playbackState === MediaPlayer.StoppedState || viewer._videoEnded)
+                visible: viewer.isVideo && videoPlayer && videoPlayer.playbackState === MediaPlayer.StoppedState
                 opacity: visible ? 1.0 : 0.0
                 z: 1
                 
@@ -971,10 +1012,43 @@ Item {
             }
             
             AudioOutput { id: ao; volume: root.sharedVolume }
+            // 加载图标（仅在源/结切换时显示）
             Rectangle {
                 anchors.centerIn: parent; width: 72; height: 72; radius: 36
                 color: Theme.isDark ? Qt.rgba(0,0,0,0.6) : Qt.rgba(1,1,1,0.9)
-                visible: viewer.isVideo && videoPlayer && videoPlayer.playbackState !== MediaPlayer.PlayingState
+                visible: viewer.isVideo && videoPlayer && playbackController.isLoading
+                z: 11
+                ColoredIcon { 
+                    id: centerLoadingIcon
+                    anchors.centerIn: parent
+                    source: Theme.icon("loader")
+                    iconSize: 32
+                    color: Theme.colors.primary
+                    
+                    RotationAnimator {
+                        target: centerLoadingIcon
+                        running: playbackController.isLoading
+                        from: 0
+                        to: 360
+                        duration: 1000
+                        loops: Animation.Infinite
+                    }
+                }
+            }
+            // 播放图标（正常情况）
+            // 当"开/切自动播放"开启时，隐藏切换过程中的播放图标，避免短暂闪烁
+            property bool _shouldShowPlayIcon: {
+                if (!viewer.isVideo || !videoPlayer) return false
+                if (playbackController.isLoading) return false
+                if (videoPlayer.playbackState === MediaPlayer.PlayingState) return false
+                // 当"开/切自动播放"开启且处于普通文件打开模式时，不显示播放图标
+                if (SettingsController.videoAutoPlay && playbackController._switchMode === 1) return false
+                return true
+            }
+            Rectangle {
+                anchors.centerIn: parent; width: 72; height: 72; radius: 36
+                color: Theme.isDark ? Qt.rgba(0,0,0,0.6) : Qt.rgba(1,1,1,0.9)
+                visible: parent._shouldShowPlayIcon
                 z: 10
                 ColoredIcon { anchors.centerIn: parent; source: Theme.icon("play"); iconSize: 32; color: Theme.colors.primary }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (videoPlayer) videoPlayer.togglePlay() }
@@ -1138,18 +1212,45 @@ Item {
     }
     
     component VideoControlBar: Rectangle {
+        id: videoControlBar
         property var viewer
         property var videoPlayer
         property var audioOutput
         height: 80
         color: Theme.colors.card
         Rectangle { anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; height: 1; color: Theme.colors.border }
+        // 计算显示位置：仅在源/结切换且恢复进度开启时使用冻结位置，否则使用实际位置
+        property int displayPosition: {
+            // 源/结切换中且需要恢复进度时，使用冻结位置
+            if (playbackController._switchMode === 2 && SettingsController.videoRestorePosition) {
+                return playbackController.frozenPosition || 0
+            }
+            // 否则使用实际播放位置（确保 videoPlayer 存在且位置有效）
+            if (videoPlayer && videoPlayer.position !== undefined && videoPlayer.position >= 0) {
+                return videoPlayer.position
+            }
+            return 0
+        }
+        
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 12
             RowLayout {
                 Layout.fillWidth: true; spacing: 8
-                Text { text: viewer._formatTime(videoPlayer ? videoPlayer.position : 0); color: Theme.colors.mutedForeground; font.pixelSize: 12 }
-                Slider { Layout.fillWidth: true; from: 0; to: videoPlayer && videoPlayer.duration > 0 ? videoPlayer.duration : 1; value: videoPlayer ? videoPlayer.position : 0; onMoved: if (videoPlayer) videoPlayer.position = value }
+                Text { text: viewer._formatTime(videoControlBar.displayPosition); color: Theme.colors.mutedForeground; font.pixelSize: 12 }
+                Slider { 
+                    id: progressBarSlider
+                    Layout.fillWidth: true
+                    from: 0
+                    to: {
+                        if (videoPlayer && videoPlayer.duration !== undefined && videoPlayer.duration > 0) {
+                            return videoPlayer.duration
+                        }
+                        return 1
+                    }
+                    value: videoControlBar.displayPosition
+                    enabled: !playbackController.isLoading && videoPlayer && videoPlayer.duration > 0
+                    onMoved: if (videoPlayer && !playbackController.isLoading) videoPlayer.position = value 
+                }
                 Text { text: viewer._formatTime(videoPlayer ? videoPlayer.duration : 0); color: Theme.colors.mutedForeground; font.pixelSize: 12 }
             }
             RowLayout {
@@ -1240,7 +1341,7 @@ Item {
 
                     Rectangle {
                         id: autoPlayBtn
-                        width: autoPlayText.implicitWidth + 16
+                        width: 32
                         height: 26
                         radius: 5
                         color: SettingsController.videoAutoPlay 
@@ -1251,13 +1352,11 @@ Item {
                         border.width: SettingsController.videoAutoPlay ? 0 : 1
                         border.color: Theme.colors.mediaControlBorder
 
-                        Text {
-                            id: autoPlayText
+                        ColoredIcon {
                             anchors.centerIn: parent
-                            text: qsTr("自动播放")
-                            color: SettingsController.videoAutoPlay ? "#FFFFFF" : Theme.colors.mediaControlTextMuted
-                            font.pixelSize: 11
-                            font.weight: SettingsController.videoAutoPlay ? Font.Bold : Font.Normal
+                            source: Theme.icon(SettingsController.videoAutoPlay ? "autoplay-on-open-on" : "autoplay-on-open-off")
+                            iconSize: 16
+                            color: SettingsController.videoAutoPlay ? "#FFFFFF" : Theme.colors.mediaControlIcon
                         }
 
                         MouseArea {
@@ -1267,6 +1366,80 @@ Item {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: SettingsController.videoAutoPlay = !SettingsController.videoAutoPlay
                         }
+
+                        ToolTip.visible: autoPlayMouse.containsMouse
+                        ToolTip.text: qsTr("开/切自动播放")
+                        ToolTip.delay: 500
+
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                    }
+
+                    Rectangle {
+                        id: autoPlayOnSwitchBtn
+                        width: 32
+                        height: 26
+                        radius: 5
+                        color: SettingsController.videoAutoPlayOnSwitch 
+                               ? Theme.colors.primary 
+                               : (Theme.isDark 
+                                  ? (autoPlayOnSwitchMouse.containsMouse ? Qt.rgba(1,1,1,0.12) : Qt.rgba(1,1,1,0.06))
+                                  : (autoPlayOnSwitchMouse.containsMouse ? Qt.rgba(0,0,0,0.08) : Qt.rgba(0,0,0,0.04)))
+                        border.width: SettingsController.videoAutoPlayOnSwitch ? 0 : 1
+                        border.color: Theme.colors.mediaControlBorder
+
+                        ColoredIcon {
+                            anchors.centerIn: parent
+                            source: Theme.icon(SettingsController.videoAutoPlayOnSwitch ? "autoplay-on-switch-on" : "autoplay-on-switch-off")
+                            iconSize: 16
+                            color: SettingsController.videoAutoPlayOnSwitch ? "#FFFFFF" : Theme.colors.mediaControlIcon
+                        }
+
+                        MouseArea {
+                            id: autoPlayOnSwitchMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: SettingsController.videoAutoPlayOnSwitch = !SettingsController.videoAutoPlayOnSwitch
+                        }
+
+                        ToolTip.visible: autoPlayOnSwitchMouse.containsMouse
+                        ToolTip.text: qsTr("源/结自动播放")
+                        ToolTip.delay: 500
+
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                    }
+
+                    Rectangle {
+                        id: restorePositionBtn
+                        width: 32
+                        height: 26
+                        radius: 5
+                        color: SettingsController.videoRestorePosition 
+                               ? Theme.colors.primary 
+                               : (Theme.isDark 
+                                  ? (restorePositionMouse.containsMouse ? Qt.rgba(1,1,1,0.12) : Qt.rgba(1,1,1,0.06))
+                                  : (restorePositionMouse.containsMouse ? Qt.rgba(0,0,0,0.08) : Qt.rgba(0,0,0,0.04)))
+                        border.width: SettingsController.videoRestorePosition ? 0 : 1
+                        border.color: Theme.colors.mediaControlBorder
+
+                        ColoredIcon {
+                            anchors.centerIn: parent
+                            source: Theme.icon(SettingsController.videoRestorePosition ? "restore-position-on" : "restore-position-off")
+                            iconSize: 16
+                            color: SettingsController.videoRestorePosition ? "#FFFFFF" : Theme.colors.mediaControlIcon
+                        }
+
+                        MouseArea {
+                            id: restorePositionMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: SettingsController.videoRestorePosition = !SettingsController.videoRestorePosition
+                        }
+
+                        ToolTip.visible: restorePositionMouse.containsMouse
+                        ToolTip.text: qsTr("源/结恢复进度")
+                        ToolTip.delay: 500
 
                         Behavior on color { ColorAnimation { duration: 100 } }
                     }

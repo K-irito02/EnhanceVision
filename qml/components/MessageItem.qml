@@ -108,10 +108,6 @@ Rectangle {
     signal retrySingleFailedFile(int index)
     
     property bool _hasStatsSnapshot: false
-    property int _countUpdateCalls: 0
-    property double _countUpdateTotalMs: 0
-    property double _countUpdateMaxMs: 0
-    property double _lastCountPerfLogMs: 0
 
     function _applyFileStats(success, failed, pending, processing) {
         successFileCount = success
@@ -126,8 +122,6 @@ Rectangle {
     }
 
     function _updateFileCounts() {
-        var beginMs = Date.now()
-
         var success = 0
         var failed = 0
         var pending = 0
@@ -148,25 +142,6 @@ Rectangle {
         }
 
         _applyFileStats(success, failed, pending, processing)
-
-        var elapsed = Date.now() - beginMs
-        _countUpdateCalls += 1
-        _countUpdateTotalMs += elapsed
-        _countUpdateMaxMs = Math.max(_countUpdateMaxMs, elapsed)
-
-        if (_lastCountPerfLogMs <= 0) {
-            _lastCountPerfLogMs = beginMs
-        }
-
-        if ((beginMs - _lastCountPerfLogMs) >= 2000) {
-            console.info("[Perf][MessageItem] _updateFileCounts calls:", _countUpdateCalls,
-                         "avgMs:", _countUpdateCalls > 0 ? (_countUpdateTotalMs / _countUpdateCalls).toFixed(2) : "0",
-                         "maxMs:", _countUpdateMaxMs.toFixed(2), "taskId:", taskId)
-            _countUpdateCalls = 0
-            _countUpdateTotalMs = 0
-            _countUpdateMaxMs = 0
-            _lastCountPerfLogMs = beginMs
-        }
     }
 
     function scheduleFileCountUpdate(force) {

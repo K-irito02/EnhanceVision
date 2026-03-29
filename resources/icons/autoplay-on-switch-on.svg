@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- 左侧源件框 -->
+    <rect x="2" y="7" width="7" height="10" rx="1"/>
+    <!-- 左侧播放三角 -->
+    <polygon points="4 10 7 12 4 14 4 10" fill="currentColor" stroke="none"/>
+    <!-- 中间切换箭头 -->
+    <path d="M11 12h4"/>
+    <path d="M13 9l3 3-3 3"/>
+    <!-- 右侧结果框 -->
+    <rect x="17" y="7" width="5" height="10" rx="1"/>
+    <!-- 右侧播放三角 -->
+    <polygon points="18 10 21 12 18 14 18 10" fill="currentColor" stroke="none"/>
+</svg>

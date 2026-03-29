@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- 播放圆圈 -->
+    <circle cx="12" cy="12" r="9"/>
+    <!-- 播放三角形 -->
+    <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/>
+    <!-- 右上角小勾表示开启 -->
+    <circle cx="19" cy="5" r="4" fill="currentColor" stroke="none"/>
+    <polyline points="17 5 18.5 6.5 21 4" stroke="#FFFFFF" stroke-width="1.5" fill="none"/>
+</svg>
