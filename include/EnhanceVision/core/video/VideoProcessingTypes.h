@@ -41,6 +41,10 @@ struct VideoMetadata {
     int64_t totalFrames = 0;
     bool hasAudio = false;
     QString codecName;
+    QString pixelFormat;
+    int bitDepth = 8;
+    bool isHDR = false;
+    bool hasAlpha = false;
     
     QSize size() const { return QSize(width, height); }
     bool isValid() const { return width > 0 && height > 0 && totalFrames > 0; }
@@ -56,6 +60,20 @@ struct VideoProcessingConfig {
     int quality = 18;
     int outputWidth = 0;
     int outputHeight = 0;
+    
+    enum class SizeAdaptationPolicy {
+        Auto,
+        AlwaysAdapt,
+        NeverAdapt,
+        UserConfirm
+    };
+    
+    SizeAdaptationPolicy sizeAdaptationPolicy = SizeAdaptationPolicy::Auto;
+    bool preserveAspectRatio = true;
+    int maxOutputWidth = 4096;
+    int maxOutputHeight = 4096;
+    bool enableSmartTiling = true;
+    int safetyMarginPercent = 10;
 };
 
 inline VideoAspectRatio detectAspectRatio(int width, int height) {

@@ -7,6 +7,9 @@
 #include "EnhanceVision/core/video/AIVideoProcessor.h"
 #include "EnhanceVision/core/AIEngine.h"
 #include "EnhanceVision/models/DataTypes.h"
+#include "EnhanceVision/core/video/VideoCompatibilityAnalyzer.h"
+#include "EnhanceVision/core/video/VideoSizeAdapter.h"
+#include "EnhanceVision/core/video/VideoFormatConverter.h"
 #include <QElapsedTimer>
 #include <QtConcurrent>
 #include <QThread>
@@ -118,6 +121,33 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
         return;
     }
     
+    VideoCompatibilityAnalyzer compatibilityAnalyzer;
+    compatibilityAnalyzer.setModelInfo(m_impl->modelInfo);
+    VideoCompatibilityReport compatibilityReport = compatibilityAnalyzer.analyze(inputPath);
+    
+    qInfo() << "[AIVideoProcessor] Compatibility analysis:"
+            << "size:" << static_cast<int>(compatibilityReport.sizeCompatibility)
+            << "format:" << static_cast<int>(compatibilityReport.formatCompatibility)
+            << "original:" << compatibilityReport.originalSize
+            << "adapted:" << compatibilityReport.adaptedSize
+            << "canProcess:" << compatibilityReport.canProcess;
+    
+    if (!compatibilityReport.canProcess) {
+        QString error = compatibilityReport.errors.join("\n");
+        fail(error.isEmpty() ? tr("视频不兼容，无法处理") : error);
+        return;
+    }
+    
+    if (!compatibilityReport.warnings.isEmpty()) {
+        qWarning() << "[AIVideoProcessor] Warnings:" << compatibilityReport.warnings;
+    }
+    
+    VideoSizeAdapter sizeAdapter;
+    sizeAdapter.setModelInfo(m_impl->modelInfo);
+    SizeAdaptationResult sizeAdaptation = sizeAdapter.analyze(compatibilityReport.originalSize);
+    
+    VideoFormatConverter formatConverter;
+    
     auto* decCtx = guard.decoderContext();
     if (!decCtx) {
         fail(tr("解码器初始化失败"));
@@ -222,18 +252,60 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
                       0, frameH, dst, dstStride);
             
             QImage frameImg(frameW, frameH, QImage::Format_RGB888);
+            if (frameImg.isNull()) {
+                qWarning() << "[AIVideoProcessor] frame" << frameCount << "failed to create frame image";
+                av_frame_unref(decFrame);
+                continue;
+            }
             for (int y = 0; y < frameH; ++y) {
                 const uint8_t* srcLine = rgb24Buffer.data() + y * rgb24LineSize;
                 uchar* dstLine = frameImg.scanLine(y);
                 std::memcpy(dstLine, srcLine, rgb24LineSize);
             }
             
-            QImage resultImg = processFrame(frameImg);
+            QImage processedFrame = frameImg;
+            if (compatibilityReport.formatCompatibility == FormatCompatibility::NeedsToneMapping) {
+                QImage toneMapped = formatConverter.applyToneMapping(frameImg);
+                if (!toneMapped.isNull()) {
+                    processedFrame = toneMapped;
+                } else {
+                    qWarning() << "[AIVideoProcessor] frame" << frameCount << "tone mapping failed, using original";
+                }
+            } else if (compatibilityReport.formatCompatibility == FormatCompatibility::NeedsColorConvert) {
+                QImage converted = formatConverter.convertPixelFormat(frameImg, frameFmt, AV_PIX_FMT_RGB24);
+                if (!converted.isNull()) {
+                    processedFrame = converted;
+                } else {
+                    qWarning() << "[AIVideoProcessor] frame" << frameCount << "color conversion failed, using original";
+                }
+            }
+            
+            QImage adaptedFrame = sizeAdapter.adaptFrame(processedFrame, sizeAdaptation);
+            if (adaptedFrame.isNull()) {
+                qWarning() << "[AIVideoProcessor] frame" << frameCount << "size adaptation failed, using processed";
+                adaptedFrame = processedFrame;
+            }
+            
+            QImage resultImg = processFrame(adaptedFrame);
             if (resultImg.isNull()) {
                 qWarning() << "[AIVideoProcessor] frame" << frameCount << "AI inference failed";
-                resultImg = frameImg;
+                resultImg = adaptedFrame;
                 failedFrames++;
             }
+            
+            QImage restoredImg = sizeAdapter.restoreFrame(resultImg, sizeAdaptation);
+            if (restoredImg.isNull()) {
+                qWarning() << "[AIVideoProcessor] frame" << frameCount << "size restore failed, using result";
+                restoredImg = resultImg;
+            }
+            
+            if (restoredImg.isNull()) {
+                qWarning() << "[AIVideoProcessor] frame" << frameCount << "final image is null, skipping";
+                av_frame_unref(decFrame);
+                continue;
+            }
+            
+            resultImg = restoredImg;
             
             if (!encoderInitialized) {
                 encoderInitialized = true;
