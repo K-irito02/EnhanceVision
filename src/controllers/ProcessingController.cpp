@@ -34,12 +34,6 @@ namespace EnhanceVision {
 namespace {
 constexpr qint64 kPerfLogThresholdMs = 8;
 
-inline void logPerfIfSlow(const char* tag, qint64 elapsedMs)
-{
-    if (elapsedMs >= kPerfLogThresholdMs) {
-        qInfo() << "[Perf][ProcessingController]" << tag << "cost:" << elapsedMs << "ms";
-    }
-}
 }
 
 ProcessingController::ProcessingController(QObject* parent)
@@ -76,10 +70,7 @@ ProcessingController::ProcessingController(QObject* parent)
     m_sessionSyncTimer->setInterval(2500);  // 增大防抖间隔，减少同步频率
     connect(m_sessionSyncTimer, &QTimer::timeout, this, [this]() {
         if (m_sessionController) {
-            QElapsedTimer perfTimer;
-            perfTimer.start();
             m_sessionController->syncCurrentMessagesToSession();
-            logPerfIfSlow("syncCurrentMessagesToSession", perfTimer.elapsed());
         }
     });
 
@@ -643,15 +634,12 @@ void ProcessingController::startTask(QueueTask& task)
                 }, Qt::QueuedConnection);
                 
                 processor->processImageAsync(inputPath, outputPath, message.shaderParams);
-                
-                logPerfIfSlow("startTask", perfTimer.elapsed());
                 return;
             }
             
             QTimer::singleShot(10, this, [this, taskId]() {
                 completeTask(taskId, "");
             });
-            logPerfIfSlow("startTask", perfTimer.elapsed());
             return;
         }
         
@@ -747,7 +735,6 @@ void ProcessingController::startTask(QueueTask& task)
                 engine->loadModelAsync(modelId);
             }
 
-            logPerfIfSlow("startTask", perfTimer.elapsed());
             return;
         }
     }
@@ -755,8 +742,6 @@ void ProcessingController::startTask(QueueTask& task)
     QTimer::singleShot(10, this, [this, taskId]() {
         completeTask(taskId, "");
     });
-
-    logPerfIfSlow("startTask", perfTimer.elapsed());
 }
 
 void ProcessingController::updateTaskProgress(const QString& taskId, int progress)
@@ -803,14 +788,10 @@ void ProcessingController::updateTaskProgress(const QString& taskId, int progres
             break;
         }
     }
-
-    logPerfIfSlow("updateTaskProgress", perfTimer.elapsed());
 }
 
 void ProcessingController::completeTask(const QString& taskId, const QString& resultPath)
 {
-    QElapsedTimer perfTimer;
-    perfTimer.start();
 
     for (int i = 0; i < m_tasks.size(); ++i) {
         if (m_tasks[i].taskId == taskId) {
@@ -823,7 +804,6 @@ void ProcessingController::completeTask(const QString& taskId, const QString& re
                 emit taskCancelled(taskId);
             } else if (m_taskCoordinator->isOrphaned(taskId)) {
                 handleOrphanedTask(taskId);
-                logPerfIfSlow("completeTask", perfTimer.elapsed());
                 return;
             } else {
                 m_tasks[i].progress = 99;
@@ -908,8 +888,6 @@ void ProcessingController::completeTask(const QString& taskId, const QString& re
             break;
         }
     }
-
-    logPerfIfSlow("completeTask", perfTimer.elapsed());
 }
 
 void ProcessingController::onShaderExportCompleted(const QString& exportId, bool success, const QString& outputPath, const QString& error)
@@ -1487,13 +1465,6 @@ void ProcessingController::requestSessionSync()
     }
 
     m_sessionSyncTimer->start();
-
-    static qint64 s_lastSyncLogMs = 0;
-    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-    if (nowMs - s_lastSyncLogMs >= 2000) {
-        s_lastSyncLogMs = nowMs;
-        qInfo() << "[Perf][ProcessingController] requestSessionSync persist debounce trigger 1800ms";
-    }
 }
 
 void ProcessingController::syncModelTasks()

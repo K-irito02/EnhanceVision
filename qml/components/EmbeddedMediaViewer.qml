@@ -1158,11 +1158,28 @@ Item {
                                 height: 26
                                 radius: 5
                                 
-                                // 计算渐变颜色：从浅蓝到深蓝
                                 function getSpeedColor() {
-                                    // 0.5x -> 浅蓝, 3.0x -> 深蓝
-                                    var colors = [Theme.colors.primaryLight, Theme.colors.primary, Theme.colors.primary, Theme.colors.primary, Theme.colors.primary, Theme.colors.primary]
-                                    return colors[index]
+                                    if (Theme.isDark) {
+                                        var darkColors = [
+                                            Qt.rgba(0.22, 0.36, 0.56, 1.0),
+                                            Qt.rgba(0.18, 0.42, 0.75, 1.0),
+                                            Qt.rgba(0.14, 0.35, 0.82, 1.0),
+                                            Qt.rgba(0.12, 0.27, 0.65, 1.0),
+                                            Qt.rgba(0.08, 0.18, 0.48, 1.0),
+                                            Qt.rgba(0.04, 0.10, 0.35, 1.0)
+                                        ]
+                                        return darkColors[index]
+                                    } else {
+                                        var lightColors = [
+                                            Qt.rgba(0.75, 0.85, 0.98, 1.0),
+                                            Qt.rgba(0.36, 0.55, 0.94, 1.0),
+                                            Qt.rgba(0.15, 0.35, 0.80, 1.0),
+                                            Qt.rgba(0.00, 0.18, 0.65, 1.0),
+                                            Qt.rgba(0.00, 0.12, 0.50, 1.0),
+                                            Qt.rgba(0.00, 0.07, 0.35, 1.0)
+                                        ]
+                                        return lightColors[index]
+                                    }
                                 }
                                 
                                 property bool isSelected: {

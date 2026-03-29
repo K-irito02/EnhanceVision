@@ -125,13 +125,6 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
     compatibilityAnalyzer.setModelInfo(m_impl->modelInfo);
     VideoCompatibilityReport compatibilityReport = compatibilityAnalyzer.analyze(inputPath);
     
-    qInfo() << "[AIVideoProcessor] Compatibility analysis:"
-            << "size:" << static_cast<int>(compatibilityReport.sizeCompatibility)
-            << "format:" << static_cast<int>(compatibilityReport.formatCompatibility)
-            << "original:" << compatibilityReport.originalSize
-            << "adapted:" << compatibilityReport.adaptedSize
-            << "canProcess:" << compatibilityReport.canProcess;
-    
     if (!compatibilityReport.canProcess) {
         QString error = compatibilityReport.errors.join("\n");
         fail(error.isEmpty() ? tr("视频不兼容，无法处理") : error);
@@ -379,14 +372,6 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
     }
     
     cleanupFrames();
-    
-    const qint64 totalCostMs = perfTimer.elapsed();
-    qInfo() << "[AIVideoProcessor] finished"
-            << "frames:" << frameCount
-            << "failedFrames:" << failedFrames
-            << "totalCost:" << totalCostMs << "ms"
-            << "avgPerFrame:" << (frameCount > 0 ? totalCostMs / frameCount : 0) << "ms"
-            << "output:" << effectiveOutputPath;
     
     setProcessing(false);
     

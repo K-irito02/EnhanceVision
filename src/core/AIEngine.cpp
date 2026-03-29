@@ -179,7 +179,6 @@ bool AIEngine::loadModel(const QString &modelId)
                 stagingAlloc->clear();
                 m_vkdev->reclaim_staging_allocator(stagingAlloc);
             }
-            qInfo() << "[AIEngine][loadModel] GPU memory cleared before loading new model";
         }
 #endif
     }
@@ -189,8 +188,6 @@ bool AIEngine::loadModel(const QString &modelId)
 
     // 加载新模型
     m_net.opt = m_opt;
-
-    qInfo() << "[AIEngine][loadModel] loading model:" << modelId;
 
     int ret = m_net.load_param(info.paramPath.toStdString().c_str());
     if (ret != 0) {
@@ -204,8 +201,6 @@ bool AIEngine::loadModel(const QString &modelId)
         emit processError(tr("加载模型权重失败: %1").arg(info.binPath));
         return false;
     }
-
-    qInfo() << "[AIEngine][loadModel] model loaded:" << modelId;
 
     m_currentModelId = modelId;
     m_currentModel = info;
@@ -383,7 +378,6 @@ QImage AIEngine::process(const QImage &input)
             result = processTiled(workInput, effectiveModel);
             
             if (!result.isNull()) {
-                qInfo() << "[AIEngine] OOM retry succeeded with tileSize=" << fallbackTile;
                 break;
             }
         }
@@ -1106,16 +1100,6 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
     int tilesY = (h + tileSize - 1) / tileSize;
     int totalTiles = tilesX * tilesY;
 
-    qInfo() << "[AIEngine][Tiled] start processing"
-            << "input:" << w << "x" << h
-            << "tileSize:" << tileSize
-            << "padding:" << padding
-            << "scale:" << scale
-            << "tiles:" << tilesX << "x" << tilesY
-            << "total:" << totalTiles
-            << "outputSize:" << (w * scale) << "x" << (h * scale)
-            << "paddedInput:" << paddedW << "x" << paddedH;
-
     setProgress(0.10);
     
     QImage output(w * scale, h * scale, QImage::Format_RGB888);
@@ -1268,7 +1252,6 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
     
     setProgress(0.95);
 
-    qInfo() << "[AIEngine][Tiled] all" << totalTiles << "tiles processed successfully";
     return output;
 }
 
@@ -1616,12 +1599,6 @@ int AIEngine::computeAutoTileSizeForModel(const QSize &inputSize, const ModelInf
 
     // 如果图像足够小，不需要分块
     if (w <= bestTile && h <= bestTile) {
-        qInfo() << "[AIEngine][AutoTile] no tiling needed:"
-                << "input:" << w << "x" << h
-                << "bestTile:" << bestTile
-                << "layers:" << layerCount
-                << "sizeBytes:" << model.sizeBytes
-                << "kFactor:" << kFactor;
         return 0;
     }
 

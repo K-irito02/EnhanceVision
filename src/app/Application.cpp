@@ -143,19 +143,6 @@ private:
         const double avg = averageValue(m_samples);
         const double max = maxValue(m_samples);
 
-        qInfo().noquote() << QString("[Perf][Frame]%1 window:10s samples:%2 avg:%3ms p50:%4ms p95:%5ms p99:%6ms max:%7ms >16.7ms:%8 >33.3ms:%9 >50ms:%10 >100ms:%11")
-                                 .arg(isFinalReport ? "[Final]" : "")
-                                 .arg(m_samples.size())
-                                 .arg(QString::number(avg, 'f', 2))
-                                 .arg(QString::number(p50, 'f', 2))
-                                 .arg(QString::number(p95, 'f', 2))
-                                 .arg(QString::number(p99, 'f', 2))
-                                 .arg(QString::number(max, 'f', 2))
-                                 .arg(m_over16Count)
-                                 .arg(m_over33Count)
-                                 .arg(m_over50Count)
-                                 .arg(m_over100Count);
-
         m_samples.clear();
         m_over16Count = 0;
         m_over33Count = 0;
@@ -194,13 +181,9 @@ Application::Application(QObject *parent)
 
 Application::~Application()
 {
-    qInfo() << "[Application] Destructor called";
-
     m_sessionController->saveSessions();
     delete m_mainWidget;
     SettingsController::destroyInstance();
-
-    qInfo() << "[Application] Destructor completed";
 }
 
 void Application::initialize()
@@ -281,14 +264,11 @@ void Application::setupLifecycleGuard()
         app->setQuitOnLastWindowClosed(true);
 
         connect(app, &QApplication::lastWindowClosed, this, [this]() {
-            qWarning() << "[Application] lastWindowClosed emitted";
             if (m_lifecycleSupervisor) {
                 m_lifecycleSupervisor->requestShutdown(ExitReason::MainWindowClosed);
             }
         });
     }
-
-    qInfo() << "[Application] Lifecycle guard setup completed";
 }
 
 void Application::registerQmlTypes()

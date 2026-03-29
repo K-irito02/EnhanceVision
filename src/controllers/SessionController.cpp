@@ -223,8 +223,6 @@ void SessionController::switchSession(const QString& sessionId)
     // 3. 加载新会话的消息
     loadSessionMessages(sessionId);
 
-    qInfo() << "[Perf][SessionController] switchSession cost:" << perfTimer.elapsed() << "ms";
-
     emit sessionSwitched(sessionId);
     emit activeSessionChanged();
 }
