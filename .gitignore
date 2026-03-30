@@ -61,9 +61,9 @@ ShaderStackTrace*
 .qt/
 .qmake.files
 
-# Logs (commit for debugging)
-# logs/
-# *.log
+# Logs (runtime output, do not commit)
+logs/
+*.log
 
 # Temporary files
 *.tmp
