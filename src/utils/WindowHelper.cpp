@@ -142,20 +142,6 @@ bool WindowHelper::nativeEventFilter(const QByteArray& eventType, void* message,
             int windowWidth = windowRect.right - windowRect.left;
             int windowHeight = windowRect.bottom - windowRect.top;
             
-            if (localY >= 0 && localY < 48) {
-                for (const QRect& region : m_excludeRegions) {
-                    if (region.contains(localX, localY)) {
-                        return false;
-                    }
-                }
-                *result = HTCAPTION;
-                return true;
-            }
-            
-            if (m_isMaximized) {
-                return false;
-            }
-            
             int margin = m_resizeMargin;
             
             bool onLeft = localX < margin;
@@ -163,36 +149,48 @@ bool WindowHelper::nativeEventFilter(const QByteArray& eventType, void* message,
             bool onTop = localY < margin;
             bool onBottom = localY >= windowHeight - margin;
             
-            if (onTop && onLeft) {
-                *result = HTTOPLEFT;
-                return true;
+            if (!m_isMaximized) {
+                if (onTop && onLeft) {
+                    *result = HTTOPLEFT;
+                    return true;
+                }
+                if (onTop && onRight) {
+                    *result = HTTOPRIGHT;
+                    return true;
+                }
+                if (onBottom && onLeft) {
+                    *result = HTBOTTOMLEFT;
+                    return true;
+                }
+                if (onBottom && onRight) {
+                    *result = HTBOTTOMRIGHT;
+                    return true;
+                }
+                if (onLeft) {
+                    *result = HTLEFT;
+                    return true;
+                }
+                if (onRight) {
+                    *result = HTRIGHT;
+                    return true;
+                }
+                if (onTop) {
+                    *result = HTTOP;
+                    return true;
+                }
+                if (onBottom) {
+                    *result = HTBOTTOM;
+                    return true;
+                }
             }
-            if (onTop && onRight) {
-                *result = HTTOPRIGHT;
-                return true;
-            }
-            if (onBottom && onLeft) {
-                *result = HTBOTTOMLEFT;
-                return true;
-            }
-            if (onBottom && onRight) {
-                *result = HTBOTTOMRIGHT;
-                return true;
-            }
-            if (onLeft) {
-                *result = HTLEFT;
-                return true;
-            }
-            if (onRight) {
-                *result = HTRIGHT;
-                return true;
-            }
-            if (onTop) {
-                *result = HTTOP;
-                return true;
-            }
-            if (onBottom) {
-                *result = HTBOTTOM;
+            
+            if (localY >= 0 && localY < 48) {
+                for (const QRect& region : m_excludeRegions) {
+                    if (region.contains(localX, localY)) {
+                        return false;
+                    }
+                }
+                *result = HTCAPTION;
                 return true;
             }
         }

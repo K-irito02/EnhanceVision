@@ -62,6 +62,10 @@ static LRESULT CALLBACK SubWindowWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
         break;
     }
     case WM_NCHITTEST: {
+        if (helper->isDragging()) {
+            return HTCAPTION;
+        }
+        
         RECT windowRect;
         GetWindowRect(hwnd, &windowRect);
 
@@ -404,15 +408,15 @@ void SubWindowHelper::handleFullScreenDrag(int mouseX, int mouseY, int areaWidth
         
         normalGeom.moveTopLeft(QPoint(fullScreenGeom.left() + mouseX - newWindowX, fullScreenGeom.top() + mouseY));
         
-        // 退出全屏
+        m_isDragging = true;
+        emit draggingChanged();
+        
         m_window->showNormal();
         
-        // 设置恢复后的窗口几何
         m_window->setGeometry(normalGeom);
         
         QCoreApplication::processEvents();
         
-        // 启动系统拖拽
         QPoint cursorPos = QCursor::pos();
         int lParam = MAKELPARAM(cursorPos.x(), cursorPos.y());
         
@@ -471,10 +475,8 @@ void SubWindowHelper::prepareRestoreAndMove(int mouseX, int mouseY, int areaWidt
             
             normalGeom.moveTopLeft(QPoint(maxGeom.left() + mouseX - newWindowX, maxGeom.top() + mouseY - newWindowY));
             
-            if (m_isMaximized) {
-                m_isMaximized = false;
-                emit maximizedChanged();
-            }
+            m_isDragging = true;
+            emit draggingChanged();
             
             ShowWindow(hwnd, SW_RESTORE);
             m_window->setGeometry(normalGeom);
