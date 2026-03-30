@@ -25,6 +25,8 @@
 #include "EnhanceVision/core/ImageProcessor.h"
 #include "EnhanceVision/core/video/AIVideoProcessor.h"
 #include "EnhanceVision/core/ProgressManager.h"
+#include "EnhanceVision/controllers/SessionSyncHelper.h"
+#include "EnhanceVision/controllers/ProgressSyncHelper.h"
 
 class QTimer;
 
@@ -218,16 +220,13 @@ private:
     QHash<QString, Message> m_taskMessages;
     QHash<QString, int> m_lastReportedTaskProgress;
     QHash<QString, qint64> m_lastTaskProgressUpdateMs;
-    QHash<QString, qint64> m_lastMessageProgressSyncMs;
-    QHash<QString, qint64> m_lastMessageStatusSyncMs;
-    QHash<QString, qint64> m_lastSessionMemorySyncMs;
-    QSet<QString> m_pendingMemorySyncMessageIds;
-    QTimer* m_memorySyncTimer = nullptr;
     QSet<QString> m_preloadedModelIds;
     QSet<QString> m_pendingPreloadModelIds;
     QSet<QString> m_pendingModelLoadTaskIds;
     QHash<QString, QList<QMetaObject::Connection>> m_aiEngineConnections;
-    QTimer* m_sessionSyncTimer;
+    
+    SessionSyncHelper* m_sessionSyncHelper;
+    ProgressSyncHelper* m_progressSyncHelper;
     
     QHash<QString, QSharedPointer<class VideoProcessor>> m_activeVideoProcessors;
     
@@ -247,11 +246,6 @@ private:
                                 const QString& inputPath, const QString& outputPath,
                                 const Message& message, const ModelInfo& modelInfo,
                                 const QVariantMap& effectiveParams);
-    void requestSessionSync();
-    void requestSessionMemorySync(const QString& messageId = QString());
-    void flushSessionMemorySync();
-    void syncVisibleMessageIfNeeded(const QString& sessionId, const QString& messageId,
-                                    const std::function<void()>& syncFn);
     void syncModelTasks();
     void syncModelTask(const QueueTask& task);
     void syncModelTaskById(const QString& taskId);
@@ -267,6 +261,7 @@ private:
     void updateProgressForSessionMessage(const QString& sessionId, const QString& messageId, int progress);
     void updateStatusForSessionMessage(const QString& sessionId, const QString& messageId, ProcessingStatus status);
     void updateQueuePositionForSessionMessage(const QString& sessionId, const QString& messageId, int queuePosition);
+    void requestSessionSync();
     void updateQueuePositions();
     bool tryStartTask(QueueTask& task);
     void startTask(QueueTask& task);
@@ -292,6 +287,18 @@ private:
                              const QString& sessionId, const QString& fileId,
                              qint64 estimatedMemoryMB);
     void validateAndRepairQueueState();
+
+    QString createAndRegisterTask(const Message& message, const MediaFile& file,
+                                   const QString& sessionId);
+    void cancelAIEngineForTask(const QString& taskId);
+    void adjustProcessingCount(int delta);
+
+    enum class CancelMode { PendingOnly, ForceProcessing };
+    struct CancelResult {
+        int cancelledPending = 0;
+        int cancelledProcessing = 0;
+    };
+    CancelResult cancelAndRemoveTask(int index, CancelMode mode);
 };
 
 } // namespace EnhanceVision
