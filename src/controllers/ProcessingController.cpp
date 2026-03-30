@@ -81,8 +81,11 @@ ProcessingController::ProcessingController(QObject* parent)
 
     // 初始化 AI 推理引擎和模型注册表
     m_modelRegistry = new ModelRegistry(this);
-    m_aiEngine = new AIEngine(this);
-    m_aiEnginePool = new AIEnginePool(2, m_modelRegistry, this);
+    // 【关键修复】只使用引擎池，不创建独立的 m_aiEngine
+    // 避免多个 AIEngine 实例同时初始化 Vulkan 导致的堆内存损坏
+    // 单任务处理模式下只需要一个引擎实例
+    m_aiEnginePool = new AIEnginePool(1, m_modelRegistry, this);
+    m_aiEngine = nullptr;  // 不再使用独立引擎，通过 aiEngine() 返回池中引擎
     
     // 初始化统一进度管理器
     m_progressManager = std::make_unique<ProgressManager>(this);
@@ -98,7 +101,8 @@ ProcessingController::ProcessingController(QObject* parent)
         modelsPath = QDir(QCoreApplication::applicationDirPath()).filePath("../../resources/models");
     }
     m_modelRegistry->initialize(modelsPath);
-    m_aiEngine->setModelRegistry(m_modelRegistry);
+    // m_aiEngine 现在为 nullptr，不再需要单独设置 ModelRegistry
+    // AIEnginePool 中的引擎已在构造时设置了 ModelRegistry
 
     // AI 推理信号不再在构造函数中静态连接
     // 改为在 startTask() 中通过 connectAiEngineForTask() 为每个 AI 任务动态连接
@@ -107,9 +111,7 @@ ProcessingController::ProcessingController(QObject* parent)
 ProcessingController::~ProcessingController()
 {
     cancelAllTasks();
-    if (m_aiEngine) {
-        m_aiEngine->cancelProcess();
-    }
+    // m_aiEngine 已废弃，使用 m_aiEnginePool 管理引擎
     m_threadPool->waitForDone();
 }
 
@@ -130,7 +132,11 @@ ModelRegistry* ProcessingController::modelRegistry() const
 
 AIEngine* ProcessingController::aiEngine() const
 {
-    return m_aiEngine;
+    // 返回池中第一个可用引擎（如果池非空）
+    if (m_aiEnginePool && m_aiEnginePool->poolSize() > 0) {
+        return m_aiEnginePool->firstEngine();
+    }
+    return nullptr;
 }
 
 int ProcessingController::queueSize() const
@@ -307,9 +313,7 @@ void ProcessingController::forceCancelAllTasks()
             }
         }
     }
-    if (m_aiEngine) {
-        m_aiEngine->forceCancel();
-    }
+    // m_aiEngine 已废弃，引擎池中的引擎已在上面的循环中取消
 
     // 清空线程池队列
     if (m_threadPool) {
@@ -1180,6 +1184,12 @@ void ProcessingController::retryFailedFiles(const QString& messageId)
         return;
     }
 
+    // 【修复】检查是否已有在途任务，避免重复入队导致崩溃
+    if (hasTasksForMessage(messageId)) {
+        qWarning() << "[ProcessingController] retryFailedFiles: Message already has pending tasks:" << messageId;
+        return;
+    }
+
     Message message = m_messageModel->messageById(messageId);
     if (message.id.isEmpty()) {
         qWarning() << "[ProcessingController] retryFailedFiles: Message not found:" << messageId;
@@ -1197,15 +1207,19 @@ void ProcessingController::retryFailedFiles(const QString& messageId)
         return;
     }
 
-    m_messageModel->updateStatus(messageId, static_cast<int>(ProcessingStatus::Processing));
+    // 【修复】消息状态应为 Pending 而非 Processing
+    // 只有当任务真正开始处理时才应设为 Processing
+    m_messageModel->updateStatus(messageId, static_cast<int>(ProcessingStatus::Pending));
     m_messageModel->updateErrorMessage(messageId, QString());
-
-    const QString sessionId = resolveSessionIdForMessage(messageId);
 
     for (const auto& file : filesToRetry) {
         m_messageModel->updateFileStatus(messageId, file.id,
             static_cast<int>(ProcessingStatus::Pending), QString());
+    }
 
+    const QString sessionId = resolveSessionIdForMessage(messageId);
+    
+    for (const auto& file : filesToRetry) {
         QueueTask task;
         task.taskId = generateTaskId();
         task.messageId = messageId;
@@ -1222,7 +1236,7 @@ void ProcessingController::retryFailedFiles(const QString& messageId)
 
         qint64 estimatedMemory = estimateMemoryUsage(file.filePath, file.type);
         registerTaskContext(task.taskId, messageId, sessionId, file.id, estimatedMemory);
-
+        
         emit taskAdded(task.taskId);
     }
 
@@ -1240,6 +1254,12 @@ void ProcessingController::retrySingleFailedFile(const QString& messageId, int f
 {
     if (!m_messageModel) {
         qWarning() << "[ProcessingController] retrySingleFailedFile: MessageModel not set";
+        return;
+    }
+
+    // 【修复】检查是否已有在途任务，避免重复入队导致崩溃
+    if (hasTasksForMessage(messageId)) {
+        qWarning() << "[ProcessingController] retrySingleFailedFile: Message already has pending tasks:" << messageId;
         return;
     }
     
@@ -1269,8 +1289,10 @@ void ProcessingController::retrySingleFailedFile(const QString& messageId, int f
         return;
     }
     
-    if (message.status == ProcessingStatus::Failed || message.status == ProcessingStatus::Pending) {
-        m_messageModel->updateStatus(messageId, static_cast<int>(ProcessingStatus::Processing));
+    // 【修复】消息状态应为 Pending 而非 Processing
+    // 只有当任务真正开始处理时才应设为 Processing
+    if (message.status == ProcessingStatus::Failed || message.status == ProcessingStatus::Cancelled) {
+        m_messageModel->updateStatus(messageId, static_cast<int>(ProcessingStatus::Pending));
     }
     m_messageModel->updateErrorMessage(messageId, QString());
     
@@ -1348,8 +1370,9 @@ void ProcessingController::autoRetryInterruptedFiles(const QString& messageId, c
         return;
     }
 
-    // 更新 Session 中的消息状态
-    message.status = ProcessingStatus::Processing;
+    // 【修复】更新 Session 中的消息状态为 Pending
+    // 只有当任务真正开始处理时才应设为 Processing
+    message.status = ProcessingStatus::Pending;
     message.errorMessage.clear();
     for (auto& file : message.mediaFiles) {
         if (file.status == ProcessingStatus::Pending || file.status == ProcessingStatus::Processing) {
@@ -1360,7 +1383,7 @@ void ProcessingController::autoRetryInterruptedFiles(const QString& messageId, c
 
     // 如果是当前活动会话，同时更新 MessageModel
     if (m_messageModel && m_sessionController->activeSessionId() == targetSessionId) {
-        m_messageModel->updateStatus(messageId, static_cast<int>(ProcessingStatus::Processing));
+        m_messageModel->updateStatus(messageId, static_cast<int>(ProcessingStatus::Pending));
         m_messageModel->updateErrorMessage(messageId, QString());
         for (const auto& file : filesToRetry) {
             m_messageModel->updateFileStatus(messageId, file.id,
@@ -1826,6 +1849,14 @@ void ProcessingController::cancelMessageTasks(const QString& messageId)
                 if (m_taskMessages.contains(taskId)) {
                     const Message& msg = m_taskMessages[taskId];
                     if (msg.mode == ProcessingMode::AIInference) {
+                        // 取消 AI 视频处理器
+                        if (m_activeAIVideoProcessors.contains(taskId)) {
+                            auto processor = m_activeAIVideoProcessors.value(taskId);
+                            if (processor) {
+                                processor->cancel();
+                            }
+                        }
+                        // 取消 AI 引擎（简化清理，避免竞争条件）
                         AIEngine* poolEngine = m_aiEnginePool->engineForTask(taskId);
                         if (poolEngine) {
                             poolEngine->cancelProcess();
@@ -1857,7 +1888,11 @@ void ProcessingController::cancelMessageTasks(const QString& messageId)
     }
     
     emit messageTasksCancelled(messageId);
-    processNextTask();
+    
+    // 【修复】延迟调用 processNextTask，确保 Vulkan 同步完成
+    // 避免在引擎释放过程中立即获取引擎导致崩溃
+    // 增加延迟时间到500ms，确保GPU完全空闲
+    QTimer::singleShot(500, this, &ProcessingController::processNextTask);
 }
 
 void ProcessingController::cancelMessageFileTasks(const QString& messageId, const QString& fileId)
@@ -1889,6 +1924,14 @@ void ProcessingController::cancelMessageFileTasks(const QString& messageId, cons
             if (m_taskMessages.contains(taskId)) {
                 const Message& msg = m_taskMessages[taskId];
                 if (msg.mode == ProcessingMode::AIInference) {
+                    // 取消 AI 视频处理器
+                    if (m_activeAIVideoProcessors.contains(taskId)) {
+                        auto processor = m_activeAIVideoProcessors.value(taskId);
+                        if (processor) {
+                            processor->cancel();
+                        }
+                    }
+                    // 取消 AI 引擎（简化清理，避免竞争条件）
                     AIEngine* poolEngine = m_aiEnginePool->engineForTask(taskId);
                     if (poolEngine) {
                         poolEngine->cancelProcess();
@@ -1917,7 +1960,9 @@ void ProcessingController::cancelMessageFileTasks(const QString& messageId, cons
         emit queueSizeChanged();
     }
 
-    processNextTask();
+    // 【修复】延迟调用 processNextTask，确保 Vulkan 同步完成
+    // 增加延迟时间到500ms，确保GPU完全空闲
+    QTimer::singleShot(500, this, &ProcessingController::processNextTask);
 }
 
 void ProcessingController::cancelSessionTasks(const QString& sessionId)
@@ -2108,11 +2153,9 @@ void ProcessingController::gracefulCancel(const QString& taskId, int timeoutMs)
         if (m_taskMessages.contains(taskId)) {
             const Message& msg = m_taskMessages[taskId];
             if (msg.mode == ProcessingMode::AIInference) {
-                if (m_aiEngine) {
-                    m_aiEngine->cancelProcess();
-                }
+                // m_aiEngine 已废弃，只使用引擎池
                 AIEngine* poolEngine = m_aiEnginePool->engineForTask(taskId);
-                if (poolEngine && poolEngine != m_aiEngine) {
+                if (poolEngine) {
                     poolEngine->cancelProcess();
                 }
             }
@@ -2188,13 +2231,41 @@ void ProcessingController::cleanupTask(const QString& taskId)
     
     cancelVideoProcessing(taskId);
     
-    if (m_activeImageProcessors.contains(taskId)) {
-        auto processor = m_activeImageProcessors.take(taskId);
-        if (processor) {
-            processor->cancel();
+    // 取消 AI 视频处理器（先取消，然后等待处理线程完成）
+    QSharedPointer<AIVideoProcessor> aiProcessor;
+    if (m_activeAIVideoProcessors.contains(taskId)) {
+        aiProcessor = m_activeAIVideoProcessors.take(taskId);
+        if (aiProcessor) {
+            aiProcessor->cancel();
+            // 等待处理线程完成（最多等待 2000ms，确保线程完全退出）
+            aiProcessor->waitForFinished(2000);
         }
     }
     
+    QSharedPointer<ImageProcessor> imgProcessor;
+    if (m_activeImageProcessors.contains(taskId)) {
+        imgProcessor = m_activeImageProcessors.take(taskId);
+        if (imgProcessor) {
+            imgProcessor->cancel();
+        }
+    }
+    
+    // 断开信号连接（必须在释放引擎前完成）
+    disconnectAiEngineForTask(taskId);
+    
+    // 【关键修复】简化清理流程，避免竞争条件
+    // 只取消处理，不清理GPU内存（让NCNN自动管理）
+    // cleanupGpuMemory和forceCancel可能与新任务的引擎使用产生竞争
+    AIEngine* engine = m_aiEnginePool->engineForTask(taskId);
+    if (engine) {
+        // 仅取消处理，不做激进的GPU清理
+        engine->cancelProcess();
+    }
+    
+    // 释放引擎回池
+    m_aiEnginePool->release(taskId);
+    
+    // 清理其他资源
     m_resourceManager->release(taskId);
     m_taskCoordinator->unregisterTask(taskId);
     m_pendingExports.remove(taskId);
@@ -2203,9 +2274,6 @@ void ProcessingController::cleanupTask(const QString& taskId)
     m_lastTaskProgressUpdateMs.remove(taskId);
     m_taskMessages.remove(taskId);
     m_pendingModelLoadTaskIds.remove(taskId);
-
-    disconnectAiEngineForTask(taskId);
-    m_aiEnginePool->release(taskId);
 }
 
 void ProcessingController::connectAiEngineForTask(AIEngine* engine, const QString& taskId)
@@ -2280,7 +2348,14 @@ void ProcessingController::launchAiInference(AIEngine* engine, const QString& ta
         return;
     }
 
-    const ModelInfo modelInfo = m_modelRegistry->getModelInfo(message.aiParams.modelId);
+    // 【关键修复】添加引擎就绪检查，确保 Vulkan 在推理前完全初始化
+    if (engine && !engine->waitForVulkanReady(10000)) {
+        qWarning() << "[ProcessingController][AI] Engine not ready after timeout, task:" << taskId;
+        failTask(taskId, tr("AI引擎初始化超时，请重试"));
+        return;
+    }
+
+    const ModelInfo modelInfo = m_modelRegistry-> getModelInfo(message.aiParams.modelId);
     engine->setUseGpu(message.aiParams.useGpu);
     engine->clearParameters();
     if (message.aiParams.tileSize > 0) {
@@ -2325,8 +2400,13 @@ void ProcessingController::launchAIVideoProcessor(AIEngine* engine, const QStrin
     connect(processor.data(), &AIVideoProcessor::completed,
             this, [this, taskId, engine](bool success, const QString& result, const QString& error) {
         m_activeAIVideoProcessors.remove(taskId);
-        m_aiEnginePool->release(taskId);
+        
+        // 简化清理流程，避免与新任务竞争
+        // NCNN会自动管理GPU内存，不需要激进清理
+        
+        // 先断开信号连接，再释放引擎
         disconnectAiEngineForTask(taskId);
+        m_aiEnginePool->release(taskId);
         
         if (success) {
             completeTask(taskId, result);

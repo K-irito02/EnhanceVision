@@ -39,7 +39,8 @@ namespace {
         
         switch (type) {
         case QtDebugMsg:
-            return;
+            typeStr = "DEBUG";
+            break;
         case QtInfoMsg:
             typeStr = "INFO";
             break;

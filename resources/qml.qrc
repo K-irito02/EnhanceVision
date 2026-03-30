@@ -32,6 +32,7 @@
         <file>../qml/components/OffscreenShaderRenderer.qml</file>
         <file>../qml/components/MultiPassShaderEffect.qml</file>
         <file>../qml/components/SeparableBlurEffect.qml</file>
+        <file>../qml/components/VideoPlaybackController.qml</file>
         
         <!-- 自定义控件 -->
         <file>../qml/controls/Button.qml</file>
@@ -137,6 +138,12 @@
         <file>icons/adjust-basic.svg</file>
         <file>icons/eraser.svg</file>
         <file>icons/list-select.svg</file>
+        <file>icons/autoplay-on-open-on.svg</file>
+        <file>icons/autoplay-on-open-off.svg</file>
+        <file>icons/autoplay-on-switch-on.svg</file>
+        <file>icons/autoplay-on-switch-off.svg</file>
+        <file>icons/restore-position-on.svg</file>
+        <file>icons/restore-position-off.svg</file>
     </qresource>
     
     <qresource prefix="/shaders">

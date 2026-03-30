@@ -86,6 +86,11 @@ public:
     
     bool isTaskStale(const QString& taskId, qint64 timeoutMs = 30000) const;
     
+    bool validateTaskConsistency(const QString& messageId, 
+                                  const QString& expectedStatus) const;
+    
+    void cleanupStaleTasks(qint64 timeoutMs = 30000);
+    
     int activeTaskCount() const;
     
     int sessionActiveTaskCount(const QString& sessionId) const;

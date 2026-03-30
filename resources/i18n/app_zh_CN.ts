@@ -202,6 +202,66 @@
         <source>自动播放</source>
         <translation >自动播放</translation>
     </message>
+    <message>
+        <source>打开自动播放</source>
+        <translation >打开自动播放</translation>
+    </message>
+    <message>
+        <source>切换自动播放</source>
+        <translation >切换自动播放</translation>
+    </message>
+    <message>
+        <source>恢复播放位置</source>
+        <translation >恢复播放位置</translation>
+    </message>
+    <message>
+        <source>开/切自动播放</source>
+        <translation>开/切自动播放</translation>
+    </message>
+    <message>
+        <source>源/结自动播放</source>
+        <translation>源/结自动播放</translation>
+    </message>
+    <message>
+        <source>源/结恢复进度</source>
+        <translation>源/结恢复进度</translation>
+    </message>
+    <message>
+        <source>点击视频进行放大查看（嵌入式和独立式）和点击左右导航按钮切换到视频时自动开始播放</source>
+        <translation>点击视频进行放大查看（嵌入式和独立式）和点击左右导航按钮切换到视频时自动开始播放</translation>
+    </message>
+    <message>
+        <source>放大查看（嵌入式和独立式）切换源件/结果时自动播放</source>
+        <translation>放大查看（嵌入式和独立式）切换源件/结果时自动播放</translation>
+    </message>
+    <message>
+        <source>放大查看（嵌入式和独立式）切换源件/结果时恢复播放进度</source>
+        <translation>放大查看（嵌入式和独立式）切换源件/结果时恢复播放进度</translation>
+    </message>
+    <message>
+        <source>开/切自动播放</source>
+        <translation>开/切自动播放</translation>
+    </message>
+    <message>
+        <source>源/结自动播放</source>
+        <translation>源/结自动播放</translation>
+    </message>
+    <message>
+        <source>源/结恢复进度</source>
+        <translation>源/结恢复进度</translation>
+    </message>
+    <message>
+        <source>点击视频进行放大查看（嵌入式和独立式）和点击左右导航按钮切换到视频时自动开始播放</source>
+        <translation>点击视频进行放大查看（嵌入式和独立式）和点击左右导航按钮切换到视频时自动开始播放</translation>
+    </message>
+    <message>
+        <source>放大查看（嵌入式和独立式）切换源件/结果时自动播放</source>
+        <translation>放大查看（嵌入式和独立式）切换源件/结果时自动播放</translation>
+    </message>
+    <message>
+        <source>放大查看（嵌入式和独立式）切换源件/结果时恢复播放进度</source>
+        <translation>放大查看（嵌入式和独立式）切换源件/结果时恢复播放进度</translation>
+    </message>
 </context>
 <context>
     <name>FileController</name>
@@ -1100,6 +1160,18 @@
         <translation >自动播放</translation>
     </message>
     <message>
+        <source>打开自动播放</source>
+        <translation >打开自动播放</translation>
+    </message>
+    <message>
+        <source>切换自动播放</source>
+        <translation >切换自动播放</translation>
+    </message>
+    <message>
+        <source>恢复播放位置</source>
+        <translation >恢复播放位置</translation>
+    </message>
+    <message>
         <location filename="../../qml/pages/SettingsPage.qml" line="274"/>
         <source>性能</source>
         <translation >性能</translation>
@@ -1166,6 +1238,30 @@
     <message>
         <source>知道了</source>
         <translation>知道了</translation>
+    </message>
+    <message>
+        <source>开/切自动播放</source>
+        <translation>开/切自动播放</translation>
+    </message>
+    <message>
+        <source>源/结自动播放</source>
+        <translation>源/结自动播放</translation>
+    </message>
+    <message>
+        <source>源/结恢复进度</source>
+        <translation>源/结恢复进度</translation>
+    </message>
+    <message>
+        <source>点击视频进行放大查看（嵌入式和独立式）和点击左右导航按钮切换到视频时自动开始播放</source>
+        <translation>点击视频进行放大查看（嵌入式和独立式）和点击左右导航按钮切换到视频时自动开始播放</translation>
+    </message>
+    <message>
+        <source>放大查看（嵌入式和独立式）切换源件/结果时自动播放</source>
+        <translation>放大查看（嵌入式和独立式）切换源件/结果时自动播放</translation>
+    </message>
+    <message>
+        <source>放大查看（嵌入式和独立式）切换源件/结果时恢复播放进度</source>
+        <translation>放大查看（嵌入式和独立式）切换源件/结果时恢复播放进度</translation>
     </message>
 </context>
 <context>

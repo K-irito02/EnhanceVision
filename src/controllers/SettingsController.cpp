@@ -34,6 +34,8 @@ SettingsController::SettingsController(QObject* parent)
     , m_crashDetectedOnStartup(false)
     , m_lastExitReason()
     , m_videoAutoPlay(true)
+    , m_videoAutoPlayOnSwitch(true)
+    , m_videoRestorePosition(true)
 {
     QString configPath = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
     QString settingsFile = QDir(configPath).filePath("EnhanceVision/settings.ini");
@@ -220,6 +222,36 @@ void SettingsController::setVideoAutoPlay(bool autoPlay)
     }
 }
 
+bool SettingsController::videoAutoPlayOnSwitch() const
+{
+    return m_videoAutoPlayOnSwitch;
+}
+
+void SettingsController::setVideoAutoPlayOnSwitch(bool autoPlay)
+{
+    if (m_videoAutoPlayOnSwitch != autoPlay) {
+        m_videoAutoPlayOnSwitch = autoPlay;
+        emit videoAutoPlayOnSwitchChanged();
+        emit settingsChanged();
+        saveSettings();
+    }
+}
+
+bool SettingsController::videoRestorePosition() const
+{
+    return m_videoRestorePosition;
+}
+
+void SettingsController::setVideoRestorePosition(bool restore)
+{
+    if (m_videoRestorePosition != restore) {
+        m_videoRestorePosition = restore;
+        emit videoRestorePositionChanged();
+        emit settingsChanged();
+        saveSettings();
+    }
+}
+
 bool SettingsController::lastExitClean() const
 {
     return m_lastExitClean;
@@ -319,6 +351,8 @@ void SettingsController::saveSettings()
     m_settings->setValue("reprocess/shaderEnabled", m_autoReprocessShaderEnabled);
     m_settings->setValue("reprocess/aiEnabled", m_autoReprocessAIEnabled);
     m_settings->setValue("video/autoPlay", m_videoAutoPlay);
+    m_settings->setValue("video/autoPlayOnSwitch", m_videoAutoPlayOnSwitch);
+    m_settings->setValue("video/restorePosition", m_videoRestorePosition);
     m_settings->sync();
 }
 
@@ -337,6 +371,8 @@ void SettingsController::loadSettings()
     m_lastExitClean = m_settings->value("system/lastExitClean", true).toBool();
     m_lastExitReason = m_settings->value("system/lastExitReason", QString()).toString();
     m_videoAutoPlay = m_settings->value("video/autoPlay", true).toBool();
+    m_videoAutoPlayOnSwitch = m_settings->value("video/autoPlayOnSwitch", true).toBool();
+    m_videoRestorePosition = m_settings->value("video/restorePosition", true).toBool();
 }
 
 void SettingsController::resetToDefaults()
@@ -354,6 +390,8 @@ void SettingsController::resetToDefaults()
     m_lastExitClean = true;
     m_lastExitReason.clear();
     m_videoAutoPlay = true;
+    m_videoAutoPlayOnSwitch = true;
+    m_videoRestorePosition = true;
 
     emit themeChanged();
     emit languageChanged();
@@ -366,6 +404,8 @@ void SettingsController::resetToDefaults()
     emit autoReprocessAllEnabledChanged();
     emit lastExitCleanChanged();
     emit videoAutoPlayChanged();
+    emit videoAutoPlayOnSwitchChanged();
+    emit videoRestorePositionChanged();
     emit settingsChanged();
 }
 

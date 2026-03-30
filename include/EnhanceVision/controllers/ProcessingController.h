@@ -35,6 +35,54 @@ class TaskCoordinator;
 class ResourceManager;
 class AIEnginePool;
 
+class TaskSwitchSynchronizer : public QObject {
+    Q_OBJECT
+    
+public:
+    static TaskSwitchSynchronizer* instance() {
+        static TaskSwitchSynchronizer* s_instance = nullptr;
+        if (!s_instance) {
+            s_instance = new TaskSwitchSynchronizer();
+        }
+        return s_instance;
+    }
+    
+    void beginTaskSwitch(const QString& oldTaskId, const QString& newTaskId) {
+        QMutexLocker locker(&m_mutex);
+        m_currentSwitch = {oldTaskId, newTaskId, QDateTime::currentMSecsSinceEpoch()};
+        qInfo() << "[TaskSwitchSynchronizer] Begin switch from" << oldTaskId 
+                << "to" << newTaskId;
+    }
+    
+    void endTaskSwitch(const QString& taskId) {
+        QMutexLocker locker(&m_mutex);
+        if (m_currentSwitch.newTaskId == taskId || m_currentSwitch.oldTaskId == taskId) {
+            m_currentSwitch = {};
+            m_switchCompleteCv.notify_all();
+        }
+    }
+    
+    bool waitForSwitchComplete(int timeoutMs = 5000) {
+        std::unique_lock<std::mutex> lock(m_switchMutex);
+        return m_switchCompleteCv.wait_for(lock, std::chrono::milliseconds(timeoutMs),
+            [this]() { return m_currentSwitch.oldTaskId.isEmpty(); });
+    }
+    
+private:
+    TaskSwitchSynchronizer() = default;
+    
+    struct SwitchInfo {
+        QString oldTaskId;
+        QString newTaskId;
+        qint64 timestamp;
+    };
+    
+    mutable QMutex m_mutex;
+    std::mutex m_switchMutex;
+    std::condition_variable m_switchCompleteCv;
+    SwitchInfo m_currentSwitch;
+};
+
 struct PendingExport {
     QString taskId;
     QString messageId;
@@ -164,7 +212,7 @@ private:
     QHash<QString, TaskContext> m_taskContexts;
     int m_resourcePressure;
 
-    AIEngine* m_aiEngine;
+    AIEngine* m_aiEngine;  // 已废弃，保持为 nullptr，统一使用 m_aiEnginePool
     AIEnginePool* m_aiEnginePool;
     ModelRegistry* m_modelRegistry;
     QHash<QString, Message> m_taskMessages;

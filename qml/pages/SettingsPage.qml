@@ -408,21 +408,114 @@ Rectangle {
                             Layout.fillWidth: true
                             spacing: 12
 
-                            Text { text: qsTr("自动播放"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.minimumWidth: 80 }
+                            ColumnLayout {
+                                spacing: 2
+                                Text { text: qsTr("开/切自动播放"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.minimumWidth: 80 }
+                                Text { 
+                                    text: qsTr("点击视频进行放大查看（嵌入式和独立式）和点击左右导航按钮切换到视频时自动开始播放")
+                                    color: Theme.colors.primary
+                                    font.pixelSize: 11
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
+                            }
 
                             Item { Layout.fillWidth: true }
 
                             Switch {
                                 id: videoAutoPlaySwitch
+                                property bool updating: false
                                 checked: SettingsController.videoAutoPlay
                                 onToggled: {
-                                    SettingsController.videoAutoPlay = checked
+                                    if (!updating) {
+                                        SettingsController.videoAutoPlay = checked
+                                    }
                                 }
 
                                 Connections {
                                     target: SettingsController
                                     function onVideoAutoPlayChanged() {
+                                        videoAutoPlaySwitch.updating = true
                                         videoAutoPlaySwitch.checked = SettingsController.videoAutoPlay
+                                        videoAutoPlaySwitch.updating = false
+                                    }
+                                }
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 12
+
+                            ColumnLayout {
+                                spacing: 2
+                                Text { text: qsTr("源/结自动播放"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.minimumWidth: 80 }
+                                Text { 
+                                    text: qsTr("放大查看（嵌入式和独立式）切换源件/结果时自动播放")
+                                    color: Theme.colors.primary
+                                    font.pixelSize: 11
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
+                            }
+
+                            Item { Layout.fillWidth: true }
+
+                            Switch {
+                                id: videoAutoPlayOnSwitchSwitch
+                                property bool updating: false
+                                checked: SettingsController.videoAutoPlayOnSwitch
+                                onToggled: {
+                                    if (!updating) {
+                                        SettingsController.videoAutoPlayOnSwitch = checked
+                                    }
+                                }
+
+                                Connections {
+                                    target: SettingsController
+                                    function onVideoAutoPlayOnSwitchChanged() {
+                                        videoAutoPlayOnSwitchSwitch.updating = true
+                                        videoAutoPlayOnSwitchSwitch.checked = SettingsController.videoAutoPlayOnSwitch
+                                        videoAutoPlayOnSwitchSwitch.updating = false
+                                    }
+                                }
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 12
+
+                            ColumnLayout {
+                                spacing: 2
+                                Text { text: qsTr("源/结恢复进度"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.minimumWidth: 80 }
+                                Text { 
+                                    text: qsTr("放大查看（嵌入式和独立式）切换源件/结果时恢复播放进度")
+                                    color: Theme.colors.primary
+                                    font.pixelSize: 11
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
+                            }
+
+                            Item { Layout.fillWidth: true }
+
+                            Switch {
+                                id: videoRestorePositionSwitch
+                                property bool updating: false
+                                checked: SettingsController.videoRestorePosition
+                                onToggled: {
+                                    if (!updating) {
+                                        SettingsController.videoRestorePosition = checked
+                                    }
+                                }
+
+                                Connections {
+                                    target: SettingsController
+                                    function onVideoRestorePositionChanged() {
+                                        videoRestorePositionSwitch.updating = true
+                                        videoRestorePositionSwitch.checked = SettingsController.videoRestorePosition
+                                        videoRestorePositionSwitch.updating = false
                                     }
                                 }
                             }

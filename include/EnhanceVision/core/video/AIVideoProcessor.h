@@ -14,6 +14,7 @@
 #include <QImage>
 #include <QMutex>
 #include <QAtomicInt>
+#include <QFuture>
 #include <atomic>
 #include <memory>
 
@@ -35,6 +36,7 @@ public:
     
     void processAsync(const QString& inputPath, const QString& outputPath);
     void cancel();
+    void waitForFinished(int timeoutMs = 5000);
     
     bool isProcessing() const;
     double progress() const;
@@ -56,6 +58,7 @@ private:
     struct Impl;
     std::unique_ptr<Impl> m_impl;
     std::unique_ptr<ProgressReporter> m_progressReporter;
+    QFuture<void> m_processingFuture;
 };
 
 } // namespace EnhanceVision

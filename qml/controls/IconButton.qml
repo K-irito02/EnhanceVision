@@ -13,6 +13,7 @@ Button {
     property string tooltip: ""
     property int btnSize: 32
     property bool danger: false
+    property real iconRotation: 0  // 图标旋转角度
 
     width: btnSize
     height: btnSize
@@ -69,6 +70,7 @@ Button {
             anchors.centerIn: parent
             source: root.iconName !== "" ? Theme.icon(root.iconName) : ""
             iconSize: root.iconSize
+            rotation: root.iconRotation
             color: {
                 if (root.danger && root.hovered) return Theme.colors.textOnDestructive
                 if (root.hovered) return root.iconHoverColor

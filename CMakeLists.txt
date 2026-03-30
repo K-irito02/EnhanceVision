@@ -159,6 +159,9 @@ qt_add_executable(EnhanceVision
     src/core/AIEnginePool.cpp
     src/core/LifecycleSupervisor.cpp
     src/core/CancellableTaskToken.cpp
+    src/core/ai/AITaskQueue.cpp
+    src/core/ai/AIInferenceWorker.cpp
+    src/core/ai/AIInferenceService.cpp
     src/models/SessionModel.cpp
     src/models/FileModel.cpp
     src/models/ProcessingModel.cpp
@@ -200,6 +203,10 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/core/AIEnginePool.h
     include/EnhanceVision/core/LifecycleSupervisor.h
     include/EnhanceVision/core/CancellableTaskToken.h
+    include/EnhanceVision/core/ai/AIInferenceTypes.h
+    include/EnhanceVision/core/ai/AITaskQueue.h
+    include/EnhanceVision/core/ai/AIInferenceWorker.h
+    include/EnhanceVision/core/ai/AIInferenceService.h
     include/EnhanceVision/models/SessionModel.h
     include/EnhanceVision/models/FileModel.h
     include/EnhanceVision/models/ProcessingModel.h
@@ -277,6 +284,7 @@ qt_add_qml_module(EnhanceVision
         qml/components/AIModelPanel.qml
         qml/components/AIParamsPanel.qml
         qml/components/DialogTitleBar.qml
+        qml/components/VideoPlaybackController.qml
         qml/components/FullShaderEffect.qml
         qml/components/OffscreenShaderRenderer.qml
         qml/controls/IconButton.qml

@@ -21,7 +21,7 @@ Rectangle {
     
     property int completedCount: 0
     property int totalFileCount: mediaFiles ? mediaFiles.count : 0
-    property int estimatedRemainingSec: _calculateRemainingTime()
+    property int estimatedRemainingSec: 0
     
     property var _timeSamples: []
     property real _lastProgress: 0
@@ -29,23 +29,40 @@ Rectangle {
     property double _processingStartTime: 0
     property int _elapsedSec: 0
     
-    function _calculateRemainingTime() {
-        if (status !== 1 || progress <= 0) return 0
+    // 使用 onProgressChanged 更新剩余时间，避免绑定循环
+    onProgressChanged: {
+        _updateRemainingTime()
+    }
+    
+    on_ElapsedSecChanged: {
+        _updateRemainingTime()
+    }
+    
+    function _updateRemainingTime() {
+        if (status !== 1 || progress <= 0) {
+            estimatedRemainingSec = 0
+            return
+        }
         
+        // 检测进度回退（新任务开始）
         if (_lastProgress > 0 && progress < _lastProgress - 10) {
             _timeSamples = []
             _lastProgress = progress
-            return 0
+            estimatedRemainingSec = 0
+            return
         }
         
         if (_elapsedSec > 0 && progress > 1) {
             var rate = _elapsedSec / progress
             var remaining = Math.round(rate * (100 - progress))
             
-            _timeSamples.push(remaining)
-            if (_timeSamples.length > 5) {
-                _timeSamples.shift()
+            // 更新样本数组（创建新数组避免绑定循环）
+            var newSamples = _timeSamples.slice()
+            newSamples.push(remaining)
+            if (newSamples.length > 5) {
+                newSamples.shift()
             }
+            _timeSamples = newSamples
             
             var smoothed = 0
             for (var i = 0; i < _timeSamples.length; i++) {
@@ -54,10 +71,10 @@ Rectangle {
             smoothed = Math.round(smoothed / _timeSamples.length)
             
             _lastProgress = progress
-            return Math.max(0, Math.min(smoothed, 3600 * 24))
+            estimatedRemainingSec = Math.max(0, Math.min(smoothed, 3600 * 24))
+        } else {
+            estimatedRemainingSec = Math.max(0, Math.round((100 - progress) * 0.3))
         }
-        
-        return Math.max(0, Math.round((100 - progress) * 0.3))
     }
     
     Timer {

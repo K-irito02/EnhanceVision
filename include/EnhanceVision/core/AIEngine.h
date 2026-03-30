@@ -13,6 +13,8 @@
 #include <QPointer>
 #include <atomic>
 #include <memory>
+#include <mutex>
+#include <condition_variable>
 #include <net.h>
 #if NCNN_VULKAN
 #include <gpu.h>
@@ -38,6 +40,8 @@ class AIEngine : public QObject
     Q_PROPERTY(QString currentModelId READ currentModelId NOTIFY modelChanged)
     Q_PROPERTY(bool gpuAvailable READ gpuAvailable CONSTANT)
     Q_PROPERTY(bool useGpu READ useGpu WRITE setUseGpu NOTIFY useGpuChanged)
+
+    friend class AIEnginePool;
 
 public:
     explicit AIEngine(QObject *parent = nullptr);
@@ -88,6 +92,16 @@ public:
     Q_INVOKABLE void cancelProcess();
 
     /**
+     * @brief 重置取消标志（供引擎池在获取引擎时调用）
+     */
+    void resetCancelFlag();
+
+    /**
+     * @brief 同步Vulkan队列，等待所有GPU操作完成
+     */
+    void syncVulkanQueue();
+
+    /**
      * @brief 强制取消推理（立即终止）
      */
     Q_INVOKABLE void forceCancel();
@@ -96,6 +110,38 @@ public:
      * @brief 检查是否被强制取消
      */
     bool isForceCancelled() const;
+
+    /**
+     * @brief 重置引擎状态（用于任务完成后的清理）
+     * 
+     * 清除取消标志、OOM标志、错误状态等，确保引擎可被下一任务复用。
+     * 注意：不卸载模型，仅重置运行时状态。
+     */
+    Q_INVOKABLE void resetState();
+
+    /**
+     * @brief 清理 GPU 内存（用于任务间的显存回收）
+     * 
+     * 在不卸载模型的情况下，释放临时显存分配。
+     */
+    Q_INVOKABLE void cleanupGpuMemory();
+
+    /**
+     * @brief 确保 Vulkan 资源已就绪（用于首次推理前的预热）
+     * 
+     * 验证并初始化 Vulkan allocator，确保 GPU 资源可用。
+     * 在首帧处理前调用，避免首次推理时的延迟初始化问题。
+     */
+    void ensureVulkanReady();
+    
+    /**
+     * @brief 同步等待 Vulkan 初始化完成
+     * @param timeoutMs 超时时间（毫秒），默认 5000ms
+     * @return true 如果 Vulkan 已就绪，false 如果超时
+     * 
+     * 提供可靠的同步等待机制，确保 Vulkan 在推理前完全初始化。
+     */
+    Q_INVOKABLE bool waitForVulkanReady(int timeoutMs = 5000);
 
     /**
      * @brief OpenCV 图像修复（同步）
@@ -265,14 +311,25 @@ private:
     ModelInfo m_currentModel;
     QVariantMap m_parameters;
 
+    std::atomic<bool> m_vulkanReady{false};
+    std::atomic<bool> m_vulkanInitialized{false};
+    std::atomic<bool> m_allocatorNeedsInit{false};
+    std::mutex m_vulkanInitMutex;
+    std::condition_variable m_vulkanInitCv;
+    bool m_vulkanWarmupInProgress{false};
+    
     std::atomic<bool> m_isProcessing{false};
     std::atomic<double> m_progress{0.0};
     std::atomic<qint64> m_lastProgressEmitMs{0};
     std::atomic<bool> m_cancelRequested{false};
     std::atomic<bool> m_forceCancelled{false};
-    std::atomic<bool> m_gpuOomDetected{false};   // GPU OOM 自动降级标志
+    std::atomic<bool> m_gpuOomDetected{false};
     bool m_gpuAvailable = false;
     bool m_useGpu = true;
+    
+    void warmupVulkanPipeline();
+    void warmupVulkanPipelineSync();
+    void safeCleanup();
 
     // Thread-safe last error storage (written from worker thread, read in worker thread)
     mutable QMutex m_lastErrorMutex;
@@ -284,6 +341,8 @@ private:
     mutable QMutex m_inferenceMutex;
     // m_paramsMutex: 保护 m_parameters 读写，允许推理线程与 UI 线程并发访问参数
     mutable QMutex m_paramsMutex;
+    // m_allocatorMutex: 保护 Vulkan allocator 操作，避免与推理锁嵌套
+    mutable QMutex m_allocatorMutex;
 
     // 当前持有的 Vulkan allocator（需在 updateOptions 前显式释放）
     ncnn::VkAllocator* m_blobVkAllocator = nullptr;

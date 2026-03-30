@@ -41,20 +41,68 @@ AIEngine::~AIEngine()
 void AIEngine::initVulkan()
 {
 #if NCNN_VULKAN
-    ncnn::create_gpu_instance();
-
-    if (ncnn::get_gpu_count() > 0) {
-        m_gpuAvailable = true;
-        int gpuIndex = ncnn::get_default_gpu_index();
-        m_vkdev = ncnn::get_gpu_device(gpuIndex);
-        emit gpuAvailableChanged(true);
-    } else {
-        m_gpuAvailable = false;
-        qWarning() << "[AIEngine] No Vulkan GPU found, using CPU mode";
+    qInfo() << "[AIEngine][DEBUG] initVulkan() starting";
+    
+    m_vulkanReady.store(false);
+    m_vulkanInitialized.store(false);
+    m_vulkanWarmupInProgress = false;
+    
+    int retryCount = 0;
+    const int maxRetries = 5;
+    const int retryDelayMs = 100;
+    
+    while (retryCount < maxRetries && !m_gpuAvailable) {
+        ncnn::create_gpu_instance();
+        
+        int gpuCount = ncnn::get_gpu_count();
+        qInfo() << "[AIEngine][DEBUG] Vulkan GPU init attempt:" << (retryCount + 1)
+                << "gpuCount:" << gpuCount;
+        
+        if (gpuCount > 0) {
+            int gpuIndex = ncnn::get_default_gpu_index();
+            m_vkdev = ncnn::get_gpu_device(gpuIndex);
+            
+            if (m_vkdev) {
+                m_gpuAvailable = true;
+                qInfo() << "[AIEngine] Vulkan GPU initialized successfully:"
+                        << "index:" << gpuIndex
+                        << "device:" << m_vkdev->info.device_name();
+                
+                break;
+            } else {
+                qWarning() << "[AIEngine] Failed to get GPU device, retrying...";
+                ncnn::destroy_gpu_instance();
+            }
+        } else {
+            qWarning() << "[AIEngine] No Vulkan GPU found, retrying...";
+            ncnn::destroy_gpu_instance();
+        }
+        
+        retryCount++;
+        if (retryCount < maxRetries) {
+            QThread::msleep(retryDelayMs);
+        }
+    }
+    
+    if (!m_gpuAvailable) {
+        qWarning() << "[AIEngine] Vulkan GPU initialization failed after"
+                   << maxRetries << "attempts, using CPU mode";
+        m_vulkanReady.store(true);
+        m_vulkanInitialized.store(true);
+        m_vulkanInitCv.notify_all();
         emit gpuAvailableChanged(false);
+    } else {
+        warmupVulkanPipelineSync();
+        
+        m_vulkanReady.store(true);
+        m_vulkanInitialized.store(true);
+        m_vulkanInitCv.notify_all();
+        emit gpuAvailableChanged(true);
     }
 #else
     m_gpuAvailable = false;
+    m_vulkanReady.store(true);
+    m_vulkanInitialized.store(true);
     qWarning() << "[AIEngine] NCNN built without Vulkan support, using CPU mode";
     emit gpuAvailableChanged(false);
 #endif
@@ -112,6 +160,230 @@ void AIEngine::updateOptions()
 #endif
 }
 
+void AIEngine::ensureVulkanReady()
+{
+#if NCNN_VULKAN
+    if (!m_gpuAvailable || !m_useGpu || !m_vkdev) {
+        return;
+    }
+    
+    QMutexLocker allocatorLock(&m_allocatorMutex);
+    
+    // 【关键修复】每次推理前都重新初始化分配器
+    // 这可以避免分配器状态不一致导致的堆内存损坏
+    
+    // 先同步并清理现有分配器
+    if (m_blobVkAllocator || m_stagingVkAllocator) {
+        // 同步Vulkan队列
+        {
+            ncnn::VkCompute cmd(m_vkdev);
+            cmd.submit_and_wait();
+        }
+        
+        // 清理并回收分配器
+        if (m_blobVkAllocator) {
+            m_blobVkAllocator->clear();
+            m_vkdev->reclaim_blob_allocator(m_blobVkAllocator);
+            m_blobVkAllocator = nullptr;
+        }
+        if (m_stagingVkAllocator) {
+            m_stagingVkAllocator->clear();
+            m_vkdev->reclaim_staging_allocator(m_stagingVkAllocator);
+            m_stagingVkAllocator = nullptr;
+        }
+        
+        // 等待GPU完全空闲
+        QThread::msleep(50);
+    }
+    
+    // 获取新的分配器
+    m_blobVkAllocator = m_vkdev->acquire_blob_allocator();
+    m_stagingVkAllocator = m_vkdev->acquire_staging_allocator();
+    m_opt.blob_vkallocator = m_blobVkAllocator;
+    m_opt.workspace_vkallocator = m_stagingVkAllocator;
+    
+    // 同步确保分配器就绪
+    {
+        ncnn::VkCompute cmd(m_vkdev);
+        cmd.submit_and_wait();
+    }
+    
+    qInfo() << "[AIEngine][DEBUG] ensureVulkanReady() completed:"
+            << "blobAllocator:" << (m_blobVkAllocator != nullptr)
+            << "stagingAllocator:" << (m_stagingVkAllocator != nullptr);
+#endif
+}
+
+void AIEngine::warmupVulkanPipeline()
+{
+#if NCNN_VULKAN
+    if (!m_vkdev || m_vulkanWarmupInProgress) {
+        return;
+    }
+    
+    m_vulkanWarmupInProgress = true;
+    qInfo() << "[AIEngine][DEBUG] warmupVulkanPipeline() starting";
+    
+    QtConcurrent::run([this]() {
+        QElapsedTimer warmupTimer;
+        warmupTimer.start();
+        
+        ncnn::VkAllocator* warmupBlobAlloc = nullptr;
+        ncnn::VkAllocator* warmupStagingAlloc = nullptr;
+        
+        warmupBlobAlloc = m_vkdev->acquire_blob_allocator();
+        warmupStagingAlloc = m_vkdev->acquire_staging_allocator();
+        
+        if (warmupBlobAlloc && warmupStagingAlloc) {
+            ncnn::Mat dummy(64, 64, 3);
+            dummy.fill(0.5f);
+            
+            qInfo() << "[AIEngine][DEBUG] Vulkan pipeline warmup completed in"
+                    << warmupTimer.elapsed() << "ms";
+            
+            m_vkdev->reclaim_blob_allocator(warmupBlobAlloc);
+            m_vkdev->reclaim_staging_allocator(warmupStagingAlloc);
+        } else {
+            qWarning() << "[AIEngine][DEBUG] Vulkan pipeline warmup failed: allocators not available";
+        }
+        
+        m_vulkanReady.store(true);
+        m_vulkanInitCv.notify_all();
+        m_vulkanWarmupInProgress = false;
+        
+        emit gpuAvailableChanged(m_gpuAvailable);
+    });
+#else
+    m_vulkanReady.store(true);
+    m_vulkanInitCv.notify_all();
+#endif
+}
+
+void AIEngine::warmupVulkanPipelineSync()
+{
+#if NCNN_VULKAN
+    if (!m_vkdev) {
+        qWarning() << "[AIEngine][DEBUG] warmupVulkanPipelineSync: no Vulkan device";
+        return;
+    }
+    
+    qInfo() << "[AIEngine][DEBUG] warmupVulkanPipelineSync() starting (synchronous)";
+    
+    QElapsedTimer warmupTimer;
+    warmupTimer.start();
+    
+    // 【关键修复】进行多次Vulkan同步预热，确保GPU完全就绪
+    for (int i = 0; i < 3; ++i) {
+        ncnn::VkCompute cmd(m_vkdev);
+        cmd.submit_and_wait();
+        QThread::msleep(100);
+    }
+    
+    ncnn::VkAllocator* warmupBlobAlloc = nullptr;
+    ncnn::VkAllocator* warmupStagingAlloc = nullptr;
+    
+    warmupBlobAlloc = m_vkdev->acquire_blob_allocator();
+    warmupStagingAlloc = m_vkdev->acquire_staging_allocator();
+    
+    if (warmupBlobAlloc && warmupStagingAlloc) {
+        // 创建并清理分配器，确保它们处于干净状态
+        warmupBlobAlloc->clear();
+        warmupStagingAlloc->clear();
+        
+        // 再次同步
+        {
+            ncnn::VkCompute cmd(m_vkdev);
+            cmd.submit_and_wait();
+        }
+        
+        qInfo() << "[AIEngine][DEBUG] Vulkan pipeline sync warmup completed in"
+                << warmupTimer.elapsed() << "ms";
+        
+        m_vkdev->reclaim_blob_allocator(warmupBlobAlloc);
+        m_vkdev->reclaim_staging_allocator(warmupStagingAlloc);
+        
+        // 最终等待确保GPU完全空闲
+        QThread::msleep(200);
+    } else {
+        qWarning() << "[AIEngine][DEBUG] Vulkan pipeline sync warmup failed: allocators not available";
+    }
+#else
+    qInfo() << "[AIEngine][DEBUG] warmupVulkanPipelineSync: Vulkan not supported";
+#endif
+}
+
+bool AIEngine::waitForVulkanReady(int timeoutMs)
+{
+#if NCNN_VULKAN
+    if (!m_gpuAvailable || !m_useGpu) {
+        return true;
+    }
+    
+    if (m_vulkanReady.load() && m_vulkanInitialized.load()) {
+        return true;
+    }
+    
+    QElapsedTimer timer;
+    timer.start();
+    
+    while (timer.elapsed() < timeoutMs) {
+        if (m_vulkanReady.load() && m_vulkanInitialized.load()) {
+            qInfo() << "[AIEngine][DEBUG] waitForVulkanReady: Vulkan ready after"
+                    << timer.elapsed() << "ms";
+            return true;
+        }
+        QThread::msleep(10);
+    }
+    
+    qWarning() << "[AIEngine][DEBUG] waitForVulkanReady: timeout after"
+               << timeoutMs << "ms"
+               << "vulkanReady:" << m_vulkanReady.load()
+               << "vulkanInitialized:" << m_vulkanInitialized.load();
+    return false;
+#else
+    return true;
+#endif
+}
+
+void AIEngine::syncVulkanQueue()
+{
+#if NCNN_VULKAN
+    if (!m_gpuAvailable || !m_useGpu || !m_vkdev) {
+        return;
+    }
+    
+    QMutexLocker locker(&m_allocatorMutex);
+    
+    // 【关键修复】强制等待所有GPU操作完成
+    // 使用多次同步确保Vulkan队列完全清空
+    
+    // 第一次同步：提交并等待当前队列
+    {
+        ncnn::VkCompute cmd(m_vkdev);
+        cmd.submit_and_wait();
+    }
+    
+    // 清理分配器缓存
+    if (m_blobVkAllocator) {
+        m_blobVkAllocator->clear();
+    }
+    if (m_stagingVkAllocator) {
+        m_stagingVkAllocator->clear();
+    }
+    
+    // 第二次同步：确保清理操作完成
+    {
+        ncnn::VkCompute cmd(m_vkdev);
+        cmd.submit_and_wait();
+    }
+    
+    // 额外等待时间，确保GPU完全空闲
+    QThread::msleep(50);
+    
+    qInfo() << "[AIEngine][DEBUG] syncVulkanQueue() completed";
+#endif
+}
+
 // ========== 模型管理 ==========
 
 void AIEngine::setModelRegistry(ModelRegistry *registry)
@@ -163,24 +435,42 @@ bool AIEngine::loadModel(const QString &modelId)
 
     // 卸载旧模型并清理 GPU 内存
     if (!m_currentModelId.isEmpty()) {
+        // 【关键修复】在卸载模型前进行完整的Vulkan同步
+        // 确保所有GPU操作完成后再清理资源
+#if NCNN_VULKAN
+        if (m_vkdev && m_opt.use_vulkan_compute) {
+            QMutexLocker allocLock(&m_allocatorMutex);
+            
+            // 第一次同步
+            {
+                ncnn::VkCompute cmd(m_vkdev);
+                cmd.submit_and_wait();
+            }
+            
+            // 清理分配器
+            if (m_blobVkAllocator) {
+                m_blobVkAllocator->clear();
+            }
+            if (m_stagingVkAllocator) {
+                m_stagingVkAllocator->clear();
+            }
+            
+            // 第二次同步
+            {
+                ncnn::VkCompute cmd(m_vkdev);
+                cmd.submit_and_wait();
+            }
+            
+            // 等待GPU完全空闲
+            QThread::msleep(100);
+        }
+#endif
+        
         m_net.clear();
         m_currentModel.isLoaded = false;
         
-        // 清理 GPU 内存，防止切换模型时 GPU 状态损坏导致崩溃
-#if NCNN_VULKAN
-        if (m_vkdev) {
-            ncnn::VkAllocator* blobAlloc = m_vkdev->acquire_blob_allocator();
-            if (blobAlloc) {
-                blobAlloc->clear();
-                m_vkdev->reclaim_blob_allocator(blobAlloc);
-            }
-            ncnn::VkAllocator* stagingAlloc = m_vkdev->acquire_staging_allocator();
-            if (stagingAlloc) {
-                stagingAlloc->clear();
-                m_vkdev->reclaim_staging_allocator(stagingAlloc);
-            }
-        }
-#endif
+        // 额外等待，确保网络清理完成
+        QThread::msleep(50);
     }
 
     // 重置 GPU OOM 状态（换模型时重置）
@@ -206,6 +496,46 @@ bool AIEngine::loadModel(const QString &modelId)
     m_currentModel = info;
     m_currentModel.isLoaded = true;
     m_currentModel.layerCount = static_cast<int>(m_net.layers().size());
+
+    // 【关键修复】模型加载后进行Vulkan同步
+    // 确保Vulkan管道完全初始化
+#if NCNN_VULKAN
+    if (m_opt.use_vulkan_compute && m_vkdev) {
+        qInfo() << "[AIEngine][DEBUG] Performing Vulkan sync after model load";
+        
+        // 多次同步确保GPU就绪
+        for (int i = 0; i < 3; ++i) {
+            ncnn::VkCompute cmd(m_vkdev);
+            cmd.submit_and_wait();
+            QThread::msleep(50);
+        }
+        
+        // 清理分配器
+        {
+            QMutexLocker allocLock(&m_allocatorMutex);
+            if (m_blobVkAllocator) {
+                m_blobVkAllocator->clear();
+            }
+            if (m_stagingVkAllocator) {
+                m_stagingVkAllocator->clear();
+            }
+        }
+        
+        // 最终同步
+        {
+            ncnn::VkCompute cmd(m_vkdev);
+            cmd.submit_and_wait();
+        }
+        
+        // 等待GPU完全空闲
+        QThread::msleep(300);
+        
+        qInfo() << "[AIEngine][DEBUG] Vulkan sync after model load completed";
+    }
+#endif
+
+    qInfo() << "[AIEngine][DEBUG] Model loaded successfully:" << modelId
+            << "layers:" << m_currentModel.layerCount;
 
     emit modelLoaded(modelId);
     emit modelChanged();
@@ -244,6 +574,15 @@ QImage AIEngine::process(const QImage &input)
 {
     // 推理互斥：同一时刻只允许一次推理
     QMutexLocker inferenceLocker(&m_inferenceMutex);
+    
+    // 调试信息：输出推理开始信息
+    qInfo() << "[AIEngine][DEBUG] process() called:"
+            << "inputSize:" << input.width() << "x" << input.height()
+            << "format:" << input.format()
+            << "modelId:" << m_currentModelId
+            << "modelLoaded:" << m_currentModel.isLoaded
+            << "useGpu:" << m_useGpu
+            << "gpuAvailable:" << m_gpuAvailable;
 
     // 检查模型状态
     if (m_currentModelId.isEmpty() || !m_currentModel.isLoaded) {
@@ -326,6 +665,17 @@ QImage AIEngine::process(const QImage &input)
         qWarning() << "[AIEngine] GPU OOM previously detected: forcing tileSize=" << tileSize;
     }
 
+    // 确保 tileSize 不超过图像尺寸，避免产生过小的边缘分块
+    if (tileSize > 0) {
+        int minDim = std::min(workInput.width(), workInput.height());
+        if (tileSize > minDim) {
+            // 如果 tileSize 大于图像最小边，调整为图像尺寸（不分块）
+            tileSize = 0;
+            qInfo() << "[AIEngine] tileSize exceeds image dimension, disabling tiling for"
+                    << workInput.width() << "x" << workInput.height();
+        }
+    }
+    
     bool needTile = (tileSize > 0) &&
                     (workInput.width() > tileSize || workInput.height() > tileSize);
 
@@ -356,18 +706,14 @@ QImage AIEngine::process(const QImage &input)
             int fallbackTile = fallbackTiles[i];
             qWarning() << "[AIEngine] OOM retry attempt" << (i + 1) << "with tileSize=" << fallbackTile;
             
-            // 尝试清理 GPU 内存
+            // 尝试清理 GPU 内存（使用当前持有的 allocator）
 #if NCNN_VULKAN
             if (m_vkdev) {
-                ncnn::VkAllocator* allocator = m_vkdev->acquire_blob_allocator();
-                if (allocator) {
-                    allocator->clear();
-                    m_vkdev->reclaim_blob_allocator(allocator);
+                if (m_blobVkAllocator) {
+                    m_blobVkAllocator->clear();
                 }
-                allocator = m_vkdev->acquire_staging_allocator();
-                if (allocator) {
-                    allocator->clear();
-                    m_vkdev->reclaim_staging_allocator(allocator);
+                if (m_stagingVkAllocator) {
+                    m_stagingVkAllocator->clear();
                 }
             }
 #endif
@@ -516,8 +862,18 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
 
 void AIEngine::cancelProcess()
 {
+    qInfo() << "[AIEngine][DEBUG] cancelProcess() called"
+            << "threadId:" << QThread::currentThreadId()
+            << "wasProcessing:" << m_isProcessing.load();
     m_cancelRequested = true;
     setProcessing(false);
+}
+
+void AIEngine::resetCancelFlag()
+{
+    m_cancelRequested = false;
+    m_forceCancelled = false;
+    qInfo() << "[AIEngine][DEBUG] resetCancelFlag() called - cancel flags reset";
 }
 
 void AIEngine::forceCancel()
@@ -532,6 +888,111 @@ void AIEngine::forceCancel()
 bool AIEngine::isForceCancelled() const
 {
     return m_forceCancelled.load();
+}
+
+void AIEngine::resetState()
+{
+    qInfo() << "[AIEngine][DEBUG] resetState() called"
+            << "currentModel:" << m_currentModelId
+            << "wasProcessing:" << m_isProcessing.load();
+    
+    {
+        QMutexLocker inferenceLocker(&m_inferenceMutex);
+    }
+    
+    m_cancelRequested.store(false);
+    m_forceCancelled.store(false);
+    m_gpuOomDetected.store(false);
+    m_isProcessing.store(false);
+    m_progress.store(0.0);
+    m_lastProgressEmitMs.store(0);
+    
+    {
+        QMutexLocker locker(&m_lastErrorMutex);
+        m_lastError.clear();
+    }
+    
+    clearParameters();
+    
+    if (m_progressReporter) {
+        m_progressReporter->reset();
+    }
+}
+
+void AIEngine::safeCleanup()
+{
+    qInfo() << "[AIEngine][DEBUG] safeCleanup() called";
+    
+    QElapsedTimer waitTimer;
+    waitTimer.start();
+    const int kMaxWaitMs = 2000;
+    
+    while (m_isProcessing.load() && waitTimer.elapsed() < kMaxWaitMs) {
+        QThread::msleep(10);
+    }
+    
+    if (m_isProcessing.load()) {
+        qWarning() << "[AIEngine] safeCleanup: inference still running after timeout";
+    }
+    
+    {
+        QMutexLocker inferenceLocker(&m_inferenceMutex);
+    }
+    
+#if NCNN_VULKAN
+    if (m_vkdev) {
+        QMutexLocker locker(&m_mutex);
+        
+        if (m_blobVkAllocator) {
+            m_blobVkAllocator->clear();
+        }
+        if (m_stagingVkAllocator) {
+            m_stagingVkAllocator->clear();
+        }
+    }
+#endif
+    
+    m_cancelRequested.store(false);
+    m_forceCancelled.store(false);
+    m_gpuOomDetected.store(false);
+    m_isProcessing.store(false);
+    m_progress.store(0.0);
+    
+    clearParameters();
+    
+    if (m_progressReporter) {
+        m_progressReporter->reset();
+    }
+    
+    qInfo() << "[AIEngine][DEBUG] safeCleanup() completed";
+}
+
+void AIEngine::cleanupGpuMemory()
+{
+#if NCNN_VULKAN
+    if (!m_vkdev) {
+        return;
+    }
+    
+    qInfo() << "[AIEngine][DEBUG] cleanupGpuMemory() called"
+            << "currentModel:" << m_currentModelId
+            << "gpuOomDetected:" << m_gpuOomDetected.load();
+    
+    // 使用互斥锁保护 GPU 内存清理，防止与推理过程冲突
+    QMutexLocker locker(&m_mutex);
+    
+    // 【简化修复】只清理 allocator 中的临时分配，不重新获取
+    // 重新获取 allocator 可能导致 NCNN 网络内部状态不一致
+    if (m_blobVkAllocator) {
+        m_blobVkAllocator->clear();
+    }
+    if (m_stagingVkAllocator) {
+        m_stagingVkAllocator->clear();
+    }
+    
+    // 重置 OOM 标志
+    m_gpuOomDetected.store(false);
+#endif
 }
 
 // ========== OpenCV Inpainting (Qt 原生实现) ==========
@@ -834,6 +1295,12 @@ QImage AIEngine::matToQimage(const ncnn::Mat &mat, const ModelInfo &model)
 
 ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
 {
+    qInfo() << "[AIEngine][DEBUG] runInference:"
+            << "inputMat:" << input.w << "x" << input.h << "x" << input.c
+            << "modelId:" << model.id
+            << "inputBlob:" << model.inputBlobName
+            << "outputBlob:" << model.outputBlobName;
+    
     if (input.empty() || input.w <= 0 || input.h <= 0) {
         qWarning() << "[AIEngine][Inference] received empty input mat"
                    << "w:" << input.w << "h:" << input.h << "c:" << input.c;
@@ -861,18 +1328,30 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
         return ncnn::Mat();
     }
 
-    // 由于 m_mutex 与 loadModel/unloadModel 共享，推理期间也会持续持有
-    // 但 loadModel 端会通过 m_isProcessing 检查被阻止，因此实际上不会发生死锁
+    if (m_opt.use_vulkan_compute) {
+        ensureVulkanReady();
+    }
+
+    qInfo() << "[AIEngine][DEBUG] Acquiring mutex for inference";
     QMutexLocker netLocker(&m_mutex);
+    
+    qInfo() << "[AIEngine][DEBUG] Creating extractor";
     ncnn::Extractor ex = m_net.create_extractor();
-    ex.set_light_mode(true);
+    // 【关键修复】禁用 light_mode，确保每次推理使用独立的内存分配
+    // light_mode 会复用内存，可能导致连续推理时的内存冲突
+    ex.set_light_mode(false);
+    
+    qInfo() << "[AIEngine][DEBUG] Extractor created";
 
     QString selectedInputBlob;
     int inputRet = -1;
     for (const QString &candidate : inputCandidates) {
+        qInfo() << "[AIEngine][DEBUG] Trying input blob:" << candidate;
         inputRet = ex.input(candidate.toStdString().c_str(), input);
+        qInfo() << "[AIEngine][DEBUG] Input result:" << inputRet;
         if (inputRet == 0) {
             selectedInputBlob = candidate;
+            qInfo() << "[AIEngine][DEBUG] Input set successfully:" << candidate;
             break;
         }
     }
@@ -898,11 +1377,40 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
             gpuOomSeen = true;
         }
         if (extractRet == 0 && !tmp.empty()) {
-            output = std::move(tmp);
+            output = tmp.clone();  // 深拷贝，确保数据独立于extractor生命周期
             selectedOutputBlob = candidate;
             break;
         }
     }
+    
+    // 【关键修复】在推理完成后进行完整的Vulkan同步
+    // 确保GPU操作完成后再返回，避免连续推理时的堆内存损坏
+#if NCNN_VULKAN
+    if (m_opt.use_vulkan_compute && m_vkdev) {
+        // 第一次同步
+        {
+            ncnn::VkCompute cmd(m_vkdev);
+            cmd.submit_and_wait();
+        }
+        
+        // 清理分配器缓存
+        {
+            QMutexLocker allocLock(&m_allocatorMutex);
+            if (m_blobVkAllocator) {
+                m_blobVkAllocator->clear();
+            }
+            if (m_stagingVkAllocator) {
+                m_stagingVkAllocator->clear();
+            }
+        }
+        
+        // 第二次同步
+        {
+            ncnn::VkCompute cmd(m_vkdev);
+            cmd.submit_and_wait();
+        }
+    }
+#endif
 
     if (extractRet != 0 || output.empty()) {
         qWarning() << "[AIEngine][Inference] Failed to extract output blob"
@@ -927,22 +1435,56 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
 
 QImage AIEngine::processSingle(const QImage &input, const ModelInfo &model)
 {
+    qInfo() << "[AIEngine][DEBUG] processSingle() starting:"
+            << "inputSize:" << input.width() << "x" << input.height()
+            << "modelId:" << model.id;
+    fflush(stdout);
+    
     setProgress(0.02);
     setProgress(0.05);
+    
+    qInfo() << "[AIEngine][DEBUG] processSingle() calling qimageToMat";
+    fflush(stdout);
+    
     ncnn::Mat in = qimageToMat(input, model);
     if (in.empty()) {
         qWarning() << "[AIEngine][Single] qimageToMat failed";
         return QImage();
     }
+    
+    qInfo() << "[AIEngine][DEBUG] processSingle() qimageToMat done:"
+            << "matSize:" << in.w << "x" << in.h << "x" << in.c;
+    fflush(stdout);
+    
     if (m_cancelRequested) return QImage();
     setProgress(0.15);
+    
+    qInfo() << "[AIEngine][DEBUG] processSingle() calling runInference";
+    fflush(stdout);
+    
     ncnn::Mat out = runInference(in, model);
+    
+    qInfo() << "[AIEngine][DEBUG] processSingle() runInference returned:"
+            << "outSize:" << out.w << "x" << out.h << "x" << out.c
+            << "empty:" << out.empty();
+    fflush(stdout);
+    
     if (out.empty() || out.w <= 0 || out.h <= 0) {
         return QImage();
     }
     if (m_cancelRequested) return QImage();
     setProgress(0.85);
+    
+    qInfo() << "[AIEngine][DEBUG] processSingle() calling matToQimage";
+    fflush(stdout);
+    
     QImage result = matToQimage(out, model);
+    
+    qInfo() << "[AIEngine][DEBUG] processSingle() matToQimage done:"
+            << "resultSize:" << result.width() << "x" << result.height()
+            << "isNull:" << result.isNull();
+    fflush(stdout);
+    
     setProgress(0.95);
     return result;
 }
@@ -962,6 +1504,14 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
     int scale = model.scaleFactor;
     int w = input.width();
     int h = input.height();
+    
+    // 调试信息：输出分块处理参数
+    qInfo() << "[AIEngine][DEBUG] processTiled:"
+            << "inputSize:" << w << "x" << h
+            << "tileSize:" << tileSize
+            << "scale:" << scale
+            << "padding:" << model.tilePadding
+            << "layerCount:" << model.layerCount;
 
     if (tileSize <= 0) {
         qWarning() << "[AIEngine] invalid tileSize, falling back to processSingle";
@@ -1112,11 +1662,30 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
     int tileIndex = 0;
     int successfulTiles = 0;
     int consecutiveFailures = 0;
-    const int kMaxConsecutiveFailures = 2;
+    const int kMaxConsecutiveFailures = 3;  // 增加容错次数
+
+    qInfo() << "[AIEngine][DEBUG] Starting tiled processing:"
+            << "tilesX:" << tilesX
+            << "tilesY:" << tilesY
+            << "totalTiles:" << totalTiles
+            << "tileSize:" << tileSize
+            << "padding:" << padding;
 
     for (int ty = 0; ty < tilesY; ++ty) {
         for (int tx = 0; tx < tilesX; ++tx) {
-            if (m_cancelRequested) { painter.end(); return QImage(); }
+            // 取消检测：在每个分块处理前检查
+            if (m_cancelRequested) {
+                qInfo() << "[AIEngine][DEBUG] Tiled processing cancelled at tile" << tileIndex;
+                painter.end();
+                return QImage();
+            }
+            
+            // 强制取消检测
+            if (m_forceCancelled.load()) {
+                qInfo() << "[AIEngine][DEBUG] Tiled processing force-cancelled at tile" << tileIndex;
+                painter.end();
+                return QImage();
+            }
 
             // 快速失败：如果连续多个分块失败（可能是 GPU OOM 或状态损坏），立即返回
             if (consecutiveFailures >= kMaxConsecutiveFailures) {

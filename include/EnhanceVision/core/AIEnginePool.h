@@ -18,6 +18,13 @@ namespace EnhanceVision {
 class AIEngine;
 class ModelRegistry;
 
+enum class EngineState {
+    Uninitialized,
+    Ready,
+    InUse,
+    Error
+};
+
 class AIEnginePool : public QObject
 {
     Q_OBJECT
@@ -30,6 +37,9 @@ public:
     void release(const QString& taskId);
 
     AIEngine* engineForTask(const QString& taskId) const;
+    
+    // 返回池中第一个引擎（用于兼容旧的 aiEngine() 接口）
+    AIEngine* firstEngine() const;
 
     int poolSize() const;
     int availableCount() const;
@@ -50,11 +60,14 @@ signals:
 private:
     void createEngines(int count);
     void destroyEngines();
+    bool ensureEngineReady(int slotIndex);
 
     struct EngineSlot {
         AIEngine* engine = nullptr;
         QString taskId;
-        bool inUse = false;
+        EngineState state = EngineState::Uninitialized;
+        QString lastError;
+        bool wasUsed = false;
     };
 
     QList<EngineSlot> m_slots;
