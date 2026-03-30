@@ -45,8 +45,28 @@ trigger: glob
 | AIEnginePool | `core/AIEnginePool.cpp` | AI引擎池管理（2个并发） |
 | ProcessingEngine | `core/ProcessingEngine.cpp` | 图像/视频处理核心引擎 |
 | TaskCoordinator | `core/TaskCoordinator.cpp` | 任务协调与调度 |
+| TaskStateManager | `core/TaskStateManager.cpp` | 任务状态追踪与管理 |
 | ResourceManager | `core/ResourceManager.cpp` | 资源生命周期管理 |
 | FrameCache | `core/FrameCache.cpp` | 视频帧缓存管理 |
+| ModelRegistry | `core/ModelRegistry.cpp` | AI模型注册与发现 |
+| ProgressManager | `core/ProgressManager.cpp` | 进度聚合与分发 |
+| ProgressReporter | `core/ProgressReporter.cpp` | 进度报告接口 |
+| LifecycleSupervisor | `core/LifecycleSupervisor.cpp` | 组件生命周期监督 |
+| ImageProcessor | `core/ImageProcessor.cpp` | 图像处理管道 |
+| VideoProcessor | `core/VideoProcessor.cpp` | 视频处理管道 |
+| CancellableTaskToken | `core/CancellableTaskToken.cpp` | 任务取消令牌 |
+
+## 视频处理子模块
+
+| 组件 | 文件 | 职责 |
+|------|------|------|
+| AIVideoProcessor | `core/video/AIVideoProcessor.cpp` | AI视频增强处理 |
+| VideoFrameBuffer | `core/video/VideoFrameBuffer.cpp` | 视频帧缓冲管理 |
+| VideoResourceGuard | `core/video/VideoResourceGuard.cpp` | 视频资源守卫 |
+| VideoSizeAdapter | `core/video/VideoSizeAdapter.cpp` | 视频尺寸适配 |
+| VideoFormatConverter | `core/video/VideoFormatConverter.cpp` | 视频格式转换 |
+| VideoCompatibilityAnalyzer | `core/video/VideoCompatibilityAnalyzer.cpp` | 视频兼容性分析 |
+| VideoProcessorFactory | `core/video/VideoProcessorFactory.cpp` | 视频处理器工厂 |
 
 ## 数据流规范
 

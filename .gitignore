@@ -61,7 +61,7 @@ ShaderStackTrace*
 .qt/
 .qmake.files
 
-# Logs
+# Logs (commit for debugging)
 # logs/
 # *.log
 
@@ -77,11 +77,11 @@ Thumbs.db
 desktop.ini
 
 # Third-party libraries (do not commit)
-# third_party/
+third_party/
 
 # AI Models (large binary files, distribute separately)
 resources/models/
 
-# Test video assets
-# tests/testAssetsDirectory/video/
-# tests/testAssetsDirectory/image/
+# Test video assets (large files, distribute separately)
+tests/testAssetsDirectory/video/
+tests/testAssetsDirectory/image/
