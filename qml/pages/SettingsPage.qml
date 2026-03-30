@@ -244,20 +244,15 @@ Rectangle {
                             Item { Layout.fillWidth: true }
                             Switch {
                                 id: allSwitch
-                                property bool updating: false
                                 checked: SettingsController.autoReprocessAllEnabled
-                                onCheckedChanged: {
-                                    if (!updating && pressed) {
-                                        SettingsController.autoReprocessAllEnabled = checked
-                                    }
+                                onToggled: {
+                                    SettingsController.autoReprocessAllEnabled = checked
                                 }
                                 
                                 Connections {
                                     target: SettingsController
                                     function onAutoReprocessAllEnabledChanged() {
-                                        allSwitch.updating = true
                                         allSwitch.checked = SettingsController.autoReprocessAllEnabled
-                                        allSwitch.updating = false
                                     }
                                 }
                             }
@@ -270,20 +265,15 @@ Rectangle {
                             Item { Layout.fillWidth: true }
                             Switch {
                                 id: shaderSwitch
-                                property bool updating: false
                                 checked: SettingsController.autoReprocessShaderEnabled
-                                onCheckedChanged: {
-                                    if (!updating && pressed) {
-                                        SettingsController.autoReprocessShaderEnabled = checked
-                                    }
+                                onToggled: {
+                                    SettingsController.autoReprocessShaderEnabled = checked
                                 }
                                 
                                 Connections {
                                     target: SettingsController
                                     function onAutoReprocessShaderEnabledChanged() {
-                                        shaderSwitch.updating = true
                                         shaderSwitch.checked = SettingsController.autoReprocessShaderEnabled
-                                        shaderSwitch.updating = false
                                     }
                                 }
                             }
@@ -296,20 +286,15 @@ Rectangle {
                             Item { Layout.fillWidth: true }
                             Switch {
                                 id: aiSwitch
-                                property bool updating: false
                                 checked: SettingsController.autoReprocessAIEnabled
-                                onCheckedChanged: {
-                                    if (!updating && pressed) {
-                                        SettingsController.autoReprocessAIEnabled = checked
-                                    }
+                                onToggled: {
+                                    SettingsController.autoReprocessAIEnabled = checked
                                 }
                                 
                                 Connections {
                                     target: SettingsController
                                     function onAutoReprocessAIEnabledChanged() {
-                                        aiSwitch.updating = true
                                         aiSwitch.checked = SettingsController.autoReprocessAIEnabled
-                                        aiSwitch.updating = false
                                     }
                                 }
                             }
