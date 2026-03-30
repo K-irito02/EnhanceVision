@@ -1,12 +1,12 @@
 ---
 alwaysApply: false
 globs: ['**/*.qml', '**/*.js']
-description: 'QML代码规范 - 组件化、绑定、信号、资源引用与JS边界'
+description: 'QML代码规范 - 组件化、绑定、信号、资源引用'
 trigger: glob
 ---
 # QML 代码规范
 
-## 命名与文件
+## 命名规范
 
 | 类型 | 风格 | 示例 |
 |------|------|------|
@@ -15,59 +15,46 @@ trigger: glob
 | 属性 | camelCase | `currentIndex` |
 | 私有状态 | `_`前缀 | `_internalState` |
 
-## 组件结构
+## 组件结构顺序
 
-推荐顺序：`属性 → 信号 → 连接 → 函数 → 子组件`
-
-```qml
-Item {
-    id: root
-    
-    // 1. 公共属性
-    property string title: ""
-    
-    // 2. 私有属性
-    property var _internalData: null
-    
-    // 3. 别名
-    property alias buttonText: button.text
-    
-    // 4. 信号
-    signal clicked()
-    
-    // 5. 方法
-    function doSomething() { }
-    
-    // 6. 子组件
-    Button { id: button }
-}
+```
+1. id
+2. 公共属性
+3. 私有属性
+4. 别名
+5. 信号
+6. 方法
+7. Connections
+8. 子组件
 ```
 
-## 绑定与状态
+## 绑定规范
 
-- ✅ 优先声明式绑定
-- ✅ 复杂表达式提取函数或下沉 C++
-- ❌ 避免在绑定中进行重计算
+1. **优先声明式绑定**：避免命令式赋值
+2. **复杂表达式提取函数**：或下沉到 C++
+3. **绑定中添加空值检查**：`xxx !== undefined && xxx !== null`
 
 ## 信号与交互
 
-- 信号语义明确、参数最小
-- `Connections` 仅处理本组件相关事件
-- 交互逻辑避免分散到多个匿名处理器
+1. **信号语义明确**：参数最小化
+2. **Connections 仅处理本组件事件**
+3. **交互逻辑避免分散**：集中在一个处理器
 
 ## JavaScript 边界
 
-- JS 仅处理轻量 UI 逻辑
-- 业务逻辑、IO、重计算放 C++
-- ✅ 使用 `Qt.callLater()` 处理需要延迟的UI更新，避免状态闪烁
-- ✅ 属性绑定中添加 `undefined` 和 `null` 检查，确保数值安全
+1. **JS 仅处理轻量 UI 逻辑**
+2. **业务逻辑、IO、重计算放 C++**
+3. **延迟更新使用 `Qt.callLater()`**
+4. **禁止在 JS 中创建复杂对象**
 
 ## 资源与文本
 
-- 资源统一使用 QRC / Provider
-- 用户可见文本必须 `qsTr()`
+1. **资源统一使用 QRC / Provider**
+2. **用户可见文本必须 `qsTr()`**
+3. **图标使用 `Theme.icon()` + `ColoredIcon`**
 
-## 本文件边界
+## 性能规范
 
-- 仅定义 QML/JS 编码规范
-- 视觉规范见 `08-ui-design.md`
+1. **图像设置 `sourceSize`**：禁止无控制加载原图
+2. **列表使用 `ListView`**：避免大规模 `Repeater`
+3. **重组件使用 `Loader`**：延迟加载

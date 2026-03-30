@@ -107,8 +107,8 @@ Breaking change: Theme.icon() now requires theme parameter
 | `src/` | C++ 源码 |
 | `include/EnhanceVision/` | C++ 头文件 |
 | `qml/` | QML 源码 |
-| `resources/` | Qt 资源 |
-| `tests/` | 单元测试 |
+| `resources/` | Qt 资源（不含 models/） |
+| `tests/` | 单元测试（不含大型测试资源） |
 
 ### 构建配置（必须）
 
@@ -128,16 +128,129 @@ Breaking change: Theme.icon() now requires theme parameter
 | `docs/` | 项目文档 |
 | `.trae/` | Trae IDE 配置 |
 | `.windsurf/` | Windsurf IDE 配置 |
+| `.cursor/` | Cursor IDE 配置 |
 
-### 不推送的目录
+### 禁止推送的目录
 
-| 目录 | 说明 |
-|------|------|
-| `build/` | 构建产物 |
-| `logs/` | 日志文件 |
-| `third_party/` | 第三方库（gitignore） |
-| `resources/models/` | AI 模型文件（大型二进制，单独分发） |
-| `tests/testAssetsDirectory/video/` | 测试视频资源（大型文件） |
+| 目录 | 说明 | 原因 |
+|------|------|------|
+| `build/` | 构建产物 | 可重新生成，体积大 |
+| `logs/` | 日志文件 | 运行时产物，无需版本控制 |
+| `third_party/` | 第三方库 | 体积大，应单独管理 |
+| `resources/models/` | AI 模型文件 | 大型二进制，单独分发 |
+| `tests/testAssetsDirectory/video/` | 测试视频资源 | 大型文件 |
+| `tests/testAssetsDirectory/audio/` | 测试音频资源 | 大型文件 |
+| `.vs/` | Visual Studio 配置 | IDE 本地配置 |
+| `.idea/` | JetBrains IDE 配置 | IDE 本地配置 |
+| `.vscode/` | VS Code 配置 | IDE 本地配置 |
+
+## 标准提交流程
+
+### 提交前检查清单
+
+在执行 `git add` 之前，必须完成以下检查：
+
+```
+□ 1. 检查当前分支是否正确（main 或 feature 分支）
+□ 2. 运行 git status 了解所有变更
+□ 3. 确认没有误删重要文件
+□ 4. 确认没有包含禁止推送的目录
+□ 5. 检查是否有大文件（>1MB）
+□ 6. 确认 .gitignore 配置正确
+```
+
+### 提交命令模板
+
+```powershell
+# 步骤 1: 检查状态
+git status
+
+# 步骤 2: 添加文件（按类别分批添加，便于检查）
+# 核心代码
+git add src/ include/ qml/ resources/ tests/
+
+# 构建配置
+git add CMakeLists.txt CMakePresets.json
+
+# 项目配置
+git add README.md .gitignore .clang-format .clang-tidy
+
+# IDE 配置
+git add .trae/ .windsurf/ .cursor/
+
+# 文档
+git add docs/
+
+# 步骤 3: 检查暂存区
+git diff --staged --stat
+
+# 步骤 4: 确认无大文件
+git ls-files -s | ForEach-Object { 
+    $size = (Get-Item $_.Split()[3] -ErrorAction SilentlyContinue).Length
+    if ($size -gt 1MB) { Write-Output "$([math]::Round($size/1MB, 2)) MB - $($_.Split()[3])" } 
+}
+
+# 步骤 5: 提交
+git commit -m "<type>(<scope>): <subject>"
+
+# 步骤 6: 推送
+git push origin <branch>
+```
+
+### 快速提交脚本
+
+```powershell
+# 安全提交函数
+function Safe-GitCommit {
+    param(
+        [string]$Message,
+        [string[]]$Paths
+    )
+    
+    Write-Host "=== 提交前检查 ===" -ForegroundColor Cyan
+    
+    # 检查禁止目录
+    $forbidden = @("build/", "logs/", "third_party/", "resources/models/")
+    foreach ($path in $Paths) {
+        foreach ($forbiddenPath in $forbidden) {
+            if ($path -like "*$forbiddenPath*") {
+                Write-Host "错误: 禁止提交 $forbiddenPath" -ForegroundColor Red
+                return
+            }
+        }
+    }
+    
+    # 添加文件
+    git add $Paths
+    
+    # 检查大文件
+    Write-Host "`n检查大文件..." -ForegroundColor Yellow
+    $largeFiles = git ls-files -s | ForEach-Object { 
+        $file = $_.Split()[3]
+        $size = (Get-Item $file -ErrorAction SilentlyContinue).Length
+        if ($size -gt 1MB) { "$([math]::Round($size/1MB, 2)) MB - $file" }
+    }
+    
+    if ($largeFiles) {
+        Write-Host "警告: 发现大文件" -ForegroundColor Yellow
+        $largeFiles
+        $confirm = Read-Host "是否继续? (y/n)"
+        if ($confirm -ne "y") { return }
+    }
+    
+    # 显示变更统计
+    Write-Host "`n变更统计:" -ForegroundColor Cyan
+    git diff --staged --stat
+    
+    # 提交
+    git commit -m $Message
+    
+    Write-Host "`n提交完成，请执行 git push" -ForegroundColor Green
+}
+
+# 使用示例
+# Safe-GitCommit -Message "feat(ui): add dark theme" -Paths @("src/", "qml/", ".trae/")
+```
 
 ## 大文件处理
 
