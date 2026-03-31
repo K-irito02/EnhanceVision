@@ -247,37 +247,37 @@
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="199"/>
         <source>正在计算最优参数…</source>
-        <translation type="unfinished"></translation>
+        <translation>Calculating optimal parameters...</translation>
     </message>
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="199"/>
         <source>上传文件后将自动优化参数</source>
-        <translation type="unfinished"></translation>
+        <translation>Parameters will be auto-optimized after uploading files</translation>
     </message>
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="201"/>
         <source>视频</source>
-        <translation type="unfinished">Video</translation>
+        <translation>Video</translation>
     </message>
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="201"/>
         <source>图像</source>
-        <translation type="unfinished"></translation>
+        <translation>Image</translation>
     </message>
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="202"/>
         <source>自动优化已就绪</source>
-        <translation type="unfinished"></translation>
+        <translation>Auto-optimization ready</translation>
     </message>
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="219"/>
         <source>视频策略：优先稳定性（抑制帧间闪烁/拖影），适度降低质量参数</source>
-        <translation type="unfinished"></translation>
+        <translation>Video Strategy: Prioritize stability (reduce frame flickering/ghosting), moderately lower quality parameters</translation>
     </message>
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="220"/>
         <source>图像策略：优先质量（TTA、锐度、人像增强等均按最优值配置）</source>
-        <translation type="unfinished"></translation>
+        <translation>Image Strategy: Prioritize quality (TTA, sharpness, portrait enhancement configured optimally)</translation>
     </message>
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="237"/>
@@ -287,34 +287,34 @@
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="312"/>
         <source>手动</source>
-        <translation type="unfinished"></translation>
+        <translation>Manual</translation>
     </message>
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="336"/>
         <source>自动模式：根据图像分辨率与显存自动选择最优分块大小，推理时静默应用。</source>
-        <translation type="unfinished"></translation>
+        <translation>Auto Mode: Automatically select optimal tile size based on image resolution and VRAM, applied silently during inference.</translation>
     </message>
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="337"/>
         <source>手动模式：较小分块占用更少显存，但处理更慢。</source>
-        <translation type="unfinished"></translation>
+        <translation>Manual Mode: Smaller tiles use less VRAM but process slower.</translation>
     </message>
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="360"/>
         <source>重置</source>
-        <translation type="unfinished">Reset</translation>
+        <translation>Reset</translation>
     </message>
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="413"/>
         <location filename="../../qml/components/AIParamsPanel.qml" line="464"/>
         <source>开启</source>
-        <translation type="unfinished"></translation>
+        <translation>On</translation>
     </message>
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="413"/>
         <location filename="../../qml/components/AIParamsPanel.qml" line="464"/>
         <source>关闭</source>
-        <translation type="unfinished">Close</translation>
+        <translation>Off</translation>
     </message>
     <message>
         <source>可用</source>
@@ -328,17 +328,17 @@
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="243"/>
         <source>Vulkan</source>
-        <translation type="unfinished"></translation>
+        <translation>Vulkan</translation>
     </message>
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="243"/>
         <source>CPU 模式</source>
-        <translation type="unfinished"></translation>
+        <translation>CPU Mode</translation>
     </message>
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="261"/>
         <source>当前设备不支持 Vulkan GPU 加速，将使用 CPU 模式运行（速度较慢）。</source>
-        <translation type="unfinished"></translation>
+        <translation>Vulkan GPU acceleration is not supported on this device. Running in CPU mode (slower).</translation>
     </message>
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="292"/>
@@ -348,17 +348,17 @@
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="297"/>
         <source>自动推荐</source>
-        <translation type="unfinished"></translation>
+        <translation>Auto Recommended</translation>
     </message>
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="298"/>
         <source>自动（整图推理）</source>
-        <translation type="unfinished"></translation>
+        <translation>Auto (Full Image Inference)</translation>
     </message>
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="303"/>
         <source>不分块</source>
-        <translation type="unfinished"></translation>
+        <translation>No Tiling</translation>
     </message>
     <message>
         <location filename="../../qml/components/AIParamsPanel.qml" line="312"/>
