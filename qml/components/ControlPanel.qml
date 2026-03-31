@@ -299,6 +299,7 @@ Rectangle {
                         id: aiModelPanel
                         Layout.fillWidth: true
                         Layout.fillHeight: true
+                        Layout.minimumHeight: 200
 
                         selectedModelId: root.aiSelectedModelId
                         selectedCategory: root.aiSelectedCategory
@@ -317,12 +318,21 @@ Rectangle {
                         visible: root.aiSelectedModelId !== ""
                     }
 
-                    Components.AIParamsPanel {
-                        id: aiParamsPanel
+                    ScrollView {
+                        id: aiParamsScrollView
                         Layout.fillWidth: true
-                        Layout.preferredHeight: aiParamsPanel.implicitHeight
+                        Layout.preferredHeight: Math.min(aiParamsPanel.implicitHeight, 300)
+                        Layout.minimumHeight: 100
+                        clip: true
+                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                        ScrollBar.vertical.policy: ScrollBar.AsNeeded
                         visible: root.aiSelectedModelId !== ""
-                        modelId: root.aiSelectedModelId
+
+                        Components.AIParamsPanel {
+                            id: aiParamsPanel
+                            width: aiParamsScrollView.availableWidth - 4
+                            modelId: root.aiSelectedModelId
+                        }
                     }
                 }
             }
