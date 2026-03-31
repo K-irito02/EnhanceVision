@@ -1545,16 +1545,6 @@ ColumnLayout {
                         property int selectedIndex: -1
                         property bool hovered: false
 
-                        Rectangle {
-                            anchors.fill: parent
-                            anchors.margins: -2
-                            radius: parent.radius + 2
-                            border.width: categoryInput.activeFocus ? 2 : 0
-                            border.color: Theme.colors.ring
-                            color: "transparent"
-                            visible: categoryInput.activeFocus
-                        }
-
                         RowLayout {
                             anchors.fill: parent
                             spacing: 0

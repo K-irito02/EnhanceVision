@@ -52,17 +52,6 @@ TextField {
             return Theme.colors.inputBorder
         }
 
-        // 焦点环效果
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: -2
-            radius: parent.radius + 2
-            border.width: root.activeFocus ? 2 : 0
-            border.color: Theme.colors.ring
-            color: "transparent"
-            visible: root.activeFocus
-        }
-
         // 动画
         Behavior on color {
             ColorAnimation { duration: Theme.animation.fast; easing.type: Easing.OutCubic }
