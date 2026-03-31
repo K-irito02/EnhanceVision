@@ -2,9 +2,11 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import QtCore
 import EnhanceVision.Controllers
 import "../styles"
 import "../controls"
+import "../components"
 
 Rectangle {
     id: root
@@ -14,12 +16,53 @@ Rectangle {
     color: Theme.colors.background
 
     FolderDialog {
-        id: folderDialog
+        id: customDataPathDialog
+        title: qsTr("选择应用数据目录")
+        currentFolder: SettingsController.customDataPath !== "" ? "file:///" + SettingsController.customDataPath : StandardPaths.writableLocation(StandardPaths.HomeLocation)
+        onAccepted: {
+            var path = selectedFolder.toString().replace("file:///", "")
+            SettingsController.customDataPath = path
+        }
+    }
+
+    FolderDialog {
+        id: defaultSavePathDialog
         title: qsTr("选择默认保存路径")
         currentFolder: "file:///" + SettingsController.defaultSavePath
         onAccepted: {
             var path = selectedFolder.toString().replace("file:///", "")
             SettingsController.defaultSavePath = path
+        }
+    }
+
+    Dialog {
+        id: confirmClearDialog
+        anchors.fill: parent
+        property string clearType: ""
+        property string clearTitle: ""
+        property string clearMessage: ""
+
+        function showClearDialog(type, title, message) {
+            clearType = type
+            clearTitle = title
+            clearMessage = message
+            showDialog(clearTitle, clearMessage, Dialog.DialogType.Warning)
+        }
+
+        onPrimaryButtonClicked: {
+            var success = false
+            if (clearType === "ai") {
+                success = SettingsController.clearAIProcessedData()
+            } else if (clearType === "shaderImage") {
+                success = SettingsController.clearShaderImageData()
+            } else if (clearType === "shaderVideo") {
+                success = SettingsController.clearShaderVideoData()
+            } else if (clearType === "logs") {
+                success = SettingsController.clearLogs()
+            } else if (clearType === "all") {
+                success = SettingsController.clearAllCache()
+            }
+            clearCacheToast.show(success ? qsTr("清理完成") : qsTr("清理失败"))
         }
     }
 
@@ -151,45 +194,99 @@ Rectangle {
 
                 Rectangle {
                     Layout.fillWidth: true
-                    implicitHeight: behaviorCol.implicitHeight + 32
+                    implicitHeight: dataStorageCol.implicitHeight + 32
                     color: Theme.colors.card
                     border.width: 1
                     border.color: Theme.colors.cardBorder
                     radius: Theme.radius.lg
 
                     ColumnLayout {
-                        id: behaviorCol
+                        id: dataStorageCol
                         anchors.fill: parent
                         anchors.margins: 16
                         spacing: 14
 
                         RowLayout {
                             spacing: 8
-                            ColoredIcon { iconSize: 18; source: Theme.icon("folder"); color: Theme.colors.icon }
-                            Text { text: qsTr("行为"); color: Theme.colors.foreground; font.pixelSize: 15; font.weight: Font.DemiBold }
+                            ColoredIcon { iconSize: 18; source: Theme.icon("database"); color: Theme.colors.icon }
+                            Text { text: qsTr("数据存储"); color: Theme.colors.foreground; font.pixelSize: 15; font.weight: Font.DemiBold }
                         }
 
                         Rectangle { Layout.fillWidth: true; height: 1; color: Theme.colors.border }
 
-                        RowLayout {
+                        ColumnLayout {
                             Layout.fillWidth: true
-                            spacing: 12
+                            spacing: 6
 
-                            Text { text: qsTr("默认保存路径"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.minimumWidth: 80 }
+                            Text { text: qsTr("应用数据目录"); color: Theme.colors.foreground; font.pixelSize: 13 }
 
-                            TextField {
-                                id: savePathField
+                            RowLayout {
                                 Layout.fillWidth: true
-                                text: SettingsController.defaultSavePath
-                                readOnly: true
-                                size: "sm"
+                                spacing: 8
+
+                                TextField {
+                                    id: customDataPathField
+                                    Layout.fillWidth: true
+                                    text: SettingsController.customDataPath !== "" ? SettingsController.customDataPath : qsTr("使用系统默认路径")
+                                    readOnly: true
+                                    size: "sm"
+                                }
+
+                                Button {
+                                    text: qsTr("浏览...")
+                                    variant: "secondary"
+                                    size: "sm"
+                                    onClicked: customDataPathDialog.open()
+                                }
+
+                                Button {
+                                    text: qsTr("重置")
+                                    variant: "ghost"
+                                    size: "sm"
+                                    onClicked: SettingsController.customDataPath = ""
+                                    visible: SettingsController.customDataPath !== ""
+                                }
                             }
 
-                            Button {
-                                text: qsTr("浏览...")
-                                variant: "secondary"
-                                size: "sm"
-                                onClicked: folderDialog.open()
+                            Text {
+                                text: qsTr("存储 AI/Shader 处理结果等应用数据")
+                                color: Theme.colors.mutedForeground
+                                font.pixelSize: 11
+                            }
+                        }
+
+                        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.colors.border }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+
+                            Text { text: qsTr("默认导出路径"); color: Theme.colors.foreground; font.pixelSize: 13 }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+
+                                TextField {
+                                    id: savePathField
+                                    Layout.fillWidth: true
+                                    text: SettingsController.defaultSavePath
+                                    readOnly: true
+                                    size: "sm"
+                                }
+
+                                Button {
+                                    text: qsTr("浏览...")
+                                    variant: "secondary"
+                                    size: "sm"
+                                    onClicked: defaultSavePathDialog.open()
+                                }
+                            }
+
+                            Text {
+                                text: qsTr("导出处理结果时的默认保存位置")
+                                color: Theme.colors.mutedForeground
+                                font.pixelSize: 11
                             }
                         }
 
@@ -398,7 +495,7 @@ Rectangle {
                                 Text { text: qsTr("开/切自动播放"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.minimumWidth: 80 }
                                 Text { 
                                     text: qsTr("点击视频进行放大查看（嵌入式和独立式）和点击左右导航按钮切换到视频时自动开始播放")
-                                    color: Theme.colors.primary
+                                    color: Theme.colors.mutedForeground
                                     font.pixelSize: 11
                                     wrapMode: Text.Wrap
                                     Layout.fillWidth: true
@@ -437,7 +534,7 @@ Rectangle {
                                 Text { text: qsTr("源/结自动播放"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.minimumWidth: 80 }
                                 Text { 
                                     text: qsTr("放大查看（嵌入式和独立式）切换源件/结果时自动播放")
-                                    color: Theme.colors.primary
+                                    color: Theme.colors.mutedForeground
                                     font.pixelSize: 11
                                     wrapMode: Text.Wrap
                                     Layout.fillWidth: true
@@ -476,7 +573,7 @@ Rectangle {
                                 Text { text: qsTr("源/结恢复进度"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.minimumWidth: 80 }
                                 Text { 
                                     text: qsTr("放大查看（嵌入式和独立式）切换源件/结果时恢复播放进度")
-                                    color: Theme.colors.primary
+                                    color: Theme.colors.mutedForeground
                                     font.pixelSize: 11
                                     wrapMode: Text.Wrap
                                     Layout.fillWidth: true
@@ -510,39 +607,291 @@ Rectangle {
 
                 Rectangle {
                     Layout.fillWidth: true
-                    implicitHeight: perfCol.implicitHeight + 32
+                    implicitHeight: cacheCol.implicitHeight + 32
                     color: Theme.colors.card
                     border.width: 1
                     border.color: Theme.colors.cardBorder
                     radius: Theme.radius.lg
 
                     ColumnLayout {
-                        id: perfCol
+                        id: cacheCol
                         anchors.fill: parent
                         anchors.margins: 16
-                        spacing: 14
+                        spacing: 16
 
                         RowLayout {
+                            Layout.fillWidth: true
                             spacing: 8
-                            ColoredIcon { iconSize: 18; source: Theme.icon("cpu"); color: Theme.colors.icon }
-                            Text { text: qsTr("缓存"); color: Theme.colors.foreground; font.pixelSize: 15; font.weight: Font.DemiBold }
+
+                            ColoredIcon { iconSize: 18; source: Theme.icon("trash-2"); color: Theme.colors.icon }
+                            Text { text: qsTr("缓存管理"); color: Theme.colors.foreground; font.pixelSize: 15; font.weight: Font.DemiBold }
+
+                            Item { Layout.fillWidth: true }
                         }
 
                         Rectangle { Layout.fillWidth: true; height: 1; color: Theme.colors.border }
 
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: 12
-                            Text { text: qsTr("缓存管理"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.preferredWidth: 120 }
+                            spacing: 8
+
+                            Rectangle {
+                                implicitWidth: totalSizeRow.implicitWidth + 16
+                                implicitHeight: 28
+                                radius: Theme.radius.sm
+                                color: Theme.colors.primarySubtle
+
+                                Row {
+                                    id: totalSizeRow
+                                    anchors.centerIn: parent
+                                    spacing: 6
+
+                                    ColoredIcon {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        iconSize: 14
+                                        source: Theme.icon("hard-drive")
+                                        color: Theme.colors.primary
+                                    }
+
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: qsTr("可清理: %1").arg(SettingsController.formatSize(SettingsController.totalCacheSize))
+                                        color: Theme.colors.primary
+                                        font.pixelSize: 12
+                                        font.weight: Font.Medium
+                                    }
+                                }
+                            }
+
                             Button {
-                                text: qsTr("清除缩略图缓存")
-                                variant: "secondary"
+                                id: refreshButton
+                                text: qsTr("刷新")
+                                variant: "ghost"
                                 size: "sm"
-                                iconName: "trash"
+                                iconName: "refresh-cw"
                                 onClicked: {
-                                    var cachePath = Qt.standardPaths(Qt.StandardPaths.CacheLocation) + "/thumbnails"
-                                    fileController.clearCache(cachePath)
-                                    clearCacheToast.show()
+                                    SettingsController.refreshDataSize()
+                                    refreshToast.show()
+                                }
+                            }
+
+                            Rectangle {
+                                id: refreshToast
+                                implicitWidth: refreshToastRow.implicitWidth + 12
+                                implicitHeight: 24
+                                radius: Theme.radius.sm
+                                color: Theme.colors.successSubtle
+                                opacity: 0
+                                visible: opacity > 0
+
+                                function show() {
+                                    opacity = 1
+                                    refreshToastTimer.restart()
+                                }
+
+                                Row {
+                                    id: refreshToastRow
+                                    anchors.centerIn: parent
+                                    spacing: 4
+
+                                    ColoredIcon {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        iconSize: 12
+                                        source: Theme.icon("check")
+                                        color: Theme.colors.success
+                                    }
+
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: qsTr("已刷新")
+                                        color: Theme.colors.success
+                                        font.pixelSize: 11
+                                        font.weight: Font.Medium
+                                    }
+                                }
+
+                                Timer {
+                                    id: refreshToastTimer
+                                    interval: 2000
+                                    onTriggered: refreshToast.opacity = 0
+                                }
+
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
+                            }
+
+                            Item { Layout.fillWidth: true }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+
+                            Repeater {
+                                model: [
+                                    {
+                                        type: "ai",
+                                        title: qsTr("AI 处理结果"),
+                                        desc: qsTr("AI 增强处理后的图像和视频文件"),
+                                        size: SettingsController.aiProcessedSize,
+                                        icon: "cpu",
+                                        accentColor: Theme.colors.primary
+                                    },
+                                    {
+                                        type: "shaderImage",
+                                        title: qsTr("Shader 图像结果"),
+                                        desc: qsTr("Shader 滤镜处理后的图像文件"),
+                                        size: SettingsController.shaderImageSize,
+                                        icon: "image",
+                                        accentColor: Theme.colors.success
+                                    },
+                                    {
+                                        type: "shaderVideo",
+                                        title: qsTr("Shader 视频结果"),
+                                        desc: qsTr("Shader 滤镜处理后的视频文件"),
+                                        size: SettingsController.shaderVideoSize,
+                                        icon: "film",
+                                        accentColor: Theme.colors.warning
+                                    },
+                                    {
+                                        type: "logs",
+                                        title: qsTr("日志文件"),
+                                        desc: qsTr("运行日志和崩溃日志"),
+                                        size: SettingsController.logSize,
+                                        icon: "file-text",
+                                        accentColor: Theme.colors.mutedForeground
+                                    }
+                                ]
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    implicitHeight: 56
+                                    radius: Theme.radius.md
+                                    color: cacheItemMouse.containsMouse ? Theme.colors.accent : Theme.colors.surface
+                                    border.width: 1
+                                    border.color: cacheItemMouse.containsMouse ? Theme.colors.borderHover : Theme.colors.border
+
+                                    Behavior on color { ColorAnimation { duration: 100 } }
+                                    Behavior on border.color { ColorAnimation { duration: 100 } }
+
+                                    MouseArea {
+                                        id: cacheItemMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                    }
+
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 12
+                                        anchors.rightMargin: 12
+                                        spacing: 12
+
+                                        Rectangle {
+                                            width: 32
+                                            height: 32
+                                            radius: Theme.radius.sm
+                                            color: Qt.rgba(modelData.accentColor.r, modelData.accentColor.g, modelData.accentColor.b, 0.15)
+
+                                            ColoredIcon {
+                                                anchors.centerIn: parent
+                                                iconSize: 16
+                                                source: Theme.icon(modelData.icon)
+                                                color: modelData.accentColor
+                                            }
+                                        }
+
+                                        ColumnLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 2
+
+                                            Text {
+                                                text: modelData.title
+                                                color: Theme.colors.foreground
+                                                font.pixelSize: 13
+                                                font.weight: Font.Medium
+                                            }
+
+                                            Text {
+                                                text: modelData.desc
+                                                color: Theme.colors.mutedForeground
+                                                font.pixelSize: 11
+                                                elide: Text.ElideRight
+                                                Layout.fillWidth: true
+                                            }
+                                        }
+
+                                        Text {
+                                            text: SettingsController.formatSize(modelData.size)
+                                            color: modelData.size > 0 ? Theme.colors.foreground : Theme.colors.mutedForeground
+                                            font.pixelSize: 12
+                                            font.weight: Font.Medium
+                                        }
+
+                                        Button {
+                                            text: qsTr("清理")
+                                            variant: "ghost"
+                                            size: "sm"
+                                            iconName: "trash"
+                                            enabled: modelData.size > 0
+                                            onClicked: {
+                                                confirmClearDialog.showClearDialog(
+                                                    modelData.type,
+                                                    qsTr("确认清理"),
+                                                    qsTr("确定要清理 %1 吗？\n\n清理后需要重新处理才能恢复结果。").arg(modelData.title)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: bottomRow.implicitHeight + 12
+                            radius: Theme.radius.md
+                            color: Qt.rgba(Theme.colors.warning.r, Theme.colors.warning.g, Theme.colors.warning.b, 0.08)
+                            border.width: 1
+                            border.color: Qt.rgba(Theme.colors.warning.r, Theme.colors.warning.g, Theme.colors.warning.b, 0.2)
+
+                            RowLayout {
+                                id: bottomRow
+                                anchors.fill: parent
+                                anchors.leftMargin: 6
+                                anchors.rightMargin: 8
+                                anchors.topMargin: 6
+                                anchors.bottomMargin: 6
+                                spacing: 6
+
+                                ColoredIcon {
+                                    iconSize: 14
+                                    source: Theme.icon("alert-circle")
+                                    color: Theme.colors.warning
+                                }
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: qsTr("清理后可重新生成处理结果，但需要重新处理。")
+                                    color: Theme.colors.warning
+                                    font.pixelSize: 11
+                                    wrapMode: Text.Wrap
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+
+                                Button {
+                                    text: qsTr("清理全部")
+                                    variant: "destructive"
+                                    size: "sm"
+                                    iconName: "trash-2"
+                                    enabled: SettingsController.totalCacheSize > 0
+                                    onClicked: {
+                                        confirmClearDialog.showClearDialog(
+                                            "all",
+                                            qsTr("确认清理全部"),
+                                            qsTr("确定要清理所有可清理数据吗？\n\n共 %1，清理后需要重新处理才能恢复结果。").arg(SettingsController.formatSize(SettingsController.totalCacheSize))
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -585,9 +934,9 @@ Rectangle {
 
                             ColumnLayout {
                                 spacing: 2
-                                Text { text: "EnhanceVision v0.1.0"; color: Theme.colors.foreground; font.pixelSize: 14; font.weight: Font.DemiBold }
+                                Text { text: qsTr("EnhanceVision v0.1.0"); color: Theme.colors.foreground; font.pixelSize: 14; font.weight: Font.DemiBold }
                                 Text { text: qsTr("高性能图像与视频增强工具"); color: Theme.colors.mutedForeground; font.pixelSize: 12 }
-                                Text { text: "Built with Qt6 + NCNN"; color: Theme.colors.mutedForeground; font.pixelSize: 11; opacity: 0.7 }
+                                Text { text: qsTr("Built with Qt6 + NCNN"); color: Theme.colors.mutedForeground; font.pixelSize: 11; opacity: 0.7 }
                             }
                         }
                     }
@@ -610,7 +959,10 @@ Rectangle {
         opacity: 0
         visible: opacity > 0
 
-        function show() {
+        property alias message: toastText.text
+
+        function show(msg) {
+            message = msg
             opacity = 1
             toastTimer.restart()
         }
@@ -635,4 +987,11 @@ Rectangle {
     }
 
     Behavior on color { ColorAnimation { duration: Theme.animation.normal } }
+
+    Connections {
+        target: SettingsController
+        function onDataSizeChanged() {
+            SettingsController.refreshDataSize()
+        }
+    }
 }
