@@ -14,6 +14,7 @@
 #include "EnhanceVision/controllers/SessionController.h"
 #include "EnhanceVision/controllers/ProcessingController.h"
 #include "EnhanceVision/services/ImageExportService.h"
+#include "EnhanceVision/services/AutoSaveService.h"
 #include "EnhanceVision/providers/PreviewProvider.h"
 #include "EnhanceVision/providers/ThumbnailProvider.h"
 #include "EnhanceVision/core/LifecycleSupervisor.h"
@@ -215,6 +216,8 @@ void Application::initialize()
     }
 
     SettingsController::instance()->markAppRunning();
+
+    AutoSaveService::instance()->initialize();
 
     m_sessionController->loadSessions();
     m_sessionController->restoreThumbnails();

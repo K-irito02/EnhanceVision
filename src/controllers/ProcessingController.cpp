@@ -10,6 +10,7 @@
 #include "EnhanceVision/controllers/SessionController.h"
 #include "EnhanceVision/models/MessageModel.h"
 #include "EnhanceVision/services/ImageExportService.h"
+#include "EnhanceVision/services/AutoSaveService.h"
 #include "EnhanceVision/providers/ThumbnailProvider.h"
 #include "EnhanceVision/utils/ImageUtils.h"
 #include "EnhanceVision/core/TaskCoordinator.h"
@@ -527,7 +528,7 @@ void ProcessingController::startTask(QueueTask& task)
             
             if (ImageUtils::isImageFile(inputPath)) {
                 QFileInfo fileInfo(inputPath);
-                QString processedDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/processed";
+                QString processedDir = SettingsController::instance()->effectiveDataPath() + "/processed";
                 QDir().mkpath(processedDir);
                 QString outputPath = processedDir + "/" + QUuid::createUuid().toString(QUuid::WithoutBraces) + ".png";
                 
@@ -587,7 +588,7 @@ void ProcessingController::startTask(QueueTask& task)
 
             // 生成输出路径（统一到应用专用 processed 目录，避免原目录权限/覆盖问题）
             QFileInfo fileInfo(inputPath);
-            const QString processedDir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/processed/ai";
+            const QString processedDir = SettingsController::instance()->effectiveDataPath() + "/processed/ai";
             if (!QDir().mkpath(processedDir)) {
                 failTask(taskId, tr("无法创建AI输出目录: %1").arg(processedDir));
                 return;
@@ -727,6 +728,10 @@ void ProcessingController::completeTask(const QString& taskId, const QString& re
                 m_tasks[i].progress = 100;
                 emit taskCompleted(taskId, resultPath);
 
+                if (!resultPath.isEmpty()) {
+                    AutoSaveService::instance()->autoSaveResult(taskId, resultPath);
+                }
+
                 const Message msg = messageForSession(sessionId, messageId);
 
                 bool fileHandled = false;
@@ -845,7 +850,7 @@ void ProcessingController::processShaderVideoThumbnailAsync(const QString& taskI
 {
     const QString sessionId = resolveSessionIdForMessage(messageId);
 
-    QString processedDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/processed/shader_video";
+    QString processedDir = SettingsController::instance()->effectiveDataPath() + "/processed/shader_video";
     QDir().mkpath(processedDir);
     QFileInfo fi(filePath);
     QString outputPath = processedDir + "/" + fi.completeBaseName()
@@ -901,6 +906,8 @@ void ProcessingController::processShaderVideoThumbnailAsync(const QString& taskI
                     
                     updateFileStatusForSessionMessage(sessionId, messageId, fileId,
                         ProcessingStatus::Completed, outputPath);
+                    
+                    AutoSaveService::instance()->autoSaveResult(taskId, outputPath);
                 }
             } else {
                 updateFileStatusForSessionMessage(sessionId, messageId, fileId,
