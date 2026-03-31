@@ -133,12 +133,11 @@ Item {
                     radius: Theme.radius.xl
                     color: dialogIconBgColor
 
-                    Image {
+                    ColoredIcon {
                         anchors.centerIn: parent
-                        width: 22; height: 22
                         source: Theme.icon(dialogIconName)
-                        sourceSize: Qt.size(22, 22)
-                        smooth: true
+                        iconSize: 22
+                        color: dialogIconColor
                     }
                 }
 

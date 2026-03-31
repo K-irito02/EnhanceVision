@@ -116,7 +116,7 @@ Rectangle {
                 
                 ColoredIcon {
                     anchors.centerIn: parent
-                    source: Theme.icon("list-select")
+                    source: Theme.icon(root.batchMode ? "arrow-left" : "list-select")
                     iconSize: 16
                     color: root.batchMode ? Theme.colors.textOnPrimary : Theme.colors.icon
                 }
