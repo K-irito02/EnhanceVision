@@ -292,6 +292,16 @@ signals:
      */
     void errorOccurred(const QString &message);
 
+    /**
+     * @brief 模型即将重置信号（用于 QML 保存滚动位置）
+     */
+    void modelAboutToReset();
+
+    /**
+     * @brief 模型重置完成信号（用于 QML 恢复滚动位置）
+     */
+    void modelResetCompleted();
+
 private:
     struct FileStats {
         int success = 0;

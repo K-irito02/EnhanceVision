@@ -419,18 +419,30 @@ void MessageModel::setMessages(const QList<Message>& messages)
     const int newCount = messages.size();
     const int commonCount = qMin(oldCount, newCount);
 
-    for (int i = 0; i < commonCount; ++i) {
-        if (m_messages[i].id != messages[i].id) {
-            beginResetModel();
-            m_messages = messages;
-            endResetModel();
-            resetMessageFileStatsCache();
-            for (const Message& message : m_messages) {
-                emitMessageFileStatsChanged(message.id, message);
-                emit messageMediaFilesReloaded(message.id);
+    // 初始加载（从空到有消息）或消息ID不匹配时，使用 resetModel
+    bool needsReset = (oldCount == 0 && newCount > 0);
+    
+    if (!needsReset) {
+        for (int i = 0; i < commonCount; ++i) {
+            if (m_messages[i].id != messages[i].id) {
+                needsReset = true;
+                break;
             }
-            return;
         }
+    }
+    
+    if (needsReset) {
+        emit modelAboutToReset();
+        beginResetModel();
+        m_messages = messages;
+        endResetModel();
+        emit modelResetCompleted();
+        resetMessageFileStatsCache();
+        for (const Message& message : m_messages) {
+            emitMessageFileStatsChanged(message.id, message);
+            emit messageMediaFilesReloaded(message.id);
+        }
+        return;
     }
 
     QSet<QString> seenMessageIds;

@@ -15,18 +15,87 @@ Item {
     property var pendingViewer: null
     property var messageViewer: null
     property var minimizedDock: null
+    
+    property string currentSessionId: ""
+    
+    property bool isLastMessageFullyVisible: true
+    readonly property bool canOverlayLastMessage: !isLastMessageFullyVisible
 
     ListView {
         id: messageList
         anchors.fill: parent
         clip: true
         spacing: 12
-        bottomMargin: 12
+        
+        // 性能优化：增加缓存区域，预加载更多项目避免滚动时卡片收缩
+        cacheBuffer: 2000  // 缓存区域高度（像素）
+        displayMarginBeginning: 500  // 在可见区域上方额外渲染
+        displayMarginEnd: 500  // 在可见区域下方额外渲染
+        reuseItems: true  // 启用项目复用以提高性能
+        
+        // 会话切换时隐藏内容，避免用户看到滚动过程
+        opacity: isSessionSwitching ? 0 : 1
         
         property bool isScrolling: moving || flicking
         property int scrollTimeout: 0
+        property bool autoScrollEnabled: true
+        property bool userHasScrolledUp: false
+        property bool isSessionSwitching: false
+        
+        // 标记用户是否在当前会话中主动滚动过（用于决定是否保存位置）
+        property bool userHasInteracted: false
+        
+        // 当用户主动滚动时标记已交互
+        onMovingChanged: {
+            if (moving && !isSessionSwitching) {
+                userHasInteracted = true
+            }
+        }
+        
 
         model: root._hasRealModel ? messageModel : demoModel
+        
+        function scrollToBottom() {
+            if (messageList.count > 0) {
+                messageList.positionViewAtEnd()
+            }
+        }
+        
+        function scrollToBottomAnimated() {
+            if (messageList.count > 0) {
+                var targetY = Math.max(0, messageList.contentHeight - messageList.height)
+                if (Math.abs(messageList.contentY - targetY) > 5) {
+                    scrollAnimation.to = targetY
+                    scrollAnimation.restart()
+                }
+            }
+        }
+        
+        function scrollToBottomImmediate() {
+            if (messageList.count > 0) {
+                scrollAnimation.stop()
+                messageList.positionViewAtEnd()
+            }
+        }
+        
+        function isNearBottom() {
+            return messageList.atYEnd || 
+                   (messageList.contentHeight - messageList.contentY - messageList.height) < 100
+        }
+        
+        NumberAnimation {
+            id: scrollAnimation
+            target: messageList
+            property: "contentY"
+            duration: 300
+            easing.type: Easing.OutCubic
+            
+            onRunningChanged: {
+                if (!running) {
+                    messageList.positionViewAtEnd()
+                }
+            }
+        }
 
         delegate: MessageItem {
             id: msgDelegate
@@ -35,7 +104,8 @@ Item {
             required property int index
             required property var model
             
-            property bool shouldLoadContent: !messageList.isScrolling
+            // 始终加载内容，避免滚动时卡片收缩
+            property bool shouldLoadContent: true
 
             taskId: model.id || ""
             timestamp: model.timestamp ? Qt.formatDateTime(model.timestamp, "yyyy-MM-dd hh:mm:ss") : ""
@@ -353,9 +423,52 @@ Item {
         return defaultValue
     }
     
+    // 模型重置后恢复滚动位置的定时器
+    Timer {
+        id: restoreAfterResetTimer
+        interval: 100  // 给 ListView 足够时间计算内容高度
+        repeat: false
+        onTriggered: {
+            // 检查是否有保存的位置（只有用户主动滚动过才会保存）
+            var savedPos = root._sessionScrollPositions[root.currentSessionId]
+            if (savedPos !== undefined && savedPos.userHasInteracted) {
+                // 恢复到用户之前滚动到的位置
+                var targetY = Math.max(0, Math.min(savedPos.contentY, messageList.contentHeight - messageList.height)) + messageList.originY
+                messageList.contentY = targetY
+                messageList.userHasScrolledUp = savedPos.userHasScrolledUp
+                messageList.userHasInteracted = true
+            } else {
+                // 用户从未在此会话中滚动过，显示底部最新消息
+                messageList.positionViewAtEnd()
+                messageList.userHasScrolledUp = false
+                messageList.userHasInteracted = false
+            }
+            messageList.isSessionSwitching = false
+        }
+    }
+    
     Connections {
         target: root._hasRealModel ? messageModel : null
         enabled: root._hasRealModel
+
+        // 模型即将重置：只有用户主动滚动过才保存位置
+        function onModelAboutToReset() {
+            // 保存当前会话的位置（如果用户主动滚动过）
+            if (root.currentSessionId !== "" && messageList.userHasInteracted) {
+                root._sessionScrollPositions[root.currentSessionId] = {
+                    contentY: messageList.contentY - messageList.originY,
+                    userHasScrolledUp: messageList.userHasScrolledUp,
+                    userHasInteracted: true
+                }
+            }
+            messageList.isSessionSwitching = true
+        }
+        
+        // 模型重置完成：恢复滚动位置
+        function onModelResetCompleted() {
+            // 延迟执行，确保 ListView 内容高度已计算完成
+            restoreAfterResetTimer.restart()
+        }
 
         function _patchVisibleDelegate(messageId, fileId, fileStatus, resultPath) {
             if (!messageList.contentItem) {
@@ -423,6 +536,84 @@ Item {
                 root.messageViewer.close()
             }
         }
+        
+        function onMessageAdded(messageId) {
+            if (messageList.autoScrollEnabled || messageList.isNearBottom()) {
+                Qt.callLater(messageList.scrollToBottomAnimated)
+            }
+        }
+        
+        function onStatusUpdated(messageId, status) {
+            if (status === 2 && !messageList.userHasScrolledUp) {
+                Qt.callLater(messageList.scrollToBottomAnimated)
+            }
+        }
+    }
+    
+    Connections {
+        target: messageList
+        function onCountChanged() {
+            // 会话切换期间不自动滚动
+            if (messageList.count > 0 && !messageList.userHasScrolledUp && !messageList.isSessionSwitching) {
+                Qt.callLater(messageList.scrollToBottomAnimated)
+            }
+            Qt.callLater(root._updateLastMessageVisibility)
+        }
+        
+        function onMovingChanged() {
+            if (messageList.moving && !messageList.isNearBottom()) {
+                messageList.userHasScrolledUp = true
+            }
+            if (messageList.moving && messageList.isNearBottom()) {
+                messageList.userHasScrolledUp = false
+            }
+        }
+        
+        function onContentYChanged() {
+            Qt.callLater(root._updateLastMessageVisibility)
+        }
+        
+        function onHeightChanged() {
+            Qt.callLater(root._updateLastMessageVisibility)
+        }
+        
+        function onContentHeightChanged() {
+            Qt.callLater(root._updateLastMessageVisibility)
+        }
+    }
+    
+    // 会话滚动位置存储（只保存用户主动滚动过的会话）
+    property var _sessionScrollPositions: ({})
+    
+    function _updateLastMessageVisibility() {
+        if (messageList.count === 0) {
+            root.isLastMessageFullyVisible = true
+            return
+        }
+        
+        var lastIndex = messageList.count - 1
+        var lastDelegate = messageList.itemAtIndex(lastIndex)
+        if (!lastDelegate) {
+            root.isLastMessageFullyVisible = true
+            return
+        }
+        
+        var lastItemTop = lastDelegate.y
+        var lastItemBottom = lastDelegate.y + lastDelegate.height
+        var visibleTop = messageList.contentY
+        var visibleBottom = messageList.contentY + messageList.height
+        
+        root.isLastMessageFullyVisible = (lastItemTop >= visibleTop && lastItemBottom <= visibleBottom)
+    }
+    
+    Connections {
+        target: root.minimizedDock
+        enabled: root.minimizedDock !== null
+        function onHeightChanged() {
+            if (!messageList.userHasScrolledUp || messageList.isNearBottom()) {
+                Qt.callLater(messageList.scrollToBottom)
+            }
+        }
     }
 
     ListModel {
@@ -433,6 +624,7 @@ Item {
         if (!_hasRealModel) {
             _populateDemoData()
         }
+        Qt.callLater(messageList.scrollToBottom)
     }
 
     function _buildDemoMedia(targetModel, msgStatus) {

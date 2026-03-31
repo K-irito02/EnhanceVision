@@ -198,8 +198,17 @@ Rectangle {
                 id: messageListView
                 anchors.fill: parent
                 anchors.margins: 12
-                anchors.bottomMargin: pendingMinimizedDock.height + 12
+                anchors.bottomMargin: {
+                    var baseMargin = 12
+                    var dockHeight = pendingMinimizedDock.height
+                    if (!canOverlayLastMessage && root.hasFiles) {
+                        return baseMargin + dockHeight + pendingFilePreviewArea.height
+                    }
+                    return baseMargin + dockHeight
+                }
                 visible: root.hasMessages
+                
+                currentSessionId: root.currentSessionId
                 
                 // 传递容器和查看器引用
                 viewerContainer: messageAreaContainer
@@ -284,6 +293,7 @@ Rectangle {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
+                z: messageListView.canOverlayLastMessage ? 100 : 5
                 
                 onRestoreWindow: function(viewerId) {
                     if (viewerId === "pending-viewer") {
@@ -307,6 +317,7 @@ Rectangle {
         
         // ========== (2) 底部待处理文件预览区 ==========
         Rectangle {
+            id: pendingFilePreviewArea
             Layout.fillWidth: true
             Layout.preferredHeight: root.hasFiles ? 100 : 0
             visible: root.hasFiles
