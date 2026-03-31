@@ -538,6 +538,13 @@ ColumnLayout {
                         Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
                     }
                 }
+
+                Item {
+                    Layout.fillWidth: true
+                    height: categorySection.dropdownExpanded ? categorySection.dropdownHeight : 0
+                    visible: height > 0
+                    Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                }
             }
         }
     }
@@ -851,7 +858,7 @@ ColumnLayout {
         id: deleteCategoryDialog
         title: qsTr("删除类别")
         width: 380
-        height: deleteCategoryContent.implicitHeight + 40 + 32
+        height: Math.max(deleteCategoryContent.implicitHeight + 40 + 32, 300)
         color: "transparent"
         flags: Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
         modality: Qt.NonModal
@@ -1070,7 +1077,7 @@ ColumnLayout {
         id: addCategoryDialog
         title: qsTr("新建类别")
         width: 320
-        height: addCategoryContent.implicitHeight + 40 + 32
+        height: Math.max(addCategoryContent.implicitHeight + 40 + 32, 300)
         color: "transparent"
         flags: Qt.Window | Qt.FramelessWindowHint
         modality: Qt.ApplicationModal
@@ -1187,7 +1194,7 @@ ColumnLayout {
         id: renameCategoryDialog
         title: qsTr("重命名类别")
         width: 320
-        height: renameCategoryContent.implicitHeight + 40 + 32
+        height: Math.max(renameCategoryContent.implicitHeight + 40 + 32, 300)
         color: "transparent"
         flags: Qt.Window | Qt.FramelessWindowHint
         modality: Qt.ApplicationModal
@@ -1307,7 +1314,7 @@ ColumnLayout {
         id: renamePresetDialog
         title: qsTr("重命名风格")
         width: 320
-        height: renamePresetContent.implicitHeight + 40 + 32
+        height: Math.max(renamePresetContent.implicitHeight + 40 + 32, 300)
         color: "transparent"
         flags: Qt.Window | Qt.FramelessWindowHint
         modality: Qt.ApplicationModal
@@ -1427,7 +1434,7 @@ ColumnLayout {
         id: savePresetDialog
         title: qsTr("保存风格")
         width: 340
-        height: savePresetContent.implicitHeight + 40 + 32
+        height: Math.max(savePresetContent.implicitHeight + 40 + 32, 300)
         color: "transparent"
         flags: Qt.Window | Qt.FramelessWindowHint
         modality: Qt.ApplicationModal
@@ -1491,11 +1498,9 @@ ColumnLayout {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: savePresetTitleBar.bottom
-                anchors.bottom: parent.bottom
                 anchors.leftMargin: 20
                 anchors.rightMargin: 20
                 anchors.topMargin: 16
-                anchors.bottomMargin: 16
                 spacing: 12
 
                 Text {
@@ -1522,7 +1527,7 @@ ColumnLayout {
                 Item {
                     id: categorySection
                     Layout.fillWidth: true
-                    height: categorySelector.height
+                    Layout.preferredHeight: categorySelector.height + (categorySection.dropdownExpanded ? (categorySection.dropdownHeight + 4) : 0)
 
                     property bool dropdownExpanded: false
                     property real dropdownHeight: 80
