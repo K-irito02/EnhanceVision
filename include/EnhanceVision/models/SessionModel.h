@@ -241,6 +241,13 @@ signals:
     void sessionMoved(int fromIndex, int toIndex);
 
     /**
+     * @brief 会话列表重新排序信号
+     * 当会话列表被重新排序（置顶/取消置顶/拖拽排序）后发出，
+     * 用于通知外部更新索引缓存
+     */
+    void sessionsReordered();
+
+    /**
      * @brief 错误信号
      * @param message 错误信息
      */

@@ -39,6 +39,7 @@ SessionController::SessionController(QObject* parent)
     , m_sessionNotifyTimer(new QTimer(this))
 {
     connect(m_sessionModel, &SessionModel::errorOccurred, this, &SessionController::errorOccurred);
+    connect(m_sessionModel, &SessionModel::sessionsReordered, this, &SessionController::rebuildSessionMessageIndex);
 
     m_saveTimer->setSingleShot(true);
     m_saveTimer->setInterval(1800);
@@ -188,13 +189,13 @@ QString SessionController::createSession(const QString& name)
     session.isSelected = false;
     session.isPinned = false;
     session.sortIndex = m_sessionModel->rowCount();
-
+ 
     m_sessionModel->addSession(session);
     rebuildSessionMessageIndex();
-
+ 
     emit sessionCreated(session.id);
     emit sessionCountChanged();
-
+ 
     return session.id;
 }
 

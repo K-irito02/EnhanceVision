@@ -420,11 +420,9 @@ void SessionModel::moveSession(int fromIndex, int toIndex)
         return;
     }
 
-    // 检查是否跨越置顶/非置顶边界
     bool fromPinned = m_sessions[fromIndex].isPinned;
     bool toPinned = m_sessions[toIndex].isPinned;
 
-    // 不允许非置顶会话移动到置顶区域，反之亦然
     if (fromPinned != toPinned) {
         emit errorOccurred(tr("不能跨越置顶区域移动会话"));
         return;
@@ -437,6 +435,7 @@ void SessionModel::moveSession(int fromIndex, int toIndex)
 
     updateSortIndices();
     emit sessionMoved(fromIndex, toIndex);
+    emit sessionsReordered();
 }
 
 void SessionModel::selectAll()
@@ -465,7 +464,6 @@ void SessionModel::sortSessions()
 {
     beginResetModel();
     
-    // 分离置顶和非置顶会话
     QList<Session> pinnedSessions;
     QList<Session> normalSessions;
     
@@ -477,7 +475,6 @@ void SessionModel::sortSessions()
         }
     }
     
-    // 按sortIndex排序
     std::sort(pinnedSessions.begin(), pinnedSessions.end(), 
               [](const Session &a, const Session &b) {
                   return a.sortIndex < b.sortIndex;
@@ -487,7 +484,6 @@ void SessionModel::sortSessions()
                   return a.sortIndex < b.sortIndex;
               });
     
-    // 合并：置顶在前
     m_sessions.clear();
     m_sessions.append(pinnedSessions);
     m_sessions.append(normalSessions);
@@ -495,6 +491,7 @@ void SessionModel::sortSessions()
     endResetModel();
     
     updateSortIndices();
+    emit sessionsReordered();
 }
 
 void SessionModel::updateSortIndices()
