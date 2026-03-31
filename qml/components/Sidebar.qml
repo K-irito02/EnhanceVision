@@ -118,7 +118,7 @@ Rectangle {
                     anchors.centerIn: parent
                     source: Theme.icon(root.batchMode ? "arrow-left" : "list-select")
                     iconSize: 16
-                    color: root.batchMode ? Theme.colors.textOnPrimary : Theme.colors.icon
+                    color: root.batchMode ? Theme.colors.primary : Theme.colors.icon
                 }
                 
                 MouseArea {

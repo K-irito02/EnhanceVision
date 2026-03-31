@@ -328,7 +328,7 @@ Rectangle {
                 
                 IconButton {
                     iconName: "refresh-cw"; iconSize: 14; btnSize: 26
-                    iconColor: Theme.colors.iconActive
+                    iconColor: Theme.colors.icon
                     tooltip: qsTr("重新处理失败文件")
                     visible: root.hasFailedFiles
                     onClicked: root.retryFailedFilesClicked()
@@ -336,7 +336,7 @@ Rectangle {
                 
                 IconButton {
                     iconName: "download"; iconSize: 14; btnSize: 26
-                    iconColor: Theme.colors.iconActive
+                    iconColor: Theme.colors.icon
                     tooltip: qsTr("保存成功文件")
                     visible: root.successFileCount > 0
                     onClicked: root.saveSuccessfulFilesClicked()
