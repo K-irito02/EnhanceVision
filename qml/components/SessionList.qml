@@ -48,38 +48,72 @@ Item {
         property bool isDragging: false
         property real dragMouseY: 0
 
+        // 其他项被挤开时的平滑过渡
         displaced: Transition {
             NumberAnimation {
-                properties: "y"
-                duration: 250
-                easing.type: Easing.OutCubic
+                properties: "x, y"
+                duration: 300
+                easing.type: Easing.OutQuart
             }
         }
 
+        // 新增项的入场动画：从上方滑入 + 淡入 + 轻微缩放
         add: Transition {
-            NumberAnimation {
-                property: "opacity"
-                from: 0
-                to: 1
-                duration: 150
-                easing.type: Easing.OutCubic
+            ParallelAnimation {
+                NumberAnimation {
+                    property: "opacity"
+                    from: 0
+                    to: 1
+                    duration: 250
+                    easing.type: Easing.OutQuart
+                }
+                NumberAnimation {
+                    property: "y"
+                    from: -20
+                    duration: 300
+                    easing.type: Easing.OutBack
+                    easing.overshoot: 0.8
+                }
+                NumberAnimation {
+                    property: "scale"
+                    from: 0.95
+                    to: 1.0
+                    duration: 250
+                    easing.type: Easing.OutQuart
+                }
             }
         }
 
+        // 移除项的退场动画：淡出 + 向左滑出 + 缩小
         remove: Transition {
-            NumberAnimation {
-                property: "opacity"
-                to: 0
-                duration: 100
-                easing.type: Easing.InCubic
+            ParallelAnimation {
+                NumberAnimation {
+                    property: "opacity"
+                    to: 0
+                    duration: 200
+                    easing.type: Easing.InQuart
+                }
+                NumberAnimation {
+                    property: "x"
+                    to: -30
+                    duration: 200
+                    easing.type: Easing.InQuart
+                }
+                NumberAnimation {
+                    property: "scale"
+                    to: 0.9
+                    duration: 200
+                    easing.type: Easing.InQuart
+                }
             }
         }
 
+        // 移动项的平滑过渡
         move: Transition {
             NumberAnimation {
-                properties: "y"
-                duration: 250
-                easing.type: Easing.OutCubic
+                properties: "x, y"
+                duration: 300
+                easing.type: Easing.OutQuart
             }
         }
 

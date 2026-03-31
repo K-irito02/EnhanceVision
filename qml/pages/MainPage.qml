@@ -201,14 +201,19 @@ Rectangle {
                 anchors.bottomMargin: {
                     var baseMargin = 12
                     var dockHeight = pendingMinimizedDock.height
-                    if (!canOverlayLastMessage && root.hasFiles) {
-                        return baseMargin + dockHeight + pendingFilePreviewArea.height
+                    // 预览区域已在 ColumnLayout 中占据空间，这里只需要为停靠区域预留空间
+                    // 当允许覆盖时，不预留额外空间
+                    if (effectiveCanOverlay) {
+                        return baseMargin
                     }
+                    // 最新消息卡片完整显示时，只需要为停靠区域预留空间
                     return baseMargin + dockHeight
                 }
                 visible: root.hasMessages
                 
                 currentSessionId: root.currentSessionId
+                hasFiles: root.hasFiles
+                previewAreaHeight: pendingFilePreviewArea.height  // 传递预览区域高度
                 
                 // 传递容器和查看器引用
                 viewerContainer: messageAreaContainer
@@ -293,7 +298,7 @@ Rectangle {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
-                z: messageListView.canOverlayLastMessage ? 100 : 5
+                z: messageListView.effectiveCanOverlay ? 100 : 5
                 
                 onRestoreWindow: function(viewerId) {
                     if (viewerId === "pending-viewer") {
@@ -322,6 +327,7 @@ Rectangle {
             Layout.preferredHeight: root.hasFiles ? 100 : 0
             visible: root.hasFiles
             color: Theme.colors.card
+            z: messageListView.effectiveCanOverlay ? 100 : 5
             
             Behavior on Layout.preferredHeight {
                 NumberAnimation { duration: Theme.animation.normal; easing.type: Easing.OutCubic }

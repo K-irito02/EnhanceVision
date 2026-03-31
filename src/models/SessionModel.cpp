@@ -292,9 +292,21 @@ Session SessionModel::sessionAt(int index) const
 
 void SessionModel::addSession(const Session &session)
 {
-    beginInsertRows(QModelIndex(), m_sessions.size(), m_sessions.size());
-    m_sessions.append(session);
+    // 计算插入位置：置顶会话之后，普通会话的最前面
+    int insertIndex = 0;
+    for (int i = 0; i < m_sessions.size(); ++i) {
+        if (!m_sessions[i].isPinned) {
+            insertIndex = i;
+            break;
+        }
+        insertIndex = i + 1;
+    }
+    
+    beginInsertRows(QModelIndex(), insertIndex, insertIndex);
+    m_sessions.insert(insertIndex, session);
     endInsertRows();
+    
+    updateSortIndices();
     emit countChanged();
 }
 

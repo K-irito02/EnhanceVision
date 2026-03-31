@@ -17,9 +17,16 @@ Item {
     property var minimizedDock: null
     
     property string currentSessionId: ""
+    property bool hasFiles: false
+    property real previewAreaHeight: 0  // 待处理预览区域高度
     
     property bool isLastMessageFullyVisible: true
     readonly property bool canOverlayLastMessage: !isLastMessageFullyVisible
+    
+    // 锁定机制：当预览区域出现时，锁定覆盖模式，避免滚动时反复调整导致闪烁
+    property bool _overlayModeLocked: false
+    property bool _lockedCanOverlay: false
+    readonly property bool effectiveCanOverlay: _overlayModeLocked ? _lockedCanOverlay : canOverlayLastMessage
 
     ListView {
         id: messageList
@@ -613,6 +620,52 @@ Item {
             if (!messageList.userHasScrolledUp || messageList.isNearBottom()) {
                 Qt.callLater(messageList.scrollToBottom)
             }
+        }
+    }
+    
+    // 监听预览区域高度变化，与最小化停靠区域使用相同的滚动逻辑
+    onPreviewAreaHeightChanged: {
+        // 当预览区域高度从 0 增加时（出现），检查是否需要滚动
+        if (previewAreaHeight > 0) {
+            // 如果已锁定且锁定时最新消息完整显示（不允许覆盖），则需要滚动
+            // _lockedCanOverlay 为 false 表示锁定时最新消息完整显示
+            if (root._overlayModeLocked && !root._lockedCanOverlay && messageList.count > 0) {
+                previewScrollTimer.restart()
+            }
+        }
+        // 当预览区域消失时，更新可见性
+        if (previewAreaHeight === 0) {
+            Qt.callLater(root._updateLastMessageVisibility)
+        }
+    }
+    
+    // 预览区域出现时的滚动定时器
+    Timer {
+        id: previewScrollTimer
+        interval: 50  // 短延迟，确保布局计算完成
+        repeat: false
+        onTriggered: {
+            if (messageList.count > 0) {
+                messageList.scrollToBottomAnimated()
+            }
+        }
+    }
+    
+    Connections {
+        target: root
+        function onHasFilesChanged() {
+            if (root.hasFiles) {
+                // 预览区域出现时，锁定当前的覆盖模式
+                root._lockedCanOverlay = root.canOverlayLastMessage
+                root._overlayModeLocked = true
+                
+                // 注意：滚动逻辑已移至 onPreviewAreaHeightChanged，
+                // 这样可以在布局实际变化时触发，而不是在 hasFiles 变化时
+            } else {
+                // 预览区域消失时，解锁覆盖模式
+                root._overlayModeLocked = false
+            }
+            Qt.callLater(root._updateLastMessageVisibility)
         }
     }
 
