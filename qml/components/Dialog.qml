@@ -42,7 +42,7 @@ Item {
     readonly property color dialogIconBgColor: {
         switch (type) {
             case Dialog.DialogType.Success: return Theme.colors.successSubtle
-            case Dialog.DialogType.Warning: return Theme.colors.warningSubtle
+            case Dialog.DialogType.Warning: return Theme.isDark ? Qt.rgba(245, 158, 11, 0.2) : Qt.rgba(245, 158, 11, 0.15)
             case Dialog.DialogType.Error:   return Theme.colors.destructiveSubtle
             default:                        return Theme.colors.primarySubtle
         }
@@ -108,9 +108,9 @@ Item {
         id: dialogRect
         x: dialogPos.x
         y: dialogPos.y
-        width: Math.min(440, parent.width - 48)
-        implicitHeight: contentColumn.implicitHeight + 48
-        radius: Theme.radius.xxl
+        width: Math.min(380, parent.width - 48)
+        implicitHeight: contentColumn.implicitHeight + 36
+        radius: Theme.radius.xl
         color: Theme.colors.card
         border.color: Theme.colors.cardBorder
         border.width: 1
@@ -120,23 +120,23 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.margins: 24
-            spacing: 16
+            anchors.margins: 18
+            spacing: 12
 
             RowLayout {
                 id: titleRow
                 Layout.fillWidth: true
-                spacing: 14
+                spacing: 12
 
                 Rectangle {
-                    width: 44; height: 44
-                    radius: Theme.radius.xl
+                    width: 36; height: 36
+                    radius: Theme.radius.lg
                     color: dialogIconBgColor
 
                     ColoredIcon {
                         anchors.centerIn: parent
                         source: Theme.icon(dialogIconName)
-                        iconSize: 22
+                        iconSize: 18
                         color: dialogIconColor
                     }
                 }
@@ -144,7 +144,7 @@ Item {
                 Text {
                     Layout.fillWidth: true
                     text: title
-                    font.pixelSize: 18
+                    font.pixelSize: 16
                     font.weight: Font.DemiBold
                     color: Theme.colors.foreground
                     elide: Text.ElideRight
@@ -152,8 +152,8 @@ Item {
 
                 IconButton {
                     iconName: "x"
-                    iconSize: 14
-                    btnSize: 28
+                    iconSize: 12
+                    btnSize: 24
                     onClicked: root.hide()
                 }
             }
@@ -190,18 +190,18 @@ Item {
             Text {
                 Layout.fillWidth: true
                 text: message
-                font.pixelSize: 14
+                font.pixelSize: 13
                 color: Theme.colors.mutedForeground
                 wrapMode: Text.Wrap
-                lineHeight: 1.6
-                leftPadding: 58
+                lineHeight: 1.5
+                leftPadding: 48
             }
 
-            Item { height: 4 }
+            Item { height: 2 }
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 10
+                spacing: 8
 
                 Item { Layout.fillWidth: true }
 
@@ -209,14 +209,14 @@ Item {
                     visible: showSecondaryButton
                     variant: "secondary"
                     text: secondaryButtonText
-                    size: "md"
+                    size: "sm"
                     onClicked: { root.secondaryButtonClicked(); root.hide() }
                 }
 
                 Button {
                     variant: type === Dialog.DialogType.Error ? "destructive" : "primary"
                     text: primaryButtonText
-                    size: "md"
+                    size: "sm"
                     onClicked: { root.primaryButtonClicked(); root.hide() }
                 }
             }

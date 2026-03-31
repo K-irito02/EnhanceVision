@@ -47,45 +47,6 @@ trigger: glob
 3. **延迟更新使用 `Qt.callLater()`**
 4. **禁止在 JS 中创建复杂对象**
 
-## 动画规范
-
-### ListView 动画
-1. **使用 ParallelAnimation** 组合多个动画效果
-2. **缓动曲线选择**：
-   - 入场：`Easing.OutQuart`、`Easing.OutBack`
-   - 退场：`Easing.InQuart`
-   - 位移：`Easing.OutQuart`
-3. **动画时长**：
-   - 入场：250-300ms
-   - 退场：200ms
-   - 位移：300ms
-4. **动画属性**：
-   - 入场：opacity (0→1)、y (负值→0)、scale (0.95→1.0)
-   - 退场：opacity (1→0)、x (0→-30)、scale (1.0→0.9)
-   - 位移：x, y 属性平滑过渡
-
-### 示例代码
-```qml
-add: Transition {
-    ParallelAnimation {
-        NumberAnimation {
-            property: "opacity"
-            from: 0
-            to: 1
-            duration: 250
-            easing.type: Easing.OutQuart
-        }
-        NumberAnimation {
-            property: "y"
-            from: -20
-            duration: 300
-            easing.type: Easing.OutBack
-            easing.overshoot: 0.8
-        }
-    }
-}
-```
-
 ## 资源与文本
 
 1. **资源统一使用 QRC / Provider**
@@ -97,3 +58,11 @@ add: Transition {
 1. **图像设置 `sourceSize`**：禁止无控制加载原图
 2. **列表使用 `ListView`**：避免大规模 `Repeater`
 3. **重组件使用 `Loader`**：延迟加载
+
+## 布局与状态管理
+
+1. **布局变化监听**：使用属性变化监听器而非直接事件处理
+2. **状态锁定机制**：复杂状态切换时使用锁定标志避免冲突
+3. **延迟布局更新**：使用 `Timer` 确保布局计算完成后再操作
+4. **滚动控制**：`ListView` 滚动使用专用方法，避免直接操作 `contentY`
+5. **条件渲染**：根据业务状态动态控制组件可见性

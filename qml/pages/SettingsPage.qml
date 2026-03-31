@@ -227,7 +227,7 @@ Rectangle {
                                 TextField {
                                     id: customDataPathField
                                     Layout.fillWidth: true
-                                    text: SettingsController.customDataPath !== "" ? SettingsController.customDataPath : qsTr("使用系统默认路径")
+                                    text: SettingsController.effectiveDataPath()
                                     readOnly: true
                                     size: "sm"
                                 }
@@ -649,7 +649,7 @@ Rectangle {
                                     ColoredIcon {
                                         anchors.verticalCenter: parent.verticalCenter
                                         iconSize: 14
-                                        source: Theme.icon("hard-drive")
+                                        source: Theme.icon("database")
                                         color: Theme.colors.primary
                                     }
 
@@ -866,7 +866,7 @@ Rectangle {
 
                                 ColoredIcon {
                                     iconSize: 14
-                                    source: Theme.icon("alert-circle")
+                                    source: Theme.icon("alert-triangle")
                                     color: Theme.colors.warning
                                 }
 

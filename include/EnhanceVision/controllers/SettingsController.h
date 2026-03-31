@@ -35,19 +35,18 @@ class SettingsController : public QObject
     Q_PROPERTY(bool videoAutoPlayOnSwitch READ videoAutoPlayOnSwitch WRITE setVideoAutoPlayOnSwitch NOTIFY videoAutoPlayOnSwitchChanged)
     Q_PROPERTY(bool videoRestorePosition READ videoRestorePosition WRITE setVideoRestorePosition NOTIFY videoRestorePositionChanged)
 
-public:
-    /**
-     * @brief 获取单例实例
-     * @return SettingsController 实例指针
-     */
-    static SettingsController* instance();
+    Q_PROPERTY(QString customDataPath READ customDataPath WRITE setCustomDataPath NOTIFY customDataPathChanged)
+    Q_PROPERTY(qint64 aiProcessedSize READ aiProcessedSize NOTIFY dataSizeChanged)
+    Q_PROPERTY(qint64 shaderImageSize READ shaderImageSize NOTIFY dataSizeChanged)
+    Q_PROPERTY(qint64 shaderVideoSize READ shaderVideoSize NOTIFY dataSizeChanged)
+    Q_PROPERTY(qint64 logSize READ logSize NOTIFY dataSizeChanged)
+    Q_PROPERTY(qint64 totalCacheSize READ totalCacheSize NOTIFY dataSizeChanged)
+    Q_PROPERTY(int thumbnailCacheCount READ thumbnailCacheCount NOTIFY dataSizeChanged)
 
-    /**
-     * @brief 销毁单例实例
-     */
+public:
+    static SettingsController* instance();
     static void destroyInstance();
 
-    // 属性访问器
     QString theme() const;
     void setTheme(const QString& theme);
 
@@ -93,12 +92,31 @@ public:
     void markNormalExit(const QString& reason = QStringLiteral("normal"));
     bool checkAndHandleCrashRecovery();
 
-    // Q_INVOKABLE 方法
+    QString customDataPath() const;
+    void setCustomDataPath(const QString& path);
+
+    qint64 aiProcessedSize() const;
+    qint64 shaderImageSize() const;
+    qint64 shaderVideoSize() const;
+    qint64 logSize() const;
+    qint64 totalCacheSize() const;
+    int thumbnailCacheCount() const;
+
+    Q_INVOKABLE QString effectiveDataPath() const;
+
     Q_INVOKABLE void saveSettings();
     Q_INVOKABLE void loadSettings();
     Q_INVOKABLE void resetToDefaults();
     Q_INVOKABLE QString getSetting(const QString& key, const QString& defaultValue = QString());
     Q_INVOKABLE void setSetting(const QString& key, const QString& value);
+
+    Q_INVOKABLE void refreshDataSize();
+    Q_INVOKABLE bool clearAIProcessedData();
+    Q_INVOKABLE bool clearShaderImageData();
+    Q_INVOKABLE bool clearShaderVideoData();
+    Q_INVOKABLE bool clearLogs();
+    Q_INVOKABLE bool clearAllCache();
+    Q_INVOKABLE QString formatSize(qint64 bytes) const;
 
 signals:
     void themeChanged();
@@ -118,14 +136,22 @@ signals:
     void videoAutoPlayChanged();
     void videoAutoPlayOnSwitchChanged();
     void videoRestorePositionChanged();
+    void customDataPathChanged();
+    void dataSizeChanged();
 
 private:
     explicit SettingsController(QObject* parent = nullptr);
     ~SettingsController() override;
 
-    // 禁用拷贝构造和赋值
     SettingsController(const SettingsController&) = delete;
     SettingsController& operator=(const SettingsController&) = delete;
+
+    qint64 calculateDirectorySize(const QString& path) const;
+    bool clearDirectory(const QString& path);
+    QString getAIProcessedPath() const;
+    QString getShaderImagePath() const;
+    QString getShaderVideoPath() const;
+    QString getLogPath() const;
 
     static SettingsController* s_instance;
 
@@ -144,6 +170,12 @@ private:
     bool m_videoAutoPlay;
     bool m_videoAutoPlayOnSwitch;
     bool m_videoRestorePosition;
+    QString m_customDataPath;
+
+    qint64 m_aiProcessedSize;
+    qint64 m_shaderImageSize;
+    qint64 m_shaderVideoSize;
+    qint64 m_logSize;
 };
 
 } // namespace EnhanceVision

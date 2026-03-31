@@ -5,16 +5,11 @@
  */
 
 #include "EnhanceVision/controllers/SettingsController.h"
-#include "EnhanceVision/core/ResourceManager.h"
 #include <QStandardPaths>
 #include <QDir>
-#include <QStringList>
-
-#ifdef Q_OS_WIN
-#include <windows.h>
-#include <dxgi.h>
-#pragma comment(lib, "dxgi.lib")
-#endif
+#include <QDirIterator>
+#include <QFileInfo>
+#include <QCoreApplication>
 
 namespace EnhanceVision {
 
@@ -36,16 +31,21 @@ SettingsController::SettingsController(QObject* parent)
     , m_videoAutoPlay(true)
     , m_videoAutoPlayOnSwitch(true)
     , m_videoRestorePosition(true)
+    , m_customDataPath()
+    , m_aiProcessedSize(0)
+    , m_shaderImageSize(0)
+    , m_shaderVideoSize(0)
+    , m_logSize(0)
 {
     QString configPath = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
     QString settingsFile = QDir(configPath).filePath("EnhanceVision/settings.ini");
     m_settings = new QSettings(settingsFile, QSettings::IniFormat, this);
 
-    // 设置默认保存路径
     QString picturesPath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
     m_defaultSavePath = QDir(picturesPath).filePath("EnhanceVision");
 
     loadSettings();
+    refreshDataSize();
 }
 
 SettingsController::~SettingsController()
@@ -362,6 +362,234 @@ bool SettingsController::checkAndHandleCrashRecovery()
     return true;
 }
 
+QString SettingsController::customDataPath() const
+{
+    return m_customDataPath;
+}
+
+void SettingsController::setCustomDataPath(const QString& path)
+{
+    QString normalizedPath = path.trimmed();
+    if (m_customDataPath != normalizedPath) {
+        m_customDataPath = normalizedPath;
+        emit customDataPathChanged();
+        emit settingsChanged();
+        saveSettings();
+        refreshDataSize();
+    }
+}
+
+qint64 SettingsController::aiProcessedSize() const
+{
+    return m_aiProcessedSize;
+}
+
+qint64 SettingsController::shaderImageSize() const
+{
+    return m_shaderImageSize;
+}
+
+qint64 SettingsController::shaderVideoSize() const
+{
+    return m_shaderVideoSize;
+}
+
+qint64 SettingsController::logSize() const
+{
+    return m_logSize;
+}
+
+qint64 SettingsController::totalCacheSize() const
+{
+    return m_aiProcessedSize + m_shaderImageSize + m_shaderVideoSize + m_logSize;
+}
+
+int SettingsController::thumbnailCacheCount() const
+{
+    return 0;
+}
+
+QString SettingsController::effectiveDataPath() const
+{
+    if (!m_customDataPath.isEmpty()) {
+        return m_customDataPath;
+    }
+    return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+}
+
+qint64 SettingsController::calculateDirectorySize(const QString& path) const
+{
+    qint64 size = 0;
+    QDir dir(path);
+    if (!dir.exists()) {
+        return 0;
+    }
+    
+    QDirIterator it(path, QDir::Files | QDir::NoSymLinks, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        it.next();
+        size += it.fileInfo().size();
+    }
+    return size;
+}
+
+bool SettingsController::clearDirectory(const QString& path)
+{
+    QDir dir(path);
+    if (!dir.exists()) {
+        return true;
+    }
+    
+    bool success = true;
+    QDirIterator it(path, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+    QStringList itemsToDelete;
+    
+    while (it.hasNext()) {
+        it.next();
+        itemsToDelete.prepend(it.filePath());
+    }
+    
+    for (const QString& item : itemsToDelete) {
+        QFileInfo fi(item);
+        if (fi.isDir()) {
+            if (!QDir(item).removeRecursively()) {
+                qWarning() << "[SettingsController] Failed to remove directory:" << item;
+                success = false;
+            }
+        } else {
+            if (!QFile::remove(item)) {
+                qWarning() << "[SettingsController] Failed to remove file:" << item;
+                success = false;
+            }
+        }
+    }
+    
+    return success;
+}
+
+QString SettingsController::getAIProcessedPath() const
+{
+    return effectiveDataPath() + "/processed/ai";
+}
+
+QString SettingsController::getShaderImagePath() const
+{
+    return effectiveDataPath() + "/processed";
+}
+
+QString SettingsController::getShaderVideoPath() const
+{
+    return effectiveDataPath() + "/processed/shader_video";
+}
+
+QString SettingsController::getLogPath() const
+{
+    return QCoreApplication::applicationDirPath() + "/logs";
+}
+
+void SettingsController::refreshDataSize()
+{
+    m_aiProcessedSize = calculateDirectorySize(getAIProcessedPath());
+    m_shaderImageSize = calculateDirectorySize(getShaderImagePath());
+    m_shaderVideoSize = calculateDirectorySize(getShaderVideoPath());
+    m_logSize = calculateDirectorySize(getLogPath());
+    
+    emit dataSizeChanged();
+}
+
+bool SettingsController::clearAIProcessedData()
+{
+    QString path = getAIProcessedPath();
+    bool success = clearDirectory(path);
+    refreshDataSize();
+    qInfo() << "[SettingsController] Cleared AI processed data:" << path << "success:" << success;
+    return success;
+}
+
+bool SettingsController::clearShaderImageData()
+{
+    QString path = getShaderImagePath();
+    QDir dir(path);
+    
+    bool success = true;
+    if (dir.exists()) {
+        QDirIterator it(path, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
+        while (it.hasNext()) {
+            it.next();
+            QString itemPath = it.filePath();
+            QFileInfo fi(itemPath);
+            
+            if (fi.fileName() == "shader_video" || fi.fileName() == "ai") {
+                continue;
+            }
+            
+            if (fi.isDir()) {
+                if (!QDir(itemPath).removeRecursively()) {
+                    success = false;
+                }
+            } else {
+                if (!QFile::remove(itemPath)) {
+                    success = false;
+                }
+            }
+        }
+    }
+    
+    refreshDataSize();
+    qInfo() << "[SettingsController] Cleared Shader image data:" << path << "success:" << success;
+    return success;
+}
+
+bool SettingsController::clearShaderVideoData()
+{
+    QString path = getShaderVideoPath();
+    bool success = clearDirectory(path);
+    refreshDataSize();
+    qInfo() << "[SettingsController] Cleared Shader video data:" << path << "success:" << success;
+    return success;
+}
+
+bool SettingsController::clearLogs()
+{
+    QString path = getLogPath();
+    bool success = clearDirectory(path);
+    refreshDataSize();
+    qInfo() << "[SettingsController] Cleared logs:" << path << "success:" << success;
+    return success;
+}
+
+bool SettingsController::clearAllCache()
+{
+    bool success = true;
+    success &= clearAIProcessedData();
+    success &= clearShaderImageData();
+    success &= clearShaderVideoData();
+    success &= clearLogs();
+    refreshDataSize();
+    return success;
+}
+
+QString SettingsController::formatSize(qint64 bytes) const
+{
+    if (bytes < 0) {
+        return QStringLiteral("0 B");
+    }
+    
+    const qint64 KB = 1024;
+    const qint64 MB = 1024 * KB;
+    const qint64 GB = 1024 * MB;
+    
+    if (bytes >= GB) {
+        return QStringLiteral("%1 GB").arg(bytes / (double)GB, 0, 'f', 2);
+    } else if (bytes >= MB) {
+        return QStringLiteral("%1 MB").arg(bytes / (double)MB, 0, 'f', 1);
+    } else if (bytes >= KB) {
+        return QStringLiteral("%1 KB").arg(bytes / (double)KB, 0, 'f', 1);
+    } else {
+        return QStringLiteral("%1 B").arg(bytes);
+    }
+}
+
 void SettingsController::saveSettings()
 {
     if (!m_settings) return;
@@ -371,6 +599,7 @@ void SettingsController::saveSettings()
     m_settings->setValue("sidebar/expanded", m_sidebarExpanded);
     m_settings->setValue("behavior/defaultSavePath", m_defaultSavePath);
     m_settings->setValue("behavior/autoSave", m_autoSaveResult);
+    m_settings->setValue("behavior/customDataPath", m_customDataPath);
     m_settings->setValue("audio/volume", m_volume);
     m_settings->setValue("reprocess/shaderEnabled", m_autoReprocessShaderEnabled);
     m_settings->setValue("reprocess/aiEnabled", m_autoReprocessAIEnabled);
@@ -389,6 +618,7 @@ void SettingsController::loadSettings()
     m_sidebarExpanded = m_settings->value("sidebar/expanded", true).toBool();
     m_defaultSavePath = m_settings->value("behavior/defaultSavePath", m_defaultSavePath).toString();
     m_autoSaveResult = m_settings->value("behavior/autoSave", false).toBool();
+    m_customDataPath = m_settings->value("behavior/customDataPath", QString()).toString();
     m_volume = m_settings->value("audio/volume", 80).toInt();
     m_autoReprocessShaderEnabled = m_settings->value("reprocess/shaderEnabled", true).toBool();
     m_autoReprocessAIEnabled = m_settings->value("reprocess/aiEnabled", true).toBool();
@@ -414,6 +644,7 @@ void SettingsController::resetToDefaults()
     m_sidebarExpanded = true;
     QString picturesPath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
     m_defaultSavePath = QDir(picturesPath).filePath("EnhanceVision");
+    m_customDataPath.clear();
 
     m_autoSaveResult = false;
     m_volume = 80;
@@ -438,6 +669,7 @@ void SettingsController::resetToDefaults()
     emit videoAutoPlayChanged();
     emit videoAutoPlayOnSwitchChanged();
     emit videoRestorePositionChanged();
+    emit customDataPathChanged();
     emit settingsChanged();
 }
 

@@ -144,6 +144,9 @@
         <file>icons/autoplay-on-switch-off.svg</file>
         <file>icons/restore-position-on.svg</file>
         <file>icons/restore-position-off.svg</file>
+        <file>icons/film.svg</file>
+        <file>icons/file-text.svg</file>
+        <file>icons/database.svg</file>
     </qresource>
     
     <qresource prefix="/shaders">
