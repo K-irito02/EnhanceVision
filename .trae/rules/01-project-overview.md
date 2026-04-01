@@ -10,6 +10,7 @@ description: '项目总览 - 技术栈、目录结构、关键路径'
 |------|------|------|
 | UI框架 | Qt Quick (QML) | 6.10.2 |
 | 编程语言 | C++20 / QML / JavaScript | MSVC 2022 |
+| 数据库 | SQLite (Qt6::Sql) | 3.x |
 | AI推理 | NCNN (Vulkan加速) | latest |
 | 多媒体 | FFmpeg + Qt Multimedia | 7.1 |
 | 构建系统 | CMake | 3.20+ |

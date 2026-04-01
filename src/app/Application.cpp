@@ -15,6 +15,9 @@
 #include "EnhanceVision/controllers/ProcessingController.h"
 #include "EnhanceVision/services/ImageExportService.h"
 #include "EnhanceVision/services/AutoSaveService.h"
+#include "EnhanceVision/services/DatabaseService.h"
+#include "EnhanceVision/services/ThumbnailCacheService.h"
+#include "EnhanceVision/services/StatisticsService.h"
 #include "EnhanceVision/providers/PreviewProvider.h"
 #include "EnhanceVision/providers/ThumbnailProvider.h"
 #include "EnhanceVision/core/LifecycleSupervisor.h"
@@ -183,6 +186,8 @@ Application::Application(QObject *parent)
 Application::~Application()
 {
     m_sessionController->saveSessions();
+    DatabaseService::destroyInstance();
+    ThumbnailCacheService::destroyInstance();
     delete m_mainWidget;
     SettingsController::destroyInstance();
 }
@@ -216,6 +221,10 @@ void Application::initialize()
     }
 
     SettingsController::instance()->markAppRunning();
+
+    if (!DatabaseService::instance()->initialize()) {
+        qWarning() << "[App] DatabaseService initialization failed, falling back to JSON storage";
+    }
 
     AutoSaveService::instance()->initialize();
 
@@ -314,44 +323,46 @@ void Application::setupQmlContext(ThumbnailProvider* thumbnailProvider)
 {
     QQmlContext *context = m_mainWidget->rootContext();
 
-    // 设置控制器之间的连接
+    auto* dbService = DatabaseService::instance();
+    auto* cacheService = ThumbnailCacheService::instance();
+
+    m_sessionController->setDatabaseService(dbService);
+    thumbnailProvider->setCacheService(cacheService);
+    thumbnailProvider->setDatabaseService(dbService);
+
     m_processingController->setFileController(m_fileController.get());
     m_processingController->setMessageModel(m_messageModel.get());
     m_processingController->setSessionController(m_sessionController.get());
     m_sessionController->setProcessingController(m_processingController.get());
     m_messageModel->setProcessingController(m_processingController.get());
-    
-    // 设置 SessionController 引用到 SettingsController（用于缓存清理）
+
     SettingsController::instance()->setSessionController(m_sessionController.get());
-    
-    // 连接 SessionController 和 MessageModel（用于会话切换时同步消息）
+
     m_sessionController->setMessageModel(m_messageModel.get());
 
-    // 将数据模型设置为上下文属性，供 QML 访问
     context->setContextProperty("fileModel", m_fileModel.get());
     context->setContextProperty("messageModel", m_messageModel.get());
     context->setContextProperty("sessionModel", m_sessionModel.get());
     context->setContextProperty("processingModel", m_processingModel.get());
 
-    // 将控制器设置为上下文属性，供 QML 访问
     context->setContextProperty("fileController", m_fileController.get());
     context->setContextProperty("sessionController", m_sessionController.get());
     context->setContextProperty("processingController", m_processingController.get());
-    
-    // 将 ThumbnailProvider 设置为上下文属性，供 QML 访问
+
     context->setContextProperty("thumbnailProvider", thumbnailProvider);
-    
-    // 将 ImageExportService 设置为上下文属性，供 QML 访问
+
     context->setContextProperty("imageExportService", m_imageExportService);
-    
-    // 设置 ImageExportService 的 QML 根对象引用
+
     m_imageExportService->setQmlEngine(m_mainWidget->rootObject());
-    
-    // 连接 ProcessingController 和 ImageExportService
+
     connect(m_processingController.get(), &ProcessingController::requestShaderExport,
             m_imageExportService, &ImageExportService::requestExport);
     connect(m_imageExportService, &ImageExportService::exportCompleted,
             m_processingController.get(), &ProcessingController::onShaderExportCompleted);
+
+    auto* statisticsService = new StatisticsService(this);
+    statisticsService->setDatabaseService(dbService);
+    context->setContextProperty("statisticsService", statisticsService);
 }
 
 void Application::setupTranslator()

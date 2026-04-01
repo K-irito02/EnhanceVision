@@ -7,7 +7,9 @@
 #include "EnhanceVision/controllers/SessionController.h"
 #include "EnhanceVision/controllers/ProcessingController.h"
 #include "EnhanceVision/controllers/SettingsController.h"
+#include "EnhanceVision/services/DatabaseService.h"
 #include "EnhanceVision/models/MessageModel.h"
+#include <QSqlError>
 #include "EnhanceVision/core/TaskCoordinator.h"
 #include "EnhanceVision/core/TaskStateManager.h"
 #include "EnhanceVision/providers/ThumbnailProvider.h"
@@ -131,6 +133,11 @@ void SessionController::setProcessingController(ProcessingController* controller
     m_processingController = controller;
 }
 
+void SessionController::setDatabaseService(DatabaseService* dbService)
+{
+    m_dbService = dbService;
+}
+
 void SessionController::onMessageCountChanged()
 {
     QString currentId = m_messageModel ? m_messageModel->currentSessionId() : QString();
@@ -240,23 +247,27 @@ void SessionController::deleteSession(const QString& sessionId)
 {
     QString activeId = m_sessionModel->activeSessionId();
     bool isActiveSession = (sessionId == activeId);
-    
+
     if (m_processingController) {
         m_processingController->cancelSessionTasks(sessionId);
     }
-    
+
     Session* session = getSession(sessionId);
     if (session) {
         int deletedCount = deleteSessionMediaFiles(*session);
         qInfo() << "[SessionController] Deleted" << deletedCount << "media files for session:" << sessionId;
     }
-    
+
+    if (m_dbService) {
+        m_dbService->deleteSession(sessionId);
+    }
+
     m_sessionModel->deleteSession(sessionId);
     rebuildSessionMessageIndex();
-    
+
     if (isActiveSession) {
         QString newActiveId = m_sessionModel->activeSessionId();
-        
+
         if (newActiveId.isEmpty()) {
             if (m_messageModel) {
                 m_messageModel->clear();
@@ -267,7 +278,7 @@ void SessionController::deleteSession(const QString& sessionId)
             loadSessionMessages(newActiveId);
         }
     }
-    
+
     emit sessionDeleted(sessionId);
     emit sessionCountChanged();
 }
@@ -277,20 +288,24 @@ void SessionController::clearSession(const QString& sessionId)
     if (m_processingController) {
         m_processingController->cancelSessionTasks(sessionId);
     }
-    
+
     Session* session = getSession(sessionId);
     if (session) {
         int deletedCount = deleteSessionMediaFiles(*session);
         qInfo() << "[SessionController] Deleted" << deletedCount << "media files for session:" << sessionId;
     }
-    
+
+    if (m_dbService) {
+        m_dbService->clearSessionData(sessionId);
+    }
+
     m_sessionModel->clearSession(sessionId);
     rebuildSessionMessageIndex();
-    
+
     if (sessionId == m_sessionModel->activeSessionId() && m_messageModel) {
         m_messageModel->clear();
     }
-    
+
     emit sessionCleared(sessionId);
 }
 
@@ -608,6 +623,103 @@ void SessionController::saveSessions()
 
     m_saveInProgress = true;
 
+    qInfo() << "[SessionController] saveSessions() called - dbService:" << (m_dbService ? "set" : "null")
+            << "initialized:" << (m_dbService && m_dbService->isInitialized());
+
+    if (m_dbService && m_dbService->isInitialized()) {
+        ensureDataDirectory();
+
+        m_saveFuture = QtConcurrent::run([this]() {
+            QString errorMessage;
+            int successCount = 0;
+            int failCount = 0;
+            int totalSessions = m_sessionModel->rowCount();
+            qInfo() << "[SessionController] DB save started, total sessions:" << totalSessions;
+
+            for (int i = 0; i < totalSessions; ++i) {
+                Session session = m_sessionModel->sessionAt(i);
+                qInfo() << "[SessionController] Saving session" << i + 1 << "/" << totalSessions
+                        << "id=" << session.id << "messages=" << session.messages.size();
+
+                if (session.id.isEmpty()) {
+                    qWarning() << "[SessionController] Skipping session with empty ID at index" << i;
+                    continue;
+                }
+                if (!m_dbService->saveFullSession(session, session.messages)) {
+                    failCount++;
+                    if (errorMessage.isEmpty()) {
+                        errorMessage = tr("Failed to save session: %1").arg(session.id);
+                    }
+                    qWarning() << "[SessionController] FAILED to save session:" << session.id
+                               << "error:" << m_dbService->db().lastError().text();
+                } else {
+                    successCount++;
+                    qInfo() << "[SessionController] Successfully saved session:" << session.id;
+                }
+            }
+
+            if (m_dbService) {
+                m_dbService->setMetadataInt("session_counter", m_sessionCounter);
+                m_dbService->setMetadata("last_active_session_id", m_sessionModel->activeSessionId());
+                qInfo() << "[SessionController] Metadata saved: counter=" << m_sessionCounter
+                        << "activeId=" << m_sessionModel->activeSessionId();
+            }
+
+            QMetaObject::invokeMethod(this, [this, errorMessage, successCount, failCount]() {
+                m_saveInProgress = false;
+
+                if (!errorMessage.isEmpty()) {
+                    qWarning() << "[SessionController] Save completed with" << failCount << "failures," << successCount << "successes";
+                    emit errorOccurred(errorMessage);
+                } else {
+                    m_lastAutoSaveMs = QDateTime::currentMSecsSinceEpoch();
+                    qInfo() << "[SessionController] All sessions saved successfully";
+                }
+
+                if (m_saveQueued) {
+                    m_saveQueued = false;
+                    saveSessions();
+                }
+            }, Qt::QueuedConnection);
+        });
+    } else {
+        qInfo() << "[SessionController] Falling back to legacy JSON save (DB not available)";
+        saveSessionsLegacy();
+    }
+}
+
+void SessionController::loadSessions()
+{
+    if (m_dbService && m_dbService->isInitialized()) {
+        QList<Session> sessions = m_dbService->loadAllSessions();
+
+        m_sessionCounter = m_dbService->getMetadataInt("session_counter", 0);
+
+        for (Session& session : sessions) {
+            m_sessionModel->addSession(session);
+        }
+
+        rebuildSessionMessageIndex();
+
+        QString lastActiveId = m_dbService->getMetadata("last_active_session_id", "");
+        if (!lastActiveId.isEmpty()) {
+            for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
+                Session session = m_sessionModel->sessionAt(i);
+                if (session.id == lastActiveId) {
+                    m_sessionModel->switchSession(lastActiveId);
+                    break;
+                }
+            }
+        }
+
+        emit sessionCountChanged();
+    } else {
+        loadSessionsLegacy();
+    }
+}
+
+void SessionController::saveSessionsLegacy()
+{
     ensureDataDirectory();
 
     QString filePath = sessionsFilePath();
@@ -638,9 +750,7 @@ void SessionController::saveSessions()
             file.close();
 
             QFile oldFile(filePath);
-            if (oldFile.exists()) {
-                oldFile.remove();
-            }
+            if (oldFile.exists()) oldFile.remove();
 
             if (!file.rename(filePath)) {
                 errorMessage = tr("无法保存会话数据");
@@ -649,50 +759,41 @@ void SessionController::saveSessions()
 
         QMetaObject::invokeMethod(this, [this, errorMessage]() {
             m_saveInProgress = false;
+            if (!errorMessage.isEmpty()) emit errorOccurred(errorMessage);
+            else m_lastAutoSaveMs = QDateTime::currentMSecsSinceEpoch();
 
-            if (!errorMessage.isEmpty()) {
-                emit errorOccurred(errorMessage);
-            } else {
-                m_lastAutoSaveMs = QDateTime::currentMSecsSinceEpoch();
-            }
-
-            if (m_saveQueued) {
-                m_saveQueued = false;
-                saveSessions();
-            }
+            if (m_saveQueued) { m_saveQueued = false; saveSessions(); }
         }, Qt::QueuedConnection);
     });
 }
 
-void SessionController::loadSessions()
+void SessionController::loadSessionsLegacy()
 {
     QString filePath = sessionsFilePath();
     QFile file(filePath);
-    
-    if (!file.exists()) {
-        return;
-    }
-    
+
+    if (!file.exists()) return;
+
     if (!file.open(QIODevice::ReadOnly)) {
         qWarning() << "Failed to open sessions file:" << filePath;
         return;
     }
-    
+
     QByteArray data = file.readAll();
     file.close();
-    
+
     QJsonParseError parseError;
     QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
-    
+
     if (parseError.error != QJsonParseError::NoError) {
         qWarning() << "Failed to parse sessions file:" << parseError.errorString();
         return;
     }
-    
+
     QJsonObject root = doc.object();
-    
+
     m_sessionCounter = root["sessionCounter"].toInt(0);
-    
+
     QJsonArray sessionsArray = root["sessions"].toArray();
     for (const QJsonValue& value : sessionsArray) {
         Session session = jsonToSession(value.toObject());
@@ -700,20 +801,18 @@ void SessionController::loadSessions()
     }
 
     rebuildSessionMessageIndex();
-    
+
     QString lastActiveId = root["lastActiveSessionId"].toString();
     if (!lastActiveId.isEmpty()) {
         for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
             Session session = m_sessionModel->sessionAt(i);
             if (session.id == lastActiveId) {
-                // 不要在这里设置 m_activeSessionId，让 activeSessionChanged 信号处理器来处理
-                // 这样可以确保消息被正确加载
                 m_sessionModel->switchSession(lastActiveId);
                 break;
             }
         }
     }
-    
+
     emit sessionCountChanged();
 }
 
@@ -1399,28 +1498,30 @@ QString SessionController::findTaskIdForFile(const QString& messageId, const QSt
 void SessionController::clearAllSessionMessages()
 {
     qInfo() << "[SessionController] Clearing all session messages";
-    
+
     if (m_processingController) {
         for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
             Session session = m_sessionModel->sessionAt(i);
             m_processingController->cancelSessionTasks(session.id);
         }
     }
-    
+
+    if (m_dbService) {
+        m_dbService->clearAllMessages();
+    }
+
     for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
         Session session = m_sessionModel->sessionAt(i);
         m_sessionModel->clearSession(session.id);
     }
-    
+
     if (m_messageModel) {
         m_messageModel->clear();
     }
-    
+
     rebuildSessionMessageIndex();
-    saveSessions();
-    
+
     emit allSessionMessagesCleared();
-    
     qInfo() << "[SessionController] All session messages cleared";
 }
 
@@ -1452,8 +1553,12 @@ void SessionController::clearAllSessionMessagesByMode(int mode)
     }
     
     if (hasChanges) {
+        if (m_dbService) {
+            m_dbService->clearAllMessagesByMode(mode);
+        }
+
         rebuildSessionMessageIndex();
-        
+
         if (m_messageModel) {
             QString currentId = m_sessionModel->activeSessionId();
             if (!currentId.isEmpty()) {
@@ -1463,7 +1568,7 @@ void SessionController::clearAllSessionMessagesByMode(int mode)
                 }
             }
         }
-        
+
         saveSessions();
     }
     
@@ -1507,8 +1612,12 @@ void SessionController::clearAllShaderVideoMessages()
     }
     
     if (hasChanges) {
+        if (m_dbService) {
+            m_dbService->clearAllShaderVideoMessages();
+        }
+
         rebuildSessionMessageIndex();
-        
+
         if (m_messageModel) {
             QString currentId = m_sessionModel->activeSessionId();
             if (!currentId.isEmpty()) {
@@ -1518,7 +1627,7 @@ void SessionController::clearAllShaderVideoMessages()
                 }
             }
         }
-        
+
         saveSessions();
     }
     
@@ -1577,8 +1686,12 @@ void SessionController::clearMediaFilesByModeAndType(int mode, int mediaType)
     }
     
     if (hasChanges) {
+        if (m_dbService) {
+            m_dbService->clearMediaFilesByModeAndType(mode, mediaType);
+        }
+
         rebuildSessionMessageIndex();
-        
+
         if (m_messageModel) {
             QString currentId = m_sessionModel->activeSessionId();
             if (!currentId.isEmpty()) {
@@ -1588,12 +1701,11 @@ void SessionController::clearMediaFilesByModeAndType(int mode, int mediaType)
                 }
             }
         }
-        
-        // 通知 SessionModel 更新所有会话的显示（消息数量等）
+
         for (int i = 0; i < sessions.size(); ++i) {
             m_sessionModel->notifySessionDataChanged(sessions[i].id);
         }
-        
+
         saveSessionsImmediately();
         emit allSessionMessagesCleared();
     }
@@ -1606,39 +1718,42 @@ void SessionController::clearMediaFilesByModeAndType(int mode, int mediaType)
 void SessionController::deleteAllSessions()
 {
     qInfo() << "[SessionController] Deleting all sessions";
-    
+
     if (m_processingController) {
         for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
             Session session = m_sessionModel->sessionAt(i);
             m_processingController->cancelSessionTasks(session.id);
         }
     }
-    
+
+    if (m_dbService) {
+        m_dbService->deleteAllData();
+    }
+
     QList<QString> sessionIds;
     for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
         sessionIds.append(m_sessionModel->sessionAt(i).id);
     }
-    
+
     for (const QString& sessionId : sessionIds) {
         Session* session = getSession(sessionId);
         if (session) {
             deleteSessionMediaFiles(*session);
         }
     }
-    
+
     for (const QString& sessionId : sessionIds) {
         m_sessionModel->deleteSession(sessionId);
     }
-    
+
     if (m_messageModel) {
         m_messageModel->clear();
         m_messageModel->setCurrentSessionId("");
     }
-    
+
     m_activeSessionId.clear();
     rebuildSessionMessageIndex();
-    saveSessions();
-    
+
     emit allSessionsDeleted();
     emit sessionCountChanged();
     emit activeSessionChanged();

@@ -18,6 +18,9 @@
 
 namespace EnhanceVision {
 
+class ThumbnailCacheService;
+class DatabaseService;
+
 /**
  * @brief 异步缩略图生成任务
  */
@@ -84,6 +87,9 @@ public:
 
     static ThumbnailProvider* instance();
 
+    void setCacheService(ThumbnailCacheService* service);
+    void setDatabaseService(DatabaseService* dbService);
+
 signals:
     void thumbnailReady(const QString &id);
     void requestGeneration(const QString& path);
@@ -92,12 +98,16 @@ private slots:
     void onThumbnailReady(const QString &id, const QImage &thumbnail);
 
 private:
-    QHash<QString, QImage> m_thumbnails;    ///< normalizedKey → 缩略图
+    QHash<QString, QImage> m_thumbnails;    ///< normalizedKey → 缩略图（兼容旧代码，逐步迁移到 m_lruCache）
     QHash<QString, QString> m_idToPath;     ///< normalizedKey → 实际文件路径（processed_ 等别名）
     QSet<QString> m_pendingRequests;        ///< 正在生成中的 normalizedKey
     QSet<QString> m_failedKeys;             ///< 生成失败的 normalizedKey（防止无限重试）
     QMutex m_mutex;
     QThreadPool* m_threadPool;
+
+    ThumbnailCacheService* m_cacheService = nullptr;   ///< L1: LRU 内存缓存
+    DatabaseService* m_dbService = nullptr;            ///< L2: 数据库缓存
+
     static ThumbnailProvider* s_instance;
 
     QImage generatePlaceholderImage(const QSize& size);

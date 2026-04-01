@@ -67,6 +67,7 @@ find_package(Qt6 REQUIRED COMPONENTS
     ShaderTools
     LinguistTools
     QuickEffects
+    Sql
 )
 
 # Qt Policy 设置（必须在 find_package(Qt6) 之后）
@@ -181,6 +182,11 @@ qt_add_executable(EnhanceVision
     src/controllers/ProgressSyncHelper.cpp
     src/services/ImageExportService.cpp
     src/services/AutoSaveService.cpp
+    src/services/DatabaseService.cpp
+    src/services/ThumbnailCacheService.cpp
+    src/services/StatisticsService.cpp
+    src/services/DataBackupService.cpp
+    src/services/DataRestoreService.cpp
     include/EnhanceVision/app/Application.h
     include/EnhanceVision/app/MainWindow.h
     include/EnhanceVision/core/AIEngine.h
@@ -230,6 +236,11 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/controllers/ProgressSyncHelper.h
     include/EnhanceVision/services/ImageExportService.h
     include/EnhanceVision/services/AutoSaveService.h
+    include/EnhanceVision/services/DatabaseService.h
+    include/EnhanceVision/services/ThumbnailCacheService.h
+    include/EnhanceVision/services/StatisticsService.h
+    include/EnhanceVision/services/DataBackupService.h
+    include/EnhanceVision/services/DataRestoreService.h
     resources/qml.qrc
 )
 
@@ -424,6 +435,7 @@ target_link_libraries(EnhanceVision PRIVATE
     Qt6::Network
     Qt6::ShaderTools
     Qt6::QuickEffects
+    Qt6::Sql
     ncnn
 )
 

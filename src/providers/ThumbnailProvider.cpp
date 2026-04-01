@@ -6,6 +6,8 @@
 
 #include "EnhanceVision/providers/ThumbnailProvider.h"
 #include "EnhanceVision/utils/ImageUtils.h"
+#include "EnhanceVision/services/ThumbnailCacheService.h"
+#include "EnhanceVision/services/DatabaseService.h"
 #include <QUrl>
 #include <QFileInfo>
 #include <QDir>
@@ -109,31 +111,56 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
 {
     const QString cacheKey = normalizeKey(id);
 
-    // 1. 检查缓存
+    // L1: 查询 LRU 内存缓存
+    if (m_cacheService && m_cacheService->contains(cacheKey)) {
+        QImage thumbnail = m_cacheService->get(cacheKey);
+        if (!thumbnail.isNull()) {
+            if (size) *size = thumbnail.size();
+            if (requestedSize.isValid() && requestedSize != thumbnail.size()) {
+                return ImageUtils::scaleImage(thumbnail, requestedSize, true);
+            }
+            return thumbnail;
+        }
+    }
+
+    // L1 fallback: 查询旧内存缓存（兼容）
     {
         QMutexLocker locker(&m_mutex);
         if (m_thumbnails.contains(cacheKey)) {
             QImage thumbnail = m_thumbnails.value(cacheKey);
-            if (size) {
-                *size = thumbnail.size();
-            }
-            if (!requestedSize.isEmpty() && requestedSize != thumbnail.size()) {
+            if (m_cacheService) m_cacheService->put(cacheKey, thumbnail);
+            if (size) *size = thumbnail.size();
+            if (requestedSize.isValid() && requestedSize != thumbnail.size()) {
                 return ImageUtils::scaleImage(thumbnail, requestedSize, true);
             }
             return thumbnail;
         }
 
-        // 已在生成中或已失败，返回占位图
         if (m_pendingRequests.contains(cacheKey) || m_failedKeys.contains(cacheKey)) {
             QImage placeholder = generatePlaceholderImage(requestedSize);
-            if (size) {
-                *size = placeholder.size();
-            }
+            if (size) *size = placeholder.size();
             return placeholder;
         }
     }
 
-    // 2. 确定实际文件路径
+    // L2: 查询数据库缓存
+    if (m_dbService) {
+        QImage dbThumb = m_dbService->loadThumbnail(cacheKey);
+        if (!dbThumb.isNull()) {
+            if (m_cacheService) m_cacheService->put(cacheKey, dbThumb);
+
+            QMutexLocker locker(&m_mutex);
+            m_thumbnails[cacheKey] = dbThumb;
+
+            if (size) *size = dbThumb.size();
+            if (requestedSize.isValid() && requestedSize != dbThumb.size()) {
+                return ImageUtils::scaleImage(dbThumb, requestedSize, true);
+            }
+            return dbThumb;
+        }
+    }
+
+    // L3: 异步生成
     const QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(256, 256);
     QString filePath;
 
@@ -146,16 +173,12 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         filePath = normalizeFilePath(cacheKey);
     }
 
-    // 3. 尝试异步生成（内部会检查文件是否存在）
     if (!filePath.isEmpty()) {
         generateThumbnailAsync(filePath, cacheKey, targetSize);
     }
 
-    // 4. 始终返回占位图（不返回空 QImage，避免 QML Image 进入 Error 状态）
     QImage placeholder = generatePlaceholderImage(requestedSize);
-    if (size) {
-        *size = placeholder.size();
-    }
+    if (size) *size = placeholder.size();
     return placeholder;
 }
 
@@ -213,6 +236,9 @@ void ThumbnailProvider::removeThumbnail(const QString &id)
     QMutexLocker locker(&m_mutex);
     m_thumbnails.remove(key);
     m_failedKeys.remove(key);
+
+    if (m_cacheService) m_cacheService->remove(key);
+    if (m_dbService) m_dbService->deleteThumbnail(key);
 }
 
 void ThumbnailProvider::clearAll()
@@ -220,6 +246,9 @@ void ThumbnailProvider::clearAll()
     QMutexLocker locker(&m_mutex);
     m_thumbnails.clear();
     m_failedKeys.clear();
+
+    if (m_cacheService) m_cacheService->clear();
+    if (m_dbService) m_dbService->clearAllThumbnails();
 }
 
 void ThumbnailProvider::clearThumbnailsByPathPrefix(const QString &pathPrefix)
@@ -262,13 +291,33 @@ void ThumbnailProvider::clearThumbnailsByPathPrefix(const QString &pathPrefix)
         }
     }
 
-    qInfo() << "[ThumbnailProvider] Cleared" << keysToRemove.size() 
+    qInfo() << "[ThumbnailProvider] Cleared" << keysToRemove.size()
             << "thumbnails for path prefix:" << normalizedPrefix;
+
+    if (m_cacheService) {
+        for (const QString &key : keysToRemove) {
+            m_cacheService->remove(key);
+        }
+    }
+
+    if (m_dbService) {
+        m_dbService->clearThumbnailsByPathPrefix(normalizedPrefix);
+    }
 }
 
 ThumbnailProvider* ThumbnailProvider::instance()
 {
     return s_instance;
+}
+
+void ThumbnailProvider::setCacheService(ThumbnailCacheService* service)
+{
+    m_cacheService = service;
+}
+
+void ThumbnailProvider::setDatabaseService(DatabaseService* dbService)
+{
+    m_dbService = dbService;
 }
 
 void ThumbnailProvider::onThumbnailReady(const QString &id, const QImage &thumbnail)
@@ -286,7 +335,17 @@ void ThumbnailProvider::onThumbnailReady(const QString &id, const QImage &thumbn
             m_failedKeys.insert(key);
         }
     }
-    // 始终发出信号（即使失败），让 QML 有机会处理重试逻辑
+
+    if (!thumbnail.isNull()) {
+        if (m_cacheService) {
+            m_cacheService->put(key, thumbnail);
+        }
+
+        if (m_dbService) {
+            m_dbService->saveThumbnail(key, thumbnail);
+        }
+    }
+
     emit thumbnailReady(key);
 }
 
