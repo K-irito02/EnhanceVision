@@ -1,9 +1,3 @@
-/**
- * @file ThumbnailProvider.h
- * @brief 缩略图提供者
- * @author Qt客户端开发工程师
- */
-
 #ifndef ENHANCEVISION_THUMBNAILPROVIDER_H
 #define ENHANCEVISION_THUMBNAILPROVIDER_H
 
@@ -11,6 +5,7 @@
 #include <QImage>
 #include <QHash>
 #include <QSet>
+#include <QList>
 #include <QMutex>
 #include <QThreadPool>
 #include <QRunnable>
@@ -18,12 +13,13 @@
 
 namespace EnhanceVision {
 
-class ThumbnailCacheService;
-class DatabaseService;
+class ThumbnailDatabase;
 
-/**
- * @brief 异步缩略图生成任务
- */
+struct FailedEntry {
+    qint64 failedAt = 0;
+    int retryCount = 0;
+};
+
 class ThumbnailGenerator : public QObject, public QRunnable
 {
     Q_OBJECT
@@ -41,9 +37,6 @@ private:
     QSize m_size;
 };
 
-/**
- * @brief 缩略图提供者，用于提供缩略图给 QML
- */
 class ThumbnailProvider : public QQuickImageProvider
 {
     Q_OBJECT
@@ -52,14 +45,7 @@ public:
     ThumbnailProvider();
     ~ThumbnailProvider() override;
 
-    /**
-     * @brief 规范化文件路径（URL 解码、原生分隔符、去除 Windows 前缀斜杠）
-     */
     static QString normalizeFilePath(const QString &path);
-
-    /**
-     * @brief 将任意 id（可能含 processed_ 前缀或原始路径）归一化为唯一缓存键
-     */
     static QString normalizeKey(const QString &rawId);
 
     QImage requestImage(const QString &id, QSize *size, const QSize &requestedSize) override;
@@ -69,26 +55,16 @@ public:
     void removeThumbnail(const QString &id);
     void clearAll();
 
-    /**
-     * @brief 清除指定路径前缀的所有缩略图缓存
-     * @param pathPrefix 路径前缀（如缓存目录路径）
-     */
     void clearThumbnailsByPathPrefix(const QString &pathPrefix);
 
-    /**
-     * @brief 使指定 id 的缓存失效并重新生成
-     */
     Q_INVOKABLE void invalidateThumbnail(const QString &id);
-
-    /**
-     * @brief 检查指定 id 的缩略图是否已在缓存中
-     */
     Q_INVOKABLE bool hasThumbnail(const QString &id) const;
 
-    static ThumbnailProvider* instance();
+    Q_INVOKABLE void initializePersistence();
+    int memoryCacheCount() const;
+    qint64 memoryCacheSize() const;
 
-    void setCacheService(ThumbnailCacheService* service);
-    void setDatabaseService(DatabaseService* dbService);
+    static ThumbnailProvider* instance();
 
 signals:
     void thumbnailReady(const QString &id);
@@ -98,19 +74,35 @@ private slots:
     void onThumbnailReady(const QString &id, const QImage &thumbnail);
 
 private:
-    QHash<QString, QImage> m_thumbnails;    ///< normalizedKey → 缩略图（兼容旧代码，逐步迁移到 m_lruCache）
-    QHash<QString, QString> m_idToPath;     ///< normalizedKey → 实际文件路径（processed_ 等别名）
-    QSet<QString> m_pendingRequests;        ///< 正在生成中的 normalizedKey
-    QSet<QString> m_failedKeys;             ///< 生成失败的 normalizedKey（防止无限重试）
+    struct LRUEntry {
+        QImage image;
+        qint64 lastAccess = 0;
+    };
+
+    QHash<QString, LRUEntry> m_thumbnails;
+    QList<QString> m_lruOrder;
+    QHash<QString, QString> m_idToPath;
+    QSet<QString> m_pendingRequests;
+    QMap<QString, FailedEntry> m_failedKeys;
     QMutex m_mutex;
     QThreadPool* m_threadPool;
-
-    ThumbnailCacheService* m_cacheService = nullptr;   ///< L1: LRU 内存缓存
-    DatabaseService* m_dbService = nullptr;            ///< L2: 数据库缓存
-
+    ThumbnailDatabase* m_db = nullptr;
+    bool m_persistenceEnabled = false;
     static ThumbnailProvider* s_instance;
 
+    static constexpr int kMaxMemoryCacheSize = 200;
+    static constexpr qint64 kMaxMemoryBytes = 100 * 1024 * 1024;
+    static constexpr int kFailCooldownSec = 300;
+    static constexpr int kPersistenceLoadLimit = 80;
+
     QImage generatePlaceholderImage(const QSize& size);
+
+    void touchLRU(const QString& key);
+    void evictLRU();
+    bool saveThumbnailToDisk(const QString& cacheKey, const QImage& image);
+    QImage loadThumbnailFromDisk(const QString& cacheKey);
+    bool isFailCooledDown(const QString& cacheKey) const;
+    void promoteToMRU(const QString& key);
 };
 
 } // namespace EnhanceVision

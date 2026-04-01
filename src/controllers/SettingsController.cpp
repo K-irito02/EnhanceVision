@@ -7,6 +7,7 @@
 #include "EnhanceVision/controllers/SettingsController.h"
 #include "EnhanceVision/controllers/SessionController.h"
 #include "EnhanceVision/providers/ThumbnailProvider.h"
+#include "EnhanceVision/core/ThumbnailDatabase.h"
 #include <QStandardPaths>
 #include <QDir>
 #include <QDirIterator>
@@ -419,7 +420,21 @@ qint64 SettingsController::totalCacheSize() const
 
 int SettingsController::thumbnailCacheCount() const
 {
+    auto* db = ThumbnailDatabase::instance();
+    if (db && db->isInitialized()) {
+        return db->validCount();
+    }
     return 0;
+}
+
+qint64 SettingsController::thumbnailCacheSize() const
+{
+    return m_thumbnailCacheSize;
+}
+
+qint64 SettingsController::thumbnailDiskSize() const
+{
+    return m_thumbnailDiskSize;
 }
 
 int SettingsController::aiImageFileCount() const
@@ -563,6 +578,16 @@ void SettingsController::refreshDataSize()
     m_aiVideoFileCount = countFilesInDirectory(getAIVideoPath());
     m_shaderImageFileCount = countFilesInDirectory(getShaderImagePath());
     m_shaderVideoFileCount = countFilesInDirectory(getShaderVideoPath());
+
+    auto* provider = ThumbnailProvider::instance();
+    if (provider) {
+        m_thumbnailCacheSize = provider->memoryCacheSize();
+    }
+
+    auto* db = ThumbnailDatabase::instance();
+    if (db && db->isInitialized()) {
+        m_thumbnailDiskSize = db->validDiskSize();
+    }
     
     emit dataSizeChanged();
 }
@@ -664,6 +689,11 @@ bool SettingsController::clearAllCache()
     if (thumbnailProvider) {
         thumbnailProvider->clearAll();
     }
+
+    ThumbnailDatabase* db = ThumbnailDatabase::instance();
+    if (db && db->isInitialized()) {
+        db->clearAll();
+    }
     
     success &= clearDirectory(getAIImagePath());
     success &= clearDirectory(getAIVideoPath());
@@ -678,6 +708,41 @@ bool SettingsController::clearAllCache()
     refreshDataSize();
     qInfo() << "[SettingsController] Cleared all cache, success:" << success;
     return success;
+}
+
+bool SettingsController::clearThumbnailCache()
+{
+    ThumbnailProvider* provider = ThumbnailProvider::instance();
+    if (provider) {
+        provider->clearAll();
+    }
+    
+    ThumbnailDatabase* db = ThumbnailDatabase::instance();
+    int removed = 0;
+    if (db && db->isInitialized()) {
+        removed = db->clearAll();
+        qInfo() << "[SettingsController] Cleared" << removed << "thumbnail metadata entries";
+    }
+    
+    refreshDataSize();
+    qInfo() << "[SettingsController] Cleared thumbnail cache successfully";
+    return true;
+}
+
+QString SettingsController::getThumbnailCachePath() const
+{
+    auto* db = ThumbnailDatabase::instance();
+    if (db && db->isInitialized()) {
+        return db->thumbnailDirPath();
+    }
+    return effectiveDataPath() + "/thumbnails";
+}
+
+bool SettingsController::checkThumbnailStorageThreshold(double thresholdGB)
+{
+    qint64 currentBytes = thumbnailDiskSize();
+    qint64 thresholdBytes = static_cast<qint64>(thresholdGB * 1024.0 * 1024.0 * 1024.0);
+    return currentBytes > thresholdBytes;
 }
 
 QString SettingsController::formatSize(qint64 bytes) const

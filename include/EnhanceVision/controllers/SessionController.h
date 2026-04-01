@@ -24,7 +24,6 @@ namespace EnhanceVision {
 
 class MessageModel;
 class ProcessingController;
-class DatabaseService;
 
 class SessionController : public QObject
 {
@@ -52,7 +51,6 @@ public:
     void setMessageModel(MessageModel* model);
     
     void setProcessingController(ProcessingController* controller);
-    void setDatabaseService(DatabaseService* dbService);
 
     /**
      * @brief 创建新会话（不自动选中）
@@ -107,9 +105,6 @@ public:
     
     Q_INVOKABLE void saveSessions();
     Q_INVOKABLE void loadSessions();
-
-    void saveSessionsLegacy();
-    void loadSessionsLegacy();
     
     /**
      * @brief 恢复已处理文件的缩略图
@@ -184,7 +179,6 @@ private:
     SessionModel* m_sessionModel;
     MessageModel* m_messageModel;
     ProcessingController* m_processingController = nullptr;
-    DatabaseService* m_dbService = nullptr;
     bool m_batchSelectionMode;
     int m_sessionCounter;
     bool m_autoSaveEnabled;

@@ -2038,6 +2038,16 @@
         <translation>Cache Management</translation>
     </message>
     <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="784"/>
+        <source>缩略图缓存</source>
+        <translation>Thumbnail Cache</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="785"/>
+        <source>多媒体文件预览缩略图的磁盘缓存</source>
+        <translation>Disk cache for media file preview thumbnails</translation>
+    </message>
+    <message>
         <source>清除缩略图缓存</source>
         <translation type="vanished">Clear Thumbnail Cache</translation>
     </message>

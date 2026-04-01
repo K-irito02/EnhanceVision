@@ -160,6 +160,7 @@ qt_add_executable(EnhanceVision
     src/core/AIEnginePool.cpp
     src/core/LifecycleSupervisor.cpp
     src/core/CancellableTaskToken.cpp
+    src/core/ThumbnailDatabase.cpp
     src/core/ai/AITaskQueue.cpp
     src/core/ai/AIInferenceWorker.cpp
     src/core/ai/AIInferenceService.cpp
@@ -182,11 +183,6 @@ qt_add_executable(EnhanceVision
     src/controllers/ProgressSyncHelper.cpp
     src/services/ImageExportService.cpp
     src/services/AutoSaveService.cpp
-    src/services/DatabaseService.cpp
-    src/services/ThumbnailCacheService.cpp
-    src/services/StatisticsService.cpp
-    src/services/DataBackupService.cpp
-    src/services/DataRestoreService.cpp
     include/EnhanceVision/app/Application.h
     include/EnhanceVision/app/MainWindow.h
     include/EnhanceVision/core/AIEngine.h
@@ -212,6 +208,7 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/core/AIEnginePool.h
     include/EnhanceVision/core/LifecycleSupervisor.h
     include/EnhanceVision/core/CancellableTaskToken.h
+    include/EnhanceVision/core/ThumbnailDatabase.h
     include/EnhanceVision/core/ai/AIInferenceTypes.h
     include/EnhanceVision/core/ai/AITaskQueue.h
     include/EnhanceVision/core/ai/AIInferenceWorker.h
@@ -236,11 +233,6 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/controllers/ProgressSyncHelper.h
     include/EnhanceVision/services/ImageExportService.h
     include/EnhanceVision/services/AutoSaveService.h
-    include/EnhanceVision/services/DatabaseService.h
-    include/EnhanceVision/services/ThumbnailCacheService.h
-    include/EnhanceVision/services/StatisticsService.h
-    include/EnhanceVision/services/DataBackupService.h
-    include/EnhanceVision/services/DataRestoreService.h
     resources/qml.qrc
 )
 

@@ -45,6 +45,8 @@ class SettingsController : public QObject
     Q_PROPERTY(qint64 logSize READ logSize NOTIFY dataSizeChanged)
     Q_PROPERTY(qint64 totalCacheSize READ totalCacheSize NOTIFY dataSizeChanged)
     Q_PROPERTY(int thumbnailCacheCount READ thumbnailCacheCount NOTIFY dataSizeChanged)
+    Q_PROPERTY(qint64 thumbnailCacheSize READ thumbnailCacheSize NOTIFY dataSizeChanged)
+    Q_PROPERTY(qint64 thumbnailDiskSize READ thumbnailDiskSize NOTIFY dataSizeChanged)
     
     Q_PROPERTY(int aiImageFileCount READ aiImageFileCount NOTIFY dataSizeChanged)
     Q_PROPERTY(int aiVideoFileCount READ aiVideoFileCount NOTIFY dataSizeChanged)
@@ -110,6 +112,8 @@ public:
     qint64 logSize() const;
     qint64 totalCacheSize() const;
     int thumbnailCacheCount() const;
+    qint64 thumbnailCacheSize() const;
+    qint64 thumbnailDiskSize() const;
     
     int aiImageFileCount() const;
     int aiVideoFileCount() const;
@@ -131,6 +135,9 @@ public:
     Q_INVOKABLE bool clearShaderVideoData();
     Q_INVOKABLE bool clearLogs();
     Q_INVOKABLE bool clearAllCache();
+    Q_INVOKABLE bool clearThumbnailCache();
+    Q_INVOKABLE QString getThumbnailCachePath() const;
+    Q_INVOKABLE bool checkThumbnailStorageThreshold(double thresholdGB = 0.5);
     Q_INVOKABLE QString formatSize(qint64 bytes) const;
     
     Q_INVOKABLE QString getAIImagePath() const;
@@ -203,6 +210,9 @@ private:
     int m_shaderImageFileCount;
     int m_shaderVideoFileCount;
     
+    qint64 m_thumbnailCacheSize = 0;
+    qint64 m_thumbnailDiskSize = 0;
+
     SessionController* m_sessionController = nullptr;
 };
 

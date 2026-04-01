@@ -61,6 +61,8 @@ Rectangle {
                 success = SettingsController.clearShaderVideoData()
             } else if (clearType === "logs") {
                 success = SettingsController.clearLogs()
+            } else if (clearType === "thumbnails") {
+                success = SettingsController.clearThumbnailCache()
             } else if (clearType === "all") {
                 success = SettingsController.clearAllCache()
             }
@@ -776,6 +778,15 @@ Rectangle {
                                         fileCount: 0,
                                         icon: "file-text",
                                         accentColor: Theme.colors.mutedForeground
+                                    },
+                                    {
+                                        type: "thumbnails",
+                                        title: qsTr("缩略图缓存"),
+                                        desc: qsTr("多媒体文件预览缩略图的磁盘缓存"),
+                                        size: SettingsController.thumbnailDiskSize,
+                                        fileCount: SettingsController.thumbnailCacheCount,
+                                        icon: "image",
+                                        accentColor: Theme.colors.primary
                                     }
                                 ]
 
@@ -876,9 +887,17 @@ Rectangle {
                                                         .arg(SettingsController.formatSize(modelData.size))
                                                         .arg(SettingsController.getShaderVideoPath())
                                                 } else {
-                                                    detailMsg = qsTr("确定要清理【%1】吗？\n\n清理详情：\n• 占用空间：%2\n\n此操作将删除运行日志和崩溃日志文件。")
-                                                        .arg(modelData.title)
-                                                        .arg(SettingsController.formatSize(modelData.size))
+                                                    if (modelData.type === "logs") {
+                                                        detailMsg = qsTr("确定要清理【%1】吗？\n\n清理详情：\n• 占用空间：%2\n\n此操作将删除运行日志和崩溃日志文件。")
+                                                            .arg(modelData.title)
+                                                            .arg(SettingsController.formatSize(modelData.size))
+                                                    } else if (modelData.type === "thumbnails") {
+                                                        detailMsg = qsTr("确定要清理【%1】吗？\n\n清理详情：\n• 缩略图文件数量：%2 个\n• 占用磁盘空间：%3\n• 存储位置：%4\n\n此操作将：\n• 删除所有已缓存的缩略图文件\n• 清空缩略图元数据记录\n• 下次查看文件时会自动重新生成缩略图")
+                                                            .arg(modelData.title)
+                                                            .arg(modelData.fileCount)
+                                                            .arg(SettingsController.formatSize(modelData.size))
+                                                            .arg(SettingsController.getThumbnailCachePath())
+                                                    }
                                                 }
                                                 confirmClearDialog.showClearDialog(
                                                     modelData.type,
@@ -934,11 +953,12 @@ Rectangle {
                                         var totalFiles = SettingsController.aiImageFileCount + 
                                                          SettingsController.aiVideoFileCount + 
                                                          SettingsController.shaderImageFileCount + 
-                                                         SettingsController.shaderVideoFileCount
+                                                         SettingsController.shaderVideoFileCount +
+                                                         SettingsController.thumbnailCacheCount
                                         confirmClearDialog.showClearDialog(
                                             "all",
                                             qsTr("确认清理全部数据"),
-                                            qsTr("确定要清理所有可清理数据吗？\n\n清理详情：\n• AI推理图像：%1 个文件（%2）\n• AI推理视频：%3 个文件（%4）\n• Shader图像：%5 个文件（%6）\n• Shader视频：%7 个文件（%8）\n• 日志文件：%9\n\n总计：%10 个文件，共 %11\n\n此操作将：\n• 删除所有 AI/Shader 处理结果文件\n• 删除日志文件\n• 清空所有会话中的消息记录\n\n清理后需要重新处理才能恢复结果。")
+                                            qsTr("确定要清理所有可清理数据吗？\n\n清理详情：\n• AI推理图像：%1 个文件（%2）\n• AI推理视频：%3 个文件（%4）\n• Shader图像：%5 个文件（%6）\n• Shader视频：%7 个文件（%8）\n• 日志文件：%9\n• 缩略图缓存：%10 个文件（%11）\n\n总计：%12 个文件，共 %13\n\n此操作将：\n• 删除所有 AI/Shader 处理结果文件\n• 删除日志文件\n• 清除缩略图磁盘缓存和元数据\n• 清空所有会话中的消息记录\n\n清理后需要重新处理才能恢复结果。")
                                                 .arg(SettingsController.aiImageFileCount)
                                                 .arg(SettingsController.formatSize(SettingsController.aiImageSize))
                                                 .arg(SettingsController.aiVideoFileCount)
@@ -948,6 +968,8 @@ Rectangle {
                                                 .arg(SettingsController.shaderVideoFileCount)
                                                 .arg(SettingsController.formatSize(SettingsController.shaderVideoSize))
                                                 .arg(SettingsController.formatSize(SettingsController.logSize))
+                                                .arg(SettingsController.thumbnailCacheCount)
+                                                .arg(SettingsController.formatSize(SettingsController.thumbnailDiskSize))
                                                 .arg(totalFiles)
                                                 .arg(SettingsController.formatSize(SettingsController.totalCacheSize))
                                         )
