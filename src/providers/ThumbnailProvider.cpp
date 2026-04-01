@@ -218,6 +218,50 @@ void ThumbnailProvider::clearAll()
     m_failedKeys.clear();
 }
 
+void ThumbnailProvider::clearThumbnailsByPathPrefix(const QString &pathPrefix)
+{
+    if (pathPrefix.isEmpty()) {
+        return;
+    }
+
+    QString normalizedPrefix = normalizeFilePath(pathPrefix);
+    QStringList keysToRemove;
+    QStringList pathsToRemove;
+
+    {
+        QMutexLocker locker(&m_mutex);
+
+        for (auto it = m_thumbnails.constBegin(); it != m_thumbnails.constEnd(); ++it) {
+            const QString &key = it.key();
+
+            if (key.startsWith(QStringLiteral("processed_"))) {
+                QString filePath = m_idToPath.value(key);
+                if (!filePath.isEmpty() && filePath.startsWith(normalizedPrefix, Qt::CaseInsensitive)) {
+                    keysToRemove.append(key);
+                    pathsToRemove.append(key);
+                }
+            } else {
+                if (key.startsWith(normalizedPrefix, Qt::CaseInsensitive)) {
+                    keysToRemove.append(key);
+                }
+            }
+        }
+
+        for (const QString &key : keysToRemove) {
+            m_thumbnails.remove(key);
+            m_failedKeys.remove(key);
+            m_pendingRequests.remove(key);
+        }
+
+        for (const QString &key : pathsToRemove) {
+            m_idToPath.remove(key);
+        }
+    }
+
+    qInfo() << "[ThumbnailProvider] Cleared" << keysToRemove.size() 
+            << "thumbnails for path prefix:" << normalizedPrefix;
+}
+
 ThumbnailProvider* ThumbnailProvider::instance()
 {
     return s_instance;

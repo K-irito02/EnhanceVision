@@ -67,6 +67,12 @@ public:
     void clearAll();
 
     /**
+     * @brief 清除指定路径前缀的所有缩略图缓存
+     * @param pathPrefix 路径前缀（如缓存目录路径）
+     */
+    void clearThumbnailsByPathPrefix(const QString &pathPrefix);
+
+    /**
      * @brief 使指定 id 的缓存失效并重新生成
      */
     Q_INVOKABLE void invalidateThumbnail(const QString &id);

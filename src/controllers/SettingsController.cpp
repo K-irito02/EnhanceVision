@@ -6,11 +6,13 @@
 
 #include "EnhanceVision/controllers/SettingsController.h"
 #include "EnhanceVision/controllers/SessionController.h"
+#include "EnhanceVision/providers/ThumbnailProvider.h"
 #include <QStandardPaths>
 #include <QDir>
 #include <QDirIterator>
 #include <QFileInfo>
 #include <QCoreApplication>
+#include <QThread>
 
 namespace EnhanceVision {
 
@@ -504,8 +506,18 @@ bool SettingsController::clearDirectory(const QString& path)
                 success = false;
             }
         } else {
-            if (!QFile::remove(item)) {
-                qWarning() << "[SettingsController] Failed to remove file:" << item;
+            bool deleted = false;
+            for (int retry = 0; retry < 3 && !deleted; ++retry) {
+                if (QFile::remove(item)) {
+                    deleted = true;
+                } else {
+                    if (retry < 2) {
+                        QThread::msleep(100);
+                    }
+                }
+            }
+            if (!deleted) {
+                qWarning() << "[SettingsController] Failed to remove file after 3 retries:" << item;
                 success = false;
             }
         }
@@ -558,6 +570,12 @@ void SettingsController::refreshDataSize()
 bool SettingsController::clearAIImageData()
 {
     QString path = getAIImagePath();
+    
+    ThumbnailProvider* thumbnailProvider = ThumbnailProvider::instance();
+    if (thumbnailProvider) {
+        thumbnailProvider->clearThumbnailsByPathPrefix(path);
+    }
+    
     bool success = clearDirectory(path);
     
     if (success && m_sessionController) {
@@ -572,6 +590,12 @@ bool SettingsController::clearAIImageData()
 bool SettingsController::clearAIVideoData()
 {
     QString path = getAIVideoPath();
+    
+    ThumbnailProvider* thumbnailProvider = ThumbnailProvider::instance();
+    if (thumbnailProvider) {
+        thumbnailProvider->clearThumbnailsByPathPrefix(path);
+    }
+    
     bool success = clearDirectory(path);
     
     if (success && m_sessionController) {
@@ -586,6 +610,12 @@ bool SettingsController::clearAIVideoData()
 bool SettingsController::clearShaderImageData()
 {
     QString path = getShaderImagePath();
+    
+    ThumbnailProvider* thumbnailProvider = ThumbnailProvider::instance();
+    if (thumbnailProvider) {
+        thumbnailProvider->clearThumbnailsByPathPrefix(path);
+    }
+    
     bool success = clearDirectory(path);
     
     if (success && m_sessionController) {
@@ -600,6 +630,12 @@ bool SettingsController::clearShaderImageData()
 bool SettingsController::clearShaderVideoData()
 {
     QString path = getShaderVideoPath();
+    
+    ThumbnailProvider* thumbnailProvider = ThumbnailProvider::instance();
+    if (thumbnailProvider) {
+        thumbnailProvider->clearThumbnailsByPathPrefix(path);
+    }
+    
     bool success = clearDirectory(path);
     
     if (success && m_sessionController) {
@@ -623,6 +659,11 @@ bool SettingsController::clearLogs()
 bool SettingsController::clearAllCache()
 {
     bool success = true;
+    
+    ThumbnailProvider* thumbnailProvider = ThumbnailProvider::instance();
+    if (thumbnailProvider) {
+        thumbnailProvider->clearAll();
+    }
     
     success &= clearDirectory(getAIImagePath());
     success &= clearDirectory(getAIVideoPath());

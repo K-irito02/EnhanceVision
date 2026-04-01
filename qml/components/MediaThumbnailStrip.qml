@@ -330,6 +330,8 @@ Item {
                 filteredModel.append(sourceItem)
             }
         }
+        
+        _refreshAllThumbnails()
     }
 
     Loader {
