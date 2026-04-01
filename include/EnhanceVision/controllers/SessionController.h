@@ -221,6 +221,13 @@ private:
     QVariantMap jsonToParameters(const QJsonObject& json) const;
     
     QString findTaskIdForFile(const QString& messageId, const QString& fileId) const;
+    
+    /**
+     * @brief 删除会话中所有消息的媒体文件（磁盘文件）
+     * @param session 要清理的会话
+     * @return 删除的文件数量
+     */
+    int deleteSessionMediaFiles(const Session& session);
 };
 
 } // namespace EnhanceVision

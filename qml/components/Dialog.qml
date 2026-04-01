@@ -57,7 +57,7 @@ Item {
         }
     }
 
-    property point dialogPos: Qt.point(0, 0)
+    property point dragOffset: Qt.point(0, 0)
     property bool isDragging: false
 
     function showDialog(dialogTitle, dialogMessage, dialogType, primaryBtnText) {
@@ -65,12 +65,8 @@ Item {
         message = dialogMessage || ""
         type = dialogType !== undefined ? dialogType : Dialog.DialogType.Info
         if (primaryBtnText) primaryButtonText = primaryBtnText
-        
-        dialogPos = Qt.point(
-            (parent.width - dialogRect.width) / 2,
-            (parent.height - dialogRect.height) / 2
-        )
-        
+
+        dragOffset = Qt.point(0, 0)
         visible = true
         opacity = 0
         dialogRect.scale = 0.92
@@ -106,118 +102,138 @@ Item {
 
     Rectangle {
         id: dialogRect
-        x: dialogPos.x
-        y: dialogPos.y
+        x: __clampedCenterX + dragOffset.x
+        y: __clampedCenterY + dragOffset.y
         width: Math.min(380, parent.width - 48)
-        implicitHeight: contentColumn.implicitHeight + 36
+        implicitHeight: Math.min(contentColumn.implicitHeight + 36, parent.height * 0.9)
         radius: Theme.radius.xl
         color: Theme.colors.card
         border.color: Theme.colors.cardBorder
         border.width: 1
 
-        ColumnLayout {
-            id: contentColumn
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.margins: 18
-            spacing: 12
+        readonly property real __clampedCenterX: {
+            var cx = (parent.width - width) / 2
+            return Math.max(0, Math.min(cx, parent.width - width))
+        }
 
-            RowLayout {
-                id: titleRow
-                Layout.fillWidth: true
+        readonly property real __clampedCenterY: {
+            var cy = (parent.height - implicitHeight) / 2
+            return Math.max(0, Math.min(cy, parent.height - implicitHeight))
+        }
+
+        Flickable {
+            id: contentFlickable
+            anchors.fill: parent
+            anchors.margins: 18
+            contentHeight: contentColumn.implicitHeight
+            contentWidth: width
+            clip: true
+            interactive: contentHeight > height
+
+            ColumnLayout {
+                id: contentColumn
+                width: contentFlickable.contentWidth
                 spacing: 12
 
-                Rectangle {
-                    width: 36; height: 36
-                    radius: Theme.radius.lg
-                    color: dialogIconBgColor
+                RowLayout {
+                    id: titleRow
+                    Layout.fillWidth: true
+                    spacing: 12
 
-                    ColoredIcon {
-                        anchors.centerIn: parent
-                        source: Theme.icon(dialogIconName)
-                        iconSize: 18
-                        color: dialogIconColor
+                    Rectangle {
+                        width: 36; height: 36
+                        radius: Theme.radius.lg
+                        color: dialogIconBgColor
+
+                        ColoredIcon {
+                            anchors.centerIn: parent
+                            source: Theme.icon(dialogIconName)
+                            iconSize: 18
+                            color: dialogIconColor
+                        }
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: title
+                        font.pixelSize: 16
+                        font.weight: Font.DemiBold
+                        color: Theme.colors.foreground
+                        elide: Text.ElideRight
+                    }
+
+                    IconButton {
+                        iconName: "x"
+                        iconSize: 12
+                        btnSize: 24
+                        onClicked: root.hide()
+                    }
+                }
+                
+                MouseArea {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: titleRow.height
+                    cursorShape: Qt.SizeAllCursor
+                    
+                    property point lastMousePos: Qt.point(0, 0)
+                    
+                    onPressed: function(mouse) {
+                        lastMousePos = Qt.point(mouse.x, mouse.y)
+                        isDragging = true
+                    }
+                    
+                    onReleased: {
+                        isDragging = false
+                    }
+                    
+                    onPositionChanged: function(mouse) {
+                        if (isDragging) {
+                            var offsetX = dragOffset.x + mouse.x - lastMousePos.x
+                            var offsetY = dragOffset.y + mouse.y - lastMousePos.y
+
+                            var maxOffsetX = root.parent.width - dialogRect.width - dialogRect.__clampedCenterX
+                            var maxOffsetY = root.parent.height - dialogRect.implicitHeight - dialogRect.__clampedCenterY
+
+                            dragOffset = Qt.point(
+                                Math.max(-dialogRect.__clampedCenterX, Math.min(offsetX, maxOffsetX)),
+                                Math.max(-dialogRect.__clampedCenterY, Math.min(offsetY, maxOffsetY))
+                            )
+                        }
                     }
                 }
 
                 Text {
                     Layout.fillWidth: true
-                    text: title
-                    font.pixelSize: 16
-                    font.weight: Font.DemiBold
-                    color: Theme.colors.foreground
-                    elide: Text.ElideRight
+                    text: message
+                    font.pixelSize: 13
+                    color: Theme.colors.mutedForeground
+                    wrapMode: Text.Wrap
+                    lineHeight: 1.5
+                    leftPadding: 48
                 }
 
-                IconButton {
-                    iconName: "x"
-                    iconSize: 12
-                    btnSize: 24
-                    onClicked: root.hide()
-                }
-            }
-            
-            MouseArea {
-                Layout.fillWidth: true
-                Layout.preferredHeight: titleRow.height
-                cursorShape: Qt.SizeAllCursor
-                
-                property point lastMousePos: Qt.point(0, 0)
-                
-                onPressed: function(mouse) {
-                    lastMousePos = Qt.point(mouse.x, mouse.y)
-                    isDragging = true
-                }
-                
-                onReleased: {
-                    isDragging = false
-                }
-                
-                onPositionChanged: function(mouse) {
-                    if (isDragging) {
-                        var newX = dialogPos.x + mouse.x - lastMousePos.x
-                        var newY = dialogPos.y + mouse.y - lastMousePos.y
-                        
-                        newX = Math.max(0, Math.min(newX, root.parent.width - dialogRect.width))
-                        newY = Math.max(0, Math.min(newY, root.parent.height - dialogRect.height))
-                        
-                        dialogPos = Qt.point(newX, newY)
+                Item { height: 2 }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Item { Layout.fillWidth: true }
+
+                    Button {
+                        visible: showSecondaryButton
+                        variant: "secondary"
+                        text: secondaryButtonText
+                        size: "sm"
+                        onClicked: { root.secondaryButtonClicked(); root.hide() }
                     }
-                }
-            }
 
-            Text {
-                Layout.fillWidth: true
-                text: message
-                font.pixelSize: 13
-                color: Theme.colors.mutedForeground
-                wrapMode: Text.Wrap
-                lineHeight: 1.5
-                leftPadding: 48
-            }
-
-            Item { height: 2 }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 8
-
-                Item { Layout.fillWidth: true }
-
-                Button {
-                    visible: showSecondaryButton
-                    variant: "secondary"
-                    text: secondaryButtonText
-                    size: "sm"
-                    onClicked: { root.secondaryButtonClicked(); root.hide() }
-                }
-
-                Button {
-                    variant: type === Dialog.DialogType.Error ? "destructive" : "primary"
-                    text: primaryButtonText
-                    size: "sm"
-                    onClicked: { root.primaryButtonClicked(); root.hide() }
+                    Button {
+                        variant: type === Dialog.DialogType.Error ? "destructive" : "primary"
+                        text: primaryButtonText
+                        size: "sm"
+                        onClicked: { root.primaryButtonClicked(); root.hide() }
+                    }
                 }
             }
         }

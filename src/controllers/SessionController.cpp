@@ -245,6 +245,12 @@ void SessionController::deleteSession(const QString& sessionId)
         m_processingController->cancelSessionTasks(sessionId);
     }
     
+    Session* session = getSession(sessionId);
+    if (session) {
+        int deletedCount = deleteSessionMediaFiles(*session);
+        qInfo() << "[SessionController] Deleted" << deletedCount << "media files for session:" << sessionId;
+    }
+    
     m_sessionModel->deleteSession(sessionId);
     rebuildSessionMessageIndex();
     
@@ -270,6 +276,12 @@ void SessionController::clearSession(const QString& sessionId)
 {
     if (m_processingController) {
         m_processingController->cancelSessionTasks(sessionId);
+    }
+    
+    Session* session = getSession(sessionId);
+    if (session) {
+        int deletedCount = deleteSessionMediaFiles(*session);
+        qInfo() << "[SessionController] Deleted" << deletedCount << "media files for session:" << sessionId;
     }
     
     m_sessionModel->clearSession(sessionId);
@@ -324,6 +336,13 @@ void SessionController::deleteSelectedSessions()
         }
     }
     
+    for (const QString& sessionId : selectedIds) {
+        Session* session = getSession(sessionId);
+        if (session) {
+            deleteSessionMediaFiles(*session);
+        }
+    }
+    
     int count = m_sessionModel->deleteSelectedSessions();
     if (count > 0) {
         rebuildSessionMessageIndex();
@@ -360,6 +379,13 @@ void SessionController::clearSelectedSessions()
     if (m_processingController) {
         for (const QString& sessionId : selectedIds) {
             m_processingController->cancelSessionTasks(sessionId);
+        }
+    }
+    
+    for (const QString& sessionId : selectedIds) {
+        Session* session = getSession(sessionId);
+        if (session) {
+            deleteSessionMediaFiles(*session);
         }
     }
     
@@ -1067,9 +1093,11 @@ QVariantMap SessionController::jsonToParameters(const QJsonObject& json) const
 
 void SessionController::restoreThumbnails()
 {
+    qInfo() << "[SessionController] Starting thumbnail restoration...";
+    
     ThumbnailProvider* thumbnailProvider = ThumbnailProvider::instance();
     if (!thumbnailProvider) {
-        qWarning() << "ThumbnailProvider not available for thumbnail restoration";
+        qWarning() << "[SessionController] ThumbnailProvider not available for thumbnail restoration";
         return;
     }
     
@@ -1116,7 +1144,7 @@ void SessionController::restoreThumbnails()
                         }
                         
                         if (!thumbnail.isNull()) {
-                            thumbnailProvider->setThumbnail(thumbId, thumbnail);
+                            thumbnailProvider->setThumbnail(thumbId, thumbnail, file.resultPath);
                             restoredCount++;
                         }
                     } else {
@@ -1162,6 +1190,11 @@ void SessionController::restoreThumbnails()
     }
 
     rebuildSessionMessageIndex();
+    
+    qInfo() << "[SessionController] Thumbnail restoration completed:"
+            << "restored:" << restoredCount
+            << "missing:" << missingCount
+            << "total:" << totalCompletedFiles;
     
     if (missingCount > 0) {
         qWarning() << "[SessionController] Found" << missingCount << "missing processed files";
@@ -1587,6 +1620,13 @@ void SessionController::deleteAllSessions()
     }
     
     for (const QString& sessionId : sessionIds) {
+        Session* session = getSession(sessionId);
+        if (session) {
+            deleteSessionMediaFiles(*session);
+        }
+    }
+    
+    for (const QString& sessionId : sessionIds) {
         m_sessionModel->deleteSession(sessionId);
     }
     
@@ -1604,6 +1644,29 @@ void SessionController::deleteAllSessions()
     emit activeSessionChanged();
     
     qInfo() << "[SessionController] All sessions deleted";
+}
+
+int SessionController::deleteSessionMediaFiles(const Session& session)
+{
+    int deletedCount = 0;
+    
+    for (const Message& msg : session.messages) {
+        for (const MediaFile& file : msg.mediaFiles) {
+            if (!file.resultPath.isEmpty()) {
+                QFile resultFile(file.resultPath);
+                if (resultFile.exists()) {
+                    if (resultFile.remove()) {
+                        ++deletedCount;
+                        qInfo() << "[SessionController] Deleted result file:" << file.resultPath;
+                    } else {
+                        qWarning() << "[SessionController] Failed to delete result file:" << file.resultPath;
+                    }
+                }
+            }
+        }
+    }
+    
+    return deletedCount;
 }
 
 } // namespace EnhanceVision

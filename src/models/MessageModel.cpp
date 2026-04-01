@@ -133,6 +133,24 @@ QVariant MessageModel::data(const QModelIndex &index, int role) const
         return getStatusText(message.status);
     case StatusColorRole:
         return getStatusColor(message.status);
+    case FileIdsRole: {
+        QStringList fileIds;
+        for (const MediaFile &file : message.mediaFiles) {
+            fileIds.append(file.id);
+        }
+        return fileIds;
+    }
+    case ProcessedThumbnailIdsRole: {
+        QStringList processedThumbnailIds;
+        for (const MediaFile &file : message.mediaFiles) {
+            if (file.status == ProcessingStatus::Completed && !file.resultPath.isEmpty()) {
+                processedThumbnailIds.append("processed_" + file.id);
+            } else {
+                processedThumbnailIds.append("");
+            }
+        }
+        return processedThumbnailIds;
+    }
     default:
         return QVariant();
     }
@@ -155,6 +173,8 @@ QHash<int, QByteArray> MessageModel::roleNames() const
     roles[ModeTextRole] = "modeText";
     roles[StatusTextRole] = "statusText";
     roles[StatusColorRole] = "statusColor";
+    roles[FileIdsRole] = "fileIds";
+    roles[ProcessedThumbnailIdsRole] = "processedThumbnailIds";
     return roles;
 }
 

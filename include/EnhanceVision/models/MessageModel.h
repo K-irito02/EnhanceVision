@@ -39,7 +39,9 @@ public:
         QueuePositionRole,
         ModeTextRole,
         StatusTextRole,
-        StatusColorRole
+        StatusColorRole,
+        FileIdsRole,
+        ProcessedThumbnailIdsRole
     };
 
     explicit MessageModel(QObject *parent = nullptr);

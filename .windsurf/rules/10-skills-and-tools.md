@@ -9,7 +9,7 @@ trigger: always_on
 
 | 技能 | 用途 |
 |------|------|
-| `using-superpowers` | 技能使用总则，对话开始必须调用 |
+| `communication-reflection` | 技能使用总则，对话开始必须调用 |
 | `qt-build-and-fix` | 构建、运行、编译错误修复 |
 | `qt-qml` | QML/Qt Quick UI 架构与组件 |
 | `git-workflow` | 分支、提交、推送、回滚 |
@@ -28,7 +28,7 @@ trigger: always_on
 ## 典型工作流
 
 ```
-对话开始：using-superpowers → 技能检查 → 执行
+对话开始：communication-reflection → 技能检查 → 执行
 新功能：架构设计 → 开发实现 → 构建验证 → 文档更新
 Bug修复：问题定位 → 修复 → 回归验证 → 文档更新
 测试补全：类/模块分析 → 单测生成 → 构建验证
@@ -36,7 +36,7 @@ Bug修复：问题定位 → 修复 → 回归验证 → 文档更新
 
 ## 执行原则
 
-1. **技能优先**：对话开始必须先调用 `using-superpowers`
+1. **技能优先**：对话开始必须先调用 `communication-reflection`
 2. **优先项目内既有规范与流程**
 3. **每次代码变更后执行构建验证**
 4. **变更完成后同步更新相关文档**
