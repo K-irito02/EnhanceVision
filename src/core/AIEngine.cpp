@@ -166,51 +166,22 @@ void AIEngine::ensureVulkanReady()
     if (!m_gpuAvailable || !m_useGpu || !m_vkdev) {
         return;
     }
-    
+
     QMutexLocker allocatorLock(&m_allocatorMutex);
-    
-    // 【关键修复】每次推理前都重新初始化分配器
-    // 这可以避免分配器状态不一致导致的堆内存损坏
-    
-    // 先同步并清理现有分配器
-    if (m_blobVkAllocator || m_stagingVkAllocator) {
-        // 同步Vulkan队列
-        {
-            ncnn::VkCompute cmd(m_vkdev);
-            cmd.submit_and_wait();
-        }
-        
-        // 清理并回收分配器
-        if (m_blobVkAllocator) {
-            m_blobVkAllocator->clear();
-            m_vkdev->reclaim_blob_allocator(m_blobVkAllocator);
-            m_blobVkAllocator = nullptr;
-        }
-        if (m_stagingVkAllocator) {
-            m_stagingVkAllocator->clear();
-            m_vkdev->reclaim_staging_allocator(m_stagingVkAllocator);
-            m_stagingVkAllocator = nullptr;
-        }
-        
-        // 等待GPU完全空闲
-        QThread::msleep(50);
-    }
-    
-    // 获取新的分配器
-    m_blobVkAllocator = m_vkdev->acquire_blob_allocator();
-    m_stagingVkAllocator = m_vkdev->acquire_staging_allocator();
-    m_opt.blob_vkallocator = m_blobVkAllocator;
-    m_opt.workspace_vkallocator = m_stagingVkAllocator;
-    
-    // 同步确保分配器就绪
+
     {
         ncnn::VkCompute cmd(m_vkdev);
         cmd.submit_and_wait();
     }
-    
-    qInfo() << "[AIEngine][DEBUG] ensureVulkanReady() completed:"
-            << "blobAllocator:" << (m_blobVkAllocator != nullptr)
-            << "stagingAllocator:" << (m_stagingVkAllocator != nullptr);
+
+    if (m_blobVkAllocator) {
+        m_blobVkAllocator->clear();
+    }
+    if (m_stagingVkAllocator) {
+        m_stagingVkAllocator->clear();
+    }
+
+    qInfo() << "[AIEngine][DEBUG] ensureVulkanReady() completed (sync only)";
 #endif
 }
 
@@ -266,47 +237,20 @@ void AIEngine::warmupVulkanPipelineSync()
         qWarning() << "[AIEngine][DEBUG] warmupVulkanPipelineSync: no Vulkan device";
         return;
     }
-    
+
     qInfo() << "[AIEngine][DEBUG] warmupVulkanPipelineSync() starting (synchronous)";
-    
+
     QElapsedTimer warmupTimer;
     warmupTimer.start();
-    
-    // 【关键修复】进行多次Vulkan同步预热，确保GPU完全就绪
+
     for (int i = 0; i < 3; ++i) {
         ncnn::VkCompute cmd(m_vkdev);
         cmd.submit_and_wait();
-        QThread::msleep(100);
+        QThread::msleep(50);
     }
-    
-    ncnn::VkAllocator* warmupBlobAlloc = nullptr;
-    ncnn::VkAllocator* warmupStagingAlloc = nullptr;
-    
-    warmupBlobAlloc = m_vkdev->acquire_blob_allocator();
-    warmupStagingAlloc = m_vkdev->acquire_staging_allocator();
-    
-    if (warmupBlobAlloc && warmupStagingAlloc) {
-        // 创建并清理分配器，确保它们处于干净状态
-        warmupBlobAlloc->clear();
-        warmupStagingAlloc->clear();
-        
-        // 再次同步
-        {
-            ncnn::VkCompute cmd(m_vkdev);
-            cmd.submit_and_wait();
-        }
-        
-        qInfo() << "[AIEngine][DEBUG] Vulkan pipeline sync warmup completed in"
-                << warmupTimer.elapsed() << "ms";
-        
-        m_vkdev->reclaim_blob_allocator(warmupBlobAlloc);
-        m_vkdev->reclaim_staging_allocator(warmupStagingAlloc);
-        
-        // 最终等待确保GPU完全空闲
-        QThread::msleep(200);
-    } else {
-        qWarning() << "[AIEngine][DEBUG] Vulkan pipeline sync warmup failed: allocators not available";
-    }
+
+    qInfo() << "[AIEngine][DEBUG] Vulkan pipeline sync warmup completed in"
+            << warmupTimer.elapsed() << "ms";
 #else
     qInfo() << "[AIEngine][DEBUG] warmupVulkanPipelineSync: Vulkan not supported";
 #endif
@@ -351,35 +295,14 @@ void AIEngine::syncVulkanQueue()
     if (!m_gpuAvailable || !m_useGpu || !m_vkdev) {
         return;
     }
-    
+
     QMutexLocker locker(&m_allocatorMutex);
-    
-    // 【关键修复】强制等待所有GPU操作完成
-    // 使用多次同步确保Vulkan队列完全清空
-    
-    // 第一次同步：提交并等待当前队列
+
     {
         ncnn::VkCompute cmd(m_vkdev);
         cmd.submit_and_wait();
     }
-    
-    // 清理分配器缓存
-    if (m_blobVkAllocator) {
-        m_blobVkAllocator->clear();
-    }
-    if (m_stagingVkAllocator) {
-        m_stagingVkAllocator->clear();
-    }
-    
-    // 第二次同步：确保清理操作完成
-    {
-        ncnn::VkCompute cmd(m_vkdev);
-        cmd.submit_and_wait();
-    }
-    
-    // 额外等待时间，确保GPU完全空闲
-    QThread::msleep(50);
-    
+
     qInfo() << "[AIEngine][DEBUG] syncVulkanQueue() completed";
 #endif
 }
@@ -973,24 +896,20 @@ void AIEngine::cleanupGpuMemory()
     if (!m_vkdev) {
         return;
     }
-    
+
     qInfo() << "[AIEngine][DEBUG] cleanupGpuMemory() called"
             << "currentModel:" << m_currentModelId
             << "gpuOomDetected:" << m_gpuOomDetected.load();
-    
-    // 使用互斥锁保护 GPU 内存清理，防止与推理过程冲突
-    QMutexLocker locker(&m_mutex);
-    
-    // 【简化修复】只清理 allocator 中的临时分配，不重新获取
-    // 重新获取 allocator 可能导致 NCNN 网络内部状态不一致
+
+    QMutexLocker locker(&m_allocatorMutex);
+
     if (m_blobVkAllocator) {
         m_blobVkAllocator->clear();
     }
     if (m_stagingVkAllocator) {
         m_stagingVkAllocator->clear();
     }
-    
-    // 重置 OOM 标志
+
     m_gpuOomDetected.store(false);
 #endif
 }
@@ -1383,31 +1302,18 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
         }
     }
     
-    // 【关键修复】在推理完成后进行完整的Vulkan同步
-    // 确保GPU操作完成后再返回，避免连续推理时的堆内存损坏
 #if NCNN_VULKAN
     if (m_opt.use_vulkan_compute && m_vkdev) {
-        // 第一次同步
         {
             ncnn::VkCompute cmd(m_vkdev);
             cmd.submit_and_wait();
         }
-        
-        // 清理分配器缓存
-        {
-            QMutexLocker allocLock(&m_allocatorMutex);
-            if (m_blobVkAllocator) {
-                m_blobVkAllocator->clear();
-            }
-            if (m_stagingVkAllocator) {
-                m_stagingVkAllocator->clear();
-            }
+
+        if (m_blobVkAllocator) {
+            m_blobVkAllocator->clear();
         }
-        
-        // 第二次同步
-        {
-            ncnn::VkCompute cmd(m_vkdev);
-            cmd.submit_and_wait();
+        if (m_stagingVkAllocator) {
+            m_stagingVkAllocator->clear();
         }
     }
 #endif

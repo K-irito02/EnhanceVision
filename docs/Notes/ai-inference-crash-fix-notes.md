@@ -2,169 +2,160 @@
 
 ## 概述
 
-**创建日期**: 2026-03-31  
-**问题类型**: 堆内存损坏崩溃 (0xc0000374)  
-**状态**: 已完全解决
+**创建日期**: 2026-03-31
+**最后更新**: 2026-04-02
+**问题类型**: 首次任务堆内存损坏崩溃
+**状态**: 已完全解决（根因级修复）
 
 ---
 
 ## 一、问题总结
 
-AI推理在以下场景出现间歇性崩溃：
-1. 应用程序重启后首次处理任务
-2. 取消任务后立即处理新任务
-3. 重新处理失败任务
-4. 模型切换时的推理
+AI推理在以下场景出现**首个任务**崩溃：
+1. 应用程序启动后首次处理图像/视频任务
+2. 取消任务后首次重新处理任务
+3. 模型切换后首次推理任务
 
-**根本原因**: NCNN Vulkan在快速任务切换时的GPU资源同步问题导致堆内存损坏
+**根本原因（已确认）**: `ensureVulkanReady()` 在每次推理前销毁并重建 Vulkan Allocator，但 `ncnn::Net` (m_net) 的 opt 仍持有已释放 allocator 的悬空指针，导致推理时访问非法内存 → 堆损坏/崩溃
 
 ---
 
-## 二、最终解决方案
+## 二、根因分析（2026-04-02 更新）
 
-### 核心修复策略
+### 致命调用链
+
+```
+1. AIEngine 构造函数 [主线程]
+   └─→ initVulkan()
+       ├─→ warmupVulkanPipelineSync()
+       └─→ updateOptions() → 获取 allocator_A → 赋值给 m_opt
+
+2. 工作线程 → loadModel(modelId)
+   └─→ m_net.opt = m_opt;  // m_net.opt.blob_vkallocator = allocator_A
+   └─→ m_net.load_param() / load_model()  // Net 内部层缓存了 allocator_A 引用
+
+3. 首帧推理 → runInference()
+   └─→ ensureVulkanReady()  // 🔴 致命！
+       ├─→ reclaim_blob_allocator(allocator_A)  // 销毁 m_net 正在引用的！
+       ├─→ reclaim_staging_allocator(allocator_A)
+       ├─→ acquire_blob_allocator() → allocator_B
+       └─→ 更新 m_opt（但没更新 m_net.opt！！！）
+
+4. 推理执行 → ex.input() / ex.extract()
+   └─→ m_net.opt.blob_vkallocator 指向已释放的 allocator_A → 💥 崩溃
+```
+
+### 为什么是"首个任务"特别容易崩溃
+
+| 阶段 | allocator 状态 | 说明 |
+|------|---------------|------|
+| initVulkan 后 | allocator_A (有效) | updateOptions() 创建 |
+| loadModel 后 | m_net.opt → allocator_A | Net 缓存引用 |
+| **ensureVulkanReady (首次)** | **allocator_A 被 reclaim** | **m_net 持有悬空指针** |
+| 推理执行 | 访问已释放内存 | **💥 崩溃** |
+
+---
+
+## 三、修复方案（2026-04-02 根因级修复）
+
+### 修改文件清单
+
+| 文件路径 | 修改内容 | 优先级 |
+|----------|---------|--------|
+| `src/core/AIEngine.cpp` | 重写 ensureVulkanReady(), warmupVulkanPipelineSync(), syncVulkanQueue(), cleanupGpuMemory(), runInference() 后处理 | P0-P1 |
+| `src/core/AIEnginePool.cpp` | 清理 release()/acquire() 中的 hacky sleep | P2 |
+
+### 修改 1（P0 致命）：重写 `ensureVulkanReady()` — 不再销毁 allocator
+
+**位置**: AIEngine.cpp:163-182
+
+**修改前**: 每次推理前 reclaim 旧 allocator + acquire 新 allocator（导致 m_net 悬空指针）
+
+**修改后**: 只做 VkCompute 同步 + clear() 缓存（不销毁 allocator 本身）
+
+```cpp
+void AIEngine::ensureVulkanReady()
+{
+#if NCNN_VULKAN
+    if (!m_gpuAvailable || !m_useGpu || !m_vkdev) return;
+
+    QMutexLocker allocatorLock(&m_allocatorMutex);
+
+    // 只做 Vulkan 队列同步，不销毁/重建 allocator
+    { ncnn::VkCompute cmd(m_vkdev); cmd.submit_and_wait(); }
+
+    // 只清空缓存（不销毁 allocator 本身）
+    if (m_blobVkAllocator) m_blobVkAllocator->clear();
+    if (m_stagingVkAllocator) m_stagingVkAllocator->clear();
+#endif
+}
+```
+
+### 修改 2（P0 致命）：重写 `warmupVulkanPipelineSync()` — 移除临时 allocator
+
+**位置**: AIEngine.cpp:238-256
+
+**修改前**: 创建临时 allocator → 使用 → reclaim（残留 VkCompute 引用已释放内存）
+
+**修改后**: 仅做 VkCompute 同步预热（无 allocator 操作）
+
+### 修改 3（P1）：简化 `syncVulkanQueue()` — 移除多余 clear 和二次同步
+
+### 修改 4（P1）：修复 `cleanupGpuMemory()` 锁一致性 — m_mutex 改为 m_allocatorMutex
+
+### 修改 5（P1）：优化 `runInference()` 推理后同步 — 移除冗余锁嵌套
+
+### 修改 6（P2）：清理 `AIEnginePool` release()/acquire() 中的 hacky msleep()
+
+---
+
+## 四、历史修复记录（2026-03-31 初次修复）
+
+> ⚠️ 下述修复缓解了症状但未触及根本原因。本次（2026-04-02）修复才是真正的根因解决方案。
+
+### 初次修复策略（部分有效）
 1. **Vulkan双重同步**: 每次推理前后进行两次Vulkan队列同步
-2. **分配器重新初始化**: 每次推理前重新获取Vulkan分配器
+2. **分配器重新初始化**: 每次推理前重新获取Vulkan分配器 ← 🔴 这正是本次确认的根因！
 3. **延迟任务切换**: 取消任务后延迟500ms再处理下一个任务
 4. **状态检查机制**: 获取引擎前等待Vulkan完全就绪
 5. **重复任务检查**: 防止重复提交相同任务
 
-### 性能代价
-- 每次推理增加约100ms延迟
-- 模型加载增加约500ms延迟
-- 任务切换增加500ms延迟
-
-**权衡**: 牺牲部分性能换取完全的稳定性
-
----
-
-## 一、问题描述
-
-应用程序在 AI 视频处理过程中发生间歇性崩溃，特别是在以下场景：
-- 快速取消/切换任务时
-- 处理不同尺寸视频时
-- 连续处理多个视频任务时
-
-### 崩溃特征
-- Windows 异常代码: `0xc0000374` (堆内存损坏)
-- 崩溃发生在 NCNN Vulkan 推理过程中
-- 崩溃时机不固定，属于间歇性问题
-
----
-
-## 二、根本原因分析
-
-### 问题 1：多 AIEngine 实例 Vulkan 冲突
-`ProcessingController` 同时创建了独立的 `m_aiEngine` 和 `AIEnginePool` 中的引擎，导致两个 Vulkan 实例初始化同一 GPU 设备。
-
-### 问题 2：任务切换时取消标志未重置
-当旧任务被取消后，`m_cancelRequested` 标志保持 true 状态。新任务获取引擎时该标志未被重置，导致新任务的推理被错误跳过。
-
-### 问题 3：Vulkan 操作未同步
-任务快速切换时，旧任务的 Vulkan GPU 操作尚未完成，新任务就开始使用相同的 Vulkan 资源，导致堆内存损坏。
-
----
-
-## 三、修复方案
-
-### 修改文件
+### 初次修复涉及的文件
 
 | 文件路径 | 修改内容 |
-|----------|----------|
+|----------|---------|
 | `src/controllers/ProcessingController.cpp` | 移除独立 AIEngine，简化清理流程 |
 | `src/core/AIEnginePool.cpp` | 添加引擎获取时重置取消标志，释放时同步 Vulkan |
 | `src/core/AIEngine.cpp` | 新增 `resetCancelFlag()` 和 `syncVulkanQueue()` 方法 |
 | `include/EnhanceVision/core/AIEngine.h` | 添加新方法声明 |
 | `include/EnhanceVision/core/AIEnginePool.h` | 添加 `firstEngine()` 方法声明 |
 
-### 关键修复
-
-#### 1. 移除独立 AIEngine 实例
-
-```cpp
-// ProcessingController.cpp - 构造函数
-// 之前：创建独立引擎 + 引擎池
-m_aiEngine = new AIEngine(this);
-m_aiEnginePool = new AIEnginePool(2, m_modelRegistry, this);
-
-// 之后：只使用引擎池
-m_aiEnginePool = new AIEnginePool(1, m_modelRegistry, this);
-m_aiEngine = nullptr;
-```
-
-#### 2. 引擎获取时重置取消标志
-
-```cpp
-// AIEnginePool.cpp - acquire()
-m_slots[i].engine->resetCancelFlag();
-
-// AIEngine.cpp - 新方法
-void AIEngine::resetCancelFlag()
-{
-    m_cancelRequested = false;
-    m_forceCancelled = false;
-}
-```
-
-#### 3. 引擎释放时同步 Vulkan 队列
-
-```cpp
-// AIEnginePool.cpp - release()
-if (m_slots[idx].engine) {
-    m_slots[idx].engine->syncVulkanQueue();
-}
-
-// AIEngine.cpp - 新方法
-void AIEngine::syncVulkanQueue()
-{
-#if NCNN_VULKAN
-    if (!m_gpuAvailable || !m_useGpu || !m_vkdev) {
-        return;
-    }
-    QMutexLocker locker(&m_allocatorMutex);
-    ncnn::VkCompute cmd(m_vkdev);
-    cmd.submit_and_wait();
-#endif
-}
-```
-
-#### 4. 简化清理流程
-
-移除 `forceCancel()` 和 `cleanupGpuMemory()` 的激进调用，改用简单的 `cancelProcess()`，避免与新任务产生竞争条件。
-
 ---
 
-## 四、测试验证
+## 五、测试验证
 
 | 场景 | 预期结果 | 实际结果 |
 |------|----------|----------|
+| 启动后立即执行图像推理（首个任务） | 正常完成 | ✅ 通过 |
+| 启动后立即执行视频推理（首个任务） | 正常完成 | ✅ 通过 |
+| 切换模型后立即推理 | 正常完成 | ✅ 通过 |
+| 连续执行多次推理任务 | 全部成功 | ✅ 通过 |
 | 单个视频处理 | 正常完成 | ✅ 通过 |
-| 连续处理多个视频 | 正常完成 | ✅ 通过 |
 | 快速取消任务 | 无崩溃 | ✅ 通过 |
 | 压力测试（快速切换） | 无崩溃 | ✅ 通过 |
-| 不同尺寸视频切换 | 无崩溃 | ✅ 通过 |
 
 ---
 
-## 五、技术要点
+## 六、设计原则总结
 
-### Vulkan 资源管理
-- 单一 AIEngine 实例避免 Vulkan 设备冲突
-- `syncVulkanQueue()` 确保 GPU 操作完成后才释放引擎
-- NCNN 自动管理 GPU 内存，不需要激进的手动清理
+### Vulkan Allocator 生命周期规则（新增）
 
-### 状态管理
-- 引擎获取时必须重置 `m_cancelRequested` 标志
-- 任务取消时只设置标志，不做破坏性清理
+1. **Allocator 与 ncnn::Net 绑定**: 只在 `loadModel()` 时通过 `m_net.opt = m_opt` 设置 allocator
+2. **推理过程中不重建 allocator**: `ensureVulkanReady()` 只做同步和 clear 缓存
+3. **如需重置 allocator 必须重新加载模型**: 确保 m_net.opt 始终指向有效 allocator
+4. **warmup 不使用临时 allocator**: 避免创建后立即 reclaim 导致残留引用
 
-### 线程安全
-- 使用 `QMutex` 保护 Vulkan 分配器访问
-- 原子变量管理处理状态
+### 线程安全规则
 
----
-
-## 六、后续建议
-
-- [ ] 考虑添加 Vulkan 操作超时机制
-- [ ] 监控 GPU 内存使用情况
-- [ ] 添加更详细的 Vulkan 错误处理
+- 使用 `m_allocatorMutex` 保护所有 Vulkan allocator 操作（非 m_mutex）
+- 锁获取顺序一致：避免 m_mutex 与 m_allocatorMutex 嵌套

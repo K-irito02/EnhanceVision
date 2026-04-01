@@ -43,26 +43,15 @@ AIEngine* AIEnginePool::acquire(const QString& taskId)
                 qWarning() << "[AIEnginePool] Engine slot" << i << "not ready, skipping";
                 continue;
             }
-            
-            // 【关键修复】获取引擎前进行完整的状态检查和同步
-            // 1. 等待Vulkan完全就绪
+
             if (!m_slots[i].engine->waitForVulkanReady(5000)) {
                 qWarning() << "[AIEnginePool] Engine slot" << i << "Vulkan not ready, skipping";
                 continue;
             }
-            
-            // 2. 同步Vulkan队列（包含等待时间）
+
             m_slots[i].engine->syncVulkanQueue();
-            
-            // 3. 额外等待确保GPU完全空闲
-            QThread::msleep(100);
-            
-            // 4. 重置取消标志
             m_slots[i].engine->resetCancelFlag();
-            
-            // 5. 再次同步确保状态一致
-            m_slots[i].engine->syncVulkanQueue();
-            
+
             m_slots[i].state = EngineState::InUse;
             m_slots[i].taskId = taskId;
             m_taskToSlot[taskId] = i;
@@ -130,22 +119,11 @@ void AIEnginePool::release(const QString& taskId)
 
     int idx = m_taskToSlot.take(taskId);
     if (idx >= 0 && idx < m_slots.size()) {
-        // 【关键修复】在释放引擎前进行完整的Vulkan同步
-        // 确保所有GPU操作完成，防止快速任务切换时的堆内存损坏
         if (m_slots[idx].engine) {
-            // 1. 取消任何正在进行的处理
             m_slots[idx].engine->cancelProcess();
-            
-            // 2. 等待处理完成
-            QThread::msleep(50);
-            
-            // 3. 同步Vulkan队列
             m_slots[idx].engine->syncVulkanQueue();
-            
-            // 4. 额外等待确保GPU完全空闲
-            QThread::msleep(100);
         }
-        
+
         m_slots[idx].state = EngineState::Ready;
         m_slots[idx].taskId.clear();
         m_slots[idx].wasUsed = true;
