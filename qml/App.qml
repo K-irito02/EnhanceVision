@@ -134,6 +134,22 @@ FocusScope {
                 Layout.maximumWidth: sidebarExpanded ? root.sidebarWidth : 0
                 Layout.minimumWidth: 0
                 clip: true
+                minWidth: root.sidebarMinWidth
+                maxWidth: root.sidebarMaxWidth
+                
+                onResizeStarted: {
+                    sidebarAnimation.enabled = false
+                }
+                
+                onResizeFinished: {
+                    sidebarAnimation.enabled = true
+                }
+                
+                onResizeDelta: function(delta) {
+                    var newWidth = root.sidebarWidth + delta
+                    root.sidebarWidth = Math.max(root.sidebarMinWidth, 
+                                                 Math.min(root.sidebarMaxWidth, Math.round(newWidth)))
+                }
 
                 Behavior on Layout.preferredWidth {
                     id: sidebarAnimation
@@ -141,64 +157,6 @@ FocusScope {
                     NumberAnimation {
                         duration: Theme.animation.normal
                         easing.type: Easing.OutCubic
-                    }
-                }
-            }
-            
-            // ========== 侧边栏宽度调整手柄 ==========
-            Rectangle {
-                id: sidebarResizeHandle
-                visible: root.sidebarExpanded
-                Layout.preferredWidth: 6
-                Layout.fillHeight: true
-                color: "transparent"
-                
-                // 可视指示器（居中的细线）
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: 2
-                    height: parent.height
-                    color: sidebarResizeMouse.containsMouse || sidebarResizeMouse.pressed ? 
-                           Theme.colors.primary : "transparent"
-                    opacity: sidebarResizeMouse.containsMouse || sidebarResizeMouse.pressed ? 0.8 : 0
-                    
-                    Behavior on opacity {
-                        NumberAnimation { duration: 100 }
-                    }
-                }
-                
-                MouseArea {
-                    id: sidebarResizeMouse
-                    anchors.fill: parent
-                    anchors.leftMargin: -4
-                    anchors.rightMargin: -4
-                    hoverEnabled: true
-                    cursorShape: Qt.SplitHCursor
-                    preventStealing: true
-                    
-                    // 使用全局坐标避免抖动
-                    property real startGlobalX: 0
-                    property int startWidth: 0
-                    
-                    onPressed: function(mouse) {
-                        var globalPos = mapToGlobal(mouse.x, mouse.y)
-                        startGlobalX = globalPos.x
-                        startWidth = root.sidebarWidth
-                        sidebarAnimation.enabled = false
-                    }
-                    
-                    onReleased: {
-                        sidebarAnimation.enabled = true
-                    }
-                    
-                    onPositionChanged: function(mouse) {
-                        if (pressed) {
-                            var globalPos = mapToGlobal(mouse.x, mouse.y)
-                            var delta = globalPos.x - startGlobalX
-                            var newWidth = startWidth + delta
-                            root.sidebarWidth = Math.max(root.sidebarMinWidth, 
-                                                         Math.min(root.sidebarMaxWidth, Math.round(newWidth)))
-                        }
                     }
                 }
             }
