@@ -238,35 +238,15 @@ Item {
                 var oldStatus = entry.status
                 var nextStatus = fileStatus
                 var nextResultPath = (fileResultPath !== undefined) ? fileResultPath : (entry.resultPath || "")
-                var sourcePath = entry.originalPath || entry.filePath || ""
-                var viewPath = sourcePath
-
-                if (nextStatus === 2 && nextResultPath && nextResultPath !== "") {
-                    viewPath = nextResultPath
-                }
+                var sourcePath = entry.originalPath || ""
 
                 var processedThumbId = entry.processedThumbnailId || ""
                 if (nextStatus === 2 && nextResultPath && nextResultPath !== "") {
                     processedThumbId = "processed_" + fileId
                 }
 
-                var thumbSource = ""
-                if (nextStatus === 2) {
-                    if (processedThumbId !== "") {
-                        thumbSource = "image://thumbnail/" + processedThumbId
-                    } else if (nextResultPath && nextResultPath !== "") {
-                        thumbSource = "image://thumbnail/" + nextResultPath
-                    } else if (sourcePath !== "") {
-                        thumbSource = "image://thumbnail/" + sourcePath
-                    }
-                } else if (sourcePath !== "") {
-                    thumbSource = "image://thumbnail/" + sourcePath
-                }
-
                 _cachedMedia.setProperty(idx, "status", nextStatus)
                 _cachedMedia.setProperty(idx, "resultPath", nextResultPath)
-                _cachedMedia.setProperty(idx, "filePath", viewPath)
-                _cachedMedia.setProperty(idx, "thumbnail", thumbSource)
                 _cachedMedia.setProperty(idx, "processedThumbnailId", processedThumbId)
 
                 if (_fileStatsInitialized && oldStatus !== nextStatus) {
@@ -288,31 +268,22 @@ Item {
 
                 for (var i = 0; i < targetCount; i++) {
                     var f = files[i]
-                    var thumbSource = ""
 
-                    if (f.status === 2) {
-                        if (f.processedThumbnailId && f.processedThumbnailId !== "") {
-                            thumbSource = "image://thumbnail/" + f.processedThumbnailId
-                        } else if (f.resultPath && f.resultPath !== "") {
-                            thumbSource = "image://thumbnail/" + f.resultPath
-                        } else if (f.filePath) {
-                            thumbSource = "image://thumbnail/" + f.filePath
-                        }
-                    } else if (f.filePath) {
-                        thumbSource = "image://thumbnail/" + f.filePath
+                    var processedThumbId = f.processedThumbnailId || ""
+                    if (f.status === 2 && f.resultPath && f.resultPath !== "" && processedThumbId === "") {
+                        processedThumbId = "processed_" + (f.id || "")
                     }
 
-                    var filePath = (f.status === 2 && f.resultPath) ? f.resultPath : (f.filePath || "")
                     var row = {
                         "id": f.id || "",
-                        "filePath": filePath,
+                        "filePath": f.filePath || "",
                         "fileName": f.fileName || "",
                         "mediaType": f.mediaType !== undefined ? f.mediaType : 0,
-                        "thumbnail": thumbSource,
+                        "thumbnail": "",
                         "status": f.status !== undefined ? f.status : 0,
                         "resultPath": f.resultPath || "",
                         "originalPath": f.filePath || "",
-                        "processedThumbnailId": f.processedThumbnailId || ""
+                        "processedThumbnailId": processedThumbId
                     }
 
                     if (i < _cachedMedia.count) {
@@ -709,36 +680,30 @@ Item {
             
             for (var i = 0; i < allFiles.length; i++) {
                 var f = allFiles[i]
+                if (f.status !== 2) continue
+                
                 var filePath = f.filePath || ""
                 var resultPath = f.resultPath || ""
-                var mediaType = f.mediaType !== undefined ? f.mediaType : 0
-                
-                if (f.status === 2) {
-                    var thumbSource = ""
-                    if (f.processedThumbnailId && f.processedThumbnailId !== "") {
-                        thumbSource = "image://thumbnail/" + f.processedThumbnailId
-                    } else if (resultPath && resultPath !== "") {
-                        thumbSource = "image://thumbnail/" + resultPath
-                    } else if (filePath && filePath !== "") {
-                        thumbSource = "image://thumbnail/" + filePath
-                    }
-                    
-                    var viewPath = filePath
-                    if (resultPath && resultPath !== "") {
-                        viewPath = resultPath
-                    }
-                    
-                    files.push({
-                        "filePath":  viewPath,
-                        "fileName":  f.fileName  || "",
-                        "mediaType": mediaType,
-                        "thumbnail": thumbSource,
-                        "resultPath": resultPath,
-                        "originalPath": filePath,
-                        "status": f.status,
-                        "processedThumbnailId": f.processedThumbnailId || ""
-                    })
+
+                var processedThumbId = f.processedThumbnailId || ""
+                if (resultPath !== "" && processedThumbId === "") {
+                    processedThumbId = "processed_" + (f.id || "")
                 }
+
+                var resourceId = processedThumbId !== "" ? processedThumbId
+                               : (resultPath !== "" ? resultPath : filePath)
+                var thumbSource = resourceId !== "" ? ("image://thumbnail/" + resourceId) : ""
+
+                files.push({
+                    "filePath":  resultPath !== "" ? resultPath : filePath,
+                    "fileName":  f.fileName  || "",
+                    "mediaType": f.mediaType !== undefined ? f.mediaType : 0,
+                    "thumbnail": thumbSource,
+                    "resultPath": resultPath,
+                    "originalPath": filePath,
+                    "status": f.status,
+                    "processedThumbnailId": processedThumbId
+                })
             }
         } else {
             for (var j = 0; j < 10; j++) {
@@ -791,30 +756,30 @@ Item {
         
         for (var i = 0; i < allFiles.length; i++) {
             var f = allFiles[i]
+            if (f.status !== 2) continue
+
             var filePath = f.filePath || ""
             var resultPath = f.resultPath || ""
-            
-            if (f.status === 2) {
-                var thumbSource = ""
-                if (f.processedThumbnailId && f.processedThumbnailId !== "") {
-                    thumbSource = "image://thumbnail/" + f.processedThumbnailId
-                } else if (resultPath && resultPath !== "") {
-                    thumbSource = "image://thumbnail/" + resultPath
-                } else if (filePath && filePath !== "") {
-                    thumbSource = "image://thumbnail/" + filePath
-                }
-                
-                files.push({
-                    "filePath":  resultPath || filePath,
-                    "fileName":  f.fileName  || "",
-                    "mediaType": f.mediaType !== undefined ? f.mediaType : 0,
-                    "thumbnail": thumbSource,
-                    "resultPath": resultPath,
-                    "originalPath": filePath,
-                    "status": f.status,
-                    "processedThumbnailId": f.processedThumbnailId || ""
-                })
+
+            var processedThumbId = f.processedThumbnailId || ""
+            if (resultPath !== "" && processedThumbId === "") {
+                processedThumbId = "processed_" + (f.id || "")
             }
+
+            var resourceId = processedThumbId !== "" ? processedThumbId
+                           : (resultPath !== "" ? resultPath : filePath)
+            var thumbSource = resourceId !== "" ? ("image://thumbnail/" + resourceId) : ""
+
+            files.push({
+                "filePath":  resultPath !== "" ? resultPath : filePath,
+                "fileName":  f.fileName  || "",
+                "mediaType": f.mediaType !== undefined ? f.mediaType : 0,
+                "thumbnail": thumbSource,
+                "resultPath": resultPath,
+                "originalPath": filePath,
+                "status": f.status,
+                "processedThumbnailId": processedThumbId
+            })
         }
         
         if (files.length === 0) {

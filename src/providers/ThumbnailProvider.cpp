@@ -82,15 +82,30 @@ QString ThumbnailProvider::normalizeFilePath(const QString &path)
     return filePath;
 }
 
+QString ThumbnailProvider::normalizeKey(const QString &rawId)
+{
+    QString key = rawId;
+    
+    // 1. 去掉查询参数 (?v=N)
+    int queryPos = key.indexOf('?');
+    if (queryPos > 0) {
+        key = key.left(queryPos);
+    }
+    
+    // 2. processed_ 前缀保留原样（它是逻辑 ID，不是文件路径）
+    if (key.startsWith(QStringLiteral("processed_"))) {
+        return key;
+    }
+    
+    // 3. 对文件路径进行归一化
+    return normalizeFilePath(key);
+}
+
 QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize)
 {
-    QString cacheKey = id;
-    
-    int queryPos = cacheKey.indexOf('?');
-    if (queryPos > 0) {
-        cacheKey = cacheKey.left(queryPos);
-    }
+    const QString cacheKey = normalizeKey(id);
 
+    // 1. 检查缓存
     {
         QMutexLocker locker(&m_mutex);
         if (m_thumbnails.contains(cacheKey)) {
@@ -104,7 +119,8 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
             return thumbnail;
         }
 
-        if (m_pendingRequests.contains(cacheKey)) {
+        // 已在生成中或已失败，返回占位图
+        if (m_pendingRequests.contains(cacheKey) || m_failedKeys.contains(cacheKey)) {
             QImage placeholder = generatePlaceholderImage(requestedSize);
             if (size) {
                 *size = placeholder.size();
@@ -113,53 +129,25 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
         }
     }
 
-    QString filePath = normalizeFilePath(cacheKey);
-    QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(256, 256);
+    // 2. 确定实际文件路径
+    const QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(256, 256);
+    QString filePath;
 
-    if (cacheKey.startsWith("processed_")) {
-        QString actualFilePath;
-        {
-            QMutexLocker locker(&m_mutex);
-            if (m_thumbnails.contains(cacheKey)) {
-                QImage thumbnail = m_thumbnails.value(cacheKey);
-                if (size) {
-                    *size = thumbnail.size();
-                }
-                if (!requestedSize.isEmpty() && requestedSize != thumbnail.size()) {
-                    return ImageUtils::scaleImage(thumbnail, requestedSize, true);
-                }
-                return thumbnail;
-            }
-            if (m_idToPath.contains(cacheKey)) {
-                actualFilePath = m_idToPath.value(cacheKey);
-            }
+    if (cacheKey.startsWith(QStringLiteral("processed_"))) {
+        QMutexLocker locker(&m_mutex);
+        if (m_idToPath.contains(cacheKey)) {
+            filePath = m_idToPath.value(cacheKey);
         }
-
-        if (!actualFilePath.isEmpty()) {
-            QFileInfo fileInfo(actualFilePath);
-            if (fileInfo.exists()) {
-                generateThumbnailAsync(actualFilePath, cacheKey, targetSize);
-            }
-        }
-
-        QImage placeholder = generatePlaceholderImage(requestedSize);
-        if (size) {
-            *size = placeholder.size();
-        }
-        return placeholder;
+    } else {
+        filePath = normalizeFilePath(cacheKey);
     }
 
-    QFileInfo fileInfo(filePath);
-    if (!fileInfo.exists()) {
-        qWarning() << "[ThumbnailProvider] File not found:" << filePath << "(from id:" << id << ")";
-        if (size) {
-            *size = QSize(0, 0);
-        }
-        return QImage();
+    // 3. 尝试异步生成（内部会检查文件是否存在）
+    if (!filePath.isEmpty()) {
+        generateThumbnailAsync(filePath, cacheKey, targetSize);
     }
 
-    generateThumbnailAsync(filePath, cacheKey, targetSize);
-
+    // 4. 始终返回占位图（不返回空 QImage，避免 QML Image 进入 Error 状态）
     QImage placeholder = generatePlaceholderImage(requestedSize);
     if (size) {
         *size = placeholder.size();
@@ -167,19 +155,28 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
     return placeholder;
 }
 
-void ThumbnailProvider::setThumbnail(const QString &id, const QImage &thumbnail)
+void ThumbnailProvider::setThumbnail(const QString &id, const QImage &thumbnail, const QString &filePath)
 {
+    const QString key = normalizeKey(id);
     QMutexLocker locker(&m_mutex);
-    m_thumbnails[id] = thumbnail;
+    m_thumbnails[key] = thumbnail;
+    m_failedKeys.remove(key);
+    
+    if (!filePath.isEmpty()) {
+        m_idToPath[key] = filePath;
+    }
+    
     locker.unlock();
-    emit thumbnailReady(id);
+    emit thumbnailReady(key);
 }
 
 void ThumbnailProvider::generateThumbnailAsync(const QString &filePath, const QString &id, const QSize &size)
 {
+    const QString key = normalizeKey(id);
+
     {
         QMutexLocker locker(&m_mutex);
-        if (m_thumbnails.contains(id) || m_pendingRequests.contains(id)) {
+        if (m_thumbnails.contains(key) || m_pendingRequests.contains(key)) {
             return;
         }
         
@@ -194,13 +191,13 @@ void ThumbnailProvider::generateThumbnailAsync(const QString &filePath, const QS
             return;
         }
         
-        m_pendingRequests.insert(id);
-        if (id.startsWith("processed_")) {
-            m_idToPath[id] = filePath;
+        m_pendingRequests.insert(key);
+        if (key.startsWith("processed_")) {
+            m_idToPath[key] = filePath;
         }
     }
 
-    ThumbnailGenerator* generator = new ThumbnailGenerator(filePath, id, size);
+    ThumbnailGenerator* generator = new ThumbnailGenerator(filePath, key, size);
     connect(generator, &ThumbnailGenerator::thumbnailReady,
             this, &ThumbnailProvider::onThumbnailReady);
     m_threadPool->start(generator);
@@ -208,14 +205,17 @@ void ThumbnailProvider::generateThumbnailAsync(const QString &filePath, const QS
 
 void ThumbnailProvider::removeThumbnail(const QString &id)
 {
+    const QString key = normalizeKey(id);
     QMutexLocker locker(&m_mutex);
-    m_thumbnails.remove(id);
+    m_thumbnails.remove(key);
+    m_failedKeys.remove(key);
 }
 
 void ThumbnailProvider::clearAll()
 {
     QMutexLocker locker(&m_mutex);
     m_thumbnails.clear();
+    m_failedKeys.clear();
 }
 
 ThumbnailProvider* ThumbnailProvider::instance()
@@ -225,25 +225,51 @@ ThumbnailProvider* ThumbnailProvider::instance()
 
 void ThumbnailProvider::onThumbnailReady(const QString &id, const QImage &thumbnail)
 {
-    QString decodedId = id;
-    if (id.contains('%')) {
-        decodedId = QUrl::fromPercentEncoding(id.toUtf8());
-    }
-    
+    const QString key = normalizeKey(id);
+
     {
         QMutexLocker locker(&m_mutex);
-        m_pendingRequests.remove(id);
+        m_pendingRequests.remove(key);
         if (!thumbnail.isNull()) {
-            m_thumbnails[id] = thumbnail;
-            if (decodedId != id) {
-                m_thumbnails[decodedId] = thumbnail;
-            }
+            m_thumbnails[key] = thumbnail;
+            m_failedKeys.remove(key);
         } else {
-            qWarning() << "[ThumbnailProvider] Thumbnail generation failed for:" << id;
+            qWarning() << "[ThumbnailProvider] Thumbnail generation failed for:" << key;
+            m_failedKeys.insert(key);
         }
     }
-    emit thumbnailReady(decodedId);
-    // 只发出解码后的 ID 信号，避免 QML 收到两次通知导致 thumbVersion 多次递增
+    // 始终发出信号（即使失败），让 QML 有机会处理重试逻辑
+    emit thumbnailReady(key);
+}
+
+void ThumbnailProvider::invalidateThumbnail(const QString &id)
+{
+    const QString key = normalizeKey(id);
+    QString filePath;
+
+    {
+        QMutexLocker locker(&m_mutex);
+        m_thumbnails.remove(key);
+        m_failedKeys.remove(key);
+        m_pendingRequests.remove(key);
+
+        if (m_idToPath.contains(key)) {
+            filePath = m_idToPath.value(key);
+        } else if (!key.startsWith(QStringLiteral("processed_"))) {
+            filePath = normalizeFilePath(key);
+        }
+    }
+
+    if (!filePath.isEmpty()) {
+        generateThumbnailAsync(filePath, key, QSize(256, 256));
+    }
+}
+
+bool ThumbnailProvider::hasThumbnail(const QString &id) const
+{
+    const QString key = normalizeKey(id);
+    QMutexLocker locker(const_cast<QMutex*>(&m_mutex));
+    return m_thumbnails.contains(key);
 }
 
 QImage ThumbnailProvider::generatePlaceholderImage(const QSize& size)

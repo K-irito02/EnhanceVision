@@ -9,7 +9,7 @@
 
 #include <QQuickImageProvider>
 #include <QImage>
-#include <QMap>
+#include <QHash>
 #include <QSet>
 #include <QMutex>
 #include <QThreadPool>
@@ -50,57 +50,37 @@ public:
     ~ThumbnailProvider() override;
 
     /**
-     * @brief 规范化文件路径
-     * @param path 原始路径
-     * @return 规范化后的路径
+     * @brief 规范化文件路径（URL 解码、原生分隔符、去除 Windows 前缀斜杠）
      */
     static QString normalizeFilePath(const QString &path);
 
     /**
-     * @brief 请求图像
-     * @param id 图像 ID
-     * @param size 原始图像大小
-     * @param requestedSize 请求的图像大小
-     * @return 请求的图像
+     * @brief 将任意 id（可能含 processed_ 前缀或原始路径）归一化为唯一缓存键
      */
+    static QString normalizeKey(const QString &rawId);
+
     QImage requestImage(const QString &id, QSize *size, const QSize &requestedSize) override;
 
-    /**
-     * @brief 设置缩略图
-     * @param id 缩略图 ID
-     * @param thumbnail 缩略图
-     */
-    void setThumbnail(const QString &id, const QImage &thumbnail);
-
-    /**
-     * @brief 异步生成缩略图
-     * @param filePath 文件路径
-     * @param id 缩略图 ID
-     * @param size 缩略图尺寸
-     */
+    void setThumbnail(const QString &id, const QImage &thumbnail, const QString &filePath = QString());
     void generateThumbnailAsync(const QString &filePath, const QString &id, const QSize &size = QSize(256, 256));
-
-    /**
-     * @brief 移除缩略图
-     * @param id 缩略图 ID
-     */
     void removeThumbnail(const QString &id);
-
-    /**
-     * @brief 清除所有缩略图
-     */
     void clearAll();
 
     /**
-     * @brief 获取单例实例
-     * @return 单例实例
+     * @brief 使指定 id 的缓存失效并重新生成
      */
+    Q_INVOKABLE void invalidateThumbnail(const QString &id);
+
+    /**
+     * @brief 检查指定 id 的缩略图是否已在缓存中
+     */
+    Q_INVOKABLE bool hasThumbnail(const QString &id) const;
+
     static ThumbnailProvider* instance();
 
 signals:
     /**
-     * @brief 缩略图准备就绪信号
-     * @param id 缩略图 ID
+     * @brief 缩略图准备就绪信号（id 始终为 normalizeKey 后的值）
      */
     void thumbnailReady(const QString &id);
 
@@ -108,13 +88,14 @@ private slots:
     void onThumbnailReady(const QString &id, const QImage &thumbnail);
 
 private:
-    QMap<QString, QImage> m_thumbnails;     ///< 缩略图映射
-    QMap<QString, QString> m_idToPath;      ///< ID 到文件路径的映射（用于 processed_ 前缀的 ID）
-    QSet<QString> m_pendingRequests;        ///< 正在生成中的请求
-    QMutex m_mutex;                           ///< 互斥锁，保证线程安全
-    QThreadPool* m_threadPool;                ///< 线程池
-    static ThumbnailProvider* s_instance;     ///< 单例实例
-    
+    QHash<QString, QImage> m_thumbnails;    ///< normalizedKey → 缩略图
+    QHash<QString, QString> m_idToPath;     ///< normalizedKey → 实际文件路径（processed_ 等别名）
+    QSet<QString> m_pendingRequests;        ///< 正在生成中的 normalizedKey
+    QSet<QString> m_failedKeys;             ///< 生成失败的 normalizedKey（防止无限重试）
+    QMutex m_mutex;
+    QThreadPool* m_threadPool;
+    static ThumbnailProvider* s_instance;
+
     QImage generatePlaceholderImage(const QSize& size);
 };
 

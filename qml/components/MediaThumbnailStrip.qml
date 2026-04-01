@@ -161,7 +161,7 @@ Item {
             "status": item.status !== undefined ? item.status : 0,
             "resultPath": item.resultPath || "",
             "processedThumbnailId": item.processedThumbnailId || "",
-            "thumbVersion": 0
+            "thumbVersion": 1
         }
     }
 
@@ -176,86 +176,57 @@ Item {
         // 注意：不重置 thumbVersion，保留已有的版本号
     }
 
-    // 从 image://thumbnail/<resourceId>?v=N 中提取裸资源 ID
-    // thumbnailReady 信号发出的 id 就是这个裸资源 ID
-    function _extractResourceId(url) {
-        if (!url || url === "") return ""
-        var s = String(url)
-        var q = s.indexOf("?")
-        if (q >= 0) s = s.substring(0, q)
-        var prefix = "image://thumbnail/"
-        if (s.indexOf(prefix) === 0) return s.substring(prefix.length)
-        return s
-    }
-
-    // 计算某个 filteredModel 行对应的裸资源 ID（与 thumbnailReady 信号 id 对齐）
-    function _resourceIdForRow(rowData, isSuccess) {
+    // 计算某个 filteredModel 行当前应使用的裸缓存键（与 C++ thumbnailReady 信号 id 对齐）
+    // 规则：已完成→processedThumbnailId 或 resultPath；其他→原始 filePath
+    function _cacheKeyForRow(rowData) {
         if (!rowData) return ""
+        var isSuccess = (rowData.status === 2)
         if (root.messageMode && isSuccess) {
             if (rowData.processedThumbnailId && rowData.processedThumbnailId !== "")
                 return rowData.processedThumbnailId
             if (rowData.resultPath && rowData.resultPath !== "")
                 return rowData.resultPath
         }
-        var thumb = rowData.thumbnail
-        if (thumb && thumb !== "") {
-            if (thumb.indexOf("image://thumbnail/") === 0)
-                return thumb.substring("image://thumbnail/".length)
-            // 纯本地路径，不走版本机制
-            return ""
-        }
         return rowData.filePath || ""
     }
 
-    // thumbnailReady 携带解码后的裸资源 ID → 找到所有匹配行 → 仅对那几行 thumbVersion+1
-    // 这样只有对应 delegate 的 source 绑定重新计算，而不触发全部 delegate 刷新
+    // thumbnailReady 信号 → 找到所有匹配行 → 仅递增那几行的 thumbVersion
     function _bumpThumbVersion(readyId) {
         if (!readyId || readyId === "") return
         for (var i = 0; i < filteredModel.count; i++) {
             var row = filteredModel.get(i)
-            var isSuccess = (row.status === 2)
-            var rid = _resourceIdForRow(row, isSuccess)
+            var rid = _cacheKeyForRow(row)
             if (rid === readyId) {
                 filteredModel.setProperty(i, "thumbVersion", (row.thumbVersion || 0) + 1)
             }
         }
     }
 
-    // 使用行内 thumbVersion 驱动版本后缀，仅该行变化时重新求值
+    // 唯一的缩略图 URL 构建入口 — 不依赖 thumbnail 字段，直接从原始路径计算
     function _thumbnailSourceForItem(itemData, isSuccess) {
         if (!itemData) return ""
 
-        var base = ""
+        var resourceId = ""
+
+        // 已完成的文件：优先使用处理后的缩略图 ID
         if (root.messageMode && isSuccess) {
             if (itemData.processedThumbnailId && itemData.processedThumbnailId !== "") {
-                base = "image://thumbnail/" + itemData.processedThumbnailId
+                resourceId = itemData.processedThumbnailId
             } else if (itemData.resultPath && itemData.resultPath !== "") {
-                base = "image://thumbnail/" + itemData.resultPath
+                resourceId = itemData.resultPath
             }
         }
 
-        if (base === "") {
-            var path = itemData.thumbnail
-            if (path && path !== "") {
-                if (path.indexOf("image://") === 0) {
-                    base = path
-                } else {
-                    // 纯本地路径，直接返回，无需版本后缀
-                    return path
-                }
-            } else {
-                var fp = itemData.filePath
-                if (fp && fp !== "") {
-                    base = "image://thumbnail/" + fp
-                }
-            }
+        // 回退：使用原始文件路径
+        if (resourceId === "") {
+            resourceId = itemData.filePath || ""
         }
 
-        if (base === "") return ""
+        if (resourceId === "") return ""
 
         // 用行内版本号驱动刷新：仅该行的 thumbVersion 变化时，source 绑定重新求值
         var version = itemData.thumbVersion || 0
-        return base + "?v=" + version
+        return "image://thumbnail/" + resourceId + "?v=" + version
     }
 
     function _getSourceItems() {
@@ -281,6 +252,7 @@ Item {
                 }
             }
         } else if (isCppModel) {
+            var processedThumbnailIds = mediaModel.data(mediaModel.index(0, 0), 276) || []
             for (var i = 0; i < mediaModel.rowCount(); i++) {
                 var idx = mediaModel.index(i, 0)
                 var item = {
@@ -290,7 +262,7 @@ Item {
                     thumbnail: mediaModel.data(idx, 263) || "",
                     status: mediaModel.data(idx, 266),
                     resultPath: mediaModel.data(idx, 267) || "",
-                    processedThumbnailId: ""
+                    processedThumbnailId: (processedThumbnailIds && processedThumbnailIds[i]) ? processedThumbnailIds[i] : ""
                 }
                 if (_shouldIncludeItem(item)) {
                     items.push(_createFilteredItem(i, item))
@@ -314,6 +286,7 @@ Item {
             item = mediaModel[sourceIdx]
         } else if (isCppModel && sourceIdx >= 0 && sourceIdx < mediaModel.rowCount()) {
             var idx = mediaModel.index(sourceIdx, 0)
+            var processedThumbnailIds = mediaModel.data(mediaModel.index(0, 0), 276) || []
             item = {
                 filePath: mediaModel.data(idx, 258) || "",
                 fileName: mediaModel.data(idx, 259) || "",
@@ -321,7 +294,7 @@ Item {
                 thumbnail: mediaModel.data(idx, 263) || "",
                 status: mediaModel.data(idx, 266),
                 resultPath: mediaModel.data(idx, 267) || "",
-                processedThumbnailId: ""
+                processedThumbnailId: (processedThumbnailIds && processedThumbnailIds[sourceIdx]) ? processedThumbnailIds[sourceIdx] : ""
             }
         }
         return item
@@ -478,6 +451,52 @@ Item {
                                     maskSpreadAtMin: 1.0
                                     maskSource: thumbMask
                                 }
+
+                                property int _retryCount: 0
+                                onStatusChanged: {
+                                    if (status === Image.Ready) {
+                                        _retryCount = 0
+                                        thumbRetryTimer.stop()
+                                    } else if (status === Image.Error && _retryCount < 3 && source !== "") {
+                                        thumbRetryTimer.interval = 500 * (_retryCount + 1)
+                                        thumbRetryTimer.start()
+                                    }
+                                }
+
+                                Component.onCompleted: {
+                                    // 延迟检查：如果缩略图已在缓存中但当前显示占位图，触发刷新
+                                    thumbInitTimer.start()
+                                }
+
+                                Timer {
+                                    id: thumbInitTimer
+                                    interval: 100
+                                    repeat: false
+                                    onTriggered: {
+                                        if (thumbImage.status !== Image.Ready && thumbImage.source !== "") {
+                                            var idx = thumbDelegate.index
+                                            if (idx >= 0 && idx < filteredModel.count) {
+                                                var row = filteredModel.get(idx)
+                                                filteredModel.setProperty(idx, "thumbVersion", (row.thumbVersion || 0) + 1)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Timer {
+                                    id: thumbRetryTimer
+                                    repeat: false
+                                    onTriggered: {
+                                        if (thumbImage._retryCount < 3) {
+                                            thumbImage._retryCount++
+                                            var idx = thumbDelegate.index
+                                            if (idx >= 0 && idx < filteredModel.count) {
+                                                var row = filteredModel.get(idx)
+                                                filteredModel.setProperty(idx, "thumbVersion", (row.thumbVersion || 0) + 1)
+                                            }
+                                        }
+                                    }
+                                }
                             }
 
                             Item {
@@ -497,8 +516,7 @@ Item {
 
                             ColoredIcon {
                                 anchors.centerIn: parent
-                                source: !thumbDelegate.itemData ? Theme.icon("image") : 
-                                        (thumbDelegate.itemData.mediaType === 1 ? Theme.icon("video") : Theme.icon("image"))
+                                source: thumbDelegate.itemMediaType === 1 ? Theme.icon("video") : Theme.icon("image")
                                 iconSize: 24
                                 color: Theme.colors.mutedForeground
                                 visible: thumbImage.status !== Image.Ready
@@ -813,6 +831,52 @@ Item {
                                     maskSpreadAtMin: 1.0
                                     maskSource: thumbMask
                                 }
+
+                                property int _retryCount: 0
+                                onStatusChanged: {
+                                    if (status === Image.Ready) {
+                                        _retryCount = 0
+                                        thumbRetryTimer.stop()
+                                    } else if (status === Image.Error && _retryCount < 3 && source !== "") {
+                                        thumbRetryTimer.interval = 500 * (_retryCount + 1)
+                                        thumbRetryTimer.start()
+                                    }
+                                }
+
+                                Component.onCompleted: {
+                                    // 延迟检查：如果缩略图已在缓存中但当前显示占位图，触发刷新
+                                    thumbInitTimer.start()
+                                }
+
+                                Timer {
+                                    id: thumbInitTimer
+                                    interval: 100
+                                    repeat: false
+                                    onTriggered: {
+                                        if (thumbImage.status !== Image.Ready && thumbImage.source !== "") {
+                                            var idx = thumbDelegate.index
+                                            if (idx >= 0 && idx < filteredModel.count) {
+                                                var row = filteredModel.get(idx)
+                                                filteredModel.setProperty(idx, "thumbVersion", (row.thumbVersion || 0) + 1)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Timer {
+                                    id: thumbRetryTimer
+                                    repeat: false
+                                    onTriggered: {
+                                        if (thumbImage._retryCount < 3) {
+                                            thumbImage._retryCount++
+                                            var idx = thumbDelegate.index
+                                            if (idx >= 0 && idx < filteredModel.count) {
+                                                var row = filteredModel.get(idx)
+                                                filteredModel.setProperty(idx, "thumbVersion", (row.thumbVersion || 0) + 1)
+                                            }
+                                        }
+                                    }
+                                }
                             }
 
                             Item {
@@ -832,8 +896,7 @@ Item {
 
                             ColoredIcon {
                                 anchors.centerIn: parent
-                                source: !thumbDelegate.itemData ? Theme.icon("image") : 
-                                        (thumbDelegate.itemData.mediaType === 1 ? Theme.icon("video") : Theme.icon("image"))
+                                source: thumbDelegate.itemMediaType === 1 ? Theme.icon("video") : Theme.icon("image")
                                 iconSize: 24
                                 color: Theme.colors.mutedForeground
                                 visible: thumbImage.status !== Image.Ready
