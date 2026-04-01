@@ -145,6 +145,8 @@ public:
     Q_INVOKABLE void retrySingleFailedFile(const QString& messageId, int fileIndex);
     void autoRetryInterruptedFiles(const QString& messageId, const QString& sessionId);
     bool hasTasksForMessage(const QString& messageId) const;
+    bool hasActiveTaskForFile(const QString& messageId, const QString& fileId) const;
+    void removeStaleTasksForFile(const QString& messageId, const QString& fileId);
     
     Q_INVOKABLE void preloadModel(const QString& modelId);
     

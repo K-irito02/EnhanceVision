@@ -45,6 +45,10 @@ ThumbnailProvider::ThumbnailProvider()
 {
     s_instance = this;
     m_threadPool->setMaxThreadCount(4);
+
+    connect(this, &ThumbnailProvider::requestGeneration, this, [this](const QString& path) {
+        generateThumbnailAsync(path, path);
+    });
 }
 
 ThumbnailProvider::~ThumbnailProvider()

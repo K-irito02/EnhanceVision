@@ -85,10 +85,8 @@ public:
     static ThumbnailProvider* instance();
 
 signals:
-    /**
-     * @brief 缩略图准备就绪信号（id 始终为 normalizeKey 后的值）
-     */
     void thumbnailReady(const QString &id);
+    void requestGeneration(const QString& path);
 
 private slots:
     void onThumbnailReady(const QString &id, const QImage &thumbnail);

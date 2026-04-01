@@ -334,6 +334,13 @@ Item {
         _refreshAllThumbnails()
     }
 
+    function _refreshAllThumbnails() {
+        for (var i = 0; i < filteredModel.count; i++) {
+            var row = filteredModel.get(i)
+            filteredModel.setProperty(i, "thumbVersion", (row.thumbVersion || 0) + 1)
+        }
+    }
+
     Loader {
         id: contentLoader
         anchors.left: parent.left
@@ -459,8 +466,8 @@ Item {
                                     if (status === Image.Ready) {
                                         _retryCount = 0
                                         thumbRetryTimer.stop()
-                                    } else if (status === Image.Error && _retryCount < 3 && source !== "") {
-                                        thumbRetryTimer.interval = 500 * (_retryCount + 1)
+                                    } else if ((status === Image.Error || status === Image.Null) && _retryCount < 15 && source !== "") {
+                                        thumbRetryTimer.interval = 600 * Math.min(_retryCount + 1, 8)
                                         thumbRetryTimer.start()
                                     }
                                 }
@@ -489,7 +496,7 @@ Item {
                                     id: thumbRetryTimer
                                     repeat: false
                                     onTriggered: {
-                                        if (thumbImage._retryCount < 3) {
+                                        if (thumbImage._retryCount < 15) {
                                             thumbImage._retryCount++
                                             var idx = thumbDelegate.index
                                             if (idx >= 0 && idx < filteredModel.count) {
@@ -839,8 +846,8 @@ Item {
                                     if (status === Image.Ready) {
                                         _retryCount = 0
                                         thumbRetryTimer.stop()
-                                    } else if (status === Image.Error && _retryCount < 3 && source !== "") {
-                                        thumbRetryTimer.interval = 500 * (_retryCount + 1)
+                                    } else if ((status === Image.Error || status === Image.Null) && _retryCount < 15 && source !== "") {
+                                        thumbRetryTimer.interval = 600 * Math.min(_retryCount + 1, 8)
                                         thumbRetryTimer.start()
                                     }
                                 }
@@ -869,7 +876,7 @@ Item {
                                     id: thumbRetryTimer
                                     repeat: false
                                     onTriggered: {
-                                        if (thumbImage._retryCount < 3) {
+                                        if (thumbImage._retryCount < 15) {
                                             thumbImage._retryCount++
                                             var idx = thumbDelegate.index
                                             if (idx >= 0 && idx < filteredModel.count) {

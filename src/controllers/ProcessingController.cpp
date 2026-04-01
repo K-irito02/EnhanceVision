@@ -357,6 +357,44 @@ bool ProcessingController::hasTasksForMessage(const QString& messageId) const
     return false;
 }
 
+bool ProcessingController::hasActiveTaskForFile(const QString& messageId, const QString& fileId) const
+{
+    if (messageId.isEmpty() || fileId.isEmpty()) {
+        return false;
+    }
+
+    for (const auto& task : m_tasks) {
+        if (task.messageId == messageId && task.fileId == fileId &&
+            (task.status == ProcessingStatus::Pending || task.status == ProcessingStatus::Processing)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void ProcessingController::removeStaleTasksForFile(const QString& messageId, const QString& fileId)
+{
+    if (messageId.isEmpty() || fileId.isEmpty()) {
+        return;
+    }
+
+    for (int i = m_tasks.size() - 1; i >= 0; --i) {
+        const QueueTask& task = m_tasks[i];
+        if (task.messageId == messageId && task.fileId == fileId &&
+            (task.status == ProcessingStatus::Failed ||
+             task.status == ProcessingStatus::Cancelled ||
+             task.status == ProcessingStatus::Completed)) {
+            QString staleTaskId = task.taskId;
+            cleanupTask(staleTaskId);
+            m_tasks.removeAt(i);
+        }
+    }
+
+    updateQueuePositions();
+    syncModelTasks();
+}
+
 void ProcessingController::clearCompletedTasks()
 {
     m_tasks.erase(
@@ -1103,13 +1141,6 @@ void ProcessingController::retryFailedFiles(const QString& messageId)
         return;
     }
 
-    // 检查是否已有在途任务，避免重复入队
-    // 注意：这里只检查当前消息是否有任务，不影响其他消息的重试
-    if (hasTasksForMessage(messageId)) {
-        qWarning() << "[ProcessingController] retryFailedFiles: Message already has pending tasks:" << messageId;
-        return;
-    }
-
     Message message = m_messageModel->messageById(messageId);
     if (message.id.isEmpty()) {
         qWarning() << "[ProcessingController] retryFailedFiles: Message not found:" << messageId;
@@ -1124,7 +1155,11 @@ void ProcessingController::retryFailedFiles(const QString& messageId)
         qInfo() << "[ProcessingController] retryFailedFiles: File" << file.id 
                 << "status:" << static_cast<int>(file.status);
         if (file.status == ProcessingStatus::Failed || file.status == ProcessingStatus::Cancelled) {
-            filesToRetry.append(file);
+            if (!hasActiveTaskForFile(messageId, file.id)) {
+                filesToRetry.append(file);
+            } else {
+                qInfo() << "[ProcessingController] retryFailedFiles: Skipping file with active task:" << file.id;
+            }
         }
     }
 
@@ -1146,6 +1181,7 @@ void ProcessingController::retryFailedFiles(const QString& messageId)
     const QString sessionId = resolveSessionIdForMessage(messageId);
     
     for (const auto& file : filesToRetry) {
+        removeStaleTasksForFile(messageId, file.id);
         createAndRegisterTask(message, file, sessionId);
     }
 
@@ -1163,11 +1199,6 @@ void ProcessingController::retrySingleFailedFile(const QString& messageId, int f
 {
     if (!m_messageModel) {
         qWarning() << "[ProcessingController] retrySingleFailedFile: MessageModel not set";
-        return;
-    }
-
-    if (hasTasksForMessage(messageId)) {
-        qWarning() << "[ProcessingController] retrySingleFailedFile: Message already has pending tasks:" << messageId;
         return;
     }
     
@@ -1196,6 +1227,13 @@ void ProcessingController::retrySingleFailedFile(const QString& messageId, int f
                    << "status:" << static_cast<int>(file.status);
         return;
     }
+
+    if (hasActiveTaskForFile(messageId, file.id)) {
+        qWarning() << "[ProcessingController] retrySingleFailedFile: File already has active task:" << file.id;
+        return;
+    }
+
+    removeStaleTasksForFile(messageId, file.id);
     
     if (message.status == ProcessingStatus::Failed || message.status == ProcessingStatus::Cancelled) {
         m_messageModel->updateStatus(messageId, static_cast<int>(ProcessingStatus::Pending));

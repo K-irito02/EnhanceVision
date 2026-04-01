@@ -167,3 +167,81 @@ MediaThumbnailStrip._thumbnailSourceForItem → 唯一的 URL 构建入口
 - [ ] 监控长期稳定性
 - [ ] 考虑添加缩略图预加载机制
 - [ ] 优化大量文件时的缩略图生成性能
+
+---
+
+## 八、2026-04-02 追加修复：requestGeneration 信号未连接 + 重试机制增强
+
+### 问题描述（追加）
+
+部分多媒体文件上传后缩略图仍显示为灰色占位图，尤其是视频文件或大图片。
+
+### 根因分析（追加）
+
+#### 关键 Bug：`requestGeneration` 信号从未被连接
+
+**位置**: `ThumbnailProvider.cpp`
+
+当 QML 通过 `"image://thumbnail/" + filePath` 请求缩略图时：
+1. `ThumbnailProvider::requestImage()` 被调用
+2. 如果缓存未命中，发射 `requestGeneration(normalizedId)` **信号**
+3. **但此信号从未连接到任何槽函数！**
+4. 返回灰色占位图
+5. 缩略图永远不会被生成（除非 FileModel 的 ThumbnailGenerationTask 恰好同时完成）
+
+#### 次要问题：重试机制不够健壮
+
+- 原重试上限仅 3 次（3×500ms~1500ms = 3秒），大视频文件 FFmpeg 帧提取可能超过此时间
+- 仅在 `Image.Error` 状态触发重试，不覆盖 `Image.Null` 状态
+
+### 解决方案（追加）
+
+#### 修复1：连接 `requestGeneration` 信号
+
+**文件**: `ThumbnailProvider.h` / `ThumbnailProvider.cpp`
+
+```cpp
+// 构造函数中添加连接
+ThumbnailProvider::ThumbnailProvider()
+{
+    // ...
+    connect(this, &ThumbnailProvider::requestGeneration, this, [this](const QString& path) {
+        generateThumbnailAsync(path, path);
+    });
+}
+```
+
+同时在头文件中声明 `requestGeneration` 信号：
+```cpp
+signals:
+    void thumbnailReady(const QString &id);
+    void requestGeneration(const QString& path);  // 新增
+```
+
+#### 修复2：增强 QML 端重试机制
+
+**文件**: `MediaThumbnailStrip.qml`（网格视图 + 列表视图两处委托）
+
+| 参数 | 修改前 | 修改后 |
+|------|--------|--------|
+| 最大重试次数 | 3 次 | 15 次 |
+| 重试间隔 | 500ms × (n+1) | 600ms × min(n+1, 8) |
+| 总等待时间 | ~3 秒 | ~30 秒（指数退避封顶） |
+| 触发状态 | 仅 Error | Error + Null |
+
+### 变更文件清单（追加）
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `include/EnhanceVision/providers/ThumbnailProvider.h` | 修改 | 新增 `requestGeneration` 信号声明 |
+| `src/providers/ThumbnailProvider.cpp` | 修改 | 构造函数中连接信号到 `generateThumbnailAsync` |
+| `qml/components/MediaThumbnailStrip.qml` | 修改 | 两处委托的重试参数增强 |
+
+### 测试验证（追加）
+
+| 测试场景 | 预期结果 | 实际结果 |
+|----------|----------|----------|
+| 上传大视频文件（>100MB） | 最终显示缩略图 | ✅ 通过 |
+| 上传多张高分辨率图片 | 所有图片最终显示缩略图 | ✅ 通过 |
+| 快速连续上传多个文件 | 各文件独立生成缩略图 | ✅ 通过 |
+| 文件路径含特殊字符 | 正常生成和显示 | ✅ 通过 |
