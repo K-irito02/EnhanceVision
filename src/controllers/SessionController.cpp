@@ -680,8 +680,9 @@ void SessionController::loadSessions()
         for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
             Session session = m_sessionModel->sessionAt(i);
             if (session.id == lastActiveId) {
+                // 不要在这里设置 m_activeSessionId，让 activeSessionChanged 信号处理器来处理
+                // 这样可以确保消息被正确加载
                 m_sessionModel->switchSession(lastActiveId);
-                m_activeSessionId = lastActiveId;
                 break;
             }
         }
@@ -1360,6 +1361,249 @@ QString SessionController::findTaskIdForFile(const QString& messageId, const QSt
     }
     
     return QString();
+}
+
+void SessionController::clearAllSessionMessages()
+{
+    qInfo() << "[SessionController] Clearing all session messages";
+    
+    if (m_processingController) {
+        for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
+            Session session = m_sessionModel->sessionAt(i);
+            m_processingController->cancelSessionTasks(session.id);
+        }
+    }
+    
+    for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
+        Session session = m_sessionModel->sessionAt(i);
+        m_sessionModel->clearSession(session.id);
+    }
+    
+    if (m_messageModel) {
+        m_messageModel->clear();
+    }
+    
+    rebuildSessionMessageIndex();
+    saveSessions();
+    
+    emit allSessionMessagesCleared();
+    
+    qInfo() << "[SessionController] All session messages cleared";
+}
+
+void SessionController::clearAllSessionMessagesByMode(int mode)
+{
+    qInfo() << "[SessionController] Clearing session messages by mode:" << mode;
+    
+    ProcessingMode targetMode = static_cast<ProcessingMode>(mode);
+    
+    QList<Session>& sessions = m_sessionModel->sessionsRef();
+    bool hasChanges = false;
+    
+    for (int sessionIdx = 0; sessionIdx < sessions.size(); ++sessionIdx) {
+        Session& session = sessions[sessionIdx];
+        QList<Message> remainingMessages;
+        
+        for (const Message& msg : session.messages) {
+            if (msg.mode != targetMode) {
+                remainingMessages.append(msg);
+            } else {
+                hasChanges = true;
+            }
+        }
+        
+        if (remainingMessages.size() != session.messages.size()) {
+            session.messages = remainingMessages;
+            session.modifiedAt = QDateTime::currentDateTime();
+        }
+    }
+    
+    if (hasChanges) {
+        rebuildSessionMessageIndex();
+        
+        if (m_messageModel) {
+            QString currentId = m_sessionModel->activeSessionId();
+            if (!currentId.isEmpty()) {
+                Session* currentSession = getSession(currentId);
+                if (currentSession) {
+                    m_messageModel->setMessages(currentSession->messages);
+                }
+            }
+        }
+        
+        saveSessions();
+    }
+    
+    qInfo() << "[SessionController] Session messages cleared by mode:" << mode;
+}
+
+void SessionController::clearAllShaderVideoMessages()
+{
+    qInfo() << "[SessionController] Clearing Shader video messages";
+    
+    QList<Session>& sessions = m_sessionModel->sessionsRef();
+    bool hasChanges = false;
+    
+    for (int sessionIdx = 0; sessionIdx < sessions.size(); ++sessionIdx) {
+        Session& session = sessions[sessionIdx];
+        QList<Message> remainingMessages;
+        
+        for (const Message& msg : session.messages) {
+            bool isShaderVideo = false;
+            
+            if (msg.mode == ProcessingMode::Shader) {
+                for (const MediaFile& file : msg.mediaFiles) {
+                    if (file.type == MediaType::Video) {
+                        isShaderVideo = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (!isShaderVideo) {
+                remainingMessages.append(msg);
+            } else {
+                hasChanges = true;
+            }
+        }
+        
+        if (remainingMessages.size() != session.messages.size()) {
+            session.messages = remainingMessages;
+            session.modifiedAt = QDateTime::currentDateTime();
+        }
+    }
+    
+    if (hasChanges) {
+        rebuildSessionMessageIndex();
+        
+        if (m_messageModel) {
+            QString currentId = m_sessionModel->activeSessionId();
+            if (!currentId.isEmpty()) {
+                Session* currentSession = getSession(currentId);
+                if (currentSession) {
+                    m_messageModel->setMessages(currentSession->messages);
+                }
+            }
+        }
+        
+        saveSessions();
+    }
+    
+    qInfo() << "[SessionController] Shader video messages cleared";
+}
+
+void SessionController::clearMediaFilesByModeAndType(int mode, int mediaType)
+{
+    ProcessingMode targetMode = static_cast<ProcessingMode>(mode);
+    MediaType targetMediaType = static_cast<MediaType>(mediaType);
+    
+    qInfo() << "[SessionController] Clearing media files by mode:" << mode 
+            << "and mediaType:" << mediaType;
+    
+    QList<Session>& sessions = m_sessionModel->sessionsRef();
+    bool hasChanges = false;
+    int removedFilesCount = 0;
+    int removedMessagesCount = 0;
+    
+    for (int sessionIdx = 0; sessionIdx < sessions.size(); ++sessionIdx) {
+        Session& session = sessions[sessionIdx];
+        QList<Message> remainingMessages;
+        
+        for (Message& msg : session.messages) {
+            if (msg.mode != targetMode) {
+                remainingMessages.append(msg);
+                continue;
+            }
+            
+            QList<MediaFile> remainingFiles;
+            for (const MediaFile& file : msg.mediaFiles) {
+                if (file.type != targetMediaType) {
+                    remainingFiles.append(file);
+                } else {
+                    ++removedFilesCount;
+                    hasChanges = true;
+                }
+            }
+            
+            if (remainingFiles.isEmpty()) {
+                ++removedMessagesCount;
+                hasChanges = true;
+            } else if (remainingFiles.size() != msg.mediaFiles.size()) {
+                msg.mediaFiles = remainingFiles;
+                remainingMessages.append(msg);
+                hasChanges = true;
+            } else {
+                remainingMessages.append(msg);
+            }
+        }
+        
+        if (remainingMessages.size() != session.messages.size()) {
+            session.messages = remainingMessages;
+            session.modifiedAt = QDateTime::currentDateTime();
+        }
+    }
+    
+    if (hasChanges) {
+        rebuildSessionMessageIndex();
+        
+        if (m_messageModel) {
+            QString currentId = m_sessionModel->activeSessionId();
+            if (!currentId.isEmpty()) {
+                Session* currentSession = getSession(currentId);
+                if (currentSession) {
+                    m_messageModel->setMessages(currentSession->messages);
+                }
+            }
+        }
+        
+        // 通知 SessionModel 更新所有会话的显示（消息数量等）
+        for (int i = 0; i < sessions.size(); ++i) {
+            m_sessionModel->notifySessionDataChanged(sessions[i].id);
+        }
+        
+        saveSessionsImmediately();
+        emit allSessionMessagesCleared();
+    }
+    
+    qInfo() << "[SessionController] Cleared media files by mode and type - "
+            << "removed files:" << removedFilesCount 
+            << ", removed messages:" << removedMessagesCount;
+}
+
+void SessionController::deleteAllSessions()
+{
+    qInfo() << "[SessionController] Deleting all sessions";
+    
+    if (m_processingController) {
+        for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
+            Session session = m_sessionModel->sessionAt(i);
+            m_processingController->cancelSessionTasks(session.id);
+        }
+    }
+    
+    QList<QString> sessionIds;
+    for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
+        sessionIds.append(m_sessionModel->sessionAt(i).id);
+    }
+    
+    for (const QString& sessionId : sessionIds) {
+        m_sessionModel->deleteSession(sessionId);
+    }
+    
+    if (m_messageModel) {
+        m_messageModel->clear();
+        m_messageModel->setCurrentSessionId("");
+    }
+    
+    m_activeSessionId.clear();
+    rebuildSessionMessageIndex();
+    saveSessions();
+    
+    emit allSessionsDeleted();
+    emit sessionCountChanged();
+    emit activeSessionChanged();
+    
+    qInfo() << "[SessionController] All sessions deleted";
 }
 
 } // namespace EnhanceVision

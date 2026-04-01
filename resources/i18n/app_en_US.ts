@@ -823,8 +823,9 @@
 <context>
     <name>EnhanceVision::SessionController</name>
     <message>
+        <location filename="../../src/controllers/SessionController.cpp" line="553"/>
         <source>未命名会话 %1</source>
-        <translation type="obsolete">Untitled Session %1</translation>
+        <translation>Untitled Session %1</translation>
     </message>
 </context>
 <context>

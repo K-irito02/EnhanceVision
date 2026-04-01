@@ -321,6 +321,9 @@ void Application::setupQmlContext(ThumbnailProvider* thumbnailProvider)
     m_sessionController->setProcessingController(m_processingController.get());
     m_messageModel->setProcessingController(m_processingController.get());
     
+    // 设置 SessionController 引用到 SettingsController（用于缓存清理）
+    SettingsController::instance()->setSessionController(m_sessionController.get());
+    
     // 连接 SessionController 和 MessageModel（用于会话切换时同步消息）
     m_sessionController->setMessageModel(m_messageModel.get());
 

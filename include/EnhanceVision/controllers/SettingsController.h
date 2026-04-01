@@ -13,6 +13,8 @@
 
 namespace EnhanceVision {
 
+class SessionController;
+
 /**
  * @brief 设置控制器 - 单例模式
  */
@@ -36,12 +38,18 @@ class SettingsController : public QObject
     Q_PROPERTY(bool videoRestorePosition READ videoRestorePosition WRITE setVideoRestorePosition NOTIFY videoRestorePositionChanged)
 
     Q_PROPERTY(QString customDataPath READ customDataPath WRITE setCustomDataPath NOTIFY customDataPathChanged)
-    Q_PROPERTY(qint64 aiProcessedSize READ aiProcessedSize NOTIFY dataSizeChanged)
+    Q_PROPERTY(qint64 aiImageSize READ aiImageSize NOTIFY dataSizeChanged)
+    Q_PROPERTY(qint64 aiVideoSize READ aiVideoSize NOTIFY dataSizeChanged)
     Q_PROPERTY(qint64 shaderImageSize READ shaderImageSize NOTIFY dataSizeChanged)
     Q_PROPERTY(qint64 shaderVideoSize READ shaderVideoSize NOTIFY dataSizeChanged)
     Q_PROPERTY(qint64 logSize READ logSize NOTIFY dataSizeChanged)
     Q_PROPERTY(qint64 totalCacheSize READ totalCacheSize NOTIFY dataSizeChanged)
     Q_PROPERTY(int thumbnailCacheCount READ thumbnailCacheCount NOTIFY dataSizeChanged)
+    
+    Q_PROPERTY(int aiImageFileCount READ aiImageFileCount NOTIFY dataSizeChanged)
+    Q_PROPERTY(int aiVideoFileCount READ aiVideoFileCount NOTIFY dataSizeChanged)
+    Q_PROPERTY(int shaderImageFileCount READ shaderImageFileCount NOTIFY dataSizeChanged)
+    Q_PROPERTY(int shaderVideoFileCount READ shaderVideoFileCount NOTIFY dataSizeChanged)
 
 public:
     static SettingsController* instance();
@@ -95,12 +103,18 @@ public:
     QString customDataPath() const;
     void setCustomDataPath(const QString& path);
 
-    qint64 aiProcessedSize() const;
+    qint64 aiImageSize() const;
+    qint64 aiVideoSize() const;
     qint64 shaderImageSize() const;
     qint64 shaderVideoSize() const;
     qint64 logSize() const;
     qint64 totalCacheSize() const;
     int thumbnailCacheCount() const;
+    
+    int aiImageFileCount() const;
+    int aiVideoFileCount() const;
+    int shaderImageFileCount() const;
+    int shaderVideoFileCount() const;
 
     Q_INVOKABLE QString effectiveDataPath() const;
 
@@ -111,12 +125,20 @@ public:
     Q_INVOKABLE void setSetting(const QString& key, const QString& value);
 
     Q_INVOKABLE void refreshDataSize();
-    Q_INVOKABLE bool clearAIProcessedData();
+    Q_INVOKABLE bool clearAIImageData();
+    Q_INVOKABLE bool clearAIVideoData();
     Q_INVOKABLE bool clearShaderImageData();
     Q_INVOKABLE bool clearShaderVideoData();
     Q_INVOKABLE bool clearLogs();
     Q_INVOKABLE bool clearAllCache();
     Q_INVOKABLE QString formatSize(qint64 bytes) const;
+    
+    Q_INVOKABLE QString getAIImagePath() const;
+    Q_INVOKABLE QString getAIVideoPath() const;
+    Q_INVOKABLE QString getShaderImagePath() const;
+    Q_INVOKABLE QString getShaderVideoPath() const;
+    
+    void setSessionController(SessionController* controller);
 
 signals:
     void themeChanged();
@@ -147,10 +169,8 @@ private:
     SettingsController& operator=(const SettingsController&) = delete;
 
     qint64 calculateDirectorySize(const QString& path) const;
+    int countFilesInDirectory(const QString& path) const;
     bool clearDirectory(const QString& path);
-    QString getAIProcessedPath() const;
-    QString getShaderImagePath() const;
-    QString getShaderVideoPath() const;
     QString getLogPath() const;
 
     static SettingsController* s_instance;
@@ -172,10 +192,18 @@ private:
     bool m_videoRestorePosition;
     QString m_customDataPath;
 
-    qint64 m_aiProcessedSize;
+    qint64 m_aiImageSize;
+    qint64 m_aiVideoSize;
     qint64 m_shaderImageSize;
     qint64 m_shaderVideoSize;
     qint64 m_logSize;
+    
+    int m_aiImageFileCount;
+    int m_aiVideoFileCount;
+    int m_shaderImageFileCount;
+    int m_shaderVideoFileCount;
+    
+    SessionController* m_sessionController = nullptr;
 };
 
 } // namespace EnhanceVision

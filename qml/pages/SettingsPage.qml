@@ -51,8 +51,10 @@ Rectangle {
 
         onPrimaryButtonClicked: {
             var success = false
-            if (clearType === "ai") {
-                success = SettingsController.clearAIProcessedData()
+            if (clearType === "aiImage") {
+                success = SettingsController.clearAIImageData()
+            } else if (clearType === "aiVideo") {
+                success = SettingsController.clearAIVideoData()
             } else if (clearType === "shaderImage") {
                 success = SettingsController.clearShaderImageData()
             } else if (clearType === "shaderVideo") {
@@ -731,26 +733,38 @@ Rectangle {
                             Repeater {
                                 model: [
                                     {
-                                        type: "ai",
-                                        title: qsTr("AI 处理结果"),
-                                        desc: qsTr("AI 增强处理后的图像和视频文件"),
-                                        size: SettingsController.aiProcessedSize,
+                                        type: "aiImage",
+                                        title: qsTr("AI推理 - 图像"),
+                                        desc: qsTr("AI 超分辨率增强处理后的图像文件"),
+                                        size: SettingsController.aiImageSize,
+                                        fileCount: SettingsController.aiImageFileCount,
                                         icon: "cpu",
                                         accentColor: Theme.colors.primary
                                     },
                                     {
+                                        type: "aiVideo",
+                                        title: qsTr("AI推理 - 视频"),
+                                        desc: qsTr("AI 超分辨率增强处理后的视频文件"),
+                                        size: SettingsController.aiVideoSize,
+                                        fileCount: SettingsController.aiVideoFileCount,
+                                        icon: "video",
+                                        accentColor: Theme.colors.primary
+                                    },
+                                    {
                                         type: "shaderImage",
-                                        title: qsTr("Shader 图像结果"),
+                                        title: qsTr("Shader - 图像"),
                                         desc: qsTr("Shader 滤镜处理后的图像文件"),
                                         size: SettingsController.shaderImageSize,
+                                        fileCount: SettingsController.shaderImageFileCount,
                                         icon: "image",
                                         accentColor: Theme.colors.success
                                     },
                                     {
                                         type: "shaderVideo",
-                                        title: qsTr("Shader 视频结果"),
+                                        title: qsTr("Shader - 视频"),
                                         desc: qsTr("Shader 滤镜处理后的视频文件"),
                                         size: SettingsController.shaderVideoSize,
+                                        fileCount: SettingsController.shaderVideoFileCount,
                                         icon: "film",
                                         accentColor: Theme.colors.warning
                                     },
@@ -759,6 +773,7 @@ Rectangle {
                                         title: qsTr("日志文件"),
                                         desc: qsTr("运行日志和崩溃日志"),
                                         size: SettingsController.logSize,
+                                        fileCount: 0,
                                         icon: "file-text",
                                         accentColor: Theme.colors.mutedForeground
                                     }
@@ -835,10 +850,40 @@ Rectangle {
                                             iconName: "trash"
                                             enabled: modelData.size > 0
                                             onClicked: {
+                                                var detailMsg = ""
+                                                if (modelData.type === "aiImage") {
+                                                    detailMsg = qsTr("确定要清理【%1】吗？\n\n清理详情：\n• 文件数量：%2 个图像文件\n• 占用空间：%3\n• 存储位置：%4\n\n此操作将：\n• 删除磁盘上的 AI 处理图像结果\n• 从消息卡片中移除对应的图像文件\n• 如果消息中还有视频文件，消息将保留\n\n清理后需要重新进行 AI 推理才能恢复结果。")
+                                                        .arg(modelData.title)
+                                                        .arg(modelData.fileCount)
+                                                        .arg(SettingsController.formatSize(modelData.size))
+                                                        .arg(SettingsController.getAIImagePath())
+                                                } else if (modelData.type === "aiVideo") {
+                                                    detailMsg = qsTr("确定要清理【%1】吗？\n\n清理详情：\n• 文件数量：%2 个视频文件\n• 占用空间：%3\n• 存储位置：%4\n\n此操作将：\n• 删除磁盘上的 AI 处理视频结果\n• 从消息卡片中移除对应的视频文件\n• 如果消息中还有图像文件，消息将保留\n\n清理后需要重新进行 AI 推理才能恢复结果。")
+                                                        .arg(modelData.title)
+                                                        .arg(modelData.fileCount)
+                                                        .arg(SettingsController.formatSize(modelData.size))
+                                                        .arg(SettingsController.getAIVideoPath())
+                                                } else if (modelData.type === "shaderImage") {
+                                                    detailMsg = qsTr("确定要清理【%1】吗？\n\n清理详情：\n• 文件数量：%2 个图像文件\n• 占用空间：%3\n• 存储位置：%4\n\n此操作将：\n• 删除磁盘上的 Shader 处理图像结果\n• 从消息卡片中移除对应的图像文件\n• 如果消息中还有视频文件，消息将保留\n\n清理后需要重新进行 Shader 处理才能恢复结果。")
+                                                        .arg(modelData.title)
+                                                        .arg(modelData.fileCount)
+                                                        .arg(SettingsController.formatSize(modelData.size))
+                                                        .arg(SettingsController.getShaderImagePath())
+                                                } else if (modelData.type === "shaderVideo") {
+                                                    detailMsg = qsTr("确定要清理【%1】吗？\n\n清理详情：\n• 文件数量：%2 个视频文件\n• 占用空间：%3\n• 存储位置：%4\n\n此操作将：\n• 删除磁盘上的 Shader 处理视频结果\n• 从消息卡片中移除对应的视频文件\n• 如果消息中还有图像文件，消息将保留\n\n清理后需要重新进行 Shader 处理才能恢复结果。")
+                                                        .arg(modelData.title)
+                                                        .arg(modelData.fileCount)
+                                                        .arg(SettingsController.formatSize(modelData.size))
+                                                        .arg(SettingsController.getShaderVideoPath())
+                                                } else {
+                                                    detailMsg = qsTr("确定要清理【%1】吗？\n\n清理详情：\n• 占用空间：%2\n\n此操作将删除运行日志和崩溃日志文件。")
+                                                        .arg(modelData.title)
+                                                        .arg(SettingsController.formatSize(modelData.size))
+                                                }
                                                 confirmClearDialog.showClearDialog(
                                                     modelData.type,
-                                                    qsTr("确认清理"),
-                                                    qsTr("确定要清理 %1 吗？\n\n清理后需要重新处理才能恢复结果。").arg(modelData.title)
+                                                    qsTr("确认清理 - %1").arg(modelData.title),
+                                                    detailMsg
                                                 )
                                             }
                                         }
@@ -886,10 +931,25 @@ Rectangle {
                                     iconName: "trash-2"
                                     enabled: SettingsController.totalCacheSize > 0
                                     onClicked: {
+                                        var totalFiles = SettingsController.aiImageFileCount + 
+                                                         SettingsController.aiVideoFileCount + 
+                                                         SettingsController.shaderImageFileCount + 
+                                                         SettingsController.shaderVideoFileCount
                                         confirmClearDialog.showClearDialog(
                                             "all",
-                                            qsTr("确认清理全部"),
-                                            qsTr("确定要清理所有可清理数据吗？\n\n共 %1，清理后需要重新处理才能恢复结果。").arg(SettingsController.formatSize(SettingsController.totalCacheSize))
+                                            qsTr("确认清理全部数据"),
+                                            qsTr("确定要清理所有可清理数据吗？\n\n清理详情：\n• AI推理图像：%1 个文件（%2）\n• AI推理视频：%3 个文件（%4）\n• Shader图像：%5 个文件（%6）\n• Shader视频：%7 个文件（%8）\n• 日志文件：%9\n\n总计：%10 个文件，共 %11\n\n此操作将：\n• 删除所有 AI/Shader 处理结果文件\n• 删除日志文件\n• 清空所有会话中的消息记录\n\n清理后需要重新处理才能恢复结果。")
+                                                .arg(SettingsController.aiImageFileCount)
+                                                .arg(SettingsController.formatSize(SettingsController.aiImageSize))
+                                                .arg(SettingsController.aiVideoFileCount)
+                                                .arg(SettingsController.formatSize(SettingsController.aiVideoSize))
+                                                .arg(SettingsController.shaderImageFileCount)
+                                                .arg(SettingsController.formatSize(SettingsController.shaderImageSize))
+                                                .arg(SettingsController.shaderVideoFileCount)
+                                                .arg(SettingsController.formatSize(SettingsController.shaderVideoSize))
+                                                .arg(SettingsController.formatSize(SettingsController.logSize))
+                                                .arg(totalFiles)
+                                                .arg(SettingsController.formatSize(SettingsController.totalCacheSize))
                                         )
                                     }
                                 }
@@ -987,11 +1047,4 @@ Rectangle {
     }
 
     Behavior on color { ColorAnimation { duration: Theme.animation.normal } }
-
-    Connections {
-        target: SettingsController
-        function onDataSizeChanged() {
-            SettingsController.refreshDataSize()
-        }
-    }
 }

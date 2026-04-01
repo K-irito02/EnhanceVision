@@ -528,7 +528,7 @@ void ProcessingController::startTask(QueueTask& task)
             
             if (ImageUtils::isImageFile(inputPath)) {
                 QFileInfo fileInfo(inputPath);
-                QString processedDir = SettingsController::instance()->effectiveDataPath() + "/processed";
+                QString processedDir = SettingsController::instance()->getShaderImagePath();
                 QDir().mkpath(processedDir);
                 QString outputPath = processedDir + "/" + QUuid::createUuid().toString(QUuid::WithoutBraces) + ".png";
                 
@@ -586,16 +586,18 @@ void ProcessingController::startTask(QueueTask& task)
                 return;
             }
 
-            // 生成输出路径（统一到应用专用 processed 目录，避免原目录权限/覆盖问题）
+            // 生成输出路径（AI图像和视频分别存储到不同目录）
             QFileInfo fileInfo(inputPath);
-            const QString processedDir = SettingsController::instance()->effectiveDataPath() + "/processed/ai";
+            const bool isVideo = ImageUtils::isVideoFile(inputPath);
+            const QString processedDir = isVideo 
+                ? SettingsController::instance()->getAIVideoPath()
+                : SettingsController::instance()->getAIImagePath();
             if (!QDir().mkpath(processedDir)) {
                 failTask(taskId, tr("无法创建AI输出目录: %1").arg(processedDir));
                 return;
             }
 
             // 视频文件输出为 .mp4，图像文件保持原格式（默认 png）
-            const bool isVideo = ImageUtils::isVideoFile(inputPath);
             const QString suffix = isVideo ? QStringLiteral("mp4")
                                            : (!fileInfo.suffix().isEmpty() ? fileInfo.suffix() : QStringLiteral("png"));
             const QString uniqueToken = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss_zzz") +
@@ -850,7 +852,7 @@ void ProcessingController::processShaderVideoThumbnailAsync(const QString& taskI
 {
     const QString sessionId = resolveSessionIdForMessage(messageId);
 
-    QString processedDir = SettingsController::instance()->effectiveDataPath() + "/processed/shader_video";
+    QString processedDir = SettingsController::instance()->getShaderVideoPath();
     QDir().mkpath(processedDir);
     QFileInfo fi(filePath);
     QString outputPath = processedDir + "/" + fi.completeBaseName()
@@ -1094,12 +1096,15 @@ void ProcessingController::retryMessage(const QString& messageId)
 
 void ProcessingController::retryFailedFiles(const QString& messageId)
 {
+    qInfo() << "[ProcessingController] retryFailedFiles called for messageId:" << messageId;
+    
     if (!m_messageModel) {
         qWarning() << "[ProcessingController] retryFailedFiles: MessageModel not set";
         return;
     }
 
-    // 【修复】检查是否已有在途任务，避免重复入队导致崩溃
+    // 检查是否已有在途任务，避免重复入队
+    // 注意：这里只检查当前消息是否有任务，不影响其他消息的重试
     if (hasTasksForMessage(messageId)) {
         qWarning() << "[ProcessingController] retryFailedFiles: Message already has pending tasks:" << messageId;
         return;
@@ -1110,17 +1115,25 @@ void ProcessingController::retryFailedFiles(const QString& messageId)
         qWarning() << "[ProcessingController] retryFailedFiles: Message not found:" << messageId;
         return;
     }
+    
+    qInfo() << "[ProcessingController] retryFailedFiles: Message found, status:" 
+            << static_cast<int>(message.status) << "files:" << message.mediaFiles.size();
 
     QList<MediaFile> filesToRetry;
     for (const auto& file : message.mediaFiles) {
+        qInfo() << "[ProcessingController] retryFailedFiles: File" << file.id 
+                << "status:" << static_cast<int>(file.status);
         if (file.status == ProcessingStatus::Failed || file.status == ProcessingStatus::Cancelled) {
             filesToRetry.append(file);
         }
     }
 
     if (filesToRetry.isEmpty()) {
+        qWarning() << "[ProcessingController] retryFailedFiles: No failed files to retry";
         return;
     }
+    
+    qInfo() << "[ProcessingController] retryFailedFiles: Found" << filesToRetry.size() << "files to retry";
 
     m_messageModel->updateStatus(messageId, static_cast<int>(ProcessingStatus::Pending));
     m_messageModel->updateErrorMessage(messageId, QString());

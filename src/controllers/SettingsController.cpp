@@ -5,6 +5,7 @@
  */
 
 #include "EnhanceVision/controllers/SettingsController.h"
+#include "EnhanceVision/controllers/SessionController.h"
 #include <QStandardPaths>
 #include <QDir>
 #include <QDirIterator>
@@ -32,10 +33,15 @@ SettingsController::SettingsController(QObject* parent)
     , m_videoAutoPlayOnSwitch(true)
     , m_videoRestorePosition(true)
     , m_customDataPath()
-    , m_aiProcessedSize(0)
+    , m_aiImageSize(0)
+    , m_aiVideoSize(0)
     , m_shaderImageSize(0)
     , m_shaderVideoSize(0)
     , m_logSize(0)
+    , m_aiImageFileCount(0)
+    , m_aiVideoFileCount(0)
+    , m_shaderImageFileCount(0)
+    , m_shaderVideoFileCount(0)
 {
     QString configPath = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
     QString settingsFile = QDir(configPath).filePath("EnhanceVision/settings.ini");
@@ -379,9 +385,14 @@ void SettingsController::setCustomDataPath(const QString& path)
     }
 }
 
-qint64 SettingsController::aiProcessedSize() const
+qint64 SettingsController::aiImageSize() const
 {
-    return m_aiProcessedSize;
+    return m_aiImageSize;
+}
+
+qint64 SettingsController::aiVideoSize() const
+{
+    return m_aiVideoSize;
 }
 
 qint64 SettingsController::shaderImageSize() const
@@ -401,12 +412,32 @@ qint64 SettingsController::logSize() const
 
 qint64 SettingsController::totalCacheSize() const
 {
-    return m_aiProcessedSize + m_shaderImageSize + m_shaderVideoSize + m_logSize;
+    return m_aiImageSize + m_aiVideoSize + m_shaderImageSize + m_shaderVideoSize + m_logSize;
 }
 
 int SettingsController::thumbnailCacheCount() const
 {
     return 0;
+}
+
+int SettingsController::aiImageFileCount() const
+{
+    return m_aiImageFileCount;
+}
+
+int SettingsController::aiVideoFileCount() const
+{
+    return m_aiVideoFileCount;
+}
+
+int SettingsController::shaderImageFileCount() const
+{
+    return m_shaderImageFileCount;
+}
+
+int SettingsController::shaderVideoFileCount() const
+{
+    return m_shaderVideoFileCount;
 }
 
 QString SettingsController::effectiveDataPath() const
@@ -431,6 +462,22 @@ qint64 SettingsController::calculateDirectorySize(const QString& path) const
         size += it.fileInfo().size();
     }
     return size;
+}
+
+int SettingsController::countFilesInDirectory(const QString& path) const
+{
+    int count = 0;
+    QDir dir(path);
+    if (!dir.exists()) {
+        return 0;
+    }
+    
+    QDirIterator it(path, QDir::Files | QDir::NoSymLinks, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        it.next();
+        ++count;
+    }
+    return count;
 }
 
 bool SettingsController::clearDirectory(const QString& path)
@@ -467,19 +514,24 @@ bool SettingsController::clearDirectory(const QString& path)
     return success;
 }
 
-QString SettingsController::getAIProcessedPath() const
+QString SettingsController::getAIImagePath() const
 {
-    return effectiveDataPath() + "/processed/ai";
+    return effectiveDataPath() + "/ai/images";
+}
+
+QString SettingsController::getAIVideoPath() const
+{
+    return effectiveDataPath() + "/ai/videos";
 }
 
 QString SettingsController::getShaderImagePath() const
 {
-    return effectiveDataPath() + "/processed";
+    return effectiveDataPath() + "/shader/images";
 }
 
 QString SettingsController::getShaderVideoPath() const
 {
-    return effectiveDataPath() + "/processed/shader_video";
+    return effectiveDataPath() + "/shader/videos";
 }
 
 QString SettingsController::getLogPath() const
@@ -489,50 +541,55 @@ QString SettingsController::getLogPath() const
 
 void SettingsController::refreshDataSize()
 {
-    m_aiProcessedSize = calculateDirectorySize(getAIProcessedPath());
+    m_aiImageSize = calculateDirectorySize(getAIImagePath());
+    m_aiVideoSize = calculateDirectorySize(getAIVideoPath());
     m_shaderImageSize = calculateDirectorySize(getShaderImagePath());
     m_shaderVideoSize = calculateDirectorySize(getShaderVideoPath());
     m_logSize = calculateDirectorySize(getLogPath());
     
+    m_aiImageFileCount = countFilesInDirectory(getAIImagePath());
+    m_aiVideoFileCount = countFilesInDirectory(getAIVideoPath());
+    m_shaderImageFileCount = countFilesInDirectory(getShaderImagePath());
+    m_shaderVideoFileCount = countFilesInDirectory(getShaderVideoPath());
+    
     emit dataSizeChanged();
 }
 
-bool SettingsController::clearAIProcessedData()
+bool SettingsController::clearAIImageData()
 {
-    QString path = getAIProcessedPath();
+    QString path = getAIImagePath();
     bool success = clearDirectory(path);
+    
+    if (success && m_sessionController) {
+        m_sessionController->clearMediaFilesByModeAndType(1, 0);  // mode=AI, type=Image
+    }
+    
     refreshDataSize();
-    qInfo() << "[SettingsController] Cleared AI processed data:" << path << "success:" << success;
+    qInfo() << "[SettingsController] Cleared AI image data:" << path << "success:" << success;
+    return success;
+}
+
+bool SettingsController::clearAIVideoData()
+{
+    QString path = getAIVideoPath();
+    bool success = clearDirectory(path);
+    
+    if (success && m_sessionController) {
+        m_sessionController->clearMediaFilesByModeAndType(1, 1);  // mode=AI, type=Video
+    }
+    
+    refreshDataSize();
+    qInfo() << "[SettingsController] Cleared AI video data:" << path << "success:" << success;
     return success;
 }
 
 bool SettingsController::clearShaderImageData()
 {
     QString path = getShaderImagePath();
-    QDir dir(path);
+    bool success = clearDirectory(path);
     
-    bool success = true;
-    if (dir.exists()) {
-        QDirIterator it(path, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
-        while (it.hasNext()) {
-            it.next();
-            QString itemPath = it.filePath();
-            QFileInfo fi(itemPath);
-            
-            if (fi.fileName() == "shader_video" || fi.fileName() == "ai") {
-                continue;
-            }
-            
-            if (fi.isDir()) {
-                if (!QDir(itemPath).removeRecursively()) {
-                    success = false;
-                }
-            } else {
-                if (!QFile::remove(itemPath)) {
-                    success = false;
-                }
-            }
-        }
+    if (success && m_sessionController) {
+        m_sessionController->clearMediaFilesByModeAndType(0, 0);  // mode=Shader, type=Image
     }
     
     refreshDataSize();
@@ -544,6 +601,11 @@ bool SettingsController::clearShaderVideoData()
 {
     QString path = getShaderVideoPath();
     bool success = clearDirectory(path);
+    
+    if (success && m_sessionController) {
+        m_sessionController->clearMediaFilesByModeAndType(0, 1);  // mode=Shader, type=Video
+    }
+    
     refreshDataSize();
     qInfo() << "[SettingsController] Cleared Shader video data:" << path << "success:" << success;
     return success;
@@ -561,11 +623,19 @@ bool SettingsController::clearLogs()
 bool SettingsController::clearAllCache()
 {
     bool success = true;
-    success &= clearAIProcessedData();
-    success &= clearShaderImageData();
-    success &= clearShaderVideoData();
-    success &= clearLogs();
+    
+    success &= clearDirectory(getAIImagePath());
+    success &= clearDirectory(getAIVideoPath());
+    success &= clearDirectory(getShaderImagePath());
+    success &= clearDirectory(getShaderVideoPath());
+    success &= clearDirectory(getLogPath());
+    
+    if (success && m_sessionController) {
+        m_sessionController->clearAllSessionMessages();
+    }
+    
     refreshDataSize();
+    qInfo() << "[SettingsController] Cleared all cache, success:" << success;
     return success;
 }
 
@@ -684,6 +754,11 @@ void SettingsController::setSetting(const QString& key, const QString& value)
     if (!m_settings) return;
     m_settings->setValue(key, value);
     emit settingsChanged();
+}
+
+void SettingsController::setSessionController(SessionController* controller)
+{
+    m_sessionController = controller;
 }
 
 } // namespace EnhanceVision

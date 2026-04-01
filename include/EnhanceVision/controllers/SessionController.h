@@ -124,6 +124,38 @@ public:
      * 用于任务完成后立即持久化，防止崩溃时数据丢失
      */
     void saveSessionsImmediately();
+    
+    /**
+     * @brief 清空所有会话的消息（保留会话标签）
+     * 用于缓存清理时清空所有会话的消息记录
+     */
+    Q_INVOKABLE void clearAllSessionMessages();
+    
+    /**
+     * @brief 清空所有会话中指定模式的消息
+     * @param mode 处理模式（0=Shader, 1=AIInference）
+     */
+    Q_INVOKABLE void clearAllSessionMessagesByMode(int mode);
+    
+    /**
+     * @brief 清空所有会话中 Shader 模式的视频消息
+     */
+    Q_INVOKABLE void clearAllShaderVideoMessages();
+    
+    /**
+     * @brief 清空所有会话中指定模式和媒体类型的文件
+     * @param mode 处理模式（0=Shader, 1=AIInference）
+     * @param mediaType 媒体类型（0=Image, 1=Video）
+     * @note 如果消息中同时包含图像和视频，只删除指定类型的媒体文件；
+     *       如果删除后消息中没有剩余的媒体文件，则删除整个消息
+     */
+    Q_INVOKABLE void clearMediaFilesByModeAndType(int mode, int mediaType);
+    
+    /**
+     * @brief 删除所有会话（包括会话标签和消息）
+     * 用于彻底清理所有会话数据
+     */
+    Q_INVOKABLE void deleteAllSessions();
 
 signals:
     void autoSaveEnabledChanged();
@@ -139,6 +171,8 @@ signals:
     void sessionPinned(const QString& sessionId, bool pinned);
     void sessionMoved(int fromIndex, int toIndex);
     void errorOccurred(const QString& message);
+    void allSessionMessagesCleared();
+    void allSessionsDeleted();
 
 private:
     QString m_activeSessionId;
