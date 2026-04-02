@@ -95,9 +95,13 @@ Rectangle {
         }
 
         ScrollView {
+            id: settingsScrollView
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
+
+            property real lastMouseY: 0
+            property bool isDragging: false
 
             ColumnLayout {
                 id: settingsColumn
@@ -108,6 +112,42 @@ Rectangle {
                     property: "width"
                     value: settingsColumn.parent ? settingsColumn.parent.width : 400
                     when: settingsColumn.parent
+                }
+
+                MouseArea {
+                    id: dragMouseArea
+                    anchors.fill: parent
+                    enabled: true
+                    preventStealing: true
+                    
+                    onPressed: function(mouse) {
+                        settingsScrollView.lastMouseY = mouse.y
+                        settingsScrollView.isDragging = true
+                    }
+                    
+                    onReleased: {
+                        settingsScrollView.isDragging = false
+                    }
+                    
+                    onCanceled: {
+                        settingsScrollView.isDragging = false
+                    }
+                    
+                    onPositionChanged: function(mouse) {
+                        if (settingsScrollView.isDragging) {
+                            var deltaY = settingsScrollView.lastMouseY - mouse.y
+                            var newContentY = settingsScrollView.contentItem.contentY + deltaY
+                            var maxContentY = settingsScrollView.contentItem.contentHeight - settingsScrollView.height
+                            
+                            newContentY = Math.max(0, Math.min(newContentY, maxContentY))
+                            settingsScrollView.contentItem.contentY = newContentY
+                            settingsScrollView.lastMouseY = mouse.y
+                        }
+                    }
+                    
+                    onWheel: function(wheel) {
+                        wheel.accepted = false
+                    }
                 }
 
                 Rectangle {
@@ -936,7 +976,7 @@ Rectangle {
 
                                 Text {
                                     Layout.fillWidth: true
-                                    text: qsTr("清理后可重新生成处理结果，但需要重新处理。")
+                                    text: qsTr("清理后，数据不可恢复，谨慎清理。")
                                     color: Theme.colors.warning
                                     font.pixelSize: 11
                                     wrapMode: Text.Wrap
@@ -1006,12 +1046,20 @@ Rectangle {
                             spacing: 12
 
                             Rectangle {
-                                width: 44; height: 44; radius: 11
-                                gradient: Gradient {
-                                    GradientStop { position: 0.0; color: Theme.colors.brandGradientStart }
-                                    GradientStop { position: 1.0; color: Theme.colors.brandGradientEnd }
+                                width: 44
+                                height: 44
+                                radius: 11
+                                clip: true
+                                color: "transparent"
+                                
+                                Image {
+                                    anchors.fill: parent
+                                    source: "qrc:/icons/app_icon.png"
+                                    sourceSize.width: 44
+                                    sourceSize.height: 44
+                                    fillMode: Image.PreserveAspectCrop
+                                    smooth: true
                                 }
-                                Text { anchors.centerIn: parent; text: "E"; color: Theme.colors.textOnPrimary; font.pixelSize: 22; font.weight: Font.Bold }
                             }
 
                             ColumnLayout {
