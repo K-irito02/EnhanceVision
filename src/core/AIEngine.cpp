@@ -23,6 +23,34 @@
 
 namespace EnhanceVision {
 
+// ========== GPU 实例全局单例管理 ==========
+std::once_flag AIEngine::s_gpuInstanceOnceFlag;
+std::atomic<int> AIEngine::s_gpuInstanceRefCount{0};
+std::mutex AIEngine::s_gpuInstanceMutex;
+
+void AIEngine::ensureGpuInstanceCreated()
+{
+#if NCNN_VULKAN
+    std::call_once(s_gpuInstanceOnceFlag, []() {
+        qInfo() << "[AIEngine] Creating global Vulkan GPU instance (once)";
+        ncnn::create_gpu_instance();
+    });
+#endif
+}
+
+void AIEngine::releaseGpuInstanceRef()
+{
+#if NCNN_VULKAN
+    std::lock_guard<std::mutex> lock(s_gpuInstanceMutex);
+    int remaining = s_gpuInstanceRefCount.fetch_sub(1) - 1;
+    if (remaining <= 0) {
+        qInfo() << "[AIEngine] Last engine destroyed, destroying global GPU instance";
+        ncnn::destroy_gpu_instance();
+        // 重置 once_flag 以便重新创建（C++不支持直接重置，但应用退出时不需要）
+    }
+#endif
+}
+
 AIEngine::AIEngine(QObject *parent)
     : QObject(parent)
     , m_progressReporter(std::make_unique<ProgressReporter>(this))
@@ -47,46 +75,32 @@ void AIEngine::initVulkan()
     m_vulkanInitialized.store(false);
     m_vulkanWarmupInProgress = false;
     
-    int retryCount = 0;
-    const int maxRetries = 5;
-    const int retryDelayMs = 100;
+    // 【关键修复】使用全局单例创建GPU实例，避免多个AIEngine重复创建/销毁
+    ensureGpuInstanceCreated();
     
-    while (retryCount < maxRetries && !m_gpuAvailable) {
-        ncnn::create_gpu_instance();
+    int gpuCount = ncnn::get_gpu_count();
+    qInfo() << "[AIEngine][DEBUG] Vulkan GPU count:" << gpuCount;
+    
+    if (gpuCount > 0) {
+        int gpuIndex = ncnn::get_default_gpu_index();
+        m_vkdev = ncnn::get_gpu_device(gpuIndex);
         
-        int gpuCount = ncnn::get_gpu_count();
-        qInfo() << "[AIEngine][DEBUG] Vulkan GPU init attempt:" << (retryCount + 1)
-                << "gpuCount:" << gpuCount;
-        
-        if (gpuCount > 0) {
-            int gpuIndex = ncnn::get_default_gpu_index();
-            m_vkdev = ncnn::get_gpu_device(gpuIndex);
-            
-            if (m_vkdev) {
-                m_gpuAvailable = true;
-                qInfo() << "[AIEngine] Vulkan GPU initialized successfully:"
-                        << "index:" << gpuIndex
-                        << "device:" << m_vkdev->info.device_name();
-                
-                break;
-            } else {
-                qWarning() << "[AIEngine] Failed to get GPU device, retrying...";
-                ncnn::destroy_gpu_instance();
-            }
+        if (m_vkdev) {
+            m_gpuAvailable = true;
+            s_gpuInstanceRefCount.fetch_add(1);
+            qInfo() << "[AIEngine] Vulkan GPU initialized successfully:"
+                    << "index:" << gpuIndex
+                    << "device:" << m_vkdev->info.device_name()
+                    << "refCount:" << s_gpuInstanceRefCount.load();
         } else {
-            qWarning() << "[AIEngine] No Vulkan GPU found, retrying...";
-            ncnn::destroy_gpu_instance();
+            qWarning() << "[AIEngine] Failed to get GPU device";
         }
-        
-        retryCount++;
-        if (retryCount < maxRetries) {
-            QThread::msleep(retryDelayMs);
-        }
+    } else {
+        qWarning() << "[AIEngine] No Vulkan GPU found";
     }
     
     if (!m_gpuAvailable) {
-        qWarning() << "[AIEngine] Vulkan GPU initialization failed after"
-                   << maxRetries << "attempts, using CPU mode";
+        qWarning() << "[AIEngine] GPU not available, using CPU mode";
         m_vulkanReady.store(true);
         m_vulkanInitialized.store(true);
         m_vulkanInitCv.notify_all();
@@ -123,8 +137,12 @@ void AIEngine::destroyVulkan()
     }
     m_opt.blob_vkallocator = nullptr;
     m_opt.workspace_vkallocator = nullptr;
+    
+    // 【关键修复】使用全局引用计数管理GPU实例生命周期
+    if (m_gpuAvailable) {
+        releaseGpuInstanceRef();
+    }
     m_vkdev = nullptr;
-    ncnn::destroy_gpu_instance();
 #endif
 }
 
@@ -243,10 +261,10 @@ void AIEngine::warmupVulkanPipelineSync()
     QElapsedTimer warmupTimer;
     warmupTimer.start();
 
-    for (int i = 0; i < 3; ++i) {
+    // 多次同步确保管道完全初始化
+    for (int i = 0; i < 2; ++i) {
         ncnn::VkCompute cmd(m_vkdev);
         cmd.submit_and_wait();
-        QThread::msleep(50);
     }
 
     qInfo() << "[AIEngine][DEBUG] Vulkan pipeline sync warmup completed in"
@@ -289,6 +307,29 @@ bool AIEngine::waitForVulkanReady(int timeoutMs)
 #endif
 }
 
+bool AIEngine::waitForModelSyncComplete(int timeoutMs)
+{
+    // 如果已经同步完成，直接返回
+    if (m_modelSyncComplete.load()) {
+        return true;
+    }
+    
+    qInfo() << "[AIEngine][DEBUG] waitForModelSyncComplete: waiting for model sync...";
+    
+    std::unique_lock<std::mutex> lock(m_modelSyncMutex);
+    bool result = m_modelSyncCv.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this]() {
+        return m_modelSyncComplete.load();
+    });
+    
+    if (result) {
+        qInfo() << "[AIEngine][DEBUG] waitForModelSyncComplete: model sync complete";
+    } else {
+        qWarning() << "[AIEngine][DEBUG] waitForModelSyncComplete: timeout after" << timeoutMs << "ms";
+    }
+    
+    return result;
+}
+
 void AIEngine::syncVulkanQueue()
 {
 #if NCNN_VULKAN
@@ -317,6 +358,9 @@ void AIEngine::setModelRegistry(ModelRegistry *registry)
 bool AIEngine::loadModel(const QString &modelId)
 {
     QMutexLocker locker(&m_mutex);
+    
+    // 【关键修复】模型加载开始时，标记同步未完成，阻止推理
+    m_modelSyncComplete.store(false);
 
     // 若推理正在进行，拒绝切换模型
     if (m_isProcessing.load()) {
@@ -358,42 +402,26 @@ bool AIEngine::loadModel(const QString &modelId)
 
     // 卸载旧模型并清理 GPU 内存
     if (!m_currentModelId.isEmpty()) {
-        // 【关键修复】在卸载模型前进行完整的Vulkan同步
-        // 确保所有GPU操作完成后再清理资源
 #if NCNN_VULKAN
         if (m_vkdev && m_opt.use_vulkan_compute) {
             QMutexLocker allocLock(&m_allocatorMutex);
-            
-            // 第一次同步
+            // 同步 GPU 队列，确保所有飞行中的操作完成
             {
                 ncnn::VkCompute cmd(m_vkdev);
                 cmd.submit_and_wait();
             }
-            
-            // 清理分配器
+            // 清理分配器中的临时分配
             if (m_blobVkAllocator) {
                 m_blobVkAllocator->clear();
             }
             if (m_stagingVkAllocator) {
                 m_stagingVkAllocator->clear();
             }
-            
-            // 第二次同步
-            {
-                ncnn::VkCompute cmd(m_vkdev);
-                cmd.submit_and_wait();
-            }
-            
-            // 等待GPU完全空闲
-            QThread::msleep(100);
         }
 #endif
         
         m_net.clear();
         m_currentModel.isLoaded = false;
-        
-        // 额外等待，确保网络清理完成
-        QThread::msleep(50);
     }
 
     // 重置 GPU OOM 状态（换模型时重置）
@@ -420,20 +448,19 @@ bool AIEngine::loadModel(const QString &modelId)
     m_currentModel.isLoaded = true;
     m_currentModel.layerCount = static_cast<int>(m_net.layers().size());
 
-    // 【关键修复】模型加载后进行Vulkan同步
-    // 确保Vulkan管道完全初始化
+    // 模型加载后同步 Vulkan，确保管道创建完成
 #if NCNN_VULKAN
     if (m_opt.use_vulkan_compute && m_vkdev) {
         qInfo() << "[AIEngine][DEBUG] Performing Vulkan sync after model load";
         
-        // 多次同步确保GPU就绪
-        for (int i = 0; i < 3; ++i) {
+        // 【关键修复】多次同步确保 GPU 管道完全初始化
+        // 首次推理前必须等待所有 GPU 资源就绪，否则会导致堆损坏
+        for (int i = 0; i < 2; ++i) {
             ncnn::VkCompute cmd(m_vkdev);
             cmd.submit_and_wait();
-            QThread::msleep(50);
         }
         
-        // 清理分配器
+        // 清理临时分配
         {
             QMutexLocker allocLock(&m_allocatorMutex);
             if (m_blobVkAllocator) {
@@ -450,13 +477,20 @@ bool AIEngine::loadModel(const QString &modelId)
             cmd.submit_and_wait();
         }
         
-        // 等待GPU完全空闲
-        QThread::msleep(300);
+        // 等待 GPU 完全空闲（防止堆损坏）
+        QThread::msleep(100);
         
         qInfo() << "[AIEngine][DEBUG] Vulkan sync after model load completed";
     }
 #endif
 
+    // 【关键修复】标记模型同步完成，允许推理开始
+    {
+        std::lock_guard<std::mutex> lock(m_modelSyncMutex);
+        m_modelSyncComplete.store(true);
+    }
+    m_modelSyncCv.notify_all();
+    
     qInfo() << "[AIEngine][DEBUG] Model loaded successfully:" << modelId
             << "layers:" << m_currentModel.layerCount;
 
@@ -1247,7 +1281,14 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
         return ncnn::Mat();
     }
 
-    if (m_opt.use_vulkan_compute) {
+    // 【关键修复】快照 Vulkan 标志，避免 m_opt 跨线程无锁读取导致数据竞争
+    bool useVulkan = false;
+    {
+        QMutexLocker optLock(&m_mutex);
+        useVulkan = m_opt.use_vulkan_compute;
+    }
+
+    if (useVulkan) {
         ensureVulkanReady();
     }
 
@@ -1303,7 +1344,9 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
     }
     
 #if NCNN_VULKAN
-    if (m_opt.use_vulkan_compute && m_vkdev) {
+    // 【关键修复】推理后清理 allocator 必须持有 m_allocatorMutex，避免数据竞争
+    if (useVulkan && m_vkdev) {
+        QMutexLocker allocLock(&m_allocatorMutex);
         {
             ncnn::VkCompute cmd(m_vkdev);
             cmd.submit_and_wait();

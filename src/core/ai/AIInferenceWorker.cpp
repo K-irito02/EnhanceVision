@@ -513,13 +513,9 @@ bool AIInferenceWorker::checkCancellation()
         // 清理资源
         cleanupGpuResources();
         
-        // 通知完成
-        {
-            QMutexLocker locker(&m_completionMutex);
-            m_completionCondition.wakeAll();
-        }
-        
-        emit taskCompleted(AITaskResult::makeCancelled(m_currentTaskId));
+        // 【关键修复】不在此处 emit taskCompleted，由 startTask() 统一发射，
+        // 避免 processImage/processVideo 内部 checkCancellation 返回后
+        // startTask 再次 emit taskCompleted 导致双重发射
         return true;
     }
     return false;

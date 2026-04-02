@@ -1723,7 +1723,7 @@ void ProcessingController::connectAiEngineForTask(AIEngine* engine, const QStrin
                 return;
             }
         }
-    });
+    }, Qt::QueuedConnection);
 
     conns << connect(engine, &AIEngine::processFileCompleted, this,
             [this, taskId](bool success, const QString& resultPath, const QString& error) {
@@ -1742,7 +1742,7 @@ void ProcessingController::connectAiEngineForTask(AIEngine* engine, const QStrin
         } else {
             failTask(taskId, error);
         }
-    });
+    }, Qt::QueuedConnection);
 
     m_aiEngineConnections[taskId] = conns;
 }

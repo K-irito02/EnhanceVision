@@ -142,6 +142,16 @@ public:
      * 提供可靠的同步等待机制，确保 Vulkan 在推理前完全初始化。
      */
     Q_INVOKABLE bool waitForVulkanReady(int timeoutMs = 5000);
+    
+    /**
+     * @brief 等待模型同步完成（GPU资源完全就绪）
+     * @param timeoutMs 超时时间（毫秒）
+     * @return true 如果同步完成，false 如果超时
+     * 
+     * 在模型加载后，GPU资源需要时间完成初始化。
+     * 此方法阻塞等待直到所有GPU资源就绪，防止堆损坏。
+     */
+    Q_INVOKABLE bool waitForModelSyncComplete(int timeoutMs = 5000);
 
     /**
      * @brief OpenCV 图像修复（同步）
@@ -318,6 +328,11 @@ private:
     std::condition_variable m_vulkanInitCv;
     bool m_vulkanWarmupInProgress{false};
     
+    // 模型加载同步完成标志（GPU资源完全就绪后才允许推理）
+    std::atomic<bool> m_modelSyncComplete{true};
+    std::mutex m_modelSyncMutex;
+    std::condition_variable m_modelSyncCv;
+    
     std::atomic<bool> m_isProcessing{false};
     std::atomic<double> m_progress{0.0};
     std::atomic<qint64> m_lastProgressEmitMs{0};
@@ -330,6 +345,13 @@ private:
     void warmupVulkanPipeline();
     void warmupVulkanPipelineSync();
     void safeCleanup();
+
+    // GPU 实例全局引用计数（所有 AIEngine 共享同一 Vulkan 实例）
+    static std::once_flag s_gpuInstanceOnceFlag;
+    static std::atomic<int> s_gpuInstanceRefCount;
+    static std::mutex s_gpuInstanceMutex;
+    static void ensureGpuInstanceCreated();
+    static void releaseGpuInstanceRef();
 
     // Thread-safe last error storage (written from worker thread, read in worker thread)
     mutable QMutex m_lastErrorMutex;

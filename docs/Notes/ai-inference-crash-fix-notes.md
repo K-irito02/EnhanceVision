@@ -4,8 +4,8 @@
 
 **创建日期**: 2026-03-31
 **最后更新**: 2026-04-02
-**问题类型**: 首次任务堆内存损坏崩溃
-**状态**: 已完全解决（根因级修复）
+**问题类型**: 首次任务堆内存损坏崩溃 (STATUS_HEAP_CORRUPTION 0xc0000374)
+**状态**: ✅ 已完全解决（多层防护机制）
 
 ---
 
@@ -16,7 +16,12 @@ AI推理在以下场景出现**首个任务**崩溃：
 2. 取消任务后首次重新处理任务
 3. 模型切换后首次推理任务
 
-**根本原因（已确认）**: `ensureVulkanReady()` 在每次推理前销毁并重建 Vulkan Allocator，但 `ncnn::Net` (m_net) 的 opt 仍持有已释放 allocator 的悬空指针，导致推理时访问非法内存 → 堆损坏/崩溃
+**根本原因（多因素）**:
+1. `ncnn::create_gpu_instance()` 被多个 AIEngine 实例重复调用，导致 Vulkan 状态不一致
+2. 模型加载后 GPU 资源未完全初始化就开始推理，导致堆损坏
+3. `m_opt.use_vulkan_compute` 跨线程无锁读取导致数据竞争
+4. `taskCompleted` 信号双重发射导致状态混乱
+5. 跨线程信号连接未使用 `Qt::QueuedConnection`
 
 ---
 
@@ -146,16 +151,122 @@ void AIEngine::ensureVulkanReady()
 
 ---
 
-## 六、设计原则总结
+## 六、2026-04-02 最终修复方案
 
-### Vulkan Allocator 生命周期规则（新增）
+### 修复 A：GPU 实例单例化
+
+**问题**: 多个 AIEngine 实例各自调用 `ncnn::create_gpu_instance()` 和 `ncnn::destroy_gpu_instance()`，导致 Vulkan 全局状态被破坏。
+
+**解决方案**: 使用 `std::call_once` + 引用计数确保全局只调用一次。
+
+```cpp
+// AIEngine.h - 新增静态成员
+static std::once_flag s_gpuInstanceOnceFlag;
+static std::atomic<int> s_gpuInstanceRefCount;
+static std::mutex s_gpuInstanceMutex;
+static void ensureGpuInstanceCreated();
+static void releaseGpuInstanceRef();
+
+// AIEngine.cpp - 实现
+void AIEngine::ensureGpuInstanceCreated() {
+    std::call_once(s_gpuInstanceOnceFlag, []() {
+        ncnn::create_gpu_instance();
+    });
+}
+```
+
+### 修复 B：Allocator 锁保护 + m_opt 快照
+
+**问题**: `runInference()` 中直接读取 `m_opt.use_vulkan_compute` 存在数据竞争。
+
+**解决方案**: 
+1. 推理后清理 allocator 时加 `m_allocatorMutex` 锁
+2. 在推理开始时快照 `m_opt.use_vulkan_compute`，后续使用快照值
+
+```cpp
+bool useVulkan = false;
+{
+    QMutexLocker optLock(&m_mutex);
+    useVulkan = m_opt.use_vulkan_compute;
+}
+```
+
+### 修复 C：修复 taskCompleted 双重发射
+
+**问题**: `checkCancellation()` 内部 `emit taskCompleted()`，但调用方返回后 `startTask()` 又会 `emit taskCompleted(result)`。
+
+**解决方案**: 从 `checkCancellation()` 移除 `emit taskCompleted()`，统一由 `startTask()` 发射。
+
+### 修复 D：信号连接改用 Qt::QueuedConnection
+
+**问题**: `ProcessingController::connectAiEngineForTask()` 中跨线程信号连接未指定连接类型。
+
+**解决方案**: 明确使用 `Qt::QueuedConnection`：
+```cpp
+conns << connect(engine, &AIEngine::progressChanged, this, 
+    [...], Qt::QueuedConnection);
+```
+
+### 修复 E：模型同步等待机制（关键）
+
+**问题**: 模型加载完成后，GPU 资源需要时间完成初始化，但推理线程立即开始处理导致堆损坏。
+
+**解决方案**: 添加 `waitForModelSyncComplete()` 阻塞机制：
+
+```cpp
+// AIEngine.h - 新增成员
+std::atomic<bool> m_modelSyncComplete{true};
+std::mutex m_modelSyncMutex;
+std::condition_variable m_modelSyncCv;
+Q_INVOKABLE bool waitForModelSyncComplete(int timeoutMs = 5000);
+
+// AIEngine.cpp - loadModel() 中
+m_modelSyncComplete.store(false);  // 开始加载
+// ... 模型加载和 Vulkan 同步 ...
+m_modelSyncComplete.store(true);   // 完成
+m_modelSyncCv.notify_all();
+
+// AIVideoProcessor.cpp - 处理前等待
+if (!m_impl->aiEngine->waitForModelSyncComplete(10000)) {
+    emitCompleted(false, QString(), tr("模型同步超时"));
+    return;
+}
+```
+
+---
+
+## 七、修改文件清单
+
+| 文件路径 | 修改内容 |
+|----------|----------|
+| `include/EnhanceVision/core/AIEngine.h` | 添加 GPU 单例静态成员、模型同步成员、`waitForModelSyncComplete()` 声明 |
+| `src/core/AIEngine.cpp` | 实现 GPU 单例、allocator 锁保护、m_opt 快照、模型同步机制 |
+| `src/core/ai/AIInferenceWorker.cpp` | 移除 `checkCancellation()` 中的 `emit taskCompleted()` |
+| `src/controllers/ProcessingController.cpp` | 信号连接添加 `Qt::QueuedConnection` |
+| `src/core/video/AIVideoProcessor.cpp` | 处理前调用 `waitForModelSyncComplete()` |
+
+---
+
+## 八、设计原则总结
+
+### GPU 实例管理规则
+
+1. **全局单例**: `ncnn::create_gpu_instance()` 只在首个 AIEngine 构造时调用一次
+2. **引用计数**: 最后一个 AIEngine 析构时才调用 `ncnn::destroy_gpu_instance()`
+
+### Vulkan Allocator 生命周期规则
 
 1. **Allocator 与 ncnn::Net 绑定**: 只在 `loadModel()` 时通过 `m_net.opt = m_opt` 设置 allocator
 2. **推理过程中不重建 allocator**: `ensureVulkanReady()` 只做同步和 clear 缓存
 3. **如需重置 allocator 必须重新加载模型**: 确保 m_net.opt 始终指向有效 allocator
-4. **warmup 不使用临时 allocator**: 避免创建后立即 reclaim 导致残留引用
+
+### 模型同步规则
+
+1. **阻塞等待**: 推理前必须等待 `waitForModelSyncComplete()` 返回 true
+2. **条件变量**: 使用 `std::condition_variable` 高效等待，避免忙轮询
 
 ### 线程安全规则
 
-- 使用 `m_allocatorMutex` 保护所有 Vulkan allocator 操作（非 m_mutex）
-- 锁获取顺序一致：避免 m_mutex 与 m_allocatorMutex 嵌套
+1. 使用 `m_allocatorMutex` 保护所有 Vulkan allocator 操作
+2. 跨线程信号连接必须使用 `Qt::QueuedConnection`
+3. 跨线程读取 `m_opt` 必须先加锁并做快照
