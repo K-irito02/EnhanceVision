@@ -71,24 +71,13 @@ Rectangle {
             spacing: 10
             Layout.alignment: Qt.AlignVCenter
             
-            // 品牌图标 - 克莱因蓝渐变
-            Rectangle {
-                width: 28
-                height: 28
-                radius: 7
-                gradient: Gradient {
-                    GradientStop { position: 0.0; color: Theme.colors.brandGradientStart }
-                    GradientStop { position: 1.0; color: Theme.colors.brandGradientEnd }
-                }
-                
-                Text {
-                    anchors.centerIn: parent
-                    text: "E"
-                    color: Theme.colors.textOnPrimary
-                    font.pixelSize: 15
-                    font.weight: Font.Bold
-                    font.letterSpacing: -0.5
-                }
+            // 品牌图标 - 使用自定义 Logo
+            Image {
+                source: "qrc:/icons/app_icon.png"
+                sourceSize.width: 28
+                sourceSize.height: 28
+                fillMode: Image.PreserveAspectFit
+                smooth: true
             }
             
             // 应用标题

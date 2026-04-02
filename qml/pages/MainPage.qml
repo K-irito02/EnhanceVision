@@ -109,23 +109,14 @@ Rectangle {
                 spacing: 24
                 visible: !root.hasMessages && !root.hasFiles
                 
-                // 欢迎图标
-                Rectangle {
+                // 欢迎图标 - 使用自定义 Logo
+                Image {
                     Layout.alignment: Qt.AlignHCenter
-                    width: 80
-                    height: 80
-                    radius: 20
-                    gradient: Gradient {
-                        GradientStop { position: 0.0; color: Theme.colors.brandGradientStart }
-                        GradientStop { position: 1.0; color: Theme.colors.brandGradientEnd }
-                    }
-                    
-                    ColoredIcon {
-                        anchors.centerIn: parent
-                        source: Theme.icon("sparkles")
-                        iconSize: 36
-                        color: Theme.colors.textOnPrimary
-                    }
+                    source: "qrc:/icons/app_icon.png"
+                    sourceSize.width: 80
+                    sourceSize.height: 80
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
                 }
                 
                 // 欢迎标题

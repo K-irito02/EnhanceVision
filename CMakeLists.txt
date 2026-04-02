@@ -236,6 +236,11 @@ qt_add_executable(EnhanceVision
     resources/qml.qrc
 )
 
+# Windows 应用程序图标
+if(WIN32)
+    target_sources(EnhanceVision PRIVATE resources/app.rc)
+endif()
+
 # ========== 预编译头优化 ==========
 if(USE_PRECOMPILED_HEADERS AND MSVC)
     target_precompile_headers(EnhanceVision PRIVATE

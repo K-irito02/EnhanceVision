@@ -147,6 +147,13 @@
         <file>icons/film.svg</file>
         <file>icons/file-text.svg</file>
         <file>icons/database.svg</file>
+        
+        <!-- 应用程序图标 -->
+        <file>icons/app_icon.png</file>
+        <file>icons/app_icon.ico</file>
+        
+        <!-- 占位图 -->
+        <file>icons/placeholder.png</file>
     </qresource>
     
     <qresource prefix="/shaders">

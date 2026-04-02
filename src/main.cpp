@@ -11,6 +11,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QDebug>
+#include <QIcon>
 #include <cstdlib>
 #include "EnhanceVision/app/Application.h"
 
@@ -151,6 +152,8 @@ int main(int argc, char *argv[])
     QApplication::setApplicationName("EnhanceVision");
     QApplication::setApplicationVersion("0.1.0");
     QApplication::setOrganizationName("EnhanceVision");
+    
+    QApplication::setWindowIcon(QIcon(":/icons/app_icon.png"));
     
     QQuickStyle::setStyle("Basic");
     

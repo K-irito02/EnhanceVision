@@ -1,0 +1,4 @@
+// Windows 应用程序图标资源文件
+// IDI_ICON1 是应用程序图标的资源 ID
+
+IDI_ICON1 ICON "icons/app_icon.ico"

@@ -96,6 +96,7 @@ private:
     static constexpr int kPersistenceLoadLimit = 80;
 
     QImage generatePlaceholderImage(const QSize& size);
+    QImage loadPlaceholderFromResource();
 
     void touchLRU(const QString& key);
     void evictLRU();

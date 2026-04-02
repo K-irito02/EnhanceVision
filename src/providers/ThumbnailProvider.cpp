@@ -463,9 +463,32 @@ bool ThumbnailProvider::hasThumbnail(const QString &id) const
     return m_thumbnails.contains(key);
 }
 
+QImage ThumbnailProvider::loadPlaceholderFromResource()
+{
+    QImage placeholder;
+    
+    placeholder.load(":/icons/placeholder.png");
+    
+    if (placeholder.isNull()) {
+        qWarning() << "[ThumbnailProvider] Failed to load placeholder from resource, using generated one";
+    }
+    
+    return placeholder;
+}
+
 QImage ThumbnailProvider::generatePlaceholderImage(const QSize& size)
 {
     QSize placeholderSize = size.isValid() ? size : QSize(256, 256);
+    
+    QImage customPlaceholder = loadPlaceholderFromResource();
+    
+    if (!customPlaceholder.isNull()) {
+        if (customPlaceholder.size() != placeholderSize) {
+            return customPlaceholder.scaled(placeholderSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+        }
+        return customPlaceholder;
+    }
+    
     QImage placeholder(placeholderSize, QImage::Format_ARGB32);
     placeholder.fill(Qt::transparent);
     
