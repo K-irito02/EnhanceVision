@@ -91,6 +91,22 @@ ColumnLayout {
     function getParamLabel(param)       { return _localText(param, "label", "label_en") || param.key || "" }
     function getParamDescription(param) { return _localText(param, "description", "description_en") }
 
+    function hasParamModifications() {
+        if (!currentModelInfo || !currentModelInfo.supportedParams) return false
+        var params = currentModelInfo.supportedParams
+        var keys = Object.keys(params)
+        for (var i = 0; i < keys.length; i++) {
+            var key = keys[i]
+            var param = params[key]
+            var userValue = root.modelParams[key]
+            var defaultValue = param["default"]
+            if (userValue !== undefined && userValue !== defaultValue) {
+                return true
+            }
+        }
+        return false
+    }
+
     function getParams() {
         var params = {}
         params.modelId      = root.modelId
@@ -234,39 +250,22 @@ ColumnLayout {
             color: (root.useGpu && engine && engine.gpuAvailable) ? Theme.colors.primary : Theme.colors.mutedForeground
         }
 
-        Text { text: qsTr("GPU 加速"); color: Theme.colors.foreground; font.pixelSize: 12; Layout.fillWidth: true }
+        Text { text: qsTr("推理模式"); color: Theme.colors.foreground; font.pixelSize: 12; Layout.fillWidth: true }
 
         Badge {
-            text: {
-                if (!engine) return ""
-                if (!engine.gpuAvailable) return qsTr("不可用")
-                return root.useGpu ? qsTr("Vulkan") : qsTr("CPU 模式")
-            }
-            color: (!engine || !engine.gpuAvailable) ? Theme.colors.destructive
-                   : root.useGpu ? Theme.colors.primary : Theme.colors.mutedForeground
-        }
-
-        Controls.Switch {
-            id: _gpuSwitch
-            checked: root.useGpu && engine && engine.gpuAvailable
-            enabled: engine && engine.gpuAvailable
-            opacity: enabled ? 1.0 : 0.5
-            onToggled: { root.useGpu = checked; root.paramsChanged() }
+            text: qsTr("CPU 模式")
+            color: Theme.colors.mutedForeground
         }
     }
 
     InfoBanner {
         Layout.fillWidth: true
-        visible: engine !== null && !(engine && engine.gpuAvailable)
-        text: qsTr("当前设备不支持 Vulkan GPU 加速，将使用 CPU 模式运行（速度较慢）。")
-        isWarning: true
+        text: qsTr("当前使用 CPU 模式运行。")
+        isWarning: false
     }
 
     Connections {
         target: engine
-        function onGpuAvailableChanged(available) {
-            if (!available) { root.useGpu = false; root.paramsChanged() }
-        }
         function onAutoParamsComputed(autoTileSize) { root.computedAutoTileSize = autoTileSize }
         function onAllAutoParamsComputed(autoParams) {
             root._autoParams = autoParams
@@ -274,7 +273,7 @@ ColumnLayout {
         }
     }
 
-    Component.onCompleted: { if (engine && !engine.gpuAvailable) root.useGpu = false }
+    Component.onCompleted: { root.useGpu = false }
 
     // ===== 分块大小（自动/手动双模式）=====
     ColumnLayout {
@@ -356,12 +355,38 @@ ColumnLayout {
             Layout.fillWidth: true; spacing: 6
             ColoredIcon { source: Theme.icon("sliders"); iconSize: 13; color: Theme.colors.mutedForeground }
             Text { text: qsTr("模型参数"); color: Theme.colors.foreground; font.pixelSize: 12; font.weight: Font.DemiBold; Layout.fillWidth: true }
-            Text {
-                text: qsTr("重置"); color: Theme.colors.primary; font.pixelSize: 10
-                visible: Object.keys(root.modelParams).length > 0
+            Rectangle {
+                width: _resetLbl.implicitWidth + 12; height: 20; radius: Theme.radius.sm
+                color: hasParamModifications() ? Theme.colors.primary : Theme.colors.muted
+                border.width: hasParamModifications() ? 0 : 1
+                border.color: Theme.colors.border
+                visible: currentModelInfo !== null && currentModelInfo.supportedParams && Object.keys(currentModelInfo.supportedParams).length > 0
+                Text {
+                    id: _resetLbl; anchors.centerIn: parent
+                    text: qsTr("重置")
+                    color: hasParamModifications() ? Theme.colors.textOnPrimary : Theme.colors.foreground
+                    font.pixelSize: 10
+                }
                 MouseArea {
                     anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                    onClicked: { root.modelParams = {}; root.paramsChanged() }
+                    onClicked: {
+                        var np = {}
+                        if (currentModelInfo && currentModelInfo.supportedParams) {
+                            var params = currentModelInfo.supportedParams
+                            var keys = Object.keys(params)
+                            for (var i = 0; i < keys.length; i++) {
+                                var key = keys[i]
+                                var param = params[key]
+                                if (param && param.type === "bool") {
+                                    np[key] = false
+                                } else if (param && param["default"] !== undefined) {
+                                    np[key] = param["default"]
+                                }
+                            }
+                        }
+                        root.modelParams = np
+                        root.paramsChanged()
+                    }
                 }
             }
         }
@@ -408,12 +433,13 @@ ColumnLayout {
                     }
                     Text {
                         text: {
+                            if (paramType === "bool") return ""
                             var val = root.modelParams[paramKey]
                             var dv  = (val !== undefined) ? val : paramDefault
-                            if (paramType === "bool") return dv ? qsTr("开启") : qsTr("关闭")
                             return dv !== undefined ? dv.toString() : ""
                         }
                         color: Theme.colors.mutedForeground; font.pixelSize: 11
+                        Layout.rightMargin: 8
                     }
                 }
 
@@ -455,10 +481,16 @@ ColumnLayout {
                     Layout.fillWidth: true; visible: paramType === "bool"; spacing: 8
                     Controls.Switch {
                         id: _boolSwitch
-                        checked: { var v = root.modelParams[paramKey]; return v !== undefined ? v : (paramDefault !== undefined ? paramDefault : false) }
+                        property var currentValue: root.modelParams[paramKey]
+                        checked: currentValue !== undefined ? currentValue : (paramDefault !== undefined ? paramDefault : false)
+                        onCurrentValueChanged: {
+                            checked = currentValue !== undefined ? currentValue : (paramDefault !== undefined ? paramDefault : false)
+                        }
                         onToggled: {
                             var np = JSON.parse(JSON.stringify(root.modelParams))
-                            np[paramKey] = checked; root.modelParams = np; root.paramsChanged()
+                            np[paramKey] = checked
+                            root.modelParams = np
+                            root.paramsChanged()
                         }
                     }
                     Text { text: _boolSwitch.checked ? qsTr("开启") : qsTr("关闭"); color: Theme.colors.mutedForeground; font.pixelSize: 11 }
