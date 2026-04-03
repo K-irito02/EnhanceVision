@@ -326,7 +326,7 @@ Rectangle {
             
             Row {
                 spacing: 2
-                visible: root.status === 2 || root.status === 3 || root.successFileCount > 0 || root.hasFailedFiles || root.allFilesPending
+                visible: root.totalFileCount > 0
                 
                 IconButton {
                     iconName: "refresh-cw"; iconSize: 14; btnSize: 26

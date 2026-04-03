@@ -20,6 +20,9 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
+#include <thread>
+#include <chrono>
+#include <functional>
 
 namespace EnhanceVision {
 
@@ -417,7 +420,11 @@ void AIEngine::resetState()
     m_forceCancelled.store(false);
     m_isProcessing.store(false);
     m_progress.store(0.0);
+
+    stopProgressSimulation();
     m_lastProgressEmitMs.store(0);
+
+    stopProgressSimulation();
     
     {
         QMutexLocker locker(&m_lastErrorMutex);
@@ -690,6 +697,25 @@ void AIEngine::setProcessing(bool processing)
     }
 }
 
+void AIEngine::startProgressSimulation(double fromProgress, double toProgress, qint64 estimatedMs)
+{
+    m_simulateStartProgress = fromProgress;
+    m_simulateTargetProgress = toProgress;
+    m_simulateEstimatedMs.store(std::max(qint64(500), estimatedMs));
+    m_inferStartTime.start();
+    m_simulatingProgress.store(true);
+}
+
+void AIEngine::stopProgressSimulation()
+{
+    m_simulatingProgress.store(false);
+}
+
+bool AIEngine::isSimulatingProgress() const
+{
+    return m_simulatingProgress.load();
+}
+
 ncnn::Mat AIEngine::qimageToMat(const QImage &image, const ModelInfo &model)
 {
     QImage img;
@@ -917,29 +943,51 @@ QImage AIEngine::processSingle(const QImage &input, const ModelInfo &model)
     qInfo() << "[AIEngine] processSingle() starting:"
             << "inputSize:" << input.width() << "x" << input.height()
             << "modelId:" << model.id;
-    
+
     setProgress(0.02);
     setProgress(0.05);
-    
+
     ncnn::Mat in = qimageToMat(input, model);
     if (in.empty()) {
         qWarning() << "[AIEngine][Single] qimageToMat failed";
         return QImage();
     }
-    
+
     if (m_cancelRequested) return QImage();
     setProgress(0.15);
-    
-    ncnn::Mat out = runInference(in, model);
-    
+
+    startProgressSimulation(0.15, 0.80, 3000);
+
+    std::atomic<bool> inferComplete{false};
+    ncnn::Mat out;
+
+    std::thread simThread([this, &inferComplete]() {
+        while (!inferComplete.load() && m_simulatingProgress.load() && !m_cancelRequested) {
+            qint64 elapsed = m_inferStartTime.elapsed();
+            qint64 estimated = m_simulateEstimatedMs.load();
+            double range = m_simulateTargetProgress - m_simulateStartProgress;
+            double simProgress = m_simulateStartProgress + range * std::min(1.0, static_cast<double>(elapsed) / static_cast<double>(estimated));
+            setProgress(simProgress);
+            std::this_thread::sleep_for(std::chrono::milliseconds(80));
+        }
+    });
+
+    out = runInference(in, model);
+
+    inferComplete.store(true);
+    stopProgressSimulation();
+    if (simThread.joinable()) {
+        simThread.join();
+    }
+
     if (out.empty() || out.w <= 0 || out.h <= 0) {
         return QImage();
     }
     if (m_cancelRequested) return QImage();
     setProgress(0.85);
-    
+
     QImage result = matToQimage(out, model);
-    
+
     setProgress(0.95);
     return result;
 }
