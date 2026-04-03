@@ -32,9 +32,6 @@ ColumnLayout {
     signal paramsChanged()
 
     spacing: 8
-    
-    // 确保最小高度，防止ScrollView无法滚动
-    Layout.minimumHeight: 300
 
     // ── 内部状态
     property var  currentModelInfo:    null
@@ -43,12 +40,27 @@ ColumnLayout {
     property bool autoTileMode: true
     property int  computedAutoTileSize: 0
     property var  _autoParams: ({})
+    property int _modelLoadRetryCount: 0
+    property int _paramsModelVersion: 0
     
     // ── 延迟处理定时器
     Timer {
         id: _recomputeAutoParamsTimer
         interval: 100
         onTriggered: _recomputeAutoParams()
+    }
+
+    Timer {
+        id: _modelLoadRetryTimer
+        interval: 200
+        onTriggered: {
+            if (_modelLoadRetryCount < 5) {
+                _modelLoadRetryCount++
+                _updateModelInfo()
+            } else {
+                _modelLoadRetryCount = 0
+            }
+        }
     }
 
     // ── 自动优化就绪状态
@@ -58,7 +70,11 @@ ColumnLayout {
             && Object.keys(_autoParams).length > 0
     }
 
-    onRegistryChanged: _updateModelInfo()
+    onRegistryChanged: {
+        if (registry && modelId !== "") {
+            _updateModelInfo()
+        }
+    }
     onModelIdChanged:  _updateModelInfo()
 
     function _updateModelInfo() {
@@ -71,10 +87,13 @@ ColumnLayout {
             _autoParams       = {}
             _pendingParams    = {}
             modelParams       = {}
-            
-            // 延迟重新计算参数，确保模型信息完全加载
+            _modelLoadRetryCount = 0
+            _paramsModelVersion++
+
             _recomputeAutoParamsTimer.restart()
             _isModelSwitching = false
+        } else if (modelId !== "" && !registry) {
+            _modelLoadRetryTimer.restart()
         } else {
             currentModelInfo = null
         }
@@ -359,6 +378,7 @@ ColumnLayout {
         id: _modelParamsSection
         Layout.fillWidth: true; spacing: 6
         visible: {
+            var _ver = root._paramsModelVersion
             if (!currentModelInfo) return false
             var p = currentModelInfo.supportedParams
             if (!p || typeof p !== 'object') return false
@@ -410,25 +430,10 @@ ColumnLayout {
             }
         }
 
-        // 调试信息 - 显示参数数量
-        Text {
-            Layout.fillWidth: true
-            text: {
-                if (!currentModelInfo) return "未选择模型"
-                var p = currentModelInfo.supportedParams
-                if (!p || typeof p !== 'object') return "模型无参数定义"
-                try {
-                    var keys = Object.keys(p)
-                    return "找到 " + keys.length + " 个参数: " + keys.join(", ")
-                } catch(e) { return "参数解析错误" }
-            }
-            color: Theme.colors.mutedForeground; font.pixelSize: 10; wrapMode: Text.WordWrap
-            visible: true
-        }
-
         Repeater {
             id: _paramsRepeater
             model: {
+                var _ver = root._paramsModelVersion
                 if (!currentModelInfo) return []
                 var params = currentModelInfo.supportedParams
                 if (!params || typeof params !== 'object') return []
@@ -545,7 +550,8 @@ ColumnLayout {
                 Text {
                     Layout.fillWidth: true
                     text: root.getParamDescription(modelData)
-                    color: Theme.colors.mutedForeground; font.pixelSize: 10; wrapMode: Text.WordWrap; visible: text !== ""
+                    color: Theme.colors.mutedForeground; font.pixelSize: 10; wrapMode: Text.WordWrap
+                    visible: text !== "" && text !== root.getParamLabel(modelData)
                 }
             }
         }
