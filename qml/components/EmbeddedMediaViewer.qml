@@ -194,10 +194,13 @@ Item {
         embeddedOverlay.visible = false
         detachedWindow.close()
         root.z = messageMode ? 1000 : 1001
+        playbackController._resetState()
         if (isVideo && _mediaPlayer) {
             _mediaPlayer.stop()
+            _mediaPlayer.source = ""
         }
-        playbackController._resetState()
+        mediaFiles = []
+        currentIndex = -1
         closed()
     }
     
@@ -742,7 +745,6 @@ Item {
             if (root.isVideo && root.currentSource) {
                 var src = root._getSource(root.currentSource)
                 vidPlayer.source = src
-                // 只有在非源件/结果切换模式时才调用 handleFileOpen
                 if (playbackController._switchMode !== 2) {
                     playbackController.handleFileOpen()
                 }

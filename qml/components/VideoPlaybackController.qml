@@ -47,7 +47,7 @@ QtObject {
 
     // ========== 延迟执行定时器 ==========
     property Timer _delayTimer: Timer {
-        interval: 80  // 增加延迟，让媒体有更多缓冲时间
+        interval: 80
         repeat: false
         onTriggered: controller._executeDelayedAction()
     }
@@ -79,7 +79,7 @@ QtObject {
         
         _switchMode = 1
         _handled = false
-        _pendingSource = mediaPlayer ? mediaPlayer.source.toString() : ""
+        _pendingSource = ""
     }
 
     /**
@@ -116,24 +116,18 @@ QtObject {
 
         var currentSrc = mediaPlayer.source.toString()
 
-        // BufferedMedia (4) 或 LoadedMedia (2) 表示媒体已就绪
-        // 优先使用 BufferedMedia，因为它表示媒体已完全缓冲，更可靠
         if (status === MediaPlayer.BufferedMedia || status === MediaPlayer.LoadedMedia) {
-            // 如果已处理过这个源，跳过
             if (_handled && currentSrc === _pendingSource) {
                 return
             }
 
-            // 标记为已处理
             _pendingSource = currentSrc
             _handled = true
 
             if (_switchMode === 2) {
-                // ========== 源件/结果切换模式 ==========
                 _delayedAction = 2
                 _delayTimer.restart()
             } else if (_switchMode === 1) {
-                // ========== 普通文件打开模式 ==========
                 _delayedAction = 1
                 _delayTimer.restart()
             }
@@ -147,12 +141,8 @@ QtObject {
         if (!mediaPlayer) return
 
         if (_delayedAction === 2) {
-            // ========== 源件/结果切换 ==========
-            
-            // 恢复播放速率
             mediaPlayer.playbackRate = _savedPlaybackRate
 
-            // 功能3：源/结恢复进度 + 功能2：源/结自动播放
             var needSeek = SettingsController.videoRestorePosition && _savedPosition > 0
             var targetPos = 0
             
@@ -161,7 +151,6 @@ QtObject {
             }
 
             if (SettingsController.videoAutoPlayOnSwitch) {
-                // 自动播放：先 play 再 seek（使用 Qt.callLater 避免图标闪烁）
                 mediaPlayer.play()
                 
                 if (needSeek) {
@@ -173,7 +162,6 @@ QtObject {
                     })
                 }
             } else {
-                // 不自动播放：先 seek 再 pause
                 if (needSeek) {
                     mediaPlayer.position = targetPos
                     progressRestored(targetPos)
@@ -181,14 +169,9 @@ QtObject {
                 mediaPlayer.pause()
             }
 
-            // 完成后重置模式
             _switchMode = 0
         } else if (_delayedAction === 1) {
-            // ========== 普通文件打开模式 ==========
-            
-            // 功能1：开/切自动播放
             if (SettingsController.videoAutoPlay) {
-                // 使用 Qt.callLater 避免暂停图标闪烁
                 Qt.callLater(function() {
                     if (mediaPlayer) {
                         mediaPlayer.play()
@@ -196,7 +179,6 @@ QtObject {
                 })
             }
 
-            // 完成后重置模式
             _switchMode = 0
         }
 
