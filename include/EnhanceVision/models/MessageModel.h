@@ -365,6 +365,7 @@ private:
     QString m_currentSessionId; ///< 当前会话ID
     ProcessingController* m_processingController = nullptr; ///< 处理控制器引用
     QHash<QString, FileStats> m_messageFileStatsCache;
+    QSet<QString> m_removingFileIds;  ///< 正在删除中的文件ID（防止并发删除）
 };
 
 } // namespace EnhanceVision

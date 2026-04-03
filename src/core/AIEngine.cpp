@@ -1,7 +1,7 @@
 /**
  * @file AIEngine.cpp
- * @brief NCNN AI 推理引擎实现
- * @author Qt客户端开发工程师
+ * @brief NCNN AI 推理引擎实现（纯 CPU 模式）
+ * @author EnhanceVision Team
  */
 
 #include "EnhanceVision/core/AIEngine.h"
@@ -23,329 +23,27 @@
 
 namespace EnhanceVision {
 
-// ========== GPU 实例全局单例管理 ==========
-std::once_flag AIEngine::s_gpuInstanceOnceFlag;
-std::atomic<int> AIEngine::s_gpuInstanceRefCount{0};
-std::mutex AIEngine::s_gpuInstanceMutex;
-
-void AIEngine::ensureGpuInstanceCreated()
-{
-#if NCNN_VULKAN
-    std::call_once(s_gpuInstanceOnceFlag, []() {
-        qInfo() << "[AIEngine] Creating global Vulkan GPU instance (once)";
-        ncnn::create_gpu_instance();
-    });
-#endif
-}
-
-void AIEngine::releaseGpuInstanceRef()
-{
-#if NCNN_VULKAN
-    std::lock_guard<std::mutex> lock(s_gpuInstanceMutex);
-    int remaining = s_gpuInstanceRefCount.fetch_sub(1) - 1;
-    if (remaining <= 0) {
-        qInfo() << "[AIEngine] Last engine destroyed, destroying global GPU instance";
-        ncnn::destroy_gpu_instance();
-        // 重置 once_flag 以便重新创建（C++不支持直接重置，但应用退出时不需要）
-    }
-#endif
-}
-
 AIEngine::AIEngine(QObject *parent)
     : QObject(parent)
     , m_progressReporter(std::make_unique<ProgressReporter>(this))
 {
-    initVulkan();
+    qInfo() << "[AIEngine] Initializing CPU-only inference engine";
+    
+    // 【关键修复】使用单线程推理，避免多线程导致的内存问题
+    m_opt.num_threads = 1;  // 单线程推理
+    m_opt.use_packing_layout = false;  // 禁用 packing 布局
+    m_opt.use_vulkan_compute = false;
+    m_opt.lightmode = false;  // 禁用轻量模式，确保完整的内存管理
+    m_opt.use_local_pool_allocator = false;  // 禁用本地池分配器
+    m_opt.use_sgemm_convolution = false;  // 禁用 SGEMM 卷积优化
+    m_opt.use_winograd_convolution = false;  // 禁用 Winograd 卷积优化
+    
+    qInfo() << "[AIEngine] CPU threads:" << m_opt.num_threads;
 }
 
 AIEngine::~AIEngine()
 {
     unloadModel();
-    destroyVulkan();
-}
-
-// ========== Vulkan 初始化 ==========
-
-void AIEngine::initVulkan()
-{
-#if NCNN_VULKAN
-    qInfo() << "[AIEngine][DEBUG] initVulkan() starting";
-    
-    m_vulkanReady.store(false);
-    m_vulkanInitialized.store(false);
-    m_vulkanWarmupInProgress = false;
-    
-    // 【关键修复】使用全局单例创建GPU实例，避免多个AIEngine重复创建/销毁
-    ensureGpuInstanceCreated();
-    
-    int gpuCount = ncnn::get_gpu_count();
-    qInfo() << "[AIEngine][DEBUG] Vulkan GPU count:" << gpuCount;
-    
-    if (gpuCount > 0) {
-        int gpuIndex = ncnn::get_default_gpu_index();
-        m_vkdev = ncnn::get_gpu_device(gpuIndex);
-        
-        if (m_vkdev) {
-            m_gpuAvailable = true;
-            s_gpuInstanceRefCount.fetch_add(1);
-            qInfo() << "[AIEngine] Vulkan GPU initialized successfully:"
-                    << "index:" << gpuIndex
-                    << "device:" << m_vkdev->info.device_name()
-                    << "refCount:" << s_gpuInstanceRefCount.load();
-        } else {
-            qWarning() << "[AIEngine] Failed to get GPU device";
-        }
-    } else {
-        qWarning() << "[AIEngine] No Vulkan GPU found";
-    }
-    
-    if (!m_gpuAvailable) {
-        qWarning() << "[AIEngine] GPU not available, using CPU mode";
-        m_vulkanReady.store(true);
-        m_vulkanInitialized.store(true);
-        m_vulkanInitCv.notify_all();
-        emit gpuAvailableChanged(false);
-    } else {
-        warmupVulkanPipelineSync();
-        
-        m_vulkanReady.store(true);
-        m_vulkanInitialized.store(true);
-        m_vulkanInitCv.notify_all();
-        emit gpuAvailableChanged(true);
-    }
-#else
-    m_gpuAvailable = false;
-    m_vulkanReady.store(true);
-    m_vulkanInitialized.store(true);
-    qWarning() << "[AIEngine] NCNN built without Vulkan support, using CPU mode";
-    emit gpuAvailableChanged(false);
-#endif
-
-    updateOptions();
-}
-
-void AIEngine::destroyVulkan()
-{
-#if NCNN_VULKAN
-    if (m_blobVkAllocator && m_vkdev) {
-        m_vkdev->reclaim_blob_allocator(m_blobVkAllocator);
-        m_blobVkAllocator = nullptr;
-    }
-    if (m_stagingVkAllocator && m_vkdev) {
-        m_vkdev->reclaim_staging_allocator(m_stagingVkAllocator);
-        m_stagingVkAllocator = nullptr;
-    }
-    m_opt.blob_vkallocator = nullptr;
-    m_opt.workspace_vkallocator = nullptr;
-    
-    // 【关键修复】使用全局引用计数管理GPU实例生命周期
-    if (m_gpuAvailable) {
-        releaseGpuInstanceRef();
-    }
-    m_vkdev = nullptr;
-#endif
-}
-
-void AIEngine::updateOptions()
-{
-    m_opt.num_threads = std::max(1, QThread::idealThreadCount() - 1);
-    m_opt.use_packing_layout = true;
-
-#if NCNN_VULKAN
-    // 释放旧的 allocator，避免显存泄漏
-    if (m_blobVkAllocator && m_vkdev) {
-        m_vkdev->reclaim_blob_allocator(m_blobVkAllocator);
-        m_blobVkAllocator = nullptr;
-    }
-    if (m_stagingVkAllocator && m_vkdev) {
-        m_vkdev->reclaim_staging_allocator(m_stagingVkAllocator);
-        m_stagingVkAllocator = nullptr;
-    }
-    m_opt.blob_vkallocator = nullptr;
-    m_opt.workspace_vkallocator = nullptr;
-
-    if (m_gpuAvailable && m_useGpu && m_vkdev) {
-        m_opt.use_vulkan_compute = true;
-        m_blobVkAllocator    = m_vkdev->acquire_blob_allocator();
-        m_stagingVkAllocator = m_vkdev->acquire_staging_allocator();
-        m_opt.blob_vkallocator      = m_blobVkAllocator;
-        m_opt.workspace_vkallocator = m_stagingVkAllocator;
-    } else {
-        m_opt.use_vulkan_compute = false;
-    }
-#else
-    m_opt.use_vulkan_compute = false;
-#endif
-}
-
-void AIEngine::ensureVulkanReady()
-{
-#if NCNN_VULKAN
-    if (!m_gpuAvailable || !m_useGpu || !m_vkdev) {
-        return;
-    }
-
-    QMutexLocker allocatorLock(&m_allocatorMutex);
-
-    {
-        ncnn::VkCompute cmd(m_vkdev);
-        cmd.submit_and_wait();
-    }
-
-    if (m_blobVkAllocator) {
-        m_blobVkAllocator->clear();
-    }
-    if (m_stagingVkAllocator) {
-        m_stagingVkAllocator->clear();
-    }
-
-    qInfo() << "[AIEngine][DEBUG] ensureVulkanReady() completed (sync only)";
-#endif
-}
-
-void AIEngine::warmupVulkanPipeline()
-{
-#if NCNN_VULKAN
-    if (!m_vkdev || m_vulkanWarmupInProgress) {
-        return;
-    }
-    
-    m_vulkanWarmupInProgress = true;
-    qInfo() << "[AIEngine][DEBUG] warmupVulkanPipeline() starting";
-    
-    QtConcurrent::run([this]() {
-        QElapsedTimer warmupTimer;
-        warmupTimer.start();
-        
-        ncnn::VkAllocator* warmupBlobAlloc = nullptr;
-        ncnn::VkAllocator* warmupStagingAlloc = nullptr;
-        
-        warmupBlobAlloc = m_vkdev->acquire_blob_allocator();
-        warmupStagingAlloc = m_vkdev->acquire_staging_allocator();
-        
-        if (warmupBlobAlloc && warmupStagingAlloc) {
-            ncnn::Mat dummy(64, 64, 3);
-            dummy.fill(0.5f);
-            
-            qInfo() << "[AIEngine][DEBUG] Vulkan pipeline warmup completed in"
-                    << warmupTimer.elapsed() << "ms";
-            
-            m_vkdev->reclaim_blob_allocator(warmupBlobAlloc);
-            m_vkdev->reclaim_staging_allocator(warmupStagingAlloc);
-        } else {
-            qWarning() << "[AIEngine][DEBUG] Vulkan pipeline warmup failed: allocators not available";
-        }
-        
-        m_vulkanReady.store(true);
-        m_vulkanInitCv.notify_all();
-        m_vulkanWarmupInProgress = false;
-        
-        emit gpuAvailableChanged(m_gpuAvailable);
-    });
-#else
-    m_vulkanReady.store(true);
-    m_vulkanInitCv.notify_all();
-#endif
-}
-
-void AIEngine::warmupVulkanPipelineSync()
-{
-#if NCNN_VULKAN
-    if (!m_vkdev) {
-        qWarning() << "[AIEngine][DEBUG] warmupVulkanPipelineSync: no Vulkan device";
-        return;
-    }
-
-    qInfo() << "[AIEngine][DEBUG] warmupVulkanPipelineSync() starting (synchronous)";
-
-    QElapsedTimer warmupTimer;
-    warmupTimer.start();
-
-    // 多次同步确保管道完全初始化
-    for (int i = 0; i < 2; ++i) {
-        ncnn::VkCompute cmd(m_vkdev);
-        cmd.submit_and_wait();
-    }
-
-    qInfo() << "[AIEngine][DEBUG] Vulkan pipeline sync warmup completed in"
-            << warmupTimer.elapsed() << "ms";
-#else
-    qInfo() << "[AIEngine][DEBUG] warmupVulkanPipelineSync: Vulkan not supported";
-#endif
-}
-
-bool AIEngine::waitForVulkanReady(int timeoutMs)
-{
-#if NCNN_VULKAN
-    if (!m_gpuAvailable || !m_useGpu) {
-        return true;
-    }
-    
-    if (m_vulkanReady.load() && m_vulkanInitialized.load()) {
-        return true;
-    }
-    
-    QElapsedTimer timer;
-    timer.start();
-    
-    while (timer.elapsed() < timeoutMs) {
-        if (m_vulkanReady.load() && m_vulkanInitialized.load()) {
-            qInfo() << "[AIEngine][DEBUG] waitForVulkanReady: Vulkan ready after"
-                    << timer.elapsed() << "ms";
-            return true;
-        }
-        QThread::msleep(10);
-    }
-    
-    qWarning() << "[AIEngine][DEBUG] waitForVulkanReady: timeout after"
-               << timeoutMs << "ms"
-               << "vulkanReady:" << m_vulkanReady.load()
-               << "vulkanInitialized:" << m_vulkanInitialized.load();
-    return false;
-#else
-    return true;
-#endif
-}
-
-bool AIEngine::waitForModelSyncComplete(int timeoutMs)
-{
-    // 如果已经同步完成，直接返回
-    if (m_modelSyncComplete.load()) {
-        return true;
-    }
-    
-    qInfo() << "[AIEngine][DEBUG] waitForModelSyncComplete: waiting for model sync...";
-    
-    std::unique_lock<std::mutex> lock(m_modelSyncMutex);
-    bool result = m_modelSyncCv.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this]() {
-        return m_modelSyncComplete.load();
-    });
-    
-    if (result) {
-        qInfo() << "[AIEngine][DEBUG] waitForModelSyncComplete: model sync complete";
-    } else {
-        qWarning() << "[AIEngine][DEBUG] waitForModelSyncComplete: timeout after" << timeoutMs << "ms";
-    }
-    
-    return result;
-}
-
-void AIEngine::syncVulkanQueue()
-{
-#if NCNN_VULKAN
-    if (!m_gpuAvailable || !m_useGpu || !m_vkdev) {
-        return;
-    }
-
-    QMutexLocker locker(&m_allocatorMutex);
-
-    {
-        ncnn::VkCompute cmd(m_vkdev);
-        cmd.submit_and_wait();
-    }
-
-    qInfo() << "[AIEngine][DEBUG] syncVulkanQueue() completed";
-#endif
 }
 
 // ========== 模型管理 ==========
@@ -359,10 +57,6 @@ bool AIEngine::loadModel(const QString &modelId)
 {
     QMutexLocker locker(&m_mutex);
     
-    // 【关键修复】模型加载开始时，标记同步未完成，阻止推理
-    m_modelSyncComplete.store(false);
-
-    // 若推理正在进行，拒绝切换模型
     if (m_isProcessing.load()) {
         qWarning() << "[AIEngine][loadModel] rejected: inference in progress, modelId:" << modelId;
         emit processError(tr("推理进行中，无法切换模型"));
@@ -381,7 +75,6 @@ bool AIEngine::loadModel(const QString &modelId)
 
     ModelInfo info = m_modelRegistry->getModelInfo(modelId);
 
-    // OpenCV inpainting 模型不需要加载 NCNN 网络
     if (info.paramPath.isEmpty() && info.binPath.isEmpty()) {
         m_currentModelId = modelId;
         m_currentModel = info;
@@ -395,39 +88,15 @@ bool AIEngine::loadModel(const QString &modelId)
         return false;
     }
 
-    // 如果已经加载了相同模型，跳过
     if (m_currentModelId == modelId && m_currentModel.isLoaded) {
         return true;
     }
 
-    // 卸载旧模型并清理 GPU 内存
     if (!m_currentModelId.isEmpty()) {
-#if NCNN_VULKAN
-        if (m_vkdev && m_opt.use_vulkan_compute) {
-            QMutexLocker allocLock(&m_allocatorMutex);
-            // 同步 GPU 队列，确保所有飞行中的操作完成
-            {
-                ncnn::VkCompute cmd(m_vkdev);
-                cmd.submit_and_wait();
-            }
-            // 清理分配器中的临时分配
-            if (m_blobVkAllocator) {
-                m_blobVkAllocator->clear();
-            }
-            if (m_stagingVkAllocator) {
-                m_stagingVkAllocator->clear();
-            }
-        }
-#endif
-        
         m_net.clear();
         m_currentModel.isLoaded = false;
     }
 
-    // 重置 GPU OOM 状态（换模型时重置）
-    m_gpuOomDetected.store(false);
-
-    // 加载新模型
     m_net.opt = m_opt;
 
     int ret = m_net.load_param(info.paramPath.toStdString().c_str());
@@ -448,50 +117,7 @@ bool AIEngine::loadModel(const QString &modelId)
     m_currentModel.isLoaded = true;
     m_currentModel.layerCount = static_cast<int>(m_net.layers().size());
 
-    // 模型加载后同步 Vulkan，确保管道创建完成
-#if NCNN_VULKAN
-    if (m_opt.use_vulkan_compute && m_vkdev) {
-        qInfo() << "[AIEngine][DEBUG] Performing Vulkan sync after model load";
-        
-        // 【关键修复】多次同步确保 GPU 管道完全初始化
-        // 首次推理前必须等待所有 GPU 资源就绪，否则会导致堆损坏
-        for (int i = 0; i < 2; ++i) {
-            ncnn::VkCompute cmd(m_vkdev);
-            cmd.submit_and_wait();
-        }
-        
-        // 清理临时分配
-        {
-            QMutexLocker allocLock(&m_allocatorMutex);
-            if (m_blobVkAllocator) {
-                m_blobVkAllocator->clear();
-            }
-            if (m_stagingVkAllocator) {
-                m_stagingVkAllocator->clear();
-            }
-        }
-        
-        // 最终同步
-        {
-            ncnn::VkCompute cmd(m_vkdev);
-            cmd.submit_and_wait();
-        }
-        
-        // 等待 GPU 完全空闲（防止堆损坏）
-        QThread::msleep(100);
-        
-        qInfo() << "[AIEngine][DEBUG] Vulkan sync after model load completed";
-    }
-#endif
-
-    // 【关键修复】标记模型同步完成，允许推理开始
-    {
-        std::lock_guard<std::mutex> lock(m_modelSyncMutex);
-        m_modelSyncComplete.store(true);
-    }
-    m_modelSyncCv.notify_all();
-    
-    qInfo() << "[AIEngine][DEBUG] Model loaded successfully:" << modelId
+    qInfo() << "[AIEngine] Model loaded successfully:" << modelId
             << "layers:" << m_currentModel.layerCount;
 
     emit modelLoaded(modelId);
@@ -519,7 +145,6 @@ void AIEngine::unloadModel()
         m_net.clear();
         m_currentModel.isLoaded = false;
         m_currentModelId.clear();
-        m_gpuOomDetected.store(false);
         emit modelUnloaded();
         emit modelChanged();
     }
@@ -529,40 +154,32 @@ void AIEngine::unloadModel()
 
 QImage AIEngine::process(const QImage &input)
 {
-    // 推理互斥：同一时刻只允许一次推理
     QMutexLocker inferenceLocker(&m_inferenceMutex);
     
-    // 调试信息：输出推理开始信息
-    qInfo() << "[AIEngine][DEBUG] process() called:"
+    qInfo() << "[AIEngine] process() called:"
             << "inputSize:" << input.width() << "x" << input.height()
             << "format:" << input.format()
             << "modelId:" << m_currentModelId
-            << "modelLoaded:" << m_currentModel.isLoaded
-            << "useGpu:" << m_useGpu
-            << "gpuAvailable:" << m_gpuAvailable;
+            << "modelLoaded:" << m_currentModel.isLoaded;
 
-    // 检查模型状态
     if (m_currentModelId.isEmpty() || !m_currentModel.isLoaded) {
         if (!m_currentModelId.isEmpty() && m_currentModel.paramPath.isEmpty()) {
-            // OpenCV 类模型不需要 isLoaded 标记
         } else {
             emitError(tr("未加载模型"));
             return QImage();
         }
     }
 
-    if (input.isNull()) {
-        emitError(tr("输入图像为空"));
+    if (input.isNull() || input.bits() == nullptr) {
+        emitError(tr("输入图像为空或数据无效"));
         return QImage();
     }
 
-    // 输入尺寸合法性检查
     if (input.width() <= 0 || input.height() <= 0) {
         emitError(tr("输入图像尺寸无效: %1x%2").arg(input.width()).arg(input.height()));
         return QImage();
     }
 
-    // 快照当前模型副本（避免推理过程中 loadModel 修改 m_currentModel 导致数据竞争）
     ModelInfo currentModel;
     QString currentModelId;
     {
@@ -571,14 +188,12 @@ QImage AIEngine::process(const QImage &input)
         currentModelId = m_currentModelId;
     }
 
-    // 快照当前参数（避免推理过程中 setParameter 导致数据竞争）
     QVariantMap effectiveParams;
     {
         QMutexLocker paramLocker(&m_paramsMutex);
         effectiveParams = getEffectiveParamsLocked(currentModel);
     }
 
-    // 分块大小决策
     int tileSize = 0;
     int autoTileForUI = -1;
     QVariantMap allAutoForUI;
@@ -594,7 +209,6 @@ QImage AIEngine::process(const QImage &input)
     double outscale = effectiveParams.value("outscale", currentModel.scaleFactor).toDouble();
     bool ttaMode = effectiveParams.value("tta_mode", false).toBool();
 
-    // 极大图像安全检查：若 tileSize==0 且图像超过安全阈值，强制启用分块
     QImage workInput = input;
     if (tileSize == 0 && currentModel.tileSize > 0) {
         const qint64 pixels = static_cast<qint64>(input.width()) * input.height();
@@ -603,8 +217,6 @@ QImage AIEngine::process(const QImage &input)
         }
     }
 
-    // 进一步安全检查：防止超大输入图像在无分块时 OOM 崩溃
-    // 无分块推理时最大安全像素数为 2048×2048（约 16 MB float RGB）
     if (tileSize == 0) {
         const qint64 pixels = static_cast<qint64>(workInput.width()) * workInput.height();
         const qint64 kMaxSafePixels = 2048LL * 2048;
@@ -615,18 +227,9 @@ QImage AIEngine::process(const QImage &input)
         }
     }
 
-    // ── GPU OOM 自动降级：若上次推理检测到显存不足，强制启用分块 ──────────────
-    if (m_gpuOomDetected.load() && tileSize == 0) {
-        // 使用模型推荐分块，若模型无推荐则用保守值 200
-        tileSize = (currentModel.tileSize > 0) ? currentModel.tileSize : 200;
-        qWarning() << "[AIEngine] GPU OOM previously detected: forcing tileSize=" << tileSize;
-    }
-
-    // 确保 tileSize 不超过图像尺寸，避免产生过小的边缘分块
     if (tileSize > 0) {
         int minDim = std::min(workInput.width(), workInput.height());
         if (tileSize > minDim) {
-            // 如果 tileSize 大于图像最小边，调整为图像尺寸（不分块）
             tileSize = 0;
             qInfo() << "[AIEngine] tileSize exceeds image dimension, disabling tiling for"
                     << workInput.width() << "x" << workInput.height();
@@ -641,6 +244,8 @@ QImage AIEngine::process(const QImage &input)
         effectiveModel.tileSize = tileSize;
     }
 
+    // processTiled 已修复，移除强制禁用代码
+
     QImage result;
     if (ttaMode && !needTile) {
         result = processWithTTA(workInput, effectiveModel);
@@ -650,47 +255,6 @@ QImage AIEngine::process(const QImage &input)
         result = processSingle(workInput, effectiveModel);
     }
 
-    // ── GPU OOM 自动降级重试：推理失败且是 GPU OOM，以更小分块模式多次重试 ────────
-    if (result.isNull() && m_gpuOomDetected.load()) {
-        // 保存当前进度，防止重试时进度条倒退
-        const double progressBeforeRetry = m_progress.load();
-        
-        // 尝试一系列递减的分块大小，从较保守的值开始
-        const int fallbackTiles[] = {128, 96, 64};
-        const int numFallbacks = sizeof(fallbackTiles) / sizeof(fallbackTiles[0]);
-        
-        for (int i = 0; i < numFallbacks && result.isNull(); ++i) {
-            int fallbackTile = fallbackTiles[i];
-            qWarning() << "[AIEngine] OOM retry attempt" << (i + 1) << "with tileSize=" << fallbackTile;
-            
-            // 尝试清理 GPU 内存（使用当前持有的 allocator）
-#if NCNN_VULKAN
-            if (m_vkdev) {
-                if (m_blobVkAllocator) {
-                    m_blobVkAllocator->clear();
-                }
-                if (m_stagingVkAllocator) {
-                    m_stagingVkAllocator->clear();
-                }
-            }
-#endif
-            // 重置 OOM 标志以便重试
-            m_gpuOomDetected.store(false);
-            
-            effectiveModel.tileSize = fallbackTile;
-            result = processTiled(workInput, effectiveModel);
-            
-            if (!result.isNull()) {
-                break;
-            }
-        }
-        
-        // 如果所有 GPU 重试都失败，考虑 CPU 回退（如果启用了 GPU）
-        if (result.isNull() && m_useGpu) {
-            qWarning() << "[AIEngine] All GPU OOM retries failed, consider using CPU mode";
-        }
-    }
-
     if (!result.isNull() && std::abs(outscale - currentModel.scaleFactor) > 0.01) {
         result = applyOutscale(result, outscale / currentModel.scaleFactor);
     }
@@ -698,7 +262,6 @@ QImage AIEngine::process(const QImage &input)
     setProgress(1.0);
     setProcessing(false);
 
-    // 释放互斥锁后发出 UI 通知信号（避免持锁期间触发重入）
     inferenceLocker.unlock();
 
     if (autoTileForUI >= 0) {
@@ -725,15 +288,12 @@ QImage AIEngine::process(const QImage &input)
 
 void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
 {
-    // 检查是否已有推理在进行（使用 m_isProcessing 标志，避免锁竞争问题）
     if (m_isProcessing.load()) {
         emit processError(tr("已有推理任务正在进行"));
         emit processFileCompleted(false, QString(), tr("已有推理任务正在进行"));
         return;
     }
 
-    // ── 在派发到工作线程之前，在主线程快照模型和参数 ─────────────────────────
-    // 这样工作线程就不需要访问任何需要主线程保护的对象
     ModelInfo snapshotModel;
     QString snapshotModelId;
     QVariantMap snapshotParams;
@@ -747,7 +307,6 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
         snapshotParams = getEffectiveParamsLocked(snapshotModel);
     }
 
-    // 标记推理开始（在工作线程启动前设置，避免竞争）
     setProcessing(true);
     setProgress(0.0);
     m_cancelRequested = false;
@@ -766,7 +325,6 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
             return;
         }
 
-        // 格式转换保障：确保输入为支持格式
         if (inputImage.format() == QImage::Format_Invalid) {
             QString error = tr("图像格式无效: %1").arg(inputPath);
             setProcessing(false);
@@ -777,7 +335,6 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
 
         const qint64 loadInputCostMs = perfTimer.elapsed();
 
-        // 捕获推理过程中的错误信息
         QString lastError;
         QMetaObject::Connection errorConn = connect(
             this, &AIEngine::processError,
@@ -819,27 +376,26 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
 
 void AIEngine::cancelProcess()
 {
-    qInfo() << "[AIEngine][DEBUG] cancelProcess() called"
-            << "threadId:" << QThread::currentThreadId()
-            << "wasProcessing:" << m_isProcessing.load();
+    qInfo() << "[AIEngine] cancelProcess() called, isProcessing:" << m_isProcessing.load();
     m_cancelRequested = true;
-    setProcessing(false);
+    // 注意：不要在这里设置 m_isProcessing = false
+    // 让后台线程在检测到取消后自己设置，确保推理真正停止
 }
 
 void AIEngine::resetCancelFlag()
 {
     m_cancelRequested = false;
     m_forceCancelled = false;
-    qInfo() << "[AIEngine][DEBUG] resetCancelFlag() called - cancel flags reset";
+    qInfo() << "[AIEngine] resetCancelFlag() called - cancel flags reset";
 }
 
 void AIEngine::forceCancel()
 {
     m_forceCancelled = true;
     m_cancelRequested = true;
-    // 立即重置 m_isProcessing 标志，允许新任务启动
-    setProcessing(false);
-    qWarning() << "[AIEngine] Force cancel requested, m_isProcessing reset";
+    // 注意：不要在这里设置 m_isProcessing = false
+    // 让后台线程在检测到取消后自己设置
+    qWarning() << "[AIEngine] Force cancel requested";
 }
 
 bool AIEngine::isForceCancelled() const
@@ -849,7 +405,7 @@ bool AIEngine::isForceCancelled() const
 
 void AIEngine::resetState()
 {
-    qInfo() << "[AIEngine][DEBUG] resetState() called"
+    qInfo() << "[AIEngine] resetState() called"
             << "currentModel:" << m_currentModelId
             << "wasProcessing:" << m_isProcessing.load();
     
@@ -859,7 +415,6 @@ void AIEngine::resetState()
     
     m_cancelRequested.store(false);
     m_forceCancelled.store(false);
-    m_gpuOomDetected.store(false);
     m_isProcessing.store(false);
     m_progress.store(0.0);
     m_lastProgressEmitMs.store(0);
@@ -878,7 +433,7 @@ void AIEngine::resetState()
 
 void AIEngine::safeCleanup()
 {
-    qInfo() << "[AIEngine][DEBUG] safeCleanup() called";
+    qInfo() << "[AIEngine] safeCleanup() called";
     
     QElapsedTimer waitTimer;
     waitTimer.start();
@@ -896,22 +451,8 @@ void AIEngine::safeCleanup()
         QMutexLocker inferenceLocker(&m_inferenceMutex);
     }
     
-#if NCNN_VULKAN
-    if (m_vkdev) {
-        QMutexLocker locker(&m_mutex);
-        
-        if (m_blobVkAllocator) {
-            m_blobVkAllocator->clear();
-        }
-        if (m_stagingVkAllocator) {
-            m_stagingVkAllocator->clear();
-        }
-    }
-#endif
-    
     m_cancelRequested.store(false);
     m_forceCancelled.store(false);
-    m_gpuOomDetected.store(false);
     m_isProcessing.store(false);
     m_progress.store(0.0);
     
@@ -921,31 +462,7 @@ void AIEngine::safeCleanup()
         m_progressReporter->reset();
     }
     
-    qInfo() << "[AIEngine][DEBUG] safeCleanup() completed";
-}
-
-void AIEngine::cleanupGpuMemory()
-{
-#if NCNN_VULKAN
-    if (!m_vkdev) {
-        return;
-    }
-
-    qInfo() << "[AIEngine][DEBUG] cleanupGpuMemory() called"
-            << "currentModel:" << m_currentModelId
-            << "gpuOomDetected:" << m_gpuOomDetected.load();
-
-    QMutexLocker locker(&m_allocatorMutex);
-
-    if (m_blobVkAllocator) {
-        m_blobVkAllocator->clear();
-    }
-    if (m_stagingVkAllocator) {
-        m_stagingVkAllocator->clear();
-    }
-
-    m_gpuOomDetected.store(false);
-#endif
+    qInfo() << "[AIEngine] safeCleanup() completed";
 }
 
 // ========== OpenCV Inpainting (Qt 原生实现) ==========
@@ -1096,23 +613,8 @@ QVariantMap AIEngine::getEffectiveParams() const
 
 bool AIEngine::isProcessing() const { return m_isProcessing; }
 double AIEngine::progress() const { return m_progress; }
+QString AIEngine::progressText() const { return m_progressText; }
 QString AIEngine::currentModelId() const { return m_currentModelId; }
-bool AIEngine::gpuAvailable() const { return m_gpuAvailable; }
-bool AIEngine::useGpu() const { return m_useGpu; }
-
-void AIEngine::setUseGpu(bool use)
-{
-    if (m_useGpu != use) {
-        m_useGpu = use;
-        updateOptions();
-        if (!m_currentModelId.isEmpty() && m_currentModel.isLoaded) {
-            QString modelId = m_currentModelId;
-            unloadModel();
-            loadModel(modelId);
-        }
-        emit useGpuChanged(m_useGpu);
-    }
-}
 
 void AIEngine::emitError(const QString &error)
 {
@@ -1190,41 +692,67 @@ void AIEngine::setProcessing(bool processing)
 
 ncnn::Mat AIEngine::qimageToMat(const QImage &image, const ModelInfo &model)
 {
-    QImage img = (image.format() == QImage::Format_RGB888)
-        ? image.copy()
-        : image.convertToFormat(QImage::Format_RGB888);
+    QImage img;
+    if (image.format() == QImage::Format_RGB888) {
+        img = image;
+    } else {
+        img = image.convertToFormat(QImage::Format_RGB888);
+        if (img.isNull()) {
+            qWarning() << "[AIEngine][qimageToMat] failed to convert image format";
+            return ncnn::Mat();
+        }
+    }
 
     if (img.isNull() || img.width() <= 0 || img.height() <= 0) {
         qWarning() << "[AIEngine][qimageToMat] invalid converted image";
         return ncnn::Mat();
     }
 
-    int w = img.width();
-    int h = img.height();
-    const int stride = img.bytesPerLine();
+    const int w = img.width();
+    const int h = img.height();
+    const int srcStride = img.bytesPerLine();
+    const int dstStride = w * 3;  // RGB888 紧凑排列
+    
+    // 【关键修复】如果 QImage 的 bytesPerLine 与紧凑排列不同，
+    // 需要先拷贝到连续内存缓冲区，避免 NCNN 内部的 stride 处理问题
+    std::vector<unsigned char> buffer;
+    const unsigned char* pixelData = nullptr;
+    int actualStride = 0;
+    
+    if (srcStride != dstStride) {
+        // QImage 有额外的行填充，需要拷贝到紧凑缓冲区
+        buffer.resize(static_cast<size_t>(w) * h * 3);
+        for (int y = 0; y < h; ++y) {
+            const uchar* srcLine = img.constScanLine(y);
+            std::memcpy(buffer.data() + y * dstStride, srcLine, dstStride);
+        }
+        pixelData = buffer.data();
+        actualStride = dstStride;
+    } else {
+        // QImage 已经是紧凑排列，直接使用
+        pixelData = img.constBits();
+        actualStride = srcStride;
+    }
 
-    // 使用带 stride 的重载，避免 Qt 行对齐导致的越界读取
-    ncnn::Mat in = ncnn::Mat::from_pixels(img.constBits(), ncnn::Mat::PIXEL_RGB, w, h, stride);
+    ncnn::Mat in = ncnn::Mat::from_pixels(pixelData, ncnn::Mat::PIXEL_RGB, w, h, actualStride);
+    
     if (in.empty()) {
         qWarning() << "[AIEngine][qimageToMat] from_pixels failed";
         return ncnn::Mat();
     }
-
+    
     in.substract_mean_normalize(model.normMean, model.normScale);
+    
     return in;
 }
 
 QImage AIEngine::matToQimage(const ncnn::Mat &mat, const ModelInfo &model)
 {
-    // ── 严格空 mat 防护 ─────────────────────────────────────────────────────
-    // ncnn::Mat::to_pixels 在 w/h/c==0 或 data==nullptr 时读取无效内存导致崩溃
     if (mat.empty() || mat.w <= 0 || mat.h <= 0 || mat.c <= 0 || mat.data == nullptr) {
-        qWarning() << "[AIEngine][matToQimage] received empty/invalid mat, returning null QImage"
-                   << "w:" << mat.w << "h:" << mat.h << "c:" << mat.c
-                   << "data:" << (mat.data != nullptr ? "non-null" : "null");
+        qWarning() << "[AIEngine][matToQimage] received empty/invalid mat";
         return QImage();
     }
-    int w = mat.w, h = mat.h;
+    const int w = mat.w, h = mat.h;
     ncnn::Mat out = mat.clone();
     if (out.empty() || out.data == nullptr) {
         qWarning() << "[AIEngine][matToQimage] mat.clone() produced empty mat";
@@ -1233,36 +761,53 @@ QImage AIEngine::matToQimage(const ncnn::Mat &mat, const ModelInfo &model)
     out.substract_mean_normalize(model.denormMean, model.denormScale);
     float *data = (float *)out.data;
     const int total = w * h * out.c;
-    float minVal = data[0], maxVal = data[0];
     for (int i = 0; i < total; ++i) {
         data[i] = std::clamp(data[i], 0.f, 255.f);
-        if (data[i] < minVal) minVal = data[i];
-        if (data[i] > maxVal) maxVal = data[i];
     }
+    
+    // 【关键修复】先写入连续内存缓冲区，再拷贝到 QImage
+    // 避免 NCNN 的 to_pixels 直接写入 QImage 时的 stride 问题
+    // 使用 32 字节对齐的 stride，与 FFmpeg 保持一致
+    const int compactStride = w * 3;  // RGB888 紧凑排列
+    const int alignedStride = (compactStride + 31) & ~31;  // 32 字节对齐
+    const size_t bufferSize = static_cast<size_t>(alignedStride) * h;
+    std::vector<unsigned char> buffer(bufferSize);
+    
+    // 使用对齐的 stride 调用 to_pixels
+    out.to_pixels(buffer.data(), ncnn::Mat::PIXEL_RGB, alignedStride);
+    
     QImage result(w, h, QImage::Format_RGB888);
-    // 必须传入 stride（bytesPerLine），因为 Qt 可能对 scanline 做 4-byte 对齐，
-    // 导致 bytesPerLine > w*3。不传 stride 会使每行累积偏移，产生斜条纹伪影。
-    out.to_pixels(result.bits(), ncnn::Mat::PIXEL_RGB, result.bytesPerLine());
+    if (result.isNull()) {
+        qWarning() << "[AIEngine][matToQimage] failed to create QImage";
+        return QImage();
+    }
+    
+    // 逐行拷贝到 QImage（从对齐的缓冲区拷贝紧凑的像素数据）
+    for (int y = 0; y < h; ++y) {
+        std::memcpy(result.scanLine(y), buffer.data() + y * alignedStride, compactStride);
+    }
+    
     return result;
 }
 
 ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
 {
-    qInfo() << "[AIEngine][DEBUG] runInference:"
+    qInfo() << "[AIEngine] runInference:"
             << "inputMat:" << input.w << "x" << input.h << "x" << input.c
-            << "modelId:" << model.id
-            << "inputBlob:" << model.inputBlobName
-            << "outputBlob:" << model.outputBlobName;
+            << "modelId:" << model.id;
+    fflush(stdout);
     
     if (input.empty() || input.w <= 0 || input.h <= 0) {
-        qWarning() << "[AIEngine][Inference] received empty input mat"
-                   << "w:" << input.w << "h:" << input.h << "c:" << input.c;
+        qWarning() << "[AIEngine][Inference] received empty input mat";
         return ncnn::Mat();
     }
     if (!model.isLoaded && !model.paramPath.isEmpty()) {
-        qWarning() << "[AIEngine][Inference] model not loaded, cannot run inference";
+        qWarning() << "[AIEngine][Inference] model not loaded";
         return ncnn::Mat();
     }
+
+    qInfo() << "[AIEngine][Inference] Step 1: Preparing blob candidates";
+    fflush(stdout);
 
     QStringList inputCandidates;
     inputCandidates << model.inputBlobName << "input" << "data" << "in0" << "Input1";
@@ -1275,43 +820,34 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
     outputCandidates.removeDuplicates();
 
     if (inputCandidates.isEmpty() || outputCandidates.isEmpty()) {
-        qWarning() << "[AIEngine][Inference] empty blob candidate list"
-                   << "inputCandidates:" << inputCandidates
-                   << "outputCandidates:" << outputCandidates;
+        qWarning() << "[AIEngine][Inference] empty blob candidate list";
         return ncnn::Mat();
     }
 
-    // 【关键修复】快照 Vulkan 标志，避免 m_opt 跨线程无锁读取导致数据竞争
-    bool useVulkan = false;
-    {
-        QMutexLocker optLock(&m_mutex);
-        useVulkan = m_opt.use_vulkan_compute;
-    }
-
-    if (useVulkan) {
-        ensureVulkanReady();
-    }
-
-    qInfo() << "[AIEngine][DEBUG] Acquiring mutex for inference";
+    qInfo() << "[AIEngine][Inference] Step 2: Acquiring mutex lock";
+    fflush(stdout);
+    
     QMutexLocker netLocker(&m_mutex);
     
-    qInfo() << "[AIEngine][DEBUG] Creating extractor";
-    ncnn::Extractor ex = m_net.create_extractor();
-    // 【关键修复】禁用 light_mode，确保每次推理使用独立的内存分配
-    // light_mode 会复用内存，可能导致连续推理时的内存冲突
-    ex.set_light_mode(false);
+    qInfo() << "[AIEngine][Inference] Step 3: Creating extractor";
+    fflush(stdout);
     
-    qInfo() << "[AIEngine][DEBUG] Extractor created";
+    ncnn::Extractor ex = m_net.create_extractor();
+    ex.set_light_mode(false);
 
+    qInfo() << "[AIEngine][Inference] Step 4: Setting input blob, candidates:" << inputCandidates;
+    fflush(stdout);
+    
     QString selectedInputBlob;
     int inputRet = -1;
     for (const QString &candidate : inputCandidates) {
-        qInfo() << "[AIEngine][DEBUG] Trying input blob:" << candidate;
+        qInfo() << "[AIEngine][Inference] Trying input blob:" << candidate;
+        fflush(stdout);
         inputRet = ex.input(candidate.toStdString().c_str(), input);
-        qInfo() << "[AIEngine][DEBUG] Input result:" << inputRet;
         if (inputRet == 0) {
             selectedInputBlob = candidate;
-            qInfo() << "[AIEngine][DEBUG] Input set successfully:" << candidate;
+            qInfo() << "[AIEngine][Inference] Input blob set successfully:" << candidate;
+            fflush(stdout);
             break;
         }
     }
@@ -1325,75 +861,65 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
         return ncnn::Mat();
     }
 
+    qInfo() << "[AIEngine][Inference] Step 5: Extracting output blob";
+    fflush(stdout);
+
     ncnn::Mat output;
     int extractRet = -1;
-    bool gpuOomSeen = false;
     QString selectedOutputBlob;
     
     for (const QString &candidate : outputCandidates) {
+        qInfo() << "[AIEngine][Inference] Trying output blob:" << candidate;
+        fflush(stdout);
         ncnn::Mat tmp;
         extractRet = ex.extract(candidate.toStdString().c_str(), tmp);
-        if (extractRet == -100) {
-            gpuOomSeen = true;
-        }
         if (extractRet == 0 && !tmp.empty()) {
-            output = tmp.clone();  // 深拷贝，确保数据独立于extractor生命周期
+            output = tmp.clone();
             selectedOutputBlob = candidate;
+            qInfo() << "[AIEngine][Inference] Output blob extracted successfully:" << candidate
+                    << "size:" << output.w << "x" << output.h << "x" << output.c;
+            fflush(stdout);
             break;
         }
     }
-    
-#if NCNN_VULKAN
-    // 【关键修复】推理后清理 allocator 必须持有 m_allocatorMutex，避免数据竞争
-    if (useVulkan && m_vkdev) {
-        QMutexLocker allocLock(&m_allocatorMutex);
-        {
-            ncnn::VkCompute cmd(m_vkdev);
-            cmd.submit_and_wait();
-        }
-
-        if (m_blobVkAllocator) {
-            m_blobVkAllocator->clear();
-        }
-        if (m_stagingVkAllocator) {
-            m_stagingVkAllocator->clear();
-        }
-    }
-#endif
 
     if (extractRet != 0 || output.empty()) {
         qWarning() << "[AIEngine][Inference] Failed to extract output blob"
                    << "requested:" << model.outputBlobName
                    << "tried:" << outputCandidates
-                   << "extractRet:" << extractRet
-                   << "gpuOomSeen:" << gpuOomSeen
-                   << "empty:" << output.empty();
-        // extractRet == -100 或任意候选节点返回 -100 均视为 Vulkan OOM，标记后供上层自动降级
-        if (gpuOomSeen) {
-            m_gpuOomDetected.store(true);
-            qWarning() << "[AIEngine][Inference] GPU OOM detected (gpuOomSeen=true), flagging for tile fallback";
-            emitError(tr("GPU 显存不足 (OOM)，将自动切换为分块模式重试"));
-        } else {
-            emitError(tr("推理输出失败，模型输出节点不匹配或设备不兼容 (ret=%1)").arg(extractRet));
-        }
+                   << "extractRet:" << extractRet;
+        emitError(tr("推理输出失败，模型输出节点不匹配 (ret=%1)").arg(extractRet));
         return ncnn::Mat();
     }
 
+    qInfo() << "[AIEngine][Inference] Step 6: Inference complete, returning output";
+    fflush(stdout);
+
+    // 【关键修复】显式释放 extractor 资源，避免内存累积
+    // extractor 在作用域结束时会自动析构，但我们需要确保在返回前完成
+    
     return output;
+}
+
+// 【新增】清理 NCNN 内部缓存，用于视频处理时定期调用
+void AIEngine::clearInferenceCache()
+{
+    // CPU 模式下，NCNN 不需要特殊的缓存清理
+    // 但我们可以通过短暂的同步来确保内存状态一致
+    // 这个函数主要用于在视频处理循环中提供一个同步点
+    
+    // 注意：不需要加锁，因为这个函数只在推理完成后调用
+    // 实际的内存清理由 NCNN 内部管理
 }
 
 QImage AIEngine::processSingle(const QImage &input, const ModelInfo &model)
 {
-    qInfo() << "[AIEngine][DEBUG] processSingle() starting:"
+    qInfo() << "[AIEngine] processSingle() starting:"
             << "inputSize:" << input.width() << "x" << input.height()
             << "modelId:" << model.id;
-    fflush(stdout);
     
     setProgress(0.02);
     setProgress(0.05);
-    
-    qInfo() << "[AIEngine][DEBUG] processSingle() calling qimageToMat";
-    fflush(stdout);
     
     ncnn::Mat in = qimageToMat(input, model);
     if (in.empty()) {
@@ -1401,22 +927,10 @@ QImage AIEngine::processSingle(const QImage &input, const ModelInfo &model)
         return QImage();
     }
     
-    qInfo() << "[AIEngine][DEBUG] processSingle() qimageToMat done:"
-            << "matSize:" << in.w << "x" << in.h << "x" << in.c;
-    fflush(stdout);
-    
     if (m_cancelRequested) return QImage();
     setProgress(0.15);
     
-    qInfo() << "[AIEngine][DEBUG] processSingle() calling runInference";
-    fflush(stdout);
-    
     ncnn::Mat out = runInference(in, model);
-    
-    qInfo() << "[AIEngine][DEBUG] processSingle() runInference returned:"
-            << "outSize:" << out.w << "x" << out.h << "x" << out.c
-            << "empty:" << out.empty();
-    fflush(stdout);
     
     if (out.empty() || out.w <= 0 || out.h <= 0) {
         return QImage();
@@ -1424,15 +938,7 @@ QImage AIEngine::processSingle(const QImage &input, const ModelInfo &model)
     if (m_cancelRequested) return QImage();
     setProgress(0.85);
     
-    qInfo() << "[AIEngine][DEBUG] processSingle() calling matToQimage";
-    fflush(stdout);
-    
     QImage result = matToQimage(out, model);
-    
-    qInfo() << "[AIEngine][DEBUG] processSingle() matToQimage done:"
-            << "resultSize:" << result.width() << "x" << result.height()
-            << "isNull:" << result.isNull();
-    fflush(stdout);
     
     setProgress(0.95);
     return result;
@@ -1442,10 +948,17 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
 {
     setProgress(0.01);
     
+    qInfo() << "[AIEngine][Tiled] Step 1: Entry check";
+    fflush(stdout);
+    
     if (input.isNull() || input.width() <= 0 || input.height() <= 0) {
         qWarning() << "[AIEngine] invalid input image";
         return QImage();
     }
+    
+    qInfo() << "[AIEngine][Tiled] Step 2: Input valid, bits:" << (input.bits() ? "ok" : "null")
+            << "format:" << input.format();
+    fflush(stdout);
 
     setProgress(0.02);
     
@@ -1454,20 +967,29 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
     int w = input.width();
     int h = input.height();
     
-    // 调试信息：输出分块处理参数
-    qInfo() << "[AIEngine][DEBUG] processTiled:"
-            << "inputSize:" << w << "x" << h
-            << "tileSize:" << tileSize
-            << "scale:" << scale
-            << "padding:" << model.tilePadding
-            << "layerCount:" << model.layerCount;
-
     if (tileSize <= 0) {
         qWarning() << "[AIEngine] invalid tileSize, falling back to processSingle";
         return processSingle(input, model);
     }
+    
+    int minDim = std::min(w, h);
+    if (tileSize > minDim) {
+        qInfo() << "[AIEngine] tileSize" << tileSize << "exceeds min dimension" << minDim
+                << ", falling back to processSingle";
+        return processSingle(input, model);
+    }
+
+    qInfo() << "[AIEngine] processTiled:"
+            << "inputSize:" << w << "x" << h
+            << "tileSize:" << tileSize
+            << "scale:" << scale
+            << "padding:" << model.tilePadding;
+    fflush(stdout);
 
     setProgress(0.03);
+    
+    qInfo() << "[AIEngine][Tiled] Step 3: Computing padding";
+    fflush(stdout);
 
     int padding = model.tilePadding;
     const int layerCount = model.layerCount;
@@ -1479,35 +1001,95 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
         padding = std::max(padding, 24);
     }
     
-    QImage normalizedInput;
+    qInfo() << "[AIEngine][Tiled] Step 4: Padding computed:" << padding << "layerCount:" << layerCount;
+    fflush(stdout);
+    
+    // 【关键修复】手动创建深拷贝，避免 QImage::copy() 在堆损坏时触发崩溃
+    QImage normalizedInput(w, h, QImage::Format_RGB888);
+    if (normalizedInput.isNull()) {
+        qWarning() << "[AIEngine][Tiled] Failed to create normalizedInput";
+        return processSingle(input, model);
+    }
+    
     if (input.format() == QImage::Format_RGB888) {
-        normalizedInput = input;
+        qInfo() << "[AIEngine][Tiled] Step 5a: Input already RGB888, creating manual deep copy";
+        fflush(stdout);
+        
+        // 逐行拷贝数据，避免使用 QImage::copy()
+        const int srcBytesPerLine = input.bytesPerLine();
+        const int dstBytesPerLine = w * 3;  // RGB888 紧凑排列
+        for (int y = 0; y < h; ++y) {
+            const uchar* srcLine = input.constScanLine(y);
+            uchar* dstLine = normalizedInput.scanLine(y);
+            std::memcpy(dstLine, srcLine, std::min(srcBytesPerLine, dstBytesPerLine));
+        }
+        
+        qInfo() << "[AIEngine][Tiled] Step 5a-done: Manual deep copy created, normalizedInput.isNull:" << normalizedInput.isNull()
+                << "bits:" << (normalizedInput.bits() ? "ok" : "null")
+                << "bytesPerLine:" << normalizedInput.bytesPerLine();
+        fflush(stdout);
     } else {
-        normalizedInput = input.convertToFormat(QImage::Format_RGB888);
+        qInfo() << "[AIEngine][Tiled] Step 5b: Converting input to RGB888 from format:" << input.format();
+        fflush(stdout);
+        
+        // 先转换格式，再手动深拷贝
+        QImage tempConverted = input.convertToFormat(QImage::Format_RGB888);
+        if (tempConverted.isNull()) {
+            qWarning() << "[AIEngine][Tiled] Failed to convert input to RGB888";
+            return processSingle(input, model);
+        }
+        
+        // 逐行拷贝数据
+        const int srcBytesPerLine = tempConverted.bytesPerLine();
+        const int dstBytesPerLine = w * 3;  // RGB888 紧凑排列
+        for (int y = 0; y < h; ++y) {
+            const uchar* srcLine = tempConverted.constScanLine(y);
+            uchar* dstLine = normalizedInput.scanLine(y);
+            std::memcpy(dstLine, srcLine, std::min(srcBytesPerLine, dstBytesPerLine));
+        }
+        
+        qInfo() << "[AIEngine][Tiled] Step 5b-done: Conversion and manual deep copy complete, normalizedInput.isNull:" << normalizedInput.isNull();
+        fflush(stdout);
     }
 
     if (normalizedInput.isNull() || normalizedInput.format() != QImage::Format_RGB888) {
         qWarning() << "[AIEngine] failed to normalize input format";
         return processSingle(input, model);
     }
+    
+    qInfo() << "[AIEngine][Tiled] Step 6: Normalized input ready, size:" << normalizedInput.width() << "x" << normalizedInput.height()
+            << "bits:" << (normalizedInput.bits() ? "ok" : "null")
+            << "bytesPerLine:" << normalizedInput.bytesPerLine();
+    fflush(stdout);
 
+    qInfo() << "[AIEngine][Tiled] Step 7: Creating paddedInput, size:" << (w + 2 * padding) << "x" << (h + 2 * padding);
+    fflush(stdout);
+    
     QImage paddedInput(w + 2 * padding, h + 2 * padding, QImage::Format_RGB888);
     if (paddedInput.isNull()) {
         qWarning() << "[AIEngine] failed to create padded image";
         return processSingle(input, model);
     }
+    
+    qInfo() << "[AIEngine][Tiled] Step 8: paddedInput created, bits:" << (paddedInput.bits() ? "ok" : "null")
+            << "bytesPerLine:" << paddedInput.bytesPerLine();
+    fflush(stdout);
+    
     paddedInput.fill(Qt::black);
     
-    // 使用正确的字节宽度进行复制
+    qInfo() << "[AIEngine][Tiled] Step 9: paddedInput filled with black";
+    fflush(stdout);
+    
     const int srcBytesPerLine = normalizedInput.bytesPerLine();
     const int expectedBytesPerLine = w * 3;
     
-    // 使用简单的像素复制代替 QPainter（更稳定）
-    // 复制原图到中心位置
+    qInfo() << "[AIEngine][Tiled] Step 10: Starting center region copy, srcBytesPerLine:" << srcBytesPerLine
+            << "expectedBytesPerLine:" << expectedBytesPerLine;
+    fflush(stdout);
+
     for (int y = 0; y < h; ++y) {
         const uchar* srcLine = normalizedInput.constScanLine(y);
         uchar* dstLine = paddedInput.scanLine(y + padding);
-        // 使用实际的字节宽度，而不是假定的 w * 3
         if (srcBytesPerLine >= expectedBytesPerLine) {
             std::memcpy(dstLine + padding * 3, srcLine, expectedBytesPerLine);
         } else {
@@ -1516,8 +1098,9 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
         }
     }
     
-    // 镜像填充边缘（使用直接像素操作）
-    // 上边缘
+    qInfo() << "[AIEngine][Tiled] Step 11: Center region copy done";
+    fflush(stdout);
+    
     for (int y = 0; y < std::min(padding, h); ++y) {
         const uchar* srcLine = normalizedInput.constScanLine(y);
         uchar* dstLine = paddedInput.scanLine(padding - 1 - y);
@@ -1528,7 +1111,6 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
             std::memset(dstLine + padding * 3 + srcBytesPerLine, 0, expectedBytesPerLine - srcBytesPerLine);
         }
     }
-    // 下边缘
     for (int y = 0; y < std::min(padding, h); ++y) {
         const uchar* srcLine = normalizedInput.constScanLine(h - 1 - y);
         uchar* dstLine = paddedInput.scanLine(padding + h + y);
@@ -1539,59 +1121,75 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
             std::memset(dstLine + padding * 3 + srcBytesPerLine, 0, expectedBytesPerLine - srcBytesPerLine);
         }
     }
-    // 左边缘和右边缘（逐像素镜像）
+    // 【安全边界检查】获取 paddedInput 的实际尺寸
+    const int paddedWidth = paddedInput.width();
+    const int paddedHeight = paddedInput.height();
+    const int paddedBytesPerLine = paddedInput.bytesPerLine();
+    
+    // 左右边界镜像填充
     for (int y = 0; y < h; ++y) {
         uchar* dstLine = paddedInput.scanLine(y + padding);
         const uchar* srcLine = normalizedInput.constScanLine(y);
-        // 左边缘镜像
+        // 左边界
         for (int x = 0; x < std::min(padding, w); ++x) {
             int srcX = x;
             int dstX = padding - 1 - x;
-            dstLine[dstX * 3 + 0] = srcLine[srcX * 3 + 0];
-            dstLine[dstX * 3 + 1] = srcLine[srcX * 3 + 1];
-            dstLine[dstX * 3 + 2] = srcLine[srcX * 3 + 2];
+            if (dstX >= 0 && dstX < paddedWidth && (dstX * 3 + 2) < paddedBytesPerLine) {
+                dstLine[dstX * 3 + 0] = srcLine[srcX * 3 + 0];
+                dstLine[dstX * 3 + 1] = srcLine[srcX * 3 + 1];
+                dstLine[dstX * 3 + 2] = srcLine[srcX * 3 + 2];
+            }
         }
-        // 右边缘镜像
+        // 右边界
         for (int x = 0; x < std::min(padding, w); ++x) {
             int srcX = w - 1 - x;
             int dstX = padding + w + x;
-            dstLine[dstX * 3 + 0] = srcLine[srcX * 3 + 0];
-            dstLine[dstX * 3 + 1] = srcLine[srcX * 3 + 1];
-            dstLine[dstX * 3 + 2] = srcLine[srcX * 3 + 2];
+            if (dstX >= 0 && dstX < paddedWidth && (dstX * 3 + 2) < paddedBytesPerLine) {
+                dstLine[dstX * 3 + 0] = srcLine[srcX * 3 + 0];
+                dstLine[dstX * 3 + 1] = srcLine[srcX * 3 + 1];
+                dstLine[dstX * 3 + 2] = srcLine[srcX * 3 + 2];
+            }
         }
     }
     
-    // 四个角落的镜像填充（避免黑色伪影导致失真）
+    // 四角镜像填充
     for (int y = 0; y < std::min(padding, h); ++y) {
-        uchar* dstLineTop = paddedInput.scanLine(padding - 1 - y);
-        uchar* dstLineBot = paddedInput.scanLine(padding + h + y);
+        int topY = padding - 1 - y;
+        int botY = padding + h + y;
+        if (topY < 0 || topY >= paddedHeight || botY < 0 || botY >= paddedHeight) continue;
+        
+        uchar* dstLineTop = paddedInput.scanLine(topY);
+        uchar* dstLineBot = paddedInput.scanLine(botY);
         const uchar* srcLineTop = normalizedInput.constScanLine(y);
         const uchar* srcLineBot = normalizedInput.constScanLine(h - 1 - y);
+        
         for (int x = 0; x < std::min(padding, w); ++x) {
             int dstXL = padding - 1 - x;
             int dstXR = padding + w + x;
             int srcXL = x;
             int srcXR = w - 1 - x;
-            // 左上角
-            dstLineTop[dstXL * 3 + 0] = srcLineTop[srcXL * 3 + 0];
-            dstLineTop[dstXL * 3 + 1] = srcLineTop[srcXL * 3 + 1];
-            dstLineTop[dstXL * 3 + 2] = srcLineTop[srcXL * 3 + 2];
-            // 右上角
-            dstLineTop[dstXR * 3 + 0] = srcLineTop[srcXR * 3 + 0];
-            dstLineTop[dstXR * 3 + 1] = srcLineTop[srcXR * 3 + 1];
-            dstLineTop[dstXR * 3 + 2] = srcLineTop[srcXR * 3 + 2];
-            // 左下角
-            dstLineBot[dstXL * 3 + 0] = srcLineBot[srcXL * 3 + 0];
-            dstLineBot[dstXL * 3 + 1] = srcLineBot[srcXL * 3 + 1];
-            dstLineBot[dstXL * 3 + 2] = srcLineBot[srcXL * 3 + 2];
-            // 右下角
-            dstLineBot[dstXR * 3 + 0] = srcLineBot[srcXR * 3 + 0];
-            dstLineBot[dstXR * 3 + 1] = srcLineBot[srcXR * 3 + 1];
-            dstLineBot[dstXR * 3 + 2] = srcLineBot[srcXR * 3 + 2];
+            
+            // 左上角和左下角
+            if (dstXL >= 0 && dstXL < paddedWidth && (dstXL * 3 + 2) < paddedBytesPerLine) {
+                dstLineTop[dstXL * 3 + 0] = srcLineTop[srcXL * 3 + 0];
+                dstLineTop[dstXL * 3 + 1] = srcLineTop[srcXL * 3 + 1];
+                dstLineTop[dstXL * 3 + 2] = srcLineTop[srcXL * 3 + 2];
+                dstLineBot[dstXL * 3 + 0] = srcLineBot[srcXL * 3 + 0];
+                dstLineBot[dstXL * 3 + 1] = srcLineBot[srcXL * 3 + 1];
+                dstLineBot[dstXL * 3 + 2] = srcLineBot[srcXL * 3 + 2];
+            }
+            // 右上角和右下角
+            if (dstXR >= 0 && dstXR < paddedWidth && (dstXR * 3 + 2) < paddedBytesPerLine) {
+                dstLineTop[dstXR * 3 + 0] = srcLineTop[srcXR * 3 + 0];
+                dstLineTop[dstXR * 3 + 1] = srcLineTop[srcXR * 3 + 1];
+                dstLineTop[dstXR * 3 + 2] = srcLineTop[srcXR * 3 + 2];
+                dstLineBot[dstXR * 3 + 0] = srcLineBot[srcXR * 3 + 0];
+                dstLineBot[dstXR * 3 + 1] = srcLineBot[srcXR * 3 + 1];
+                dstLineBot[dstXR * 3 + 2] = srcLineBot[srcXR * 3 + 2];
+            }
         }
     }
     
-    // 使用扩展后的图像进行分块处理
     const int paddedW = paddedInput.width();
     const int paddedH = paddedInput.height();
 
@@ -1611,41 +1209,34 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
     int tileIndex = 0;
     int successfulTiles = 0;
     int consecutiveFailures = 0;
-    const int kMaxConsecutiveFailures = 3;  // 增加容错次数
+    const int kMaxConsecutiveFailures = 3;
 
-    qInfo() << "[AIEngine][DEBUG] Starting tiled processing:"
+    qInfo() << "[AIEngine] Starting tiled processing:"
             << "tilesX:" << tilesX
             << "tilesY:" << tilesY
-            << "totalTiles:" << totalTiles
-            << "tileSize:" << tileSize
-            << "padding:" << padding;
+            << "totalTiles:" << totalTiles;
 
     for (int ty = 0; ty < tilesY; ++ty) {
         for (int tx = 0; tx < tilesX; ++tx) {
-            // 取消检测：在每个分块处理前检查
             if (m_cancelRequested) {
-                qInfo() << "[AIEngine][DEBUG] Tiled processing cancelled at tile" << tileIndex;
+                qInfo() << "[AIEngine] Tiled processing cancelled at tile" << tileIndex;
                 painter.end();
                 return QImage();
             }
             
-            // 强制取消检测
             if (m_forceCancelled.load()) {
-                qInfo() << "[AIEngine][DEBUG] Tiled processing force-cancelled at tile" << tileIndex;
+                qInfo() << "[AIEngine] Tiled processing force-cancelled at tile" << tileIndex;
                 painter.end();
                 return QImage();
             }
 
-            // 快速失败：如果连续多个分块失败（可能是 GPU OOM 或状态损坏），立即返回
             if (consecutiveFailures >= kMaxConsecutiveFailures) {
-                qWarning() << "[AIEngine][Tiled] fast-fail: too many consecutive failures"
-                           << "(" << consecutiveFailures << "), aborting tiled processing";
+                qWarning() << "[AIEngine][Tiled] fast-fail: too many consecutive failures";
                 painter.end();
-                emitError(tr("分块处理连续失败，可能是显存不足"));
+                emitError(tr("分块处理连续失败"));
                 return QImage();
             }
 
-            // 原始图像中的分块位置（用于最终输出定位）
             int x0 = tx * tileSize;
             int y0 = ty * tileSize;
             int x1 = std::min(x0 + tileSize, w);
@@ -1653,9 +1244,7 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
             int actualTileW = x1 - x0;
             int actualTileH = y1 - y0;
 
-            // 在 paddedInput 中的提取位置（所有分块都有完整 padding）
-            // paddedInput 中，原图从 (padding, padding) 开始
-            int px0 = x0;  // 在 paddedInput 中 = 原始 x0（因为左边已经有 padding 像素的填充）
+            int px0 = x0;
             int py0 = y0;
             int extractW = actualTileW + 2 * padding;
             int extractH = actualTileH + 2 * padding;
@@ -1676,12 +1265,6 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
                 consecutiveFailures++;
                 double tileProgress = 0.15 + 0.70 * static_cast<double>(tileIndex) / totalTiles;
                 setProgress(tileProgress);
-                
-                if (m_gpuOomDetected.load()) {
-                    qWarning() << "[AIEngine][Tiled] GPU OOM detected, aborting to allow retry with smaller tiles";
-                    painter.end();
-                    return QImage();
-                }
                 continue;
             }
 
@@ -1693,23 +1276,18 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
                 continue;
             }
 
-            // 动态计算裁剪位置：基于实际模型输出尺寸，而非假设 output = input * scale
-            // 某些模型内部有额外 padding/rounding，输出尺寸可能不是精确的 input * scale
             const int expectedOutW = extractW * scale;
             const int expectedOutH = extractH * scale;
             const int actualOutW = tileResult.width();
             const int actualOutH = tileResult.height();
 
-            // 计算实际 padding 在输出中的像素数
             int outPadLeft, outPadTop, outW, outH;
             if (actualOutW == expectedOutW && actualOutH == expectedOutH) {
-                // 精确匹配：直接使用理论值
                 outPadLeft = padding * scale;
                 outPadTop  = padding * scale;
                 outW = actualTileW * scale;
                 outH = actualTileH * scale;
             } else {
-                // 模型输出尺寸与预期不同：按比例动态计算裁剪区域
                 double scaleX = static_cast<double>(actualOutW) / extractW;
                 double scaleY = static_cast<double>(actualOutH) / extractH;
                 outPadLeft = static_cast<int>(std::round(padding * scaleX));
@@ -1718,16 +1296,12 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
                 outH = static_cast<int>(std::round(actualTileH * scaleY));
             }
 
-            // 安全边界修正
             outW = std::min(outW, actualOutW - outPadLeft);
             outH = std::min(outH, actualOutH - outPadTop);
 
             if (outPadLeft < 0 || outPadTop < 0 || outW <= 0 || outH <= 0 ||
                 outPadLeft + outW > actualOutW || outPadTop + outH > actualOutH) {
-                qWarning() << "[AIEngine][Tiled] tile" << tileIndex
-                           << "crop region out of bounds, tileResult:" << tileResult.size()
-                           << "expected:" << expectedOutW << "x" << expectedOutH
-                           << "crop:(" << outPadLeft << "," << outPadTop << ") size:" << outW << "x" << outH;
+                qWarning() << "[AIEngine][Tiled] tile" << tileIndex << "crop region out of bounds";
                 tileIndex++;
                 consecutiveFailures++;
                 continue;
@@ -1735,13 +1309,11 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
 
             QImage croppedResult = tileResult.copy(outPadLeft, outPadTop, outW, outH);
 
-            // 目标绘制区域
             int dstX = x0 * scale;
             int dstY = y0 * scale;
             int dstW = actualTileW * scale;
             int dstH = actualTileH * scale;
 
-            // 若裁剪尺寸与目标不一致，缩放到目标尺寸保证无缝拼接
             if (croppedResult.width() != dstW || croppedResult.height() != dstH) {
                 croppedResult = croppedResult.scaled(dstW, dstH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
             }
@@ -1797,7 +1369,6 @@ QImage AIEngine::processWithTTA(const QImage &input, const ModelInfo &model)
 
     for (int i = 0; i < totalSteps; ++i) {
         if (m_cancelRequested) {
-            Q_UNUSED(i)
             return QImage();
         }
         emit progressTextChanged(tr("TTA 处理中: %1/%2").arg(i + 1).arg(totalSteps));
@@ -1824,7 +1395,7 @@ QImage AIEngine::processWithTTA(const QImage &input, const ModelInfo &model)
     }
 
     if (results.isEmpty()) {
-        qWarning() << "[AIEngine] TTA: all steps failed, returning null";
+        qWarning() << "[AIEngine] TTA: all steps failed";
         return QImage();
     }
     
@@ -1892,7 +1463,6 @@ QVariantMap AIEngine::computeAutoParamsForModel(const QSize &mediaSize, bool isV
     const int w = mediaSize.width();
     const int h = mediaSize.height();
     const int maxDim = std::max(w, h);
-    Q_UNUSED(std::min(w, h));
     const qint64 pixels = static_cast<qint64>(w) * h;
     const double aspectRatio = (h > 0) ? static_cast<double>(w) / h : 1.0;
     const bool isUltraWide = (aspectRatio >= 2.0);
@@ -2044,55 +1614,30 @@ int AIEngine::computeAutoTileSizeForModel(const QSize &inputSize, const ModelInf
     const int scale    = std::max(1, model.scaleFactor);
     const int channels = model.outputChannels > 0 ? model.outputChannels : 3;
 
-    // ── 根据模型复杂度动态调整 kFactor ──────────────────────────────────
-    // kFactor 估算中间特征图占用显存与 I/O 张量的倍数关系
-    // 方法1: 基于模型文件大小（权重越多通常中间层越多）
-    // 方法2: 基于模型的层数（加载时缓存在 model.layerCount）
-    double kFactor = 8.0;  // 基准值（轻量模型）
+    double kFactor = 8.0;
     
-    // 使用缓存的层数（避免直接访问 m_net，确保线程安全）
     const int layerCount = model.layerCount;
     
-    // 优先使用层数判断复杂度（更准确）
     if (layerCount > 500) {
-        kFactor = 48.0;   // 超大模型（如 realesrgan_x4plus 999层）
+        kFactor = 48.0;
     } else if (layerCount > 200) {
-        kFactor = 32.0;   // 大模型（如 realesrgan_x4plus_anime 268层）
+        kFactor = 32.0;
     } else if (layerCount > 50) {
-        kFactor = 16.0;   // 中等模型
+        kFactor = 16.0;
     } else if (layerCount > 0) {
-        kFactor = 10.0;   // 轻量模型（如 animevideov3 41层）
+        kFactor = 10.0;
     }
-    // 回退: 基于文件大小判断（模型未加载时）
     else if (model.sizeBytes > 50LL * 1024 * 1024) {
-        kFactor = 48.0;   // >50MB 模型
+        kFactor = 48.0;
     } else if (model.sizeBytes > 20LL * 1024 * 1024) {
-        kFactor = 32.0;   // >20MB 模型
+        kFactor = 32.0;
     } else if (model.sizeBytes > 5LL * 1024 * 1024) {
-        kFactor = 16.0;   // >5MB 模型
+        kFactor = 16.0;
     }
     
     constexpr qint64 kBytesPerMB = 1024LL * 1024;
 
-    // ── 估算可用显存（保守估计，避免触发 OOM）──────────────────────────
-    // 注意：实际可用显存 < 物理显存，因为 OS/驱动/其他程序也占用
-    qint64 availableMB = 0;
-    if (m_gpuAvailable && m_useGpu) {
-#if NCNN_VULKAN
-        // 保守估计：假设只有 1GB 可用于推理（即使显卡有更多显存）
-        // 因为 Vulkan 管线、纹理缓存、命令缓冲区等也占用显存
-        if (m_vkdev) availableMB = 1024;
-#endif
-        if (availableMB <= 0) availableMB = 512;
-    } else {
-        availableMB = 256;  // CPU 模式更保守
-    }
-
-    // GPU OOM 已检测到：大幅降低可用显存估算
-    if (m_gpuOomDetected.load()) {
-        availableMB = std::max(128LL, availableMB / 4);
-        qWarning() << "[AIEngine][AutoTile] GPU OOM flag active, reducing availableMB to" << availableMB;
-    }
+    qint64 availableMB = 256;
 
     auto memForTile = [&](int tile) -> double {
         const qint64 px    = static_cast<qint64>(tile) * tile;
@@ -2104,8 +1649,8 @@ int AIEngine::computeAutoTileSizeForModel(const QSize &inputSize, const ModelInf
 
     const int maxPossibleTile = std::max(w, h);
     const int minTile = 64;
-    const int maxTile = std::min(512, maxPossibleTile);  // 降低最大分块到 512
-    const int step    = 32;  // 更细的步进，找到更精确的分块
+    const int maxTile = std::min(512, maxPossibleTile);
+    const int step    = 32;
 
     int bestTile = minTile;
     for (int t = maxTile; t >= minTile; t -= step) {
@@ -2115,7 +1660,6 @@ int AIEngine::computeAutoTileSizeForModel(const QSize &inputSize, const ModelInf
         }
     }
 
-    // 如果图像足够小，不需要分块
     if (w <= bestTile && h <= bestTile) {
         return 0;
     }
@@ -2123,4 +1667,4 @@ int AIEngine::computeAutoTileSizeForModel(const QSize &inputSize, const ModelInf
     return bestTile;
 }
 
-} // namespace EnhanceVision 
+} // namespace EnhanceVision

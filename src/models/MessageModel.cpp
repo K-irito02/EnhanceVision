@@ -817,26 +817,52 @@ bool MessageModel::removeMediaFile(const QString &messageId, int fileIndex)
 {
     int msgIdx = findMessageIndex(messageId);
     if (msgIdx < 0) {
-        emit errorOccurred(tr("消息不存在: %1").arg(messageId));
         return false;
     }
 
     Message &message = m_messages[msgIdx];
     if (fileIndex < 0 || fileIndex >= message.mediaFiles.size()) {
-        emit errorOccurred(tr("文件索引无效: %1").arg(fileIndex));
         return false;
     }
 
     const QString removedFileId = message.mediaFiles[fileIndex].id;
+
+    // 文件级防抖：同一 fileId 正在删除中则忽略
+    if (m_removingFileIds.contains(removedFileId)) {
+        return true;
+    }
+    m_removingFileIds.insert(removedFileId);
+
+    // 同步取消该文件关联的处理任务
     if (m_processingController && !removedFileId.isEmpty()) {
         m_processingController->cancelMessageFileTasks(messageId, removedFileId);
     }
 
-    message.mediaFiles.removeAt(fileIndex);
+    // 重新定位（取消任务过程中列表可能已变化）
+    msgIdx = findMessageIndex(messageId);
+    if (msgIdx < 0) {
+        m_removingFileIds.remove(removedFileId);
+        return false;
+    }
+
+    Message &msg = m_messages[msgIdx];
+    int targetIdx = -1;
+    for (int i = 0; i < msg.mediaFiles.size(); ++i) {
+        if (msg.mediaFiles[i].id == removedFileId) {
+            targetIdx = i;
+            break;
+        }
+    }
+    if (targetIdx < 0) {
+        m_removingFileIds.remove(removedFileId);
+        return false;
+    }
+
+    msg.mediaFiles.removeAt(targetIdx);
     emit messageMediaFilesReloaded(messageId);
-    emitMessageFileStatsChanged(messageId, message);
-    
-    if (message.mediaFiles.isEmpty()) {
+    emitMessageFileStatsChanged(messageId, msg);
+
+    if (msg.mediaFiles.isEmpty()) {
         beginRemoveRows(QModelIndex(), msgIdx, msgIdx);
         m_messages.removeAt(msgIdx);
         endRemoveRows();
@@ -846,9 +872,10 @@ bool MessageModel::removeMediaFile(const QString &messageId, int fileIndex)
     } else {
         QModelIndex modelIndex = createIndex(msgIdx, 0);
         emit dataChanged(modelIndex, modelIndex, {MediaFilesRole});
-        emit mediaFileRemoved(messageId, fileIndex);
+        emit mediaFileRemoved(messageId, targetIdx);
     }
-    
+
+    m_removingFileIds.remove(removedFileId);
     return true;
 }
 

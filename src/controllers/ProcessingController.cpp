@@ -164,41 +164,13 @@ void ProcessingController::setSessionController(SessionController* sessionContro
 
 void ProcessingController::cancelTask(const QString& taskId)
 {
-    // 支持按 taskId 或 messageId 取消
-    bool isMessageId = false;
-    for (const auto& task : m_tasks) {
-        if (task.messageId == taskId) {
-            isMessageId = true;
-            break;
-        }
-    }
-
-    if (isMessageId) {
-        for (int i = m_tasks.size() - 1; i >= 0; --i) {
-            if (m_tasks[i].messageId != taskId) {
-                continue;
-            }
-
-            const QString id = m_tasks[i].taskId;
-            if (m_tasks[i].status == ProcessingStatus::Pending) {
-                m_tasks[i].status = ProcessingStatus::Cancelled;
-                cleanupTask(id);
-                emit taskCancelled(id);
-                m_tasks.removeAt(i);
-            } else if (m_tasks[i].status == ProcessingStatus::Processing) {
-                gracefulCancel(id);
-            }
-        }
-
-        updateQueuePositions();
-        syncModelTasks();
-        emit queueSizeChanged();
-
-        if (m_messageModel) {
-            m_messageModel->updateStatus(taskId, static_cast<int>(ProcessingStatus::Cancelled));
-        }
-
-        processNextTask();
+    TaskLifecycle lifecycle = m_taskLifecycle.value(taskId, TaskLifecycle::Active);
+    if (lifecycle == TaskLifecycle::Canceling ||
+        lifecycle == TaskLifecycle::Draining ||
+        lifecycle == TaskLifecycle::Cleaning ||
+        lifecycle == TaskLifecycle::Dead) {
+        qInfo() << "[ProcessingController] cancelTask ignored for"
+                << taskId << "lifecycle:" << static_cast<int>(lifecycle);
         return;
     }
 
@@ -224,8 +196,10 @@ void ProcessingController::cancelTask(const QString& taskId)
         syncMessageProgress(messageId);
         syncMessageStatus(messageId);
         processNextTask();
-        break;
+        return;
     }
+
+    qWarning() << "[ProcessingController] cancelTask: task not found:" << taskId;
 }
 
 void ProcessingController::cancelAllTasks()
@@ -573,15 +547,28 @@ void ProcessingController::startTask(QueueTask& task)
                 auto processor = QSharedPointer<ImageProcessor>::create();
                 m_activeImageProcessors[taskId] = processor;
                 
+                // 捕获 processor 共享指针，防止 terminateTask 移除后 use-after-free
                 connect(processor.data(), &ImageProcessor::progressChanged,
-                        this, [this, taskId](int progress, const QString&) {
+                        this, [this, taskId, processor](int progress, const QString&) {
+                    Q_UNUSED(processor);  // 保持引用计数
                     updateTaskProgress(taskId, progress);
                 }, Qt::QueuedConnection);
                 
                 connect(processor.data(), &ImageProcessor::finished,
-                        this, [this, taskId](bool success, const QString& resultPath, const QString& error) {
+                        this, [this, taskId, processor](bool success, const QString& resultPath, const QString& error) {
+                    Q_UNUSED(processor);  // 保持引用计数直到回调完成
                     m_activeImageProcessors.remove(taskId);
-                    
+
+                    TaskLifecycle lifecycle = m_taskLifecycle.value(taskId, TaskLifecycle::Active);
+                    if (lifecycle == TaskLifecycle::Canceling ||
+                        lifecycle == TaskLifecycle::Draining ||
+                        lifecycle == TaskLifecycle::Cleaning ||
+                        lifecycle == TaskLifecycle::Dead) {
+                        qInfo() << "[ProcessingController][Image] finished signal ignored for"
+                                << taskId << "lifecycle:" << static_cast<int>(lifecycle);
+                        return;
+                    }
+
                     if (success) {
                         completeTask(taskId, resultPath);
                     } else {
@@ -643,10 +630,21 @@ void ProcessingController::startTask(QueueTask& task)
             const QString outputPath = processedDir + "/" +
                                        fileInfo.completeBaseName() + "_ai_enhanced_" + uniqueToken + "." + suffix;
 
-            // 从引擎池获取可用引擎
+            // 从引擎池获取可用引擎（可能因引擎仍在处理而暂时不可用）
             AIEngine* engine = m_aiEnginePool->acquire(taskId);
             if (!engine) {
-                failTask(taskId, tr("AI引擎池已耗尽，无法启动任务"));
+                // 引擎池暂时耗尽，延迟重试而不是立即失败
+                qInfo() << "[ProcessingController] AI engine pool temporarily exhausted for task:" << taskId
+                        << ", will retry in 500ms";
+                // 将任务状态改回 Pending，稍后重试
+                for (auto& t : m_tasks) {
+                    if (t.taskId == taskId) {
+                        t.status = ProcessingStatus::Pending;
+                        break;
+                    }
+                }
+                adjustProcessingCount(-1);
+                QTimer::singleShot(500, this, &ProcessingController::processNextTask);
                 return;
             }
             connectAiEngineForTask(engine, taskId);
@@ -664,7 +662,17 @@ void ProcessingController::startTask(QueueTask& task)
                     this, [this, engine, taskId, inputPath, outputPath, modelId]
                           (bool success, const QString& loadedModelId, const QString& error) {
                     m_pendingModelLoadTaskIds.remove(taskId);
-                    
+
+                    TaskLifecycle lifecycle = m_taskLifecycle.value(taskId, TaskLifecycle::Active);
+                    if (lifecycle == TaskLifecycle::Canceling ||
+        lifecycle == TaskLifecycle::Draining ||
+        lifecycle == TaskLifecycle::Cleaning ||
+        lifecycle == TaskLifecycle::Dead) {
+                        qInfo() << "[ProcessingController][AI] modelLoadCompleted ignored for"
+                                << taskId << "lifecycle:" << static_cast<int>(lifecycle);
+                        return;
+                    }
+
                     if (!success) {
                         qWarning() << "[ProcessingController][AI] async model load failed"
                                    << "task:" << taskId
@@ -698,6 +706,13 @@ void ProcessingController::startTask(QueueTask& task)
     }
 
     QTimer::singleShot(10, this, [this, taskId]() {
+        TaskLifecycle lifecycle = m_taskLifecycle.value(taskId, TaskLifecycle::Active);
+        if (lifecycle == TaskLifecycle::Canceling ||
+        lifecycle == TaskLifecycle::Draining ||
+        lifecycle == TaskLifecycle::Cleaning ||
+        lifecycle == TaskLifecycle::Dead) {
+            return;
+        }
         completeTask(taskId, "");
     });
 }
@@ -745,6 +760,15 @@ void ProcessingController::updateTaskProgress(const QString& taskId, int progres
 
 void ProcessingController::completeTask(const QString& taskId, const QString& resultPath)
 {
+    TaskLifecycle lifecycle = m_taskLifecycle.value(taskId, TaskLifecycle::Active);
+    if (lifecycle == TaskLifecycle::Canceling ||
+        lifecycle == TaskLifecycle::Draining ||
+        lifecycle == TaskLifecycle::Cleaning ||
+        lifecycle == TaskLifecycle::Dead) {
+        qInfo() << "[ProcessingController] completeTask ignored for"
+                << taskId << "lifecycle:" << static_cast<int>(lifecycle);
+        return;
+    }
 
     for (int i = 0; i < m_tasks.size(); ++i) {
         if (m_tasks[i].taskId == taskId) {
@@ -920,6 +944,25 @@ void ProcessingController::processShaderVideoThumbnailAsync(const QString& taskI
                                           fileId, outputPath, success, error]() {
             m_activeVideoProcessors.remove(taskId);
 
+            TaskLifecycle lifecycle = m_taskLifecycle.value(taskId, TaskLifecycle::Active);
+            if (lifecycle == TaskLifecycle::Canceling ||
+                lifecycle == TaskLifecycle::Draining ||
+                lifecycle == TaskLifecycle::Cleaning ||
+                lifecycle == TaskLifecycle::Dead) {
+                qInfo() << "[ProcessingController][Shader] video finishCb ignored for"
+                        << taskId << "lifecycle:" << static_cast<int>(lifecycle);
+
+                if (lifecycle == TaskLifecycle::Draining) {
+                    m_dyingVideoProcessors.remove(taskId);
+                    releaseTaskResources(taskId);
+                    if (m_currentProcessingCount > 0) { m_currentProcessingCount--; }
+                    emit currentProcessingCountChanged();
+                    processNextTask();
+                }
+
+                return;
+            }
+
             if (m_taskCoordinator->isOrphaned(taskId)) {
                 finalizeTask(taskId, sessionId, messageId);
                 return;
@@ -986,6 +1029,16 @@ QVariantMap ProcessingController::shaderParamsToVariantMap(const ShaderParams& p
 
 void ProcessingController::failTask(const QString& taskId, const QString& error)
 {
+    TaskLifecycle lifecycle = m_taskLifecycle.value(taskId, TaskLifecycle::Active);
+    if (lifecycle == TaskLifecycle::Canceling ||
+        lifecycle == TaskLifecycle::Draining ||
+        lifecycle == TaskLifecycle::Cleaning ||
+        lifecycle == TaskLifecycle::Dead) {
+        qInfo() << "[ProcessingController] failTask ignored for"
+                << taskId << "lifecycle:" << static_cast<int>(lifecycle);
+        return;
+    }
+
     for (auto& task : m_tasks) {
         if (task.taskId == taskId) {
             const QString messageId = task.messageId;
@@ -1193,6 +1246,35 @@ void ProcessingController::retryFailedFiles(const QString& messageId)
     }
 
     processNextTask();
+}
+
+void ProcessingController::handleOrphanedVideoTask(const QString& taskId)
+{
+    TaskLifecycle lifecycle = m_taskLifecycle.value(taskId, TaskLifecycle::Active);
+    if (lifecycle == TaskLifecycle::Draining || lifecycle == TaskLifecycle::Cleaning || lifecycle == TaskLifecycle::Dead) {
+        return;
+    }
+
+    qWarning() << "[ProcessingController] Orphaned video task cleanup:" << taskId;
+
+    auto processor = m_activeAIVideoProcessors.take(taskId);
+    if (!processor) {
+        processor = m_dyingProcessors.take(taskId);
+    }
+    if (processor) {
+        processor->cancel();
+    }
+
+    disconnectAiEngineForTask(taskId);
+
+    m_aiEnginePool->release(taskId);
+
+    m_taskLifecycle[taskId] = TaskLifecycle::Dead;
+    m_dyingProcessors.remove(taskId);
+
+    adjustProcessingCount(-1);
+
+    qInfo() << "[ProcessingController] Orphaned video task cleanup completed:" << taskId;
 }
 
 void ProcessingController::retrySingleFailedFile(const QString& messageId, int fileIndex)
@@ -1438,26 +1520,124 @@ void ProcessingController::cancelMessageFileTasks(const QString& messageId, cons
         return;
     }
 
-    CancelResult total;
-    for (int i = m_tasks.size() - 1; i >= 0; --i) {
-        if (m_tasks[i].messageId != messageId || m_tasks[i].fileId != fileId) {
-            continue;
-        }
-        m_taskCoordinator->requestCancellation(m_tasks[i].taskId);
-        CancelResult r = cancelAndRemoveTask(i, CancelMode::ForceProcessing);
-        total.cancelledPending += r.cancelledPending;
-        total.cancelledProcessing += r.cancelledProcessing;
+    QString dedupeKey = messageId + ":" + fileId;
+    if (m_pendingCancelKeys.contains(dedupeKey)) {
+        return;
+    }
+    m_pendingCancelKeys.insert(dedupeKey);
+
+    DeletionBatchItem item;
+    item.fileId = fileId;
+
+    m_deletionBatches[messageId].append(item);
+
+    if (!m_batchProcessTimer) {
+        m_batchProcessTimer = new QTimer(this);
+        m_batchProcessTimer->setSingleShot(true);
+        connect(m_batchProcessTimer, &QTimer::timeout, this, [this]() {
+            QStringList messageIds = m_deletionBatches.keys();
+            for (const QString& mid : messageIds) {
+                processDeletionBatch(mid);
+            }
+            m_deletionBatches.clear();
+        });
     }
 
-    adjustProcessingCount(-total.cancelledProcessing);
+    m_batchProcessTimer->start(150);
+}
 
-    if (total.cancelledPending > 0 || total.cancelledProcessing > 0) {
+void ProcessingController::processDeletionBatch(const QString& messageId)
+{
+    if (!m_deletionBatches.contains(messageId)) {
+        return;
+    }
+
+    QList<DeletionBatchItem> batch = m_deletionBatches.take(messageId);
+    QSet<QString> batchFileIds;
+    for (const auto& item : batch) {
+        batchFileIds.insert(item.fileId);
+    }
+
+    qInfo() << "[ProcessingController] processDeletionBatch:" << messageId
+            << "fileCount:" << batchFileIds.size();
+
+    // 收集需要终止的任务及其状态
+    struct TaskToTerminate {
+        QString taskId;
+        bool wasProcessing = false;
+    };
+    QList<TaskToTerminate> tasksToTerminate;
+
+    for (int i = m_tasks.size() - 1; i >= 0; --i) {
+        const QueueTask& task = m_tasks[i];
+        if (task.messageId != messageId || !batchFileIds.contains(task.fileId)) {
+            continue;
+        }
+
+        TaskToTerminate tt;
+        tt.taskId = task.taskId;
+        tt.wasProcessing = (task.status == ProcessingStatus::Processing);
+        tasksToTerminate.append(tt);
+        m_taskCoordinator->requestCancellation(task.taskId);
+    }
+
+    // 终止所有任务（设置 lifecycle 状态、取消处理器等）
+    for (const auto& tt : tasksToTerminate) {
+        terminateTask(tt.taskId, "batch-delete");
+    }
+
+    // 从任务列表移除，并统计需要调整的处理计数
+    int removedCount = 0;
+    int processingRemoved = 0;
+    QSet<QString> terminateIds;
+    for (const auto& tt : tasksToTerminate) {
+        terminateIds.insert(tt.taskId);
+    }
+
+    for (int i = m_tasks.size() - 1; i >= 0; --i) {
+        if (terminateIds.contains(m_tasks[i].taskId)) {
+            if (m_tasks[i].status == ProcessingStatus::Processing) {
+                processingRemoved++;
+            }
+            m_tasks[i].status = ProcessingStatus::Cancelled;
+            emit taskCancelled(m_tasks[i].taskId);
+            m_tasks.removeAt(i);
+            removedCount++;
+        }
+    }
+
+    // 对所有被终止的任务立即释放引擎和资源
+    // （不仅是 Draining，Canceling/Cleaning 的异步释放可能来不及在 processNextTask 前完成）
+    for (const auto& tt : tasksToTerminate) {
+        TaskLifecycle lifecycle = m_taskLifecycle.value(tt.taskId, TaskLifecycle::Active);
+        if (lifecycle == TaskLifecycle::Draining) {
+            // Draining 的处理器已移到 dying 列表，清理它们
+            m_dyingProcessors.remove(tt.taskId);
+            m_dyingVideoProcessors.remove(tt.taskId);
+        }
+        // 所有被终止的任务都立即释放引擎（确保下一个任务能获取到空闲引擎）
+        m_aiEnginePool->release(tt.taskId);
+        releaseTaskResources(tt.taskId);
+        m_taskLifecycle[tt.taskId] = TaskLifecycle::Dead;
+    }
+
+    // 所有被移除的处理中任务都需要减少计数
+    if (processingRemoved > 0) {
+        adjustProcessingCount(-processingRemoved);
+    }
+
+    if (removedCount > 0) {
         updateQueuePositions();
         syncModelTasks();
         emit queueSizeChanged();
     }
 
-    QTimer::singleShot(500, this, &ProcessingController::processNextTask);
+    for (const auto& item : batch) {
+        QString dedupeKey = messageId + ":" + item.fileId;
+        m_pendingCancelKeys.remove(dedupeKey);
+    }
+
+    QTimer::singleShot(300, this, &ProcessingController::processNextTask);
 }
 
 void ProcessingController::cancelSessionTasks(const QString& sessionId)
@@ -1594,14 +1774,27 @@ bool ProcessingController::tryStartTask(QueueTask& task)
 
 void ProcessingController::finalizeTask(const QString& taskId, const QString& sessionId, const QString& messageId)
 {
+    TaskLifecycle lifecycle = m_taskLifecycle.value(taskId, TaskLifecycle::Active);
+    if (lifecycle == TaskLifecycle::Draining || lifecycle == TaskLifecycle::Cleaning || lifecycle == TaskLifecycle::Dead) {
+        qInfo() << "[ProcessingController] finalizeTask skipped (already cleaning/dead):"
+                << taskId << "lifecycle:" << static_cast<int>(lifecycle);
+        return;
+    }
+
     cleanupTask(taskId);
-    m_currentProcessingCount--;
+
+    if (m_currentProcessingCount > 0) {
+        m_currentProcessingCount--;
+    }
 
     emit currentProcessingCountChanged();
     syncModelTaskById(taskId);
-    syncMessageProgress(messageId, sessionId);
-    syncMessageStatus(messageId, sessionId);
-    
+
+    if (!messageId.isEmpty() && !sessionId.isEmpty()) {
+        syncMessageProgress(messageId, sessionId);
+        syncMessageStatus(messageId, sessionId);
+    }
+
     if (m_sessionController) {
         m_sessionController->saveSessionsImmediately();
     }
@@ -1611,6 +1804,16 @@ void ProcessingController::finalizeTask(const QString& taskId, const QString& se
 void ProcessingController::gracefulCancel(const QString& taskId, int timeoutMs)
 {
     Q_UNUSED(timeoutMs);
+
+    TaskLifecycle lifecycle = m_taskLifecycle.value(taskId, TaskLifecycle::Active);
+    if (lifecycle == TaskLifecycle::Canceling ||
+        lifecycle == TaskLifecycle::Draining ||
+        lifecycle == TaskLifecycle::Cleaning ||
+        lifecycle == TaskLifecycle::Dead) {
+        qInfo() << "[ProcessingController] gracefulCancel ignored for"
+                << taskId << "lifecycle:" << static_cast<int>(lifecycle);
+        return;
+    }
 
     m_taskCoordinator->requestCancellation(taskId);
 
@@ -1666,42 +1869,25 @@ void ProcessingController::handleOrphanedTask(const QString& taskId)
 
 void ProcessingController::cancelVideoProcessing(const QString& taskId)
 {
+    QMutexLocker locker(&m_cancelMutex);
+
+    if (m_cancellingTaskIds.contains(taskId)) {
+        return;
+    }
+    m_cancellingTaskIds.insert(taskId);
+
     if (m_activeVideoProcessors.contains(taskId)) {
-        auto processor = m_activeVideoProcessors[taskId];
+        auto processor = m_activeVideoProcessors.take(taskId);
         if (processor) {
             processor->cancel();
         }
-        m_activeVideoProcessors.remove(taskId);
     }
+
+    m_cancellingTaskIds.remove(taskId);
 }
 
-void ProcessingController::cleanupTask(const QString& taskId)
+void ProcessingController::releaseTaskResources(const QString& taskId)
 {
-    TaskStateManager::instance()->unregisterActiveTask(taskId);
-    
-    cancelVideoProcessing(taskId);
-    
-    QSharedPointer<AIVideoProcessor> aiProcessor;
-    if (m_activeAIVideoProcessors.contains(taskId)) {
-        aiProcessor = m_activeAIVideoProcessors.take(taskId);
-        if (aiProcessor) {
-            aiProcessor->cancel();
-            aiProcessor->waitForFinished(2000);
-        }
-    }
-    
-    QSharedPointer<ImageProcessor> imgProcessor;
-    if (m_activeImageProcessors.contains(taskId)) {
-        imgProcessor = m_activeImageProcessors.take(taskId);
-        if (imgProcessor) {
-            imgProcessor->cancel();
-        }
-    }
-    
-    disconnectAiEngineForTask(taskId);
-    
-    m_aiEnginePool->release(taskId);
-    
     m_resourceManager->release(taskId);
     m_taskCoordinator->unregisterTask(taskId);
     m_pendingExports.remove(taskId);
@@ -1710,6 +1896,111 @@ void ProcessingController::cleanupTask(const QString& taskId)
     m_lastTaskProgressUpdateMs.remove(taskId);
     m_taskMessages.remove(taskId);
     m_pendingModelLoadTaskIds.remove(taskId);
+    m_cleaningUpTaskIds.remove(taskId);
+    m_taskLifecycle[taskId] = TaskLifecycle::Dead;
+}
+
+void ProcessingController::terminateTask(const QString& taskId, const QString& reason)
+{
+    TaskLifecycle state = m_taskLifecycle.value(taskId, TaskLifecycle::Active);
+
+    if (state == TaskLifecycle::Cleaning || state == TaskLifecycle::Dead) {
+        return;
+    }
+
+    if (state == TaskLifecycle::Canceling || state == TaskLifecycle::Draining) {
+        return;
+    }
+
+    bool hasActiveAiVideo = m_activeAIVideoProcessors.contains(taskId);
+    bool hasActiveVideo = m_activeVideoProcessors.contains(taskId);
+
+    if (hasActiveAiVideo || hasActiveVideo) {
+        m_taskLifecycle[taskId] = TaskLifecycle::Draining;
+
+        qInfo() << "[ProcessingController] terminateTask: DRAINING"
+                << taskId << "reason:" << reason
+                << "aiVideo:" << hasActiveAiVideo << "video:" << hasActiveVideo;
+
+        disconnectAiEngineForTask(taskId);
+        TaskStateManager::instance()->unregisterActiveTask(taskId);
+
+        if (hasActiveAiVideo) {
+            auto aiProc = m_activeAIVideoProcessors.take(taskId);
+            if (aiProc) {
+                aiProc->cancel();  // 确保处理器被取消
+                m_dyingProcessors[taskId] = aiProc;
+            }
+        }
+
+        if (hasActiveVideo) {
+            auto vidProc = m_activeVideoProcessors.take(taskId);
+            if (vidProc) {
+                vidProc->cancel();  // 确保处理器被取消
+                m_dyingVideoProcessors[taskId] = vidProc;
+            }
+        }
+
+        if (m_activeImageProcessors.contains(taskId)) {
+            auto imgProcessor = m_activeImageProcessors.take(taskId);
+            if (imgProcessor) { imgProcessor->cancel(); }
+        }
+
+        return;
+    }
+
+    m_taskLifecycle[taskId] = TaskLifecycle::Canceling;
+
+    qInfo() << "[ProcessingController] terminateTask:" << taskId << "reason:" << reason;
+
+    // 取消 AI 引擎处理（在断开连接前，确保引擎停止）
+    AIEngine* engine = m_aiEnginePool->engineForTask(taskId);
+    if (engine && engine->isProcessing()) {
+        qInfo() << "[ProcessingController] Cancelling AI engine for task:" << taskId;
+        engine->cancelProcess();
+    }
+
+    disconnectAiEngineForTask(taskId);
+
+    if (m_activeAIVideoProcessors.contains(taskId)) {
+        auto processor = m_activeAIVideoProcessors.take(taskId);
+        if (processor) {
+            processor->cancel();
+            m_dyingProcessors[taskId] = processor;
+        }
+    }
+
+    cancelVideoProcessing(taskId);
+
+    if (m_activeImageProcessors.contains(taskId)) {
+        auto imgProcessor = m_activeImageProcessors.take(taskId);
+        if (imgProcessor) { imgProcessor->cancel(); }
+    }
+
+    TaskStateManager::instance()->unregisterActiveTask(taskId);
+
+    m_taskLifecycle[taskId] = TaskLifecycle::Cleaning;
+
+    QTimer::singleShot(0, this, [this, taskId]() {
+        m_aiEnginePool->release(taskId);
+
+        if (m_orphanTimers.contains(taskId)) {
+            QTimer* oldTimer = m_orphanTimers.take(taskId);
+            if (oldTimer) {
+                oldTimer->stop();
+                oldTimer->deleteLater();
+            }
+        }
+
+        releaseTaskResources(taskId);
+
+        qInfo() << "[ProcessingController] terminateTask completed:" << taskId;
+    });
+}
+
+void ProcessingController::cleanupTask(const QString& taskId)
+{
+    terminateTask(taskId, "cleanupTask");
 }
 
 void ProcessingController::connectAiEngineForTask(AIEngine* engine, const QString& taskId)
@@ -1727,6 +2018,16 @@ void ProcessingController::connectAiEngineForTask(AIEngine* engine, const QStrin
 
     conns << connect(engine, &AIEngine::processFileCompleted, this,
             [this, taskId](bool success, const QString& resultPath, const QString& error) {
+        TaskLifecycle lifecycle = m_taskLifecycle.value(taskId, TaskLifecycle::Active);
+        if (lifecycle == TaskLifecycle::Canceling ||
+        lifecycle == TaskLifecycle::Draining ||
+        lifecycle == TaskLifecycle::Cleaning ||
+        lifecycle == TaskLifecycle::Dead) {
+            qInfo() << "[ProcessingController][AI] processFileCompleted ignored for"
+                    << taskId << "lifecycle:" << static_cast<int>(lifecycle);
+            return;
+        }
+
         if (success) {
             QFileInfo resultInfo(resultPath);
             if (resultPath.isEmpty() || !resultInfo.exists() || resultInfo.size() <= 0) {
@@ -1784,15 +2085,7 @@ void ProcessingController::launchAiInference(AIEngine* engine, const QString& ta
         return;
     }
 
-    // 【关键修复】添加引擎就绪检查，确保 Vulkan 在推理前完全初始化
-    if (engine && !engine->waitForVulkanReady(10000)) {
-        qWarning() << "[ProcessingController][AI] Engine not ready after timeout, task:" << taskId;
-        failTask(taskId, tr("AI引擎初始化超时，请重试"));
-        return;
-    }
-
     const ModelInfo modelInfo = m_modelRegistry-> getModelInfo(message.aiParams.modelId);
-    engine->setUseGpu(message.aiParams.useGpu);
     engine->clearParameters();
     if (message.aiParams.tileSize > 0) {
         engine->setParameter("tileSize", message.aiParams.tileSize);
@@ -1824,7 +2117,7 @@ void ProcessingController::launchAIVideoProcessor(AIEngine* engine, const QStrin
     VideoProcessingConfig config;
     config.tileSize = effectiveParams.value("tileSize", modelInfo.tileSize).toInt();
     config.outscale = effectiveParams.value("outscale", modelInfo.scaleFactor).toDouble();
-    config.useGpu = message.aiParams.useGpu && engine->gpuAvailable();
+    config.useGpu = false;
     config.quality = 18;
     processor->setConfig(config);
     
@@ -1834,20 +2127,56 @@ void ProcessingController::launchAIVideoProcessor(AIEngine* engine, const QStrin
     }, Qt::QueuedConnection);
     
     connect(processor.data(), &AIVideoProcessor::completed,
-            this, [this, taskId, engine](bool success, const QString& result, const QString& error) {
+            this, [this, taskId](bool success, const QString& result, const QString& error) {
+        TaskLifecycle lifecycle = m_taskLifecycle.value(taskId, TaskLifecycle::Active);
+
+        if (lifecycle == TaskLifecycle::Canceling ||
+            lifecycle == TaskLifecycle::Cleaning ||
+            lifecycle == TaskLifecycle::Dead) {
+            qInfo() << "[ProcessingController][AI] completed signal ignored for"
+                    << taskId << "lifecycle:" << static_cast<int>(lifecycle);
+            return;
+        }
+
+        if (!m_activeAIVideoProcessors.contains(taskId) && !m_dyingProcessors.contains(taskId)) {
+            return;
+        }
+
         m_activeAIVideoProcessors.remove(taskId);
-        
-        // 简化清理流程，避免与新任务竞争
-        // NCNN会自动管理GPU内存，不需要激进清理
-        
-        // 先断开信号连接，再释放引擎
         disconnectAiEngineForTask(taskId);
-        m_aiEnginePool->release(taskId);
-        
-        if (success) {
-            completeTask(taskId, result);
+
+        if (lifecycle == TaskLifecycle::Draining) {
+            qInfo() << "[ProcessingController][AI] completed for DRAINING task"
+                    << taskId << "success:" << success;
+
+            m_dyingProcessors.remove(taskId);
+            m_aiEnginePool->release(taskId);
+            releaseTaskResources(taskId);
+
+            if (m_currentProcessingCount > 0) { m_currentProcessingCount--; }
+            emit currentProcessingCountChanged();
+            processNextTask();
+            return;
+        }
+
+        bool taskExists = false;
+        for (const auto& t : m_tasks) {
+            if (t.taskId == taskId) {
+                taskExists = true;
+                break;
+            }
+        }
+
+        if (taskExists) {
+            m_aiEnginePool->release(taskId);
+
+            if (success) {
+                completeTask(taskId, result);
+            } else {
+                failTask(taskId, error);
+            }
         } else {
-            failTask(taskId, error);
+            m_aiEnginePool->release(taskId);
         }
     }, Qt::QueuedConnection);
     
@@ -1911,16 +2240,6 @@ void ProcessingController::cancelAIEngineForTask(const QString& taskId)
             processor->cancel();
         }
     }
-
-    if (m_taskMessages.contains(taskId)) {
-        const Message& msg = m_taskMessages[taskId];
-        if (msg.mode == ProcessingMode::AIInference) {
-            AIEngine* poolEngine = m_aiEnginePool->engineForTask(taskId);
-            if (poolEngine) {
-                poolEngine->cancelProcess();
-            }
-        }
-    }
 }
 
 void ProcessingController::adjustProcessingCount(int delta)
@@ -1959,7 +2278,7 @@ QString ProcessingController::createAndRegisterTask(const Message& message, cons
 ProcessingController::CancelResult ProcessingController::cancelAndRemoveTask(int index, CancelMode mode)
 {
     CancelResult result;
-    
+
     if (index < 0 || index >= m_tasks.size()) {
         return result;
     }
@@ -1969,15 +2288,14 @@ ProcessingController::CancelResult ProcessingController::cancelAndRemoveTask(int
 
     if (oldStatus == ProcessingStatus::Pending) {
         m_tasks[index].status = ProcessingStatus::Cancelled;
-        cleanupTask(taskId);
+        terminateTask(taskId, "cancelAndRemoveTask-Pending");
         emit taskCancelled(taskId);
         m_tasks.removeAt(index);
         result.cancelledPending = 1;
     } else if (oldStatus == ProcessingStatus::Processing && mode == CancelMode::ForceProcessing) {
         m_taskCoordinator->requestCancellation(taskId);
-        cancelAIEngineForTask(taskId);
+        terminateTask(taskId, "cancelAndRemoveTask-Processing");
         m_tasks[index].status = ProcessingStatus::Cancelled;
-        cleanupTask(taskId);
         emit taskCancelled(taskId);
         m_tasks.removeAt(index);
         result.cancelledProcessing = 1;

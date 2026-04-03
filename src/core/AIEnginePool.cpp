@@ -1,7 +1,7 @@
 /**
  * @file AIEnginePool.cpp
- * @brief AI 推理引擎池实现
- * @author Qt客户端开发工程师
+ * @brief AI 推理引擎池实现（纯 CPU 模式）
+ * @author EnhanceVision Team
  */
 
 #include "EnhanceVision/core/AIEnginePool.h"
@@ -44,23 +44,25 @@ AIEngine* AIEnginePool::acquire(const QString& taskId)
                 continue;
             }
 
-            if (!m_slots[i].engine->waitForVulkanReady(5000)) {
-                qWarning() << "[AIEnginePool] Engine slot" << i << "Vulkan not ready, skipping";
+            // 确保引擎不在处理中（防止上一个任务取消后引擎仍在运行）
+            AIEngine* engine = m_slots[i].engine;
+            if (engine->isProcessing()) {
+                qWarning() << "[AIEnginePool] Engine slot" << i << "still processing, skipping (will retry later)";
+                // 不阻塞等待，直接跳过这个引擎，让调用方稍后重试
                 continue;
             }
 
-            m_slots[i].engine->syncVulkanQueue();
-            m_slots[i].engine->resetCancelFlag();
+            engine->resetState();
 
             m_slots[i].state = EngineState::InUse;
             m_slots[i].taskId = taskId;
             m_taskToSlot[taskId] = i;
             
-            qInfo() << "[AIEnginePool][DEBUG] Engine acquired for task:" << taskId
+            qInfo() << "[AIEnginePool] Engine acquired for task:" << taskId
                     << ", slot index:" << i;
 
             emit engineAcquired(taskId, i);
-            return m_slots[i].engine;
+            return engine;
         }
     }
 
@@ -74,9 +76,9 @@ bool AIEnginePool::ensureEngineReady(int slotIndex)
     if (slotIndex < 0 || slotIndex >= m_slots.size()) {
         return false;
     }
-    
-    auto& slot = m_slots[slotIndex];
-    
+
+    EngineSlot& slot = m_slots[slotIndex];
+
     if (!slot.engine) {
         slot.state = EngineState::Error;
         slot.lastError = "Engine not created";
@@ -86,27 +88,10 @@ bool AIEnginePool::ensureEngineReady(int slotIndex)
     if (slot.state == EngineState::Error) {
         qInfo() << "[AIEnginePool] Attempting to recover engine in slot" << slotIndex;
         slot.engine->resetState();
-        slot.engine->cleanupGpuMemory();
     }
     
-    // 【关键修复】强制等待 Vulkan 就绪，确保首次推理前 GPU 资源完全就绪
-    if (!slot.engine->waitForVulkanReady(5000)) {
-        qWarning() << "[AIEnginePool] Engine" << slotIndex << "Vulkan not ready after timeout";
-        slot.state = EngineState::Error;
-        slot.lastError = "Vulkan initialization timeout";
-        return false;
-    }
-    
-    slot.engine->ensureVulkanReady();
-    
-    if (slot.engine->gpuAvailable() || !slot.engine->useGpu()) {
-        slot.state = EngineState::Ready;
-        return true;
-    }
-    
-    slot.state = EngineState::Error;
-    slot.lastError = "GPU not available";
-    return false;
+    slot.state = EngineState::Ready;
+    return true;
 }
 
 void AIEnginePool::release(const QString& taskId)
@@ -119,16 +104,19 @@ void AIEnginePool::release(const QString& taskId)
 
     int idx = m_taskToSlot.take(taskId);
     if (idx >= 0 && idx < m_slots.size()) {
-        if (m_slots[idx].engine) {
-            m_slots[idx].engine->cancelProcess();
-            m_slots[idx].engine->syncVulkanQueue();
+        AIEngine* engine = m_slots[idx].engine;
+        
+        // 释放前取消引擎处理，确保下次获取时引擎空闲
+        if (engine && engine->isProcessing()) {
+            qInfo() << "[AIEnginePool] Cancelling engine before release, task:" << taskId;
+            engine->cancelProcess();
         }
-
+        
         m_slots[idx].state = EngineState::Ready;
         m_slots[idx].taskId.clear();
         m_slots[idx].wasUsed = true;
 
-        qInfo() << "[AIEnginePool][DEBUG] Task released:" << taskId << ", slot index:" << idx;
+        qInfo() << "[AIEnginePool] Task released:" << taskId << ", slot index:" << idx;
         emit engineReleased(taskId, idx);
     }
 }
@@ -255,23 +243,14 @@ void AIEnginePool::createEngines(int count)
 
 void AIEnginePool::destroyEngines()
 {
-    qInfo() << "[AIEnginePool][DEBUG] Destroying engines, slot count:" << m_slots.size();
+    qInfo() << "[AIEnginePool] Destroying engines, slot count:" << m_slots.size();
     
-    // 第一步：取消所有进行中的处理
     for (auto& slot : m_slots) {
         if (slot.engine) {
             slot.engine->cancelProcess();
         }
     }
     
-    // 第二步：清理 GPU 内存
-    for (auto& slot : m_slots) {
-        if (slot.engine) {
-            slot.engine->cleanupGpuMemory();
-        }
-    }
-    
-    // 第三步：删除引擎
     for (auto& slot : m_slots) {
         delete slot.engine;
         slot.engine = nullptr;
@@ -279,7 +258,7 @@ void AIEnginePool::destroyEngines()
     m_slots.clear();
     m_taskToSlot.clear();
     
-    qInfo() << "[AIEnginePool][DEBUG] All engines destroyed";
+    qInfo() << "[AIEnginePool] All engines destroyed";
 }
 
 } // namespace EnhanceVision

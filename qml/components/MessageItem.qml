@@ -125,6 +125,8 @@ Rectangle {
     signal retrySingleFailedFile(int index)
     
     property bool _hasStatsSnapshot: false
+    property var _deletingFileIds: ({})
+    property int _deletingCount: 0
 
     function _applyFileStats(success, failed, pending, processing) {
         successFileCount = success
@@ -365,8 +367,28 @@ Rectangle {
             
             onViewFile: function(index) { root.viewMediaFile(index) }
             onSaveFile: function(index) { root.saveMediaFile(index) }
-            onDeleteFile: function(index) { root.deleteMediaFile(index) }
-            onFileRemoved: function(msgId, fileIndex) { root.deleteMediaFile(fileIndex) }
+            onDeleteFile: function(index) {
+                var _msgId = root.taskId
+                var _fileId = ""
+                if (root.mediaFiles && index >= 0 && index < root.mediaFiles.count) {
+                    var _item = root.mediaFiles.get(index)
+                    if (_item) _fileId = _item.id
+                }
+                if (!_fileId) return
+
+                // fileId 级防抖：阻止对同一文件的重复删除
+                if (root._deletingFileIds[_fileId]) return
+                root._deletingFileIds[_fileId] = true
+                root._deletingCount++
+
+                var __msgId = _msgId
+                var __fileId = _fileId
+                Qt.callLater(function() {
+                    messageModel.removeMediaFileById(__msgId, __fileId)
+                    delete root._deletingFileIds[__fileId]
+                    root._deletingCount = Math.max(0, root._deletingCount - 1)
+                })
+            }
             onRetryFailedFile: function(index) { root.retrySingleFailedFile(index) }
         }
         
