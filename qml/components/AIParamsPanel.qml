@@ -32,6 +32,9 @@ ColumnLayout {
     signal paramsChanged()
 
     spacing: 8
+    
+    // 确保最小高度，防止ScrollView无法滚动
+    Layout.minimumHeight: 300
 
     // ── 内部状态
     property var  currentModelInfo:    null
@@ -40,6 +43,13 @@ ColumnLayout {
     property bool autoTileMode: true
     property int  computedAutoTileSize: 0
     property var  _autoParams: ({})
+    
+    // ── 延迟处理定时器
+    Timer {
+        id: _recomputeAutoParamsTimer
+        interval: 100
+        onTriggered: _recomputeAutoParams()
+    }
 
     // ── 自动优化就绪状态
     readonly property bool _autoReady: {
@@ -61,7 +71,9 @@ ColumnLayout {
             _autoParams       = {}
             _pendingParams    = {}
             modelParams       = {}
-            _recomputeAutoParams()
+            
+            // 延迟重新计算参数，确保模型信息完全加载
+            _recomputeAutoParamsTimer.restart()
             _isModelSwitching = false
         } else {
             currentModelInfo = null
@@ -86,10 +98,14 @@ ColumnLayout {
         if (!param) return ""
         var useEn = (Theme.language === "en_US")
         if (useEn && param[enKey]) return param[enKey]
-        return param[zhKey] || ""
+        return param[zhKey] || param.label || ""
     }
-    function getParamLabel(param)       { return _localText(param, "label", "label_en") || param.key || "" }
-    function getParamDescription(param) { return _localText(param, "description", "description_en") }
+    function getParamLabel(param) { 
+        return _localText(param, "label", "label_en") || param.label || param.key || "" 
+    }
+    function getParamDescription(param) { 
+        return _localText(param, "description", "description_en") || param.description || ""
+    }
 
     function hasParamModifications() {
         if (!currentModelInfo || !currentModelInfo.supportedParams) return false
@@ -346,7 +362,10 @@ ColumnLayout {
             if (!currentModelInfo) return false
             var p = currentModelInfo.supportedParams
             if (!p || typeof p !== 'object') return false
-            try { return Object.keys(p).length > 0 } catch(e) { return false }
+            try { 
+                var keys = Object.keys(p)
+                return keys.length > 0 
+            } catch(e) { return false }
         }
 
         Divider {}
@@ -389,6 +408,22 @@ ColumnLayout {
                     }
                 }
             }
+        }
+
+        // 调试信息 - 显示参数数量
+        Text {
+            Layout.fillWidth: true
+            text: {
+                if (!currentModelInfo) return "未选择模型"
+                var p = currentModelInfo.supportedParams
+                if (!p || typeof p !== 'object') return "模型无参数定义"
+                try {
+                    var keys = Object.keys(p)
+                    return "找到 " + keys.length + " 个参数: " + keys.join(", ")
+                } catch(e) { return "参数解析错误" }
+            }
+            color: Theme.colors.mutedForeground; font.pixelSize: 10; wrapMode: Text.WordWrap
+            visible: true
         }
 
         Repeater {

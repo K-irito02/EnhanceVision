@@ -298,7 +298,7 @@ Rectangle {
                     Components.AIModelPanel {
                         id: aiModelPanel
                         Layout.fillWidth: true
-                        Layout.fillHeight: true
+                        Layout.preferredHeight: 250
                         Layout.minimumHeight: 200
 
                         selectedModelId: root.aiSelectedModelId
@@ -321,8 +321,8 @@ Rectangle {
                     ScrollView {
                         id: aiParamsScrollView
                         Layout.fillWidth: true
-                        Layout.preferredHeight: Math.min(aiParamsPanel.implicitHeight, 300)
-                        Layout.minimumHeight: 100
+                        Layout.fillHeight: true
+                        Layout.minimumHeight: 200
                         clip: true
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                         ScrollBar.vertical.policy: ScrollBar.AsNeeded
