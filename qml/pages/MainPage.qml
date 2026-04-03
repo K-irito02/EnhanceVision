@@ -320,10 +320,6 @@ Rectangle {
             color: Theme.colors.card
             z: messageListView.effectiveCanOverlay ? 100 : 5
             
-            Behavior on Layout.preferredHeight {
-                NumberAnimation { duration: Theme.animation.normal; easing.type: Easing.OutCubic }
-            }
-            
             // 顶部分隔线
             Rectangle {
                 anchors.top: parent.top

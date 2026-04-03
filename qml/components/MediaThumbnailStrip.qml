@@ -412,6 +412,27 @@ Item {
                         property bool isUnavailable: !isSuccess
                         property bool canRetry: isFailed || isCancelled
                         property int itemMediaType: mediaType
+                        property bool _deleteInProgress: false
+                        property real _deleteOpacity: 1.0
+                        property real _imageOpacity: thumbImage.status === Image.Ready ? 1.0 : 0.0
+
+                        Behavior on _deleteOpacity {
+                            NumberAnimation { duration: 200; easing.type: Easing.InOutCubic }
+                        }
+                        
+                        Behavior on _imageOpacity {
+                            NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
+                        }
+
+                        Timer {
+                            id: debounceTimer
+                            interval: 500
+                            repeat: false
+                            onTriggered: {
+                                thumbDelegate._deleteInProgress = false
+                                thumbDelegate._deleteOpacity = 1.0
+                            }
+                        }
 
                         Rectangle{
                             id: hoverBorder
@@ -441,6 +462,7 @@ Item {
                             anchors.margins: 2
                             radius: Theme.radius.md
                             color: Theme.colors.surface
+                            opacity: thumbDelegate._deleteOpacity
 
                             Image {
                                 id: thumbImage
@@ -451,7 +473,7 @@ Item {
                                 smooth: true
                                 sourceSize: Qt.size(root.thumbSize * 2, root.thumbSize * 2)
                                 visible: status === Image.Ready
-                                opacity: 1.0
+                                opacity: thumbDelegate._imageOpacity
                                 layer.enabled: true
                                 layer.samples: 4
                                 layer.effect: MultiEffect {
@@ -574,6 +596,15 @@ Item {
                             hoverEnabled: true
                             cursorShape: (!root.messageMode || thumbDelegate.isSuccess) ? Qt.PointingHandCursor : Qt.ArrowCursor
                             acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            propagateComposedEvents: true
+                            onPressed: function(mouse) {
+                                var deleteBtnArea = Qt.rect(parent.width - 24, 4, 20, 20)
+                                var inDeleteBtn = mouse.x >= deleteBtnArea.x && mouse.x <= deleteBtnArea.x + deleteBtnArea.width &&
+                                                  mouse.y >= deleteBtnArea.y && mouse.y <= deleteBtnArea.y + deleteBtnArea.height
+                                if (inDeleteBtn && thumbDelegate.showDeleteBtn) {
+                                    mouse.accepted = false
+                                }
+                            }
                             onClicked: function(mouse) {
                                 if (mouse.button === Qt.RightButton) {
                                     var status = thumbDelegate.itemData ? thumbDelegate.itemData.status : 0
@@ -614,13 +645,15 @@ Item {
                                 id: deleteBtnMouse
                                 anchors.fill: parent
                                 hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
+                                cursorShape: thumbDelegate._deleteInProgress ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                preventStealing: true
                                 onClicked: {
+                                    if (thumbDelegate._deleteInProgress) return
+                                    thumbDelegate._deleteInProgress = true
+                                    thumbDelegate._deleteOpacity = 0.3
+                                    debounceTimer.start()
                                     var origIndex = thumbDelegate.itemData ? thumbDelegate.itemData.origIndex : thumbDelegate.index
                                     root.deleteFile(origIndex)
-                                    if (root.messageId !== "") {
-                                        root.fileRemoved(root.messageId, origIndex)
-                                    }
                                 }
                             }
                             Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
@@ -651,13 +684,15 @@ Item {
                                 id: deleteBtnForFailedMouse
                                 anchors.fill: parent
                                 hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
+                                cursorShape: thumbDelegate._deleteInProgress ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                preventStealing: true
                                 onClicked: {
+                                    if (thumbDelegate._deleteInProgress) return
+                                    thumbDelegate._deleteInProgress = true
+                                    thumbDelegate._deleteOpacity = 0.3
+                                    debounceTimer.start()
                                     var origIndex = thumbDelegate.itemData ? thumbDelegate.itemData.origIndex : thumbDelegate.index
                                     root.deleteFile(origIndex)
-                                    if (root.messageId !== "") {
-                                        root.fileRemoved(root.messageId, origIndex)
-                                    }
                                 }
                             }
                             Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
@@ -792,6 +827,27 @@ Item {
                         property bool isUnavailable: !isSuccess
                         property bool canRetry: isFailed || isCancelled
                         property int itemMediaType: mediaType
+                        property bool _deleteInProgress: false
+                        property real _deleteOpacity: 1.0
+                        property real _imageOpacity: thumbImage.status === Image.Ready ? 1.0 : 0.0
+
+                        Behavior on _deleteOpacity {
+                            NumberAnimation { duration: 200; easing.type: Easing.InOutCubic }
+                        }
+                        
+                        Behavior on _imageOpacity {
+                            NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
+                        }
+
+                        Timer {
+                            id: gridDebounceTimer
+                            interval: 500
+                            repeat: false
+                            onTriggered: {
+                                thumbDelegate._deleteInProgress = false
+                                thumbDelegate._deleteOpacity = 1.0
+                            }
+                        }
 
                         Rectangle{
                             id: hoverBorder
@@ -821,6 +877,7 @@ Item {
                             anchors.margins: 2
                             radius: Theme.radius.md
                             color: Theme.colors.surface
+                            opacity: thumbDelegate._deleteOpacity
 
                             Image {
                                 id: thumbImage
@@ -831,7 +888,7 @@ Item {
                                 smooth: true
                                 sourceSize: Qt.size(root.thumbSize * 2, root.thumbSize * 2)
                                 visible: status === Image.Ready
-                                opacity: 1.0
+                                opacity: thumbDelegate._imageOpacity
                                 layer.enabled: true
                                 layer.samples: 4
                                 layer.effect: MultiEffect {
@@ -954,6 +1011,15 @@ Item {
                             hoverEnabled: true
                             cursorShape: (!root.messageMode || thumbDelegate.isSuccess) ? Qt.PointingHandCursor : Qt.ArrowCursor
                             acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            propagateComposedEvents: true
+                            onPressed: function(mouse) {
+                                var deleteBtnArea = Qt.rect(parent.width - 24, 4, 20, 20)
+                                var inDeleteBtn = mouse.x >= deleteBtnArea.x && mouse.x <= deleteBtnArea.x + deleteBtnArea.width &&
+                                                  mouse.y >= deleteBtnArea.y && mouse.y <= deleteBtnArea.y + deleteBtnArea.height
+                                if (inDeleteBtn && thumbDelegate.showDeleteBtn) {
+                                    mouse.accepted = false
+                                }
+                            }
                             onClicked: function(mouse) {
                                 if (mouse.button === Qt.RightButton) {
                                     var status = thumbDelegate.itemData ? thumbDelegate.itemData.status : 0
@@ -994,13 +1060,15 @@ Item {
                                 id: deleteBtnMouse
                                 anchors.fill: parent
                                 hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
+                                cursorShape: thumbDelegate._deleteInProgress ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                preventStealing: true
                                 onClicked: {
+                                    if (thumbDelegate._deleteInProgress) return
+                                    thumbDelegate._deleteInProgress = true
+                                    thumbDelegate._deleteOpacity = 0.3
+                                    gridDebounceTimer.start()
                                     var origIndex = thumbDelegate.itemData ? thumbDelegate.itemData.origIndex : thumbDelegate.index
                                     root.deleteFile(origIndex)
-                                    if (root.messageId !== "") {
-                                        root.fileRemoved(root.messageId, origIndex)
-                                    }
                                 }
                             }
                             Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
@@ -1031,13 +1099,15 @@ Item {
                                 id: deleteBtnForFailedMouse
                                 anchors.fill: parent
                                 hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
+                                cursorShape: thumbDelegate._deleteInProgress ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                preventStealing: true
                                 onClicked: {
+                                    if (thumbDelegate._deleteInProgress) return
+                                    thumbDelegate._deleteInProgress = true
+                                    thumbDelegate._deleteOpacity = 0.3
+                                    gridDebounceTimer.start()
                                     var origIndex = thumbDelegate.itemData ? thumbDelegate.itemData.origIndex : thumbDelegate.index
                                     root.deleteFile(origIndex)
-                                    if (root.messageId !== "") {
-                                        root.fileRemoved(root.messageId, origIndex)
-                                    }
                                 }
                             }
                             Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
@@ -1360,9 +1430,6 @@ Item {
                             var item = filteredModel.get(contextMenu.targetIndex)
                             var origIndex = item ? item.origIndex : contextMenu.targetIndex
                             root.deleteFile(origIndex)
-                            if (root.messageId !== "") {
-                                root.fileRemoved(root.messageId, origIndex)
-                            }
                         }
                     }
                 }
