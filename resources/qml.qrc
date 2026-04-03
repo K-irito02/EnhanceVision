@@ -65,6 +65,7 @@
         
         <!-- 工具脚本 -->
         <file>../qml/utils/Helpers.js</file>
+        <file>../qml/utils/ShortcutManager.qml</file>
     </qresource>
     
     <qresource prefix="/">

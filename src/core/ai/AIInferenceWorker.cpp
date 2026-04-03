@@ -34,14 +34,9 @@ AIInferenceWorker::AIInferenceWorker(QObject* parent)
 
 AIInferenceWorker::~AIInferenceWorker()
 {
-    // 确保取消任何进行中的任务
     forceCancel();
     
-    // 等待完成
     waitForCompletion(2000);
-    
-    // 清理资源
-    cleanupGpuResources();
     
     m_videoProcessor.reset();
     m_engine.reset();
@@ -90,12 +85,7 @@ void AIInferenceWorker::requestCancel(AICancelReason reason)
     
     m_cancelReason = reason;
     m_cancelRequested.store(true);
-    
-    // 通知引擎取消
-    if (m_engine) {
-        m_engine->cancelProcess();
-    }
-    
+
     if (m_videoProcessor) {
         m_videoProcessor->cancel();
     }
@@ -273,9 +263,6 @@ AITaskResult AIInferenceWorker::processImage(const AITaskRequest& request)
         return AITaskResult::makeCancelled(request.taskId);
     }
     
-    // 确保GPU准备好
-    ensureGpuReady();
-    
     // 设置模型参数
     if (m_engine) {
         m_engine->clearParameters();
@@ -374,9 +361,6 @@ AITaskResult AIInferenceWorker::processVideo(const AITaskRequest& request)
     if (checkCancellation()) {
         return AITaskResult::makeCancelled(request.taskId);
     }
-    
-    // 确保GPU准备好
-    ensureGpuReady();
     
     // 设置模型参数
     if (m_engine) {
@@ -487,19 +471,12 @@ bool AIInferenceWorker::ensureModelLoaded(const QString& modelId, QString& error
     return true;
 }
 
-void AIInferenceWorker::cleanupGpuResources()
+void AIInferenceWorker::cleanupResources()
 {
-    qInfo() << "[AIInferenceWorker] Cleaning up GPU resources";
+    qInfo() << "[AIInferenceWorker] Cleaning up resources";
     
     if (m_engine) {
-        m_engine->cleanupGpuMemory();
-    }
-}
-
-void AIInferenceWorker::ensureGpuReady()
-{
-    if (m_engine) {
-        m_engine->ensureVulkanReady();
+        m_engine->safeCleanup();
     }
 }
 
@@ -510,12 +487,8 @@ bool AIInferenceWorker::checkCancellation()
         setState(AITaskState::Cancelled);
         updateProgress(m_progress.load(), tr("已取消"));
         
-        // 清理资源
-        cleanupGpuResources();
+        cleanupResources();
         
-        // 【关键修复】不在此处 emit taskCompleted，由 startTask() 统一发射，
-        // 避免 processImage/processVideo 内部 checkCancellation 返回后
-        // startTask 再次 emit taskCompleted 导致双重发射
         return true;
     }
     return false;

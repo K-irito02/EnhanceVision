@@ -36,23 +36,6 @@ elseif(SCCACHE_PROGRAM)
     set(CMAKE_CXX_COMPILER_LAUNCHER "${SCCACHE_PROGRAM}")
 endif()
 
-# ========== Vulkan SDK 配置（必须在 find_package(Qt6) 之前）==========
-set(VULKAN_SDK "E:/Vulkan/VulkanSDK")
-set(Vulkan_INCLUDE_DIR "${VULKAN_SDK}/Include" CACHE PATH "Vulkan include directory")
-set(Vulkan_LIBRARY "${VULKAN_SDK}/Lib/vulkan-1.lib" CACHE FILEPATH "Vulkan library")
-set(Vulkan_FOUND TRUE CACHE BOOL "Vulkan found" FORCE)
-set(ENV{VULKAN_SDK} "${VULKAN_SDK}")
-
-# 创建 Vulkan::Vulkan 目标（如果不存在）
-if(NOT TARGET Vulkan::Vulkan)
-    add_library(Vulkan::Vulkan UNKNOWN IMPORTED GLOBAL)
-    set_target_properties(Vulkan::Vulkan PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${Vulkan_INCLUDE_DIR}"
-        IMPORTED_LOCATION "${Vulkan_LIBRARY}"
-    )
-    message(STATUS "Vulkan SDK found at: ${VULKAN_SDK}")
-endif()
-
 # Qt 模块
 find_package(Qt6 REQUIRED COMPONENTS
     Core
@@ -84,8 +67,22 @@ set(NCNN_BUILD_EXAMPLES OFF CACHE BOOL "Disable NCNN examples" FORCE)
 set(NCNN_BUILD_TOOLS OFF CACHE BOOL "Disable NCNN tools" FORCE)
 set(NCNN_PYTHON_API OFF CACHE BOOL "Disable NCNN Python API" FORCE)
 
-# 启用 NCNN Vulkan GPU 加速支持
-set(NCNN_VULKAN ON CACHE BOOL "Enable Vulkan GPU acceleration in NCNN" FORCE)
+# NCNN Vulkan GPU 加速（可选，默认启用）
+option(NCNN_USE_VULKAN "Enable NCNN Vulkan GPU acceleration" ON)
+if(NCNN_USE_VULKAN)
+    set(NCNN_VULKAN ON CACHE BOOL "" FORCE)
+    find_package(Vulkan QUIET)
+    if(Vulkan_FOUND)
+        message(STATUS "Vulkan SDK found: ${Vulkan_VERSION}")
+        add_definitions(-DNCNN_VULKAN_AVAILABLE=1)
+    else()
+        message(WARNING "Vulkan SDK not found, falling back to CPU only")
+        set(NCNN_VULKAN OFF CACHE BOOL "" FORCE)
+    endif()
+else()
+    set(NCNN_VULKAN OFF CACHE BOOL "" FORCE)
+    message(STATUS "Vulkan GPU acceleration disabled by user")
+endif()
 
 # OpenCV 配置
 set(OpenCV_DIR "${THIRD_PARTY_DIR}/opencv")
@@ -164,6 +161,12 @@ qt_add_executable(EnhanceVision
     src/core/ai/AITaskQueue.cpp
     src/core/ai/AIInferenceWorker.cpp
     src/core/ai/AIInferenceService.cpp
+    src/core/inference/NCNNCPUBackend.cpp
+    src/core/inference/NCNNVulkanBackend.cpp
+    src/core/inference/IInferenceBackend.cpp
+    src/core/inference/ImagePreprocessor.cpp
+    src/core/inference/ImagePostprocessor.cpp
+    src/core/inference/AutoParamCalculator.cpp
     src/models/SessionModel.cpp
     src/models/FileModel.cpp
     src/models/ProcessingModel.cpp
@@ -213,6 +216,8 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/core/ai/AITaskQueue.h
     include/EnhanceVision/core/ai/AIInferenceWorker.h
     include/EnhanceVision/core/ai/AIInferenceService.h
+    include/EnhanceVision/core/inference/NCNNCPUBackend.h
+    include/EnhanceVision/core/inference/NCNNVulkanBackend.h
     include/EnhanceVision/models/SessionModel.h
     include/EnhanceVision/models/FileModel.h
     include/EnhanceVision/models/ProcessingModel.h
@@ -326,6 +331,7 @@ qt_add_qml_module(EnhanceVision
         qml/styles/Colors.qml
         qml/styles/Typography.qml
         qml/utils/Helpers.js
+        qml/utils/ShortcutManager.qml
         qml/utils/NotificationManager.qml
     RESOURCES
         qml/styles/qmldir
@@ -435,6 +441,11 @@ target_link_libraries(EnhanceVision PRIVATE
     Qt6::Sql
     ncnn
 )
+
+# 条件性链接 Vulkan 库
+if(NCNN_USE_VULKAN AND Vulkan_FOUND)
+    target_link_libraries(EnhanceVision PRIVATE Vulkan::Vulkan)
+endif()
 
 # 链接 FFmpeg 库
 target_link_directories(EnhanceVision PRIVATE

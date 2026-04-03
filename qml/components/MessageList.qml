@@ -302,7 +302,7 @@ Item {
 
             onCancelClicked: {
                 if (typeof processingController !== "undefined")
-                    processingController.cancelTask(model.id)
+                    processingController.cancelMessageTasks(model.id)
             }
             onRetryClicked: {
                 root._handleRetry(model.id)

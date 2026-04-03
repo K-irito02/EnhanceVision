@@ -5,10 +5,11 @@ import QtQuick.Dialogs
 import "../styles"
 import "../components"
 import "../controls"
+import "../utils"
 
 /**
  * @brief 主页面组件
- * 
+ *
  * 主应用页面，三层布局（从上到下）：
  * (3) 已发送消息展示区 - 占满剩余空间
  * (2) 上传多媒体文件预览区 - 水平缩略图条
@@ -18,7 +19,7 @@ import "../controls"
 Rectangle {
     id: root
     color: Theme.colors.background
-    
+
     // ========== 属性定义 ==========
     property int processingMode: 0  // 0: Shader, 1: AI
     property bool hasFiles: typeof fileModel !== "undefined" ? fileModel.count > 0 : pendingFilesModel.count > 0
@@ -26,12 +27,31 @@ Rectangle {
     property string currentSessionId: typeof sessionController !== "undefined" ? sessionController.activeSessionId : ""
     // AI 放大倍数：由 App.qml 从 ControlPanel 透传，用于查看器窗口尺寸计算
     property int aiScaleFactor: 1
-    
+
     // 全局z-index计数器，供所有查看器共享
     property int globalZIndexCounter: 1100
-    
+
     // ========== 信号 ==========
     signal expandControlPanel()
+    signal newSessionRequested()
+
+    // ========== 快捷键管理器 ==========
+    ShortcutManager {
+        id: shortcutManager
+        currentPage: 0  // 主页面
+
+        onAddFilesRequested: {
+            if (fileDialog.visible) {
+                fileDialog.close()
+            } else {
+                fileDialog.open()
+            }
+        }
+
+        onNewSessionRequested: {
+            root.newSessionRequested()
+        }
+    }
     
     // ========== 会话切换监听 ==========
     Connections {
@@ -107,7 +127,8 @@ Rectangle {
             ColumnLayout {
                 anchors.centerIn: parent
                 spacing: 24
-                visible: !root.hasMessages && !root.hasFiles
+                // 当没有消息、没有文件且不在拖拽状态时显示
+                visible: !root.hasMessages && !root.hasFiles && !pageDropArea.containsDrag
                 
                 // 欢迎图标 - 使用自定义 Logo
                 Image {
@@ -594,7 +615,7 @@ Rectangle {
             } else {
                 var selectedModelId = _getShaderParam("aiSelectedModelId", "")
                 var selectedCategory = _getShaderParam("aiSelectedCategory", "")
-                var useGpu = _getShaderParam("aiUseGpu", true)
+                var useGpu = _getShaderParam("aiUseGpu", false)
                 var tileSize = _getShaderParam("aiTileSize", 0)
                 var modelParams = _getShaderParam("aiModelParams", {})
 

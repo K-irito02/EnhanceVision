@@ -1,6 +1,6 @@
 /**
  * @file AIEngine.cpp
- * @brief NCNN AI 推理引擎实现（纯 CPU 模式）
+ * @brief NCNN AI 推理引擎实现（ CPU/Vulkan 双模式）
  * @author EnhanceVision Team
  */
 
@@ -24,29 +24,92 @@
 #include <chrono>
 #include <functional>
 
+#ifdef NCNN_VULKAN_AVAILABLE
+#include <gpu.h>
+#endif
+
 namespace EnhanceVision {
 
 AIEngine::AIEngine(QObject *parent)
     : QObject(parent)
     , m_progressReporter(std::make_unique<ProgressReporter>(this))
 {
-    qInfo() << "[AIEngine] Initializing CPU-only inference engine";
-    
-    // 【关键修复】使用单线程推理，避免多线程导致的内存问题
-    m_opt.num_threads = 1;  // 单线程推理
-    m_opt.use_packing_layout = false;  // 禁用 packing 布局
+    qInfo() << "[AIEngine] Initializing AI engine (CPU/Vulkan dual-mode)";
+
+    // 默认 CPU 模式（安全稳定优先，参考 cpu-video-inference-crash-fix-notes）
+    m_backendType = BackendType::NCNN_CPU;
+    m_opt.num_threads = 1;
+    m_opt.use_packing_layout = false;
     m_opt.use_vulkan_compute = false;
-    m_opt.lightmode = false;  // 禁用轻量模式，确保完整的内存管理
-    m_opt.use_local_pool_allocator = false;  // 禁用本地池分配器
-    m_opt.use_sgemm_convolution = false;  // 禁用 SGEMM 卷积优化
-    m_opt.use_winograd_convolution = false;  // 禁用 Winograd 卷积优化
-    
-    qInfo() << "[AIEngine] CPU threads:" << m_opt.num_threads;
+    m_opt.lightmode = false;
+    m_opt.use_local_pool_allocator = false;
+    m_opt.use_sgemm_convolution = false;
+    m_opt.use_winograd_convolution = false;
+
+    qInfo() << "[AIEngine] Engine created, default mode: CPU (safe configuration)";
+
+    // 延迟到事件循环启动后探测 Vulkan 可用性，避免在构造函数中阻塞
+    QTimer::singleShot(0, this, &AIEngine::probeGpuAvailability);
 }
 
 AIEngine::~AIEngine()
 {
+    shutdownVulkan();
     unloadModel();
+}
+
+// ========== 启动时 GPU 探测 ==========
+
+void AIEngine::probeGpuAvailability()
+{
+#ifdef NCNN_VULKAN_AVAILABLE
+    try {
+        qInfo() << "[AIEngine] Probing Vulkan GPU availability at startup...";
+        int ret = ncnn::create_gpu_instance();
+        if (ret != 0) {
+            qInfo() << "[AIEngine] Vulkan GPU not available (create_gpu_instance failed, code:" << ret << ")";
+            m_gpuAvailable.store(false);
+            emit gpuDeviceInfoChanged();
+            return;
+        }
+
+        int deviceCount = ncnn::get_gpu_count();
+        if (deviceCount <= 0) {
+            qInfo() << "[AIEngine] No Vulkan GPU devices found";
+            ncnn::destroy_gpu_instance();
+            m_gpuAvailable.store(false);
+            emit gpuDeviceInfoChanged();
+            return;
+        }
+
+        const ncnn::GpuInfo& gpuInfo = ncnn::get_gpu_info(0);
+        m_gpuDeviceName = QString::fromUtf8(gpuInfo.device_name());
+        m_gpuDeviceId = 0;
+        m_gpuAvailable.store(true);
+
+        qInfo() << "[AIEngine] Vulkan GPU available at startup:"
+                << "device:" << m_gpuDeviceName
+                << "count:" << deviceCount;
+
+        // 探测完成后立即释放实例，实际使用时再初始化
+        // 这样避免长时间占用 GPU 资源，同时让 UI 能及时显示设备信息
+        ncnn::destroy_gpu_instance();
+
+        emit gpuDeviceInfoChanged();
+    } catch (const std::exception& e) {
+        qWarning() << "[AIEngine] Vulkan probe exception:" << e.what();
+        m_gpuAvailable.store(false);
+        emit gpuDeviceInfoChanged();
+    } catch (...) {
+        qWarning() << "[AIEngine] Vulkan probe unknown exception";
+        m_gpuAvailable.store(false);
+        emit gpuDeviceInfoChanged();
+    }
+#else
+    qInfo() << "[AIEngine] Vulkan support not compiled in (NCNN_VULKAN_AVAILABLE undefined)";
+    m_gpuAvailable.store(false);
+    emit gpuDeviceInfoChanged();
+#endif
 }
 
 // ========== 模型管理 ==========
@@ -101,6 +164,13 @@ bool AIEngine::loadModel(const QString &modelId)
     }
 
     m_net.opt = m_opt;
+
+#ifdef NCNN_VULKAN_AVAILABLE
+    if (m_backendType == BackendType::NCNN_Vulkan && m_gpuAvailable.load() && m_gpuDeviceId >= 0) {
+        m_net.set_vulkan_device(m_gpuDeviceId);
+        qInfo() << "[AIEngine] Model will use Vulkan GPU device:" << m_gpuDeviceId;
+    }
+#endif
 
     int ret = m_net.load_param(info.paramPath.toStdString().c_str());
     if (ret != 0) {
@@ -616,6 +686,161 @@ QVariantMap AIEngine::getEffectiveParams() const
     return getEffectiveParamsLocked(m_currentModel);
 }
 
+// ========== 后端类型管理（CPU / Vulkan GPU） ==========
+
+bool AIEngine::setBackendType(BackendType type)
+{
+    if (m_isProcessing.load()) {
+        qWarning() << "[AIEngine] Cannot switch backend during inference";
+        emit processError(tr("推理进行中，无法切换后端"));
+        return false;
+    }
+
+    if (type == m_backendType) {
+        qInfo() << "[AIEngine] Already on backend:" << static_cast<int>(type);
+        return true;
+    }
+
+#ifdef NCNN_VULKAN_AVAILABLE
+    if (type == BackendType::NCNN_Vulkan) {
+        if (!initializeVulkan()) {
+            qWarning() << "[AIEngine] Vulkan init failed, staying on CPU";
+            return false;
+        }
+        m_backendType = BackendType::NCNN_Vulkan;
+        applyBackendOptions(BackendType::NCNN_Vulkan);
+        qInfo() << "[AIEngine] Switched to Vulkan GPU backend";
+    } else {
+        shutdownVulkan();
+        m_backendType = BackendType::NCNN_CPU;
+        applyBackendOptions(BackendType::NCNN_CPU);
+        qInfo() << "[AIEngine] Switched to CPU backend";
+    }
+#else
+    if (type == BackendType::NCNN_Vulkan) {
+        qWarning() << "[AIEngine] Vulkan not available at compile time";
+        emit processError(tr("编译时未启用 Vulkan 支持"));
+        return false;
+    }
+#endif
+
+    emit backendTypeChanged(m_backendType);
+    return true;
+}
+
+bool AIEngine::initializeVulkan(int gpuDeviceId)
+{
+#ifdef NCNN_VULKAN_AVAILABLE
+    try {
+        if (m_vulkanInstanceCreated) {
+            qInfo() << "[AIEngine] Vulkan instance already created";
+        } else {
+            int ret = ncnn::create_gpu_instance();
+            if (ret != 0) {
+                emit processError(tr("创建 Vulkan 实例失败，错误码: %1").arg(ret));
+                return false;
+            }
+            m_vulkanInstanceCreated = true;
+        }
+
+        int deviceCount = ncnn::get_gpu_count();
+        if (deviceCount <= 0) {
+            emit processError(tr("未找到支持 Vulkan 的 GPU 设备"));
+            return false;
+        }
+
+        if (gpuDeviceId >= deviceCount) {
+            qWarning() << "[AIEngine] Requested GPU device" << gpuDeviceId
+                       << "not available, using device 0";
+            gpuDeviceId = 0;
+        }
+
+        const ncnn::GpuInfo& gpuInfo = ncnn::get_gpu_info(gpuDeviceId);
+        m_gpuDeviceId = gpuDeviceId;
+        m_gpuDeviceName = QString::fromUtf8(gpuInfo.device_name());
+        m_gpuAvailable.store(true);
+
+        qInfo() << "[AIEngine] Vulkan initialized successfully"
+                << "device:" << m_gpuDeviceName
+                << "id:" << m_gpuDeviceId
+                << "apiVersion:" << (gpuInfo.api_version() >> 22) << "."
+                << ((gpuInfo.api_version() >> 12) & 0x3ff) << "."
+                << (gpuInfo.api_version() & 0xfff);
+
+        emit gpuDeviceInfoChanged();
+        return true;
+    } catch (const std::exception& e) {
+        qWarning() << "[AIEngine] Vulkan init exception:" << e.what();
+        shutdownVulkan();
+        emit processError(tr("GPU 初始化失败: %1").arg(e.what()));
+        return false;
+    } catch (...) {
+        qWarning() << "[AIEngine] Vulkan init unknown exception";
+        shutdownVulkan();
+        emit processError(tr("GPU 初始化失败: 未知异常"));
+        return false;
+    }
+#else
+    Q_UNUSED(gpuDeviceId);
+    emit processError(tr("程序未编译 Vulkan 支持"));
+    return false;
+#endif
+}
+
+void AIEngine::shutdownVulkan()
+{
+#ifdef NCNN_VULKAN_AVAILABLE
+    try {
+        if (m_vulkanInstanceCreated) {
+            ncnn::destroy_gpu_instance();
+            m_vulkanInstanceCreated = false;
+        }
+    } catch (...) {
+        qWarning() << "[AIEngine] Exception during Vulkan shutdown";
+    }
+#endif
+    m_gpuAvailable.store(false);
+    m_gpuDeviceName.clear();
+    m_gpuDeviceId = -1;
+    qInfo() << "[AIEngine] Vulkan resources released";
+}
+
+bool AIEngine::isVulkanReady() const
+{
+#ifdef NCNN_VULKAN_AVAILABLE
+    return m_gpuAvailable.load() && m_vulkanInstanceCreated;
+#else
+    return false;
+#endif
+}
+
+bool AIEngine::applyBackendOptions(BackendType target_type)
+{
+    if (target_type == BackendType::NCNN_Vulkan) {
+        // Vulkan GPU 模式配置（性能优先）
+        m_opt.use_vulkan_compute = true;
+        m_opt.num_threads = 0;              // GPU 模式不需要 CPU 多线程
+        m_opt.lightmode = true;             // GPU 上可以启用轻量模式
+        m_opt.use_packing_layout = true;     // GPU 支持打包布局
+        m_opt.use_local_pool_allocator = true;
+        // 以下选项保持关闭以确保稳定性
+        m_opt.use_sgemm_convolution = false;
+        m_opt.use_winograd_convolution = false;
+    } else {
+        // CPU 模式配置（安全稳定优先，参考 crash-fix-notes）
+        m_opt.use_vulkan_compute = false;
+        m_opt.num_threads = 1;              // 单线程推理
+        m_opt.lightmode = false;
+        m_opt.use_packing_layout = false;
+        m_opt.use_local_pool_allocator = false;
+        m_opt.use_sgemm_convolution = false;
+        m_opt.use_winograd_convolution = false;
+    }
+
+    m_net.opt = m_opt;
+    return true;
+}
+
 // ========== 状态查询 ==========
 
 bool AIEngine::isProcessing() const { return m_isProcessing; }
@@ -930,12 +1155,12 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
 // 【新增】清理 NCNN 内部缓存，用于视频处理时定期调用
 void AIEngine::clearInferenceCache()
 {
-    // CPU 模式下，NCNN 不需要特殊的缓存清理
-    // 但我们可以通过短暂的同步来确保内存状态一致
-    // 这个函数主要用于在视频处理循环中提供一个同步点
-    
-    // 注意：不需要加锁，因为这个函数只在推理完成后调用
-    // 实际的内存清理由 NCNN 内部管理
+#ifdef NCNN_VULKAN_AVAILABLE
+    if (m_backendType == BackendType::NCNN_Vulkan && m_vulkanInstanceCreated) {
+        // NCNN Vulkan 缓存由内部管理，此处确保同步点
+        qInfo() << "[AIEngine] GPU cache sync point";
+    }
+#endif
 }
 
 QImage AIEngine::processSingle(const QImage &input, const ModelInfo &model)

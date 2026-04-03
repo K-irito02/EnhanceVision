@@ -162,14 +162,47 @@ SizeAdaptationResult VideoSizeAdapter::analyze(const QSize& videoSize) const
 QImage VideoSizeAdapter::adaptFrame(const QImage& frame, 
                                      const SizeAdaptationResult& adaptation) const
 {
+    qInfo() << "[VideoSizeAdapter][DEBUG] adaptFrame() called:"
+            << "frameSize:" << frame.width() << "x" << frame.height()
+            << "frameFormat:" << frame.format()
+            << "frameIsNull:" << frame.isNull()
+            << "frameBits:" << (frame.bits() != nullptr ? "valid" : "null")
+            << "frameBytesPerLine:" << frame.bytesPerLine()
+            << "compatibility:" << static_cast<int>(adaptation.compatibility);
+    fflush(stdout);
+    
     if (frame.isNull()) {
         qWarning() << "[VideoSizeAdapter] adaptFrame: input frame is null";
         return QImage();
     }
     
-    if (adaptation.compatibility == SizeCompatibility::FullyCompatible ||
-        adaptation.compatibility == SizeCompatibility::NeedsTiling) {
-        return frame.copy();
+    // 【安全验证】检查 frame 数据有效性
+    if (!frame.bits()) {
+        qWarning() << "[VideoSizeAdapter] adaptFrame: frame bits is null";
+        return QImage();
+    }
+    
+    // 【安全验证】检查 frame 尺寸
+    if (frame.width() <= 0 || frame.height() <= 0) {
+        qWarning() << "[VideoSizeAdapter] adaptFrame: invalid frame size"
+                   << frame.width() << "x" << frame.height();
+        return QImage();
+    }
+    
+    if (adaptation.compatibility == SizeCompatibility::FullyCompatible) {
+        // 【关键修复】对于 FullyCompatible,直接返回传入的帧,避免任何内存操作
+        // 这样可以避免在堆损坏时触发崩溃
+        qInfo() << "[VideoSizeAdapter][DEBUG] adaptFrame: FullyCompatible, returning frame directly (no copy)";
+        fflush(stdout);
+        return frame;
+    }
+    
+    if (adaptation.compatibility == SizeCompatibility::NeedsTiling) {
+        // 【关键修复】对于 NeedsTiling,也直接返回传入的帧
+        // 分块处理会在 AIEngine 中进行,这里不需要复制
+        qInfo() << "[VideoSizeAdapter][DEBUG] adaptFrame: NeedsTiling, returning frame directly (no copy)";
+        fflush(stdout);
+        return frame;
     }
     
     const QSize& targetSize = adaptation.adaptedSize;
@@ -182,6 +215,9 @@ QImage VideoSizeAdapter::adaptFrame(const QImage& frame,
     
     switch (adaptation.compatibility) {
     case SizeCompatibility::NeedsPadding: {
+        qInfo() << "[VideoSizeAdapter][DEBUG] adaptFrame: NeedsPadding case";
+        fflush(stdout);
+        
         adapted = QImage(targetSize, frame.format());
         if (adapted.isNull()) {
             qWarning() << "[VideoSizeAdapter] adaptFrame: failed to create padded image";
@@ -202,6 +238,9 @@ QImage VideoSizeAdapter::adaptFrame(const QImage& frame,
     }
     
     case SizeCompatibility::NeedsDownscale: {
+        qInfo() << "[VideoSizeAdapter][DEBUG] adaptFrame: NeedsDownscale case";
+        fflush(stdout);
+        
         adapted = frame.scaled(targetSize, Qt::KeepAspectRatio, 
                                Qt::SmoothTransformation);
         if (adapted.isNull()) {
@@ -212,9 +251,17 @@ QImage VideoSizeAdapter::adaptFrame(const QImage& frame,
     }
     
     default:
+        qInfo() << "[VideoSizeAdapter][DEBUG] adaptFrame: default case";
+        fflush(stdout);
+        
         adapted = frame.copy();
         break;
     }
+    
+    qInfo() << "[VideoSizeAdapter][DEBUG] adaptFrame: returning adapted image"
+                << "size:" << adapted.width() << "x" << adapted.height()
+                << "format:" << adapted.format();
+    fflush(stdout);
     
     return adapted;
 }

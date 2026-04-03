@@ -105,9 +105,6 @@ void ProcessingEngine::cancelTask(const QString& taskId)
             if (m_videoProcessor->isProcessing() && m_currentTaskId == taskId) {
                 m_videoProcessor->cancel();
             }
-            if (m_aiEngine->isProcessing() && m_currentTaskId == taskId) {
-                m_aiEngine->cancelProcess();
-            }
 
             QueueTask task = m_processingTasks[i].first;
             task.status = ProcessingStatus::Cancelled;

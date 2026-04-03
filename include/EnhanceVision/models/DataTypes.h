@@ -101,7 +101,8 @@ struct ModelInfo {
 struct AIParams {
     QString modelId;           ///< 选择的模型 ID
     ModelCategory category;    ///< 模型类别
-    bool useGpu = true;        ///< 是否使用 GPU
+    bool useGpu = false;       ///< 是否使用 GPU（向后兼容）
+    QString backendType = "NCNN_CPU";  ///< 精确后端类型 ("NCNN_CPU" / "NCNN_Vulkan")
     int tileSize = 0;          ///< 自定义分块大小（0=自动）
     bool autoTileSize = true;  ///< 分块大小是否为自动模式（true=根据图像尺寸自动计算，false=使用 tileSize）
     QVariantMap modelParams;   ///< 模型特定参数（如去噪等级等）

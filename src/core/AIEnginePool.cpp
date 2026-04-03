@@ -7,6 +7,7 @@
 #include "EnhanceVision/core/AIEnginePool.h"
 #include "EnhanceVision/core/AIEngine.h"
 #include "EnhanceVision/core/ModelRegistry.h"
+#include "EnhanceVision/core/inference/InferenceTypes.h"
 #include <QDebug>
 #include <QThread>
 #include <QElapsedTimer>
@@ -71,6 +72,57 @@ AIEngine* AIEnginePool::acquire(const QString& taskId)
     return nullptr;
 }
 
+AIEngine* AIEnginePool::acquireWithBackend(const QString& taskId, BackendType backendType)
+{
+    QMutexLocker locker(&m_mutex);
+
+    if (m_taskToSlot.contains(taskId)) {
+        int idx = m_taskToSlot[taskId];
+        return m_slots[idx].engine;
+    }
+
+    for (int i = 0; i < m_slots.size(); ++i) {
+        if (m_slots[i].state == EngineState::Ready ||
+            m_slots[i].state == EngineState::Uninitialized) {
+
+            if (!ensureEngineReady(i)) {
+                qWarning() << "[AIEnginePool] Engine slot" << i << "not ready, skipping";
+                continue;
+            }
+
+            AIEngine* engine = m_slots[i].engine;
+            if (engine->isProcessing()) {
+                qWarning() << "[AIEnginePool] Engine slot" << i << "still processing, skipping";
+                continue;
+            }
+
+            engine->resetState();
+
+            if (!engine->setBackendType(backendType)) {
+                qWarning() << "[AIEnginePool] Failed to set backend type for slot" << i
+                           << ", requested:" << static_cast<int>(backendType);
+                continue;
+            }
+
+            m_slots[i].state = EngineState::InUse;
+            m_slots[i].taskId = taskId;
+            m_slots[i].backendType = backendType;
+            m_taskToSlot[taskId] = i;
+
+            qInfo() << "[AIEnginePool] Engine acquired for task:" << taskId
+                    << ", slot index:" << i
+                    << ", backend:" << static_cast<int>(backendType);
+
+            emit engineAcquired(taskId, i);
+            return engine;
+        }
+    }
+
+    qWarning() << "[AIEnginePool] pool exhausted, no available engine for task:" << taskId;
+    emit poolExhausted();
+    return nullptr;
+}
+
 bool AIEnginePool::ensureEngineReady(int slotIndex)
 {
     if (slotIndex < 0 || slotIndex >= m_slots.size()) {
@@ -114,6 +166,7 @@ void AIEnginePool::release(const QString& taskId)
         
         m_slots[idx].state = EngineState::Ready;
         m_slots[idx].taskId.clear();
+        m_slots[idx].backendType = BackendType::NCNN_CPU;
         m_slots[idx].wasUsed = true;
 
         qInfo() << "[AIEnginePool] Task released:" << taskId << ", slot index:" << idx;

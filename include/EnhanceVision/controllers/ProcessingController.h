@@ -239,9 +239,28 @@ private:
     std::unique_ptr<ProgressManager> m_progressManager;
     QHash<QString, QString> m_taskToProgressId;
     QHash<QString, ProgressReporter*> m_taskProgressReporters;
+
+    QSet<QString> m_cleaningUpTaskIds;
+    QMap<QString, QTimer*> m_orphanTimers;
+    QSet<QString> m_pendingCancelKeys;
+    
+    QSet<QString> m_cancellingTaskIds;  ///< 正在取消的任务ID（防止并发取消）
+    mutable QMutex m_cancelMutex;  ///< 取消操作的互斥锁
+
+    enum class TaskLifecycle {
+        Active,
+        Canceling,
+        Draining,
+        Cleaning,
+        Dead
+    };
+    QHash<QString, TaskLifecycle> m_taskLifecycle;
+    QHash<QString, QSharedPointer<AIVideoProcessor>> m_dyingProcessors;
+    QHash<QString, QSharedPointer<VideoProcessor>> m_dyingVideoProcessors;
     
 
     QString generateTaskId();
+    void releaseTaskResources(const QString& taskId);
     void launchAiInference(AIEngine* engine, const QString& taskId, const QString& inputPath, 
                            const QString& outputPath, const Message& message);
     void launchAIVideoProcessor(AIEngine* engine, const QString& taskId,
@@ -280,7 +299,9 @@ private:
     void finalizeTask(const QString& taskId, const QString& sessionId, const QString& messageId);
     void gracefulCancel(const QString& taskId, int timeoutMs = 5000);
     void handleOrphanedTask(const QString& taskId);
+    void handleOrphanedVideoTask(const QString& taskId);
     void cleanupTask(const QString& taskId);
+    void terminateTask(const QString& taskId, const QString& reason = QString());
     void connectAiEngineForTask(AIEngine* engine, const QString& taskId);
     void disconnectAiEngineForTask(const QString& taskId);
     
@@ -301,6 +322,14 @@ private:
         int cancelledProcessing = 0;
     };
     CancelResult cancelAndRemoveTask(int index, CancelMode mode);
+    void processDeletionBatch(const QString& messageId);
+
+    struct DeletionBatchItem {
+        QString fileId;
+        int origIndex = -1;
+    };
+    QHash<QString, QList<DeletionBatchItem>> m_deletionBatches;
+    QTimer* m_batchProcessTimer = nullptr;
 };
 
 } // namespace EnhanceVision

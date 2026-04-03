@@ -279,6 +279,11 @@ void ThumbnailProvider::generateThumbnailAsync(const QString &filePath, const QS
 {
     const QString key = normalizeKey(id);
 
+    if (filePath.isEmpty()) {
+        qWarning() << "[ThumbnailProvider] generateThumbnailAsync called with empty filePath for id:" << id;
+        return;
+    }
+
     {
         QMutexLocker locker(&m_mutex);
         if (m_thumbnails.contains(key) || m_pendingRequests.contains(key)) {
@@ -549,7 +554,13 @@ bool ThumbnailProvider::saveThumbnailToDisk(const QString& cacheKey, const QImag
 
     ThumbnailMeta meta;
     meta.cacheKey = cacheKey;
-    meta.filePath = m_idToPath.value(cacheKey);
+    
+    if (m_idToPath.contains(cacheKey)) {
+        meta.filePath = m_idToPath.value(cacheKey);
+    } else {
+        meta.filePath = cacheKey;
+    }
+    
     meta.diskPath = diskPath;
     meta.width = image.width();
     meta.height = image.height();

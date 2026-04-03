@@ -19,7 +19,7 @@ ColumnLayout {
 
     // ── 外部绑定属性
     property string modelId: ""
-    property bool useGpu: true
+    property bool useGpu: false
     property int tileSize: 0
     property var modelParams: ({})
     property var registry: processingController ? processingController.modelRegistry : null
@@ -34,13 +34,12 @@ ColumnLayout {
     spacing: 8
 
     // ── 内部状态
-    property var  currentModelInfo:    null
+    property var  currentModelInfo: (registry && modelId !== "") ? registry.getModelInfoMap(modelId) : null
     property bool _isModelSwitching:   false
     property var  _pendingParams:      ({})
     property bool autoTileMode: true
     property int  computedAutoTileSize: 0
     property var  _autoParams: ({})
-    property int _modelLoadRetryCount: 0
     property int _paramsModelVersion: 0
     
     // ── 延迟处理定时器
@@ -50,19 +49,6 @@ ColumnLayout {
         onTriggered: _recomputeAutoParams()
     }
 
-    Timer {
-        id: _modelLoadRetryTimer
-        interval: 200
-        onTriggered: {
-            if (_modelLoadRetryCount < 5) {
-                _modelLoadRetryCount++
-                _updateModelInfo()
-            } else {
-                _modelLoadRetryCount = 0
-            }
-        }
-    }
-
     // ── 自动优化就绪状态
     readonly property bool _autoReady: {
         return currentMediaSize.width > 0
@@ -70,32 +56,18 @@ ColumnLayout {
             && Object.keys(_autoParams).length > 0
     }
 
-    onRegistryChanged: {
-        if (registry && modelId !== "") {
-            _updateModelInfo()
-        }
-    }
-    onModelIdChanged:  _updateModelInfo()
-
-    function _updateModelInfo() {
-        if (registry && modelId !== "") {
+    onCurrentModelInfoChanged: function(info) {
+        if (info) {
             _isModelSwitching = true
-            currentModelInfo  = registry.getModelInfoMap(modelId)
             autoTileMode      = true
             tileSize          = 0
             computedAutoTileSize = 0
             _autoParams       = {}
             _pendingParams    = {}
             modelParams       = {}
-            _modelLoadRetryCount = 0
             _paramsModelVersion++
-
             _recomputeAutoParamsTimer.restart()
             _isModelSwitching = false
-        } else if (modelId !== "" && !registry) {
-            _modelLoadRetryTimer.restart()
-        } else {
-            currentModelInfo = null
         }
     }
 
@@ -276,39 +248,276 @@ ColumnLayout {
 
     Divider { visible: currentModelInfo !== null }
 
-    // ===== GPU 加速开关 =====
-    RowLayout {
-        Layout.fillWidth: true; spacing: 8; visible: engine !== null
+    // ===== 推理设备选择（CPU / Vulkan GPU） =====
+    ColumnLayout {
+        id: _deviceSection
+        Layout.fillWidth: true; spacing: 10; visible: engine !== null
 
-        ColoredIcon {
-            source: Theme.icon("zap"); iconSize: 14
-            color: (root.useGpu && engine && engine.gpuAvailable) ? Theme.colors.primary : Theme.colors.mutedForeground
+        readonly property bool _gpuReady: engine ? engine.gpuAvailable : false
+        readonly property string _gpuName: engine ? engine.gpuDeviceName : ""
+
+        // ── 标题行 ──
+        RowLayout {
+            Layout.fillWidth: true; spacing: 8
+            ColoredIcon {
+                source: Theme.icon("zap"); iconSize: 14
+                color: root.useGpu && _deviceSection._gpuReady ? Theme.colors.primary : Theme.colors.mutedForeground
+            }
+            Text { text: qsTr("推理设备"); color: Theme.colors.foreground; font.pixelSize: 12; font.weight: Font.Medium }
+            Item { Layout.fillWidth: true }
+            Text {
+                id: _statusText
+                text: root.useGpu && _deviceSection._gpuReady
+                      ? qsTr("GPU 模式")
+                      : qsTr("CPU 模式")
+                color: Theme.colors.primary
+                font.pixelSize: 10; font.weight: Font.Medium
+            }
         }
 
-        Text { text: qsTr("推理模式"); color: Theme.colors.foreground; font.pixelSize: 12; Layout.fillWidth: true }
+        // ── 卡片容器（固定高度确保中英文切换时一致） ──
+        RowLayout {
+            Layout.fillWidth: true; spacing: 10
 
-        Badge {
-            text: qsTr("CPU 模式")
-            color: Theme.colors.mutedForeground
+            // ── CPU 卡片 ──
+            Rectangle {
+                id: _cpuCard
+                Layout.fillWidth: true
+                height: 72
+                radius: Theme.radius.md
+                color: !root.useGpu ? Theme.colors.primarySubtle : Theme.colors.card
+                border.width: !root.useGpu ? 2 : 1
+                border.color: !root.useGpu ? Theme.colors.primary : Theme.colors.border
+                clip: true
+                Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
+                Behavior on border.color { ColorAnimation { duration: Theme.animation.fast } }
+
+                RowLayout {
+                    anchors { fill: parent; margins: 10 }
+                    spacing: 8
+
+                    Rectangle {
+                        width: 24; height: 24; radius: Theme.radius.sm
+                        color: !root.useGpu ? Theme.colors.primary : Theme.colors.muted
+                        ColoredIcon {
+                            anchors.centerIn: parent
+                            source: Theme.icon("cpu"); iconSize: 12
+                            color: !root.useGpu ? Theme.colors.textOnPrimary : Theme.colors.mutedForeground
+                        }
+                    }
+
+                    ColumnLayout {
+                        spacing: 2
+                        Text {
+                            text: qsTr("CPU 推理")
+                            color: Theme.colors.foreground
+                            font.pixelSize: 11; font.weight: Font.DemiBold
+                        }
+                        Text {
+                            text: qsTr("稳定通用，速度较慢")
+                            color: Theme.colors.mutedForeground
+                            font.pixelSize: 9
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+                }
+
+                MouseArea {
+                    id: _cpuMouseArea
+                    anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                    onClicked: { if (root.useGpu) { root.useGpu = false; _onBackendChanged(); } }
+                    hoverEnabled: true
+                    onEntered: if (root.useGpu) _cpuCard.opacity = 0.85
+                    onExited: _cpuCard.opacity = 1.0
+                }
+                Behavior on opacity { NumberAnimation { duration: Theme.animation.fast } }
+
+                Tooltip {
+                    id: _cpuTooltip
+                    text: {
+                        var isEn = (Theme.language === "en_US")
+                        return isEn
+                            ? "CPU Inference: Uses processor for AI computation.\nPros: Compatible with all hardware, stable, controllable memory.\nCons: Slower processing, longer time for large images and videos."
+                            : "CPU 推理模式：使用处理器进行 AI 计算。\n优点：兼容所有硬件，稳定性高，内存占用可控。\n缺点：处理速度较慢，大图和视频耗时较长。"
+                    }
+                }
+
+                Timer {
+                    id: _cpuTooltipTimer
+                    interval: Theme.tooltip.delay
+                    repeat: false
+                    onTriggered: {
+                        if (_cpuMouseArea.containsMouse) {
+                            _cpuTooltip.show(_cpuCard)
+                        }
+                    }
+                }
+
+                Connections {
+                    target: _cpuMouseArea
+                    function onContainsMouseChanged() {
+                        if (_cpuMouseArea.containsMouse) {
+                            _cpuTooltipTimer.start()
+                        } else {
+                            _cpuTooltipTimer.stop()
+                            _cpuTooltip.close()
+                        }
+                    }
+                }
+            }
+
+            // ── GPU 卡片 ──
+            Rectangle {
+                id: _gpuCard
+                Layout.fillWidth: true
+                height: 72
+                radius: Theme.radius.md
+                enabled: _deviceSection._gpuReady
+                color: {
+                    if (!enabled) return Theme.colors.muted
+                    return root.useGpu ? Theme.colors.primarySubtle : Theme.colors.card
+                }
+                border.width: root.useGpu && enabled ? 2 : 1
+                border.color: {
+                    if (!enabled) return Theme.colors.border
+                    return root.useGpu ? Theme.colors.primary : Theme.colors.border
+                }
+                opacity: enabled ? 1.0 : 0.55
+                clip: true
+                Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
+                Behavior on border.color { ColorAnimation { duration: Theme.animation.fast } }
+                Behavior on opacity { NumberAnimation { duration: Theme.animation.fast } }
+
+                RowLayout {
+                    anchors { fill: parent; margins: 10 }
+                    spacing: 8
+
+                    Rectangle {
+                        width: 24; height: 24; radius: Theme.radius.sm
+                        color: root.useGpu && _deviceSection._gpuReady ? Theme.colors.primary : (_deviceSection._gpuReady ? Theme.colors.muted : Theme.colors.border)
+                        ColoredIcon {
+                            anchors.centerIn: parent
+                            source: Theme.icon("zap"); iconSize: 12
+                            color: root.useGpu && _deviceSection._gpuReady
+                                  ? Theme.colors.textOnPrimary
+                                  : (_deviceSection._gpuReady ? Theme.colors.mutedForeground : Theme.colors.border)
+                        }
+                    }
+
+                    ColumnLayout {
+                        spacing: 2
+                        Text {
+                            text: qsTr("GPU 推理")
+                            color: _deviceSection._gpuReady ? Theme.colors.foreground : Theme.colors.mutedForeground
+                            font.pixelSize: 11; font.weight: Font.DemiBold
+                        }
+                        Text {
+                            id: _gpuNameText
+                            text: _deviceSection._gpuReady
+                                  ? _deviceSection._gpuName
+                                  : qsTr("不可用")
+                            color: _deviceSection._gpuReady ? Theme.colors.success : Theme.colors.warning
+                            font.pixelSize: 9
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                            MouseArea {
+                                id: _gpuNameHint
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                acceptedButtons: Qt.NoButton
+                            }
+
+                            Tooltip {
+                                id: _gpuNameTooltip
+                                text: _deviceSection._gpuName
+                            }
+
+                            Timer {
+                                id: _gpuNameTooltipTimer
+                                interval: 500
+                                repeat: false
+                                onTriggered: {
+                                    if (_gpuNameHint.containsMouse && _deviceSection._gpuReady) {
+                                        _gpuNameTooltip.show(_gpuNameText)
+                                    }
+                                }
+                            }
+
+                            Connections {
+                                target: _gpuNameHint
+                                function onContainsMouseChanged() {
+                                    if (_gpuNameHint.containsMouse && _deviceSection._gpuReady) {
+                                        _gpuNameTooltipTimer.start()
+                                    } else {
+                                        _gpuNameTooltipTimer.stop()
+                                        _gpuNameTooltip.close()
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+                }
+
+                MouseArea {
+                    id: _gpuCardMouseArea
+                    anchors.fill: parent
+                    cursorShape: _deviceSection._gpuReady ? Qt.PointingHandCursor : Qt.ForbiddenCursor
+                    enabled: _deviceSection._gpuReady
+                    onClicked: { if (!root.useGpu && _deviceSection._gpuReady) { root.useGpu = true; _onBackendChanged(); } }
+                    hoverEnabled: true
+                    onEntered: if (_deviceSection._gpuReady && !root.useGpu) _gpuCard.opacity = 0.9
+                    onExited: if (_deviceSection._gpuReady) _gpuCard.opacity = 1.0
+                }
+
+                Tooltip {
+                    id: _gpuTooltip
+                    text: {
+                        var isEn = (Theme.language === "en_US")
+                        return isEn
+                            ? "GPU Inference: Uses GPU for AI acceleration.\nPros: Fast processing, ideal for large images and videos.\nCons: High VRAM usage, incompatible with some devices."
+                            : "GPU 推理模式：使用显卡进行 AI 加速。\n优点：处理速度快，适合大图和视频处理。\n缺点：显存占用高，部分设备不兼容。"
+                    }
+                }
+
+                Timer {
+                    id: _gpuTooltipTimer
+                    interval: Theme.tooltip.delay
+                    repeat: false
+                    onTriggered: {
+                        if (_gpuCardMouseArea.containsMouse && _deviceSection._gpuReady) {
+                            _gpuTooltip.show(_gpuCard)
+                        }
+                    }
+                }
+
+                Connections {
+                    target: _gpuCardMouseArea
+                    function onContainsMouseChanged() {
+                        if (_gpuCardMouseArea.containsMouse && _deviceSection._gpuReady) {
+                            _gpuTooltipTimer.start()
+                        } else {
+                            _gpuTooltipTimer.stop()
+                            _gpuTooltip.close()
+                        }
+                    }
+                }
+            }
         }
     }
 
-    InfoBanner {
-        Layout.fillWidth: true
-        text: qsTr("当前使用 CPU 模式运行。")
-        isWarning: false
+    function _onBackendChanged() {
+        root.paramsChanged()
     }
 
     Connections {
         target: engine
         function onAutoParamsComputed(autoTileSize) { root.computedAutoTileSize = autoTileSize }
-        function onAllAutoParamsComputed(autoParams) {
-            root._autoParams = autoParams
-            if (autoParams["tileSize"] !== undefined) root.computedAutoTileSize = autoParams["tileSize"]
-        }
     }
-
-    Component.onCompleted: { root.useGpu = false }
 
     // ===== 分块大小（自动/手动双模式）=====
     ColumnLayout {
@@ -561,13 +770,18 @@ ColumnLayout {
     Connections {
         target: SettingsController
         function onLanguageChanged() {
-            if (registry && modelId !== "") currentModelInfo = registry.getModelInfoMap(modelId)
             _paramsRepeater.model = _paramsRepeater.model
+            _cpuTooltip.close()
+            _gpuTooltip.close()
         }
     }
     Connections {
         target: Theme
-        function onLanguageChanged() { _paramsRepeater.model = _paramsRepeater.model }
+        function onLanguageChanged() {
+            _paramsRepeater.model = _paramsRepeater.model
+            _cpuTooltip.close()
+            _gpuTooltip.close()
+        }
     }
 
     // ===== 内部辅助组件 =====

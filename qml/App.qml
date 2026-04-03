@@ -62,12 +62,6 @@ FocusScope {
         visible: false
     }
 
-    TapHandler {
-        onTapped: function(eventPoint, button) {
-            focusCatcher.forceActiveFocus()
-        }
-    }
-
     Connections {
         target: WindowHelper
         function onResizeStarted() {
@@ -176,6 +170,12 @@ FocusScope {
                     onProcessingModeChanged: root.processingMode = processingMode
                     onExpandControlPanel: {
                         root.controlPanelCollapsed = false
+                    }
+                    onNewSessionRequested: {
+                        if (sessionController) {
+                            var newId = sessionController.createSession()
+                            sessionController.switchSession(newId)
+                        }
                     }
                 }
 
@@ -302,5 +302,37 @@ FocusScope {
     OffscreenShaderRenderer {
         id: offscreenRenderer
         z: -1
+    }
+
+    property bool _inputHasFocus: false
+
+    function _isInputItem(item) {
+        if (!item) return false
+        var typeName = item.toString()
+        return typeName.indexOf("TextInput") >= 0 ||
+               typeName.indexOf("TextField") >= 0 ||
+               typeName.indexOf("TextEdit") >= 0
+    }
+
+    MouseArea {
+        id: focusOverlay
+        anchors.fill: parent
+        z: 9998
+        acceptedButtons: Qt.LeftButton
+        onPressed: function(mouse) {
+            var focusObject = Window.window ? Window.window.activeFocusItem : null
+            if (root._isInputItem(focusObject)) {
+                root.clearAllFocus()
+                mouse.accepted = true
+            } else {
+                mouse.accepted = false
+            }
+        }
+    }
+
+    TapHandler {
+        onTapped: function(eventPoint, button) {
+            root.clearAllFocus()
+        }
     }
 }

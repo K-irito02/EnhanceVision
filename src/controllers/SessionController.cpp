@@ -983,7 +983,7 @@ Message SessionController::jsonToMessage(const QJsonObject& json) const
         QJsonObject aiParamsJson = json["aiParams"].toObject();
         message.aiParams.modelId = aiParamsJson["modelId"].toString();
         message.aiParams.category = static_cast<ModelCategory>(aiParamsJson["category"].toInt(0));
-        message.aiParams.useGpu = aiParamsJson["useGpu"].toBool(true);
+        message.aiParams.useGpu = aiParamsJson["useGpu"].toBool(false);
         message.aiParams.tileSize = aiParamsJson["tileSize"].toInt(0);
         message.aiParams.modelParams = aiParamsJson["modelParams"].toObject().toVariantMap();
     }

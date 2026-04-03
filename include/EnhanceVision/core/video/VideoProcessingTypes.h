@@ -53,7 +53,7 @@ struct VideoMetadata {
 struct VideoProcessingConfig {
     int tileSize = 0;
     double outscale = 1.0;
-    bool useGpu = true;
+    bool useGpu = false;
     int maxConcurrentFrames = 2;
     int gpuCleanupInterval = 10;
     QString outputCodec = "h264";

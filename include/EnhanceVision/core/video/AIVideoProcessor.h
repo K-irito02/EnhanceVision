@@ -46,6 +46,7 @@ signals:
     void processingChanged(bool processing);
     void completed(bool success, const QString& resultPath, const QString& error);
     void warning(const QString& message);
+    void cancelled();
     
 private:
     void processInternal(const QString& inputPath, const QString& outputPath);

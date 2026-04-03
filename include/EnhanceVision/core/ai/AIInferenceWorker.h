@@ -143,9 +143,8 @@ private:
     // 模型加载
     bool ensureModelLoaded(const QString& modelId, QString& errorOut);
     
-    // GPU资源管理
-    void cleanupGpuResources();
-    void ensureGpuReady();
+    // 资源清理
+    void cleanupResources();
     
     // 检查取消点
     bool checkCancellation();

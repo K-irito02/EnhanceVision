@@ -94,9 +94,6 @@ Rectangle {
         onClicked: {
             root.isAnyEditing = false
         }
-        onWheel: function(wheel) {
-            wheel.accepted = false
-        }
     }
 
     // 左侧分隔线
@@ -295,7 +292,6 @@ Rectangle {
                 ColumnLayout {
                     id: aiContentLayout
                     Layout.fillWidth: true
-                    Layout.fillHeight: true
                     spacing: 10
 
                     Components.AIModelPanel {
@@ -324,6 +320,7 @@ Rectangle {
                     ScrollView {
                         id: aiParamsScrollView
                         Layout.fillWidth: true
+                        Layout.preferredHeight: 380
                         Layout.minimumHeight: 200
                         clip: true
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff

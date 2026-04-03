@@ -115,9 +115,21 @@ ColumnLayout {
             width: 44
             height: 22
             radius: 5
-            color: inputField.activeFocus ? Qt.rgba(0.12, 0.34, 0.82, 0.08) : Theme.colors.inputBackground
+            color: inputField.activeFocus ? Qt.rgba(0.6, 0.8, 1.0, 0.12) : Theme.colors.inputBackground
             border.width: 1
             border.color: inputField.activeFocus ? Theme.colors.primary : Theme.colors.border
+
+            MouseArea {
+                anchors.fill: parent
+                onPressed: function(mouse) {
+                    if (!inputField.activeFocus) {
+                        inputField.forceActiveFocus()
+                        mouse.accepted = true
+                    } else {
+                        mouse.accepted = false
+                    }
+                }
+            }
 
             TextInput {
                 id: inputField
@@ -130,6 +142,8 @@ ColumnLayout {
                 font.family: "Consolas"
                 color: Theme.colors.foreground
                 selectByMouse: true
+                selectedTextColor: Theme.colors.foreground
+                selectionColor: Qt.rgba(0.6, 0.8, 1.0, 0.3)
 
                 text: slider.value.toFixed(root.decimals)
 
@@ -164,6 +178,11 @@ ColumnLayout {
                 Keys.onEscapePressed: {
                     text = slider.value.toFixed(root.decimals)
                     focus = false
+                }
+
+                Keys.onTabPressed: {
+                    focus = false
+                    event.accepted = true
                 }
             }
 

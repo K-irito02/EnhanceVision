@@ -14,6 +14,7 @@
 #include <QtConcurrent>
 #include <QThread>
 #include <QDebug>
+#include <vector>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -89,37 +90,31 @@ void AIVideoProcessor::processAsync(const QString& inputPath, const QString& out
 
 void AIVideoProcessor::cancel()
 {
-    qInfo() << "[AIVideoProcessor][DEBUG] Cancel requested";
-    m_impl->cancelled.store(true);
-    
-    // 通知引擎取消（不使用 mutex，避免死锁）
-    // aiEngine 指针在处理期间不会改变，所以直接访问是安全的
-    AIEngine* engine = m_impl->aiEngine;
-    if (engine) {
-        engine->cancelProcess();
+    if (!m_impl->cancelled.load()) {
+        qInfo() << "[AIVideoProcessor] Cancel requested";
+        m_impl->cancelled.store(true);
+        emit cancelled();
     }
-    
-    // 等待取消生效
-    QThread::msleep(50);
 }
 
 void AIVideoProcessor::waitForFinished(int timeoutMs)
 {
     if (m_processingFuture.isRunning()) {
-        qInfo() << "[AIVideoProcessor][DEBUG] Waiting for processing to finish, timeout:" << timeoutMs << "ms";
+        qInfo() << "[AIVideoProcessor] Waiting for processing to finish, timeout:" << timeoutMs << "ms";
         
-        // 使用循环等待，避免无限阻塞
+        // 使用事件循环等待，避免阻塞
         QElapsedTimer timer;
         timer.start();
         
         while (m_processingFuture.isRunning() && timer.elapsed() < timeoutMs) {
+            QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
             QThread::msleep(10);
         }
         
         if (m_processingFuture.isRunning()) {
-            qWarning() << "[AIVideoProcessor][DEBUG] Wait timeout, processing still running";
+            qWarning() << "[AIVideoProcessor] Wait timeout, processing still running";
         } else {
-            qInfo() << "[AIVideoProcessor][DEBUG] Processing finished after" << timer.elapsed() << "ms";
+            qInfo() << "[AIVideoProcessor] Processing finished after" << timer.elapsed() << "ms";
         }
     }
 }
@@ -172,24 +167,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
         }
         
         qInfo() << "[AIVideoProcessor][DEBUG] AI engine ready:"
-                << "modelId:" << m_impl->aiEngine->currentModelId()
-                << "useGpu:" << m_impl->aiEngine->useGpu()
-                << "gpuAvailable:" << m_impl->aiEngine->gpuAvailable();
-        
-        // 【关键修复】阻塞等待模型同步完成，确保GPU资源完全就绪
-        // 防止模型加载后GPU资源未完全初始化导致的堆损坏
-        qInfo() << "[AIVideoProcessor][DEBUG] Waiting for model sync complete...";
-        fflush(stdout);
-        
-        if (!m_impl->aiEngine->waitForModelSyncComplete(10000)) {
-            qWarning() << "[AIVideoProcessor][DEBUG] Model sync timeout, aborting";
-            setProcessing(false);
-            emitCompleted(false, QString(), tr("模型同步超时，GPU资源未就绪"));
-            return;
-        }
-        
-        qInfo() << "[AIVideoProcessor][DEBUG] Model sync complete, proceeding with processing";
-        fflush(stdout);
+                << "modelId:" << m_impl->aiEngine->currentModelId();
     }
     
     VideoResourceGuard guard;
@@ -257,6 +235,18 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
     const int scale = m_impl->modelInfo.scaleFactor;
     const int outW = (srcW * scale) & ~1;
     const int outH = (srcH * scale) & ~1;
+    
+    // 【安全验证】验证输入尺寸有效性
+    if (srcW <= 0 || srcH <= 0 || srcW > 16384 || srcH > 16384) {
+        fail(tr("无效的视频尺寸: %1x%2").arg(srcW).arg(srcH));
+        return;
+    }
+    
+    // 【安全验证】验证输出尺寸有效性
+    if (outW <= 0 || outH <= 0 || outW > 16384 || outH > 16384) {
+        fail(tr("无效的输出尺寸: %1x%2").arg(outW).arg(outH));
+        return;
+    }
     
     // 调试信息：输出解码器和尺寸信息
     qInfo() << "[AIVideoProcessor][DEBUG] Decoder info:"
@@ -406,71 +396,116 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
             
             const int frameW = decFrame->width;
             const int frameH = decFrame->height;
-            const int rgb24LineSize = frameW * 3;
+            
+            // 【安全验证】验证帧尺寸有效性
+            if (frameW <= 0 || frameH <= 0 || frameW > 16384 || frameH > 16384) {
+                qWarning() << "[AIVideoProcessor][DEBUG] Invalid frame dimensions at frame" << frameCount
+                           << "width:" << frameW << "height:" << frameH;
+                av_frame_unref(decFrame);
+                continue;
+            }
             
             qInfo() << "[AIVideoProcessor][DEBUG] Frame" << frameCount << "dimensions:" << frameW << "x" << frameH;
             fflush(stdout);
             
-            std::vector<uint8_t> rgb24Buffer(rgb24LineSize * frameH);
-            uint8_t* dst[4] = { rgb24Buffer.data(), nullptr, nullptr, nullptr };
-            int dstStride[4] = { rgb24LineSize, 0, 0, 0 };
-            
-            qInfo() << "[AIVideoProcessor][DEBUG] Frame" << frameCount << "calling sws_scale";
-            fflush(stdout);
-            
-            sws_scale(decSwsCtx, decFrame->data, decFrame->linesize,
-                      0, frameH, dst, dstStride);
-            
-            qInfo() << "[AIVideoProcessor][DEBUG] Frame" << frameCount << "sws_scale done";
-            fflush(stdout);
-            
-            // 使用 QImage 构造函数直接引用数据，然后深拷贝
-            QImage tempImg(rgb24Buffer.data(), frameW, frameH, rgb24LineSize, QImage::Format_RGB888);
-            if (tempImg.isNull()) {
+            // 【安全验证】验证 SwsContext 状态
+            if (!decSwsCtx) {
+                qWarning() << "[AIVideoProcessor][DEBUG] SwsContext is null at frame" << frameCount;
                 av_frame_unref(decFrame);
                 continue;
             }
             
-            qInfo() << "[AIVideoProcessor][DEBUG] Frame" << frameCount << "tempImg created"
-                    << "size:" << tempImg.width() << "x" << tempImg.height()
-                    << "format:" << tempImg.format()
-                    << "isNull:" << tempImg.isNull()
-                    << "bytesPerLine:" << tempImg.bytesPerLine()
-                    << "sizeInBytes:" << tempImg.sizeInBytes()
-                    << "bits:" << (tempImg.bits() != nullptr ? "valid" : "NULL");
-            fflush(stdout);
-            
-            // 【调试】验证 tempImg 数据有效性
-            if (tempImg.isNull() || tempImg.bits() == nullptr || tempImg.sizeInBytes() == 0) {
-                qWarning() << "[AIVideoProcessor][DEBUG] Frame" << frameCount << "tempImg is invalid, skipping";
-                fflush(stdout);
+            // 【安全验证】验证源数据有效性
+            if (!decFrame->data[0]) {
+                qWarning() << "[AIVideoProcessor][DEBUG] decFrame data is null at frame" << frameCount;
                 av_frame_unref(decFrame);
                 continue;
             }
             
-            qInfo() << "[AIVideoProcessor][DEBUG] Frame" << frameCount << "calling tempImg.copy()";
-            fflush(stdout);
-            
-            // 深拷贝，因为 rgb24Buffer 是局部变量
-            QImage frameImg = tempImg.copy();
-            if (frameImg.isNull()) {
+            // 【关键修复】使用 AVFrame 作为中间缓冲区，让 FFmpeg 自己管理内存
+            // 这是最安全的方式，避免手动内存管理导致的问题
+            AVFrame* rgbFrame = av_frame_alloc();
+            if (!rgbFrame) {
+                qWarning() << "[AIVideoProcessor][DEBUG] Failed to allocate RGB frame at frame" << frameCount;
                 av_frame_unref(decFrame);
                 continue;
             }
             
-            qInfo() << "[AIVideoProcessor][DEBUG] Frame" << frameCount << "frameImg copied";
+            rgbFrame->format = AV_PIX_FMT_RGB24;
+            rgbFrame->width = frameW;
+            rgbFrame->height = frameH;
+            
+            // 让 FFmpeg 分配缓冲区
+            int ret = av_frame_get_buffer(rgbFrame, 32);  // 32 字节对齐
+            if (ret < 0) {
+                qWarning() << "[AIVideoProcessor][DEBUG] Failed to allocate RGB frame buffer at frame" << frameCount;
+                av_frame_free(&rgbFrame);
+                av_frame_unref(decFrame);
+                continue;
+            }
+            
+            qInfo() << "[AIVideoProcessor][DEBUG] Frame" << frameCount << "calling sws_scale"
+                    << "srcSize:" << decFrame->width << "x" << decFrame->height
+                    << "dstSize:" << frameW << "x" << frameH
+                    << "srcStride:" << decFrame->linesize[0]
+                    << "dstStride:" << rgbFrame->linesize[0];
             fflush(stdout);
             
-            QImage processedFrame = frameImg;
+            int swsRet = sws_scale(decSwsCtx, decFrame->data, decFrame->linesize,
+                                   0, frameH, rgbFrame->data, rgbFrame->linesize);
+            
+            qInfo() << "[AIVideoProcessor][DEBUG] Frame" << frameCount << "sws_scale done, ret:" << swsRet;
+            fflush(stdout);
+            
+            if (swsRet != frameH) {
+                qWarning() << "[AIVideoProcessor][DEBUG] sws_scale returned unexpected height:"
+                           << swsRet << "expected:" << frameH;
+                av_frame_free(&rgbFrame);
+                av_frame_unref(decFrame);
+                continue;
+            }
+            
+            // 直接创建目标 QImage 并手动拷贝数据
+            QImage processedFrame(frameW, frameH, QImage::Format_RGB888);
+            if (processedFrame.isNull()) {
+                qWarning() << "[AIVideoProcessor][DEBUG] Failed to create processedFrame at frame" << frameCount;
+                av_frame_free(&rgbFrame);
+                av_frame_unref(decFrame);
+                continue;
+            }
+            
+            // 逐行拷贝数据到 QImage
+            const int copyBytes = frameW * 3;  // RGB888 每像素 3 字节
+            for (int y = 0; y < frameH; ++y) {
+                std::memcpy(processedFrame.scanLine(y), 
+                           rgbFrame->data[0] + y * rgbFrame->linesize[0], 
+                           copyBytes);
+            }
+            
+            // 释放 RGB 帧
+            av_frame_free(&rgbFrame);
+            
+            if (processedFrame.isNull() || !processedFrame.bits()) {
+                qWarning() << "[AIVideoProcessor][DEBUG] processedFrame is invalid at frame" << frameCount;
+                av_frame_unref(decFrame);
+                continue;
+            }
+            
+            qInfo() << "[AIVideoProcessor][DEBUG] Frame" << frameCount << "processedFrame created:"
+                    << "size:" << processedFrame.width() << "x" << processedFrame.height()
+                    << "format:" << processedFrame.format()
+                    << "bytesPerLine:" << processedFrame.bytesPerLine()
+                    << "isNull:" << processedFrame.isNull();
+            fflush(stdout);
             if (compatibilityReport.formatCompatibility == FormatCompatibility::NeedsToneMapping) {
-                QImage toneMapped = formatConverter.applyToneMapping(frameImg);
+                QImage toneMapped = formatConverter.applyToneMapping(processedFrame);
                 if (!toneMapped.isNull()) {
                     processedFrame = toneMapped;
                 } else {
                     qWarning() << "[AIVideoProcessor] frame" << frameCount << "tone mapping failed, using original";
                 }
             } else if (compatibilityReport.formatCompatibility == FormatCompatibility::NeedsColorConvert) {
-                QImage converted = formatConverter.convertPixelFormat(frameImg, frameFmt, AV_PIX_FMT_RGB24);
+                QImage converted = formatConverter.convertPixelFormat(processedFrame, frameFmt, AV_PIX_FMT_RGB24);
                 if (!converted.isNull()) {
                     processedFrame = converted;
                 } else {
@@ -525,12 +560,8 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
                 
                 // 每 5 次失败尝试清理 GPU 内存
                 if (failedFrames % 5 == 0) {
-                    QMutexLocker locker(&m_impl->mutex);
-                    if (m_impl->aiEngine) {
-                        qInfo() << "[AIVideoProcessor][DEBUG] Cleaning GPU memory after"
-                                << failedFrames << "failures";
-                        m_impl->aiEngine->cleanupGpuMemory();
-                    }
+                    qInfo() << "[AIVideoProcessor][DEBUG] Frame failures reached"
+                            << failedFrames;
                 }
                 
                 // 使用原始帧作为备选（保持视频连续性）
@@ -539,6 +570,11 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
                 // 成功处理，重置连续失败计数
                 consecutiveFrameFailures = 0;
                 processedOkFrames++;
+                
+                // 【关键修复】每处理 2 帧清理一次推理缓存，避免内存累积导致堆损坏
+                if (processedOkFrames % 2 == 0) {
+                    m_impl->aiEngine->clearInferenceCache();
+                }
             }
             
             QImage restoredImg = sizeAdapter.restoreFrame(resultImg, sizeAdaptation);
@@ -649,6 +685,9 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
                 const double prog = 0.05 + 0.90 * static_cast<double>(frameCount) / totalFrames;
                 updateProgress(prog);
             }
+            
+            // 【关键修复】释放解码帧引用，避免内存泄漏和堆损坏
+            av_frame_unref(decFrame);
         }
     }
     
@@ -707,6 +746,15 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
 
 QImage AIVideoProcessor::processFrame(const QImage& input)
 {
+    // 【详细日志】记录推理开始
+    qInfo() << "[AIVideoProcessor][DEBUG] processFrame() called:"
+            << "inputSize:" << input.width() << "x" << input.height()
+            << "format:" << input.format()
+            << "isNull:" << input.isNull()
+            << "bits:" << (input.bits() != nullptr ? "valid" : "null")
+            << "bytesPerLine:" << input.bytesPerLine();
+    fflush(stdout);
+    
     if (!m_impl->aiEngine) {
         qWarning() << "[AIVideoProcessor] no AI engine set";
         return QImage();
@@ -717,27 +765,77 @@ QImage AIVideoProcessor::processFrame(const QImage& input)
         return QImage();
     }
     
+    // 【安全检查】验证 input 的 bits() 是否有效
+    const uchar* inputBits = input.bits();
+    if (inputBits == nullptr) {
+        qWarning() << "[AIVideoProcessor] input.bits() is null";
+        return QImage();
+    }
+    
+    // 【安全检查】验证 input 的尺寸和 bytesPerLine 是否合理
+    const int expectedBytesPerLine = input.width() * 3;  // RGB888 = 3 bytes per pixel
+    if (input.bytesPerLine() < expectedBytesPerLine) {
+        qWarning() << "[AIVideoProcessor] input.bytesPerLine() is too small:"
+                   << input.bytesPerLine() << "expected:" << expectedBytesPerLine;
+        return QImage();
+    }
+    
     if (m_impl->cancelled.load()) {
+        qInfo() << "[AIVideoProcessor][DEBUG] processFrame() cancelled early";
         return QImage();
     }
     
-    // 创建输入的深拷贝，确保线程安全
-    QImage safeInput = input.copy();
+    // 【关键修复】手动创建新 QImage 并逐行拷贝数据
+    // 避免使用 QImage::copy() 和 detach()，因为它们可能在堆损坏时触发崩溃
+    qInfo() << "[AIVideoProcessor][DEBUG] processFrame() creating manual deep copy of input";
+    fflush(stdout);
+    
+    const int w = input.width();
+    const int h = input.height();
+    const int srcBytesPerLine = input.bytesPerLine();
+    const int copyBytes = w * 3;  // RGB888 = 3 bytes per pixel
+    
+    QImage safeInput(w, h, QImage::Format_RGB888);
     if (safeInput.isNull()) {
-        qWarning() << "[AIVideoProcessor] failed to create safe input copy";
+        qWarning() << "[AIVideoProcessor] failed to create safeInput QImage";
         return QImage();
     }
     
+    // 逐行拷贝数据
+    for (int y = 0; y < h; ++y) {
+        const uchar* srcLine = input.constScanLine(y);
+        uchar* dstLine = safeInput.scanLine(y);
+        std::memcpy(dstLine, srcLine, copyBytes);
+    }
+    
+    qInfo() << "[AIVideoProcessor][DEBUG] processFrame() deep copy created:"
+            << "size:" << safeInput.width() << "x" << safeInput.height()
+            << "format:" << safeInput.format()
+            << "bits:" << (safeInput.bits() != nullptr ? "valid" : "null")
+            << "bytesPerLine:" << safeInput.bytesPerLine();
+    fflush(stdout);
+    
+    if (safeInput.isNull() || safeInput.bits() == nullptr) {
+        qWarning() << "[AIVideoProcessor] failed to create deep copy of input";
+        return QImage();
+    }
+
     // 确保输入格式为 RGB888，避免格式不兼容导致推理失败
     if (safeInput.format() != QImage::Format_RGB888) {
+        qInfo() << "[AIVideoProcessor][DEBUG] processFrame() converting format from" << safeInput.format() << "to RGB888";
+        fflush(stdout);
+        
         safeInput = safeInput.convertToFormat(QImage::Format_RGB888);
         if (safeInput.isNull()) {
             qWarning() << "[AIVideoProcessor] failed to convert input to RGB888";
             return QImage();
         }
     }
-    
+
     QImage result;
+
+    qInfo() << "[AIVideoProcessor][DEBUG] processFrame() calling aiEngine->process()";
+    fflush(stdout);
     
     // 使用 try-catch 包装推理调用，防止异常导致崩溃
     // 注意：NCNN 通常不抛出 C++ 异常，但某些 GPU 驱动/系统库可能会
@@ -750,6 +848,11 @@ QImage AIVideoProcessor::processFrame(const QImage& input)
         qWarning() << "[AIVideoProcessor] AI process unknown exception";
         return QImage();
     }
+
+    qInfo() << "[AIVideoProcessor][DEBUG] processFrame() aiEngine->process() returned:"
+            << "resultSize:" << result.width() << "x" << result.height()
+            << "isNull:" << result.isNull();
+    fflush(stdout);
     
     if (result.isNull()) {
         qWarning() << "[AIVideoProcessor] AI process returned null image";

@@ -65,6 +65,7 @@ signals:
     void progressChanged(int progress, const QString& status);
     void finished(bool success, const QString& resultPath, const QString& error);
     void stageChanged(VideoProcessingStage stage);
+    void cancelled();
 
 private:
     void processVideoInternal(const QString& inputPath,

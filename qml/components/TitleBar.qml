@@ -189,7 +189,7 @@ Rectangle {
                     
                     Text {
                         anchors.centerIn: parent
-                        text: Theme.language === "zh_CN" ? "中" : "En"
+                        text: Theme.language === "zh_CN" ? qsTr("中") : qsTr("En")
                         color: Theme.colors.textOnPrimary
                         font.pixelSize: 7
                         font.weight: Font.Bold

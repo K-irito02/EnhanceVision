@@ -16,6 +16,7 @@
 #include "EnhanceVision/core/TaskCoordinator.h"
 #include "EnhanceVision/core/ResourceManager.h"
 #include "EnhanceVision/core/AIEnginePool.h"
+#include "EnhanceVision/core/inference/InferenceTypes.h"
 #include "EnhanceVision/core/VideoProcessor.h"
 #include "EnhanceVision/core/video/VideoProcessorFactory.h"
 #include <QUuid>
@@ -630,8 +631,11 @@ void ProcessingController::startTask(QueueTask& task)
             const QString outputPath = processedDir + "/" +
                                        fileInfo.completeBaseName() + "_ai_enhanced_" + uniqueToken + "." + suffix;
 
-            // 从引擎池获取可用引擎（可能因引擎仍在处理而暂时不可用）
-            AIEngine* engine = m_aiEnginePool->acquire(taskId);
+            // 从引擎池获取可用引擎（根据用户选择的后端类型）
+            const BackendType requestedBackend = message.aiParams.useGpu
+                ? BackendType::NCNN_Vulkan
+                : BackendType::NCNN_CPU;
+            AIEngine* engine = m_aiEnginePool->acquireWithBackend(taskId, requestedBackend);
             if (!engine) {
                 // 引擎池暂时耗尽，延迟重试而不是立即失败
                 qInfo() << "[ProcessingController] AI engine pool temporarily exhausted for task:" << taskId
@@ -1090,7 +1094,7 @@ QString ProcessingController::sendToProcessing(int mode, const QVariantMap& para
     // 设置 AI 参数
     if (mode == 1) {
         message.aiParams.modelId = params.value("modelId").toString();
-        message.aiParams.useGpu = params.value("useGpu", true).toBool();
+        message.aiParams.useGpu = params.value("useGpu", false).toBool();
         message.aiParams.tileSize = params.value("tileSize", 0).toInt();
 
         QString categoryStr = params.value("category").toString();

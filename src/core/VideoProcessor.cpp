@@ -136,7 +136,10 @@ void VideoProcessor::processVideoAsyncWithReporter(const QString& inputPath,
 
 void VideoProcessor::cancel()
 {
-    m_cancelled = true;
+    if (!m_cancelled) {
+        m_cancelled = true;
+        emit cancelled();
+    }
 }
 
 bool VideoProcessor::isProcessing() const

@@ -178,6 +178,16 @@ bool ThumbnailDatabase::upsertMetadata(const ThumbnailMeta& meta)
 
     if (!m_initialized || !m_db.isOpen()) return false;
 
+    if (meta.cacheKey.isEmpty()) {
+        qWarning() << "[ThumbnailDatabase] upsertMetadata failed: cacheKey is empty";
+        return false;
+    }
+
+    if (meta.filePath.isEmpty()) {
+        qWarning() << "[ThumbnailDatabase] upsertMetadata failed: filePath is empty for cacheKey:" << meta.cacheKey;
+        return false;
+    }
+
     QSqlQuery query(m_db);
     query.prepare(R"(
         INSERT OR REPLACE INTO thumbnails (

@@ -169,23 +169,23 @@ Item {
                         onClicked: root.hide()
                     }
                 }
-                
+
                 MouseArea {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: titleRow.height
+                    Layout.preferredHeight: 4
                     cursorShape: Qt.SizeAllCursor
-                    
+
                     property point lastMousePos: Qt.point(0, 0)
-                    
+
                     onPressed: function(mouse) {
                         lastMousePos = Qt.point(mouse.x, mouse.y)
                         isDragging = true
                     }
-                    
+
                     onReleased: {
                         isDragging = false
                     }
-                    
+
                     onPositionChanged: function(mouse) {
                         if (isDragging) {
                             var offsetX = dragOffset.x + mouse.x - lastMousePos.x
@@ -201,7 +201,7 @@ Item {
                         }
                     }
                 }
-
+                
                 Text {
                     Layout.fillWidth: true
                     text: message

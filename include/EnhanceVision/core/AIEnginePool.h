@@ -10,8 +10,9 @@
 #include <QObject>
 #include <QList>
 #include <QHash>
-#include <QMutex>
 #include <QString>
+#include <QMutex>
+#include "EnhanceVision/core/inference/InferenceTypes.h"
 
 namespace EnhanceVision {
 
@@ -34,6 +35,15 @@ public:
     ~AIEnginePool() override;
 
     AIEngine* acquire(const QString& taskId);
+
+    /**
+     * @brief 获取引擎并指定后端类型（CPU 或 Vulkan GPU）
+     * @param taskId 任务 ID
+     * @param backendType 目标后端类型
+     * @return 引擎指针，失败返回 nullptr
+     */
+    AIEngine* acquireWithBackend(const QString& taskId, BackendType backendType);
+
     void release(const QString& taskId);
 
     AIEngine* engineForTask(const QString& taskId) const;
@@ -66,6 +76,7 @@ private:
         AIEngine* engine = nullptr;
         QString taskId;
         EngineState state = EngineState::Uninitialized;
+        BackendType backendType = BackendType::NCNN_CPU;
         QString lastError;
         bool wasUsed = false;
     };
