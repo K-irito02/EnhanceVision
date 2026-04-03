@@ -100,9 +100,6 @@ Rectangle {
             Layout.fillHeight: true
             clip: true
 
-            property real lastMouseY: 0
-            property bool isDragging: false
-
             ColumnLayout {
                 id: settingsColumn
                 spacing: 16
@@ -112,42 +109,6 @@ Rectangle {
                     property: "width"
                     value: settingsColumn.parent ? settingsColumn.parent.width : 400
                     when: settingsColumn.parent
-                }
-
-                MouseArea {
-                    id: dragMouseArea
-                    anchors.fill: parent
-                    enabled: true
-                    preventStealing: true
-                    
-                    onPressed: function(mouse) {
-                        settingsScrollView.lastMouseY = mouse.y
-                        settingsScrollView.isDragging = true
-                    }
-                    
-                    onReleased: {
-                        settingsScrollView.isDragging = false
-                    }
-                    
-                    onCanceled: {
-                        settingsScrollView.isDragging = false
-                    }
-                    
-                    onPositionChanged: function(mouse) {
-                        if (settingsScrollView.isDragging) {
-                            var deltaY = settingsScrollView.lastMouseY - mouse.y
-                            var newContentY = settingsScrollView.contentItem.contentY + deltaY
-                            var maxContentY = settingsScrollView.contentItem.contentHeight - settingsScrollView.height
-                            
-                            newContentY = Math.max(0, Math.min(newContentY, maxContentY))
-                            settingsScrollView.contentItem.contentY = newContentY
-                            settingsScrollView.lastMouseY = mouse.y
-                        }
-                    }
-                    
-                    onWheel: function(wheel) {
-                        wheel.accepted = false
-                    }
                 }
 
                 Rectangle {

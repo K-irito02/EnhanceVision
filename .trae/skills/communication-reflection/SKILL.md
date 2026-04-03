@@ -1,6 +1,6 @@
 ---
 name: communication-reflection
-description: 在任何对话开始时使用——确立如何查找和使用技能，要求在给出任何回复之前，必须先完成前置工作流程
+description: 在任何对话开始时必须先完成前置工作流程，再使用——确立如何查找和使用技能，要求在给出任何回复之前完成
 ---
 
 <SUBAGENT-STOP>
