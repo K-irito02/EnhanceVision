@@ -1,6 +1,6 @@
 /**
  * @file AIEnginePool.cpp
- * @brief AI 推理引擎池实现（纯 CPU 模式）
+ * @brief AI 推理引擎池实现（CPU / GPU 双模式）
  * @author EnhanceVision Team
  */
 
@@ -98,10 +98,25 @@ AIEngine* AIEnginePool::acquireWithBackend(const QString& taskId, BackendType ba
 
             engine->resetState();
 
+            qInfo() << "[AIEnginePool] Switching backend for slot" << i
+                    << "from" << static_cast<int>(m_slots[i].backendType)
+                    << "to" << static_cast<int>(backendType);
+
             if (!engine->setBackendType(backendType)) {
                 qWarning() << "[AIEnginePool] Failed to set backend type for slot" << i
                            << ", requested:" << static_cast<int>(backendType);
                 continue;
+            }
+
+            if (backendType == BackendType::NCNN_Vulkan) {
+                if (!engine->waitForModelSyncComplete(10000)) {
+                    qWarning() << "[AIEnginePool] Model sync timeout for slot" << i;
+                    continue;
+                }
+                if (!engine->waitForGpuReady(5000)) {
+                    qWarning() << "[AIEnginePool] GPU ready timeout for slot" << i;
+                    continue;
+                }
             }
 
             m_slots[i].state = EngineState::InUse;

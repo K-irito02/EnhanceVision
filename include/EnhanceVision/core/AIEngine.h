@@ -20,6 +20,10 @@
 #include "EnhanceVision/core/inference/InferenceTypes.h"
 #include "EnhanceVision/models/DataTypes.h"
 
+#ifdef NCNN_VULKAN_AVAILABLE
+#include <gpu.h>
+#endif
+
 namespace EnhanceVision {
 
 class ModelRegistry;
@@ -125,6 +129,20 @@ public:
      */
     bool isVulkanReady() const;
 
+    /**
+     * @brief 等待模型加载同步完成
+     * @param timeoutMs 超时时间（毫秒）
+     * @return true 如果同步完成，false 如果超时
+     */
+    bool waitForModelSyncComplete(int timeoutMs = 5000);
+
+    /**
+     * @brief 等待 GPU 就绪
+     * @param timeoutMs 超时时间（毫秒）
+     * @return true 如果 GPU 就绪，false 如果超时
+     */
+    bool waitForGpuReady(int timeoutMs = 5000);
+
     // ========== 状态查询 ==========
 
     bool isProcessing() const;
@@ -216,6 +234,29 @@ private:
     QString m_gpuDeviceName;
     int m_gpuDeviceId = -1;
     bool m_vulkanInstanceCreated = false;
+
+    // ========== Vulkan 实例单例化管理 ==========
+    static std::once_flag s_gpuInstanceOnceFlag;
+    static std::atomic<int> s_gpuInstanceRefCount;
+    static std::mutex s_gpuInstanceMutex;
+    static std::atomic<bool> s_gpuInstanceCreated;
+    
+    static void ensureGpuInstanceCreated();
+    static void releaseGpuInstanceRef();
+    static bool isGpuInstanceCreated();
+
+    // ========== 模型加载同步 ==========
+    std::atomic<bool> m_modelSyncComplete{true};
+    std::mutex m_modelSyncMutex;
+    std::condition_variable m_modelSyncCv;
+
+    // ========== GPU 就绪状态 ==========
+    std::atomic<bool> m_gpuReady{false};
+    std::mutex m_gpuReadyMutex;
+    std::condition_variable m_gpuReadyCv;
+    
+    // ========== 模型加载时的后端类型 ==========
+    BackendType m_modelLoadedBackendType = BackendType::NCNN_CPU;
 };
 
 } // namespace EnhanceVision
