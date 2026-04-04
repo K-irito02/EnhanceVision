@@ -701,6 +701,8 @@ bool AIEngine::setBackendType(BackendType type)
         return true;
     }
 
+    QString currentModelId = m_currentModelId;
+
 #ifdef NCNN_VULKAN_AVAILABLE
     if (type == BackendType::NCNN_Vulkan) {
         if (!initializeVulkan()) {
@@ -709,11 +711,28 @@ bool AIEngine::setBackendType(BackendType type)
         }
         m_backendType = BackendType::NCNN_Vulkan;
         applyBackendOptions(BackendType::NCNN_Vulkan);
+        
+        if (!currentModelId.isEmpty()) {
+            qInfo() << "[AIEngine] Reloading model for Vulkan backend:" << currentModelId;
+            if (!loadModel(currentModelId)) {
+                qWarning() << "[AIEngine] Failed to reload model after backend switch to Vulkan";
+                m_backendType = BackendType::NCNN_CPU;
+                applyBackendOptions(BackendType::NCNN_CPU);
+                return false;
+            }
+        }
+        
         qInfo() << "[AIEngine] Switched to Vulkan GPU backend";
     } else {
         shutdownVulkan();
         m_backendType = BackendType::NCNN_CPU;
         applyBackendOptions(BackendType::NCNN_CPU);
+        
+        if (!currentModelId.isEmpty()) {
+            qInfo() << "[AIEngine] Reloading model for CPU backend:" << currentModelId;
+            loadModel(currentModelId);
+        }
+        
         qInfo() << "[AIEngine] Switched to CPU backend";
     }
 #else

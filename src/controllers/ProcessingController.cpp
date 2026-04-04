@@ -2121,7 +2121,7 @@ void ProcessingController::launchAIVideoProcessor(AIEngine* engine, const QStrin
     VideoProcessingConfig config;
     config.tileSize = effectiveParams.value("tileSize", modelInfo.tileSize).toInt();
     config.outscale = effectiveParams.value("outscale", modelInfo.scaleFactor).toDouble();
-    config.useGpu = false;
+    config.useGpu = message.aiParams.useGpu;
     config.quality = 18;
     processor->setConfig(config);
     
