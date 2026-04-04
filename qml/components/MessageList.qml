@@ -357,34 +357,30 @@ Item {
 
             ColumnLayout {
                 anchors.centerIn: parent
-                spacing: 12
+                spacing: 24
 
-                Rectangle {
+                Image {
                     Layout.alignment: Qt.AlignHCenter
-                    width: 48; height: 48; radius: 24
-                    color: Theme.colors.primarySubtle
-
-                    ColoredIcon {
-                        anchors.centerIn: parent
-                        source: Theme.icon("loader")
-                        iconSize: 20
-                        color: Theme.colors.icon
-                    }
+                    source: "qrc:/icons/app_icon.png"
+                    sourceSize.width: 80
+                    sourceSize.height: 80
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
                 }
 
                 Text {
                     Layout.alignment: Qt.AlignHCenter
-                    text: qsTr("暂无处理任务")
-                    color: Theme.colors.mutedForeground
-                    font.pixelSize: 13
+                    text: qsTr("开始新的处理任务")
+                    color: Theme.colors.foreground
+                    font.pixelSize: 22
+                    font.weight: Font.DemiBold
                 }
 
                 Text {
                     Layout.alignment: Qt.AlignHCenter
-                    text: qsTr("添加文件并点击发送开始处理")
+                    text: qsTr("添加文件并选择处理模式来开始")
                     color: Theme.colors.mutedForeground
-                    font.pixelSize: 11
-                    opacity: 0.7
+                    font.pixelSize: 14
                 }
             }
         }

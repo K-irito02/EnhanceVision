@@ -123,12 +123,11 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             
-            // 空状态欢迎界面
+            // 空状态欢迎界面（已移至 MessageList 内部统一处理，此处保留但隐藏）
             ColumnLayout {
                 anchors.centerIn: parent
                 spacing: 24
-                // 当没有消息、没有文件且不在拖拽状态时显示
-                visible: !root.hasMessages && !root.hasFiles && !pageDropArea.containsDrag
+                visible: false
                 
                 // 欢迎图标 - 使用自定义 Logo
                 Image {
@@ -205,7 +204,7 @@ Rectangle {
                 }
             }
             
-            // 消息列表（有消息时显示）
+            // 消息列表（始终可见，内部自行处理空状态显示）
             MessageList {
                 id: messageListView
                 anchors.fill: parent
@@ -213,15 +212,11 @@ Rectangle {
                 anchors.bottomMargin: {
                     var baseMargin = 12
                     var dockHeight = pendingMinimizedDock.height
-                    // 预览区域已在 ColumnLayout 中占据空间，这里只需要为停靠区域预留空间
-                    // 当允许覆盖时，不预留额外空间
                     if (effectiveCanOverlay) {
                         return baseMargin
                     }
-                    // 最新消息卡片完整显示时，只需要为停靠区域预留空间
                     return baseMargin + dockHeight
                 }
-                visible: root.hasMessages
                 
                 currentSessionId: root.currentSessionId
                 hasFiles: root.hasFiles

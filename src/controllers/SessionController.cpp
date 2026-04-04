@@ -349,9 +349,18 @@ void SessionController::deleteSelectedSessions()
         emit sessionCountChanged();
         emit selectionChanged();
         
-        if (activeSessionDeleted && m_sessionModel->activeSessionId().isEmpty() && m_messageModel) {
-            m_messageModel->clear();
-            m_activeSessionId.clear();
+        if (activeSessionDeleted) {
+            QString newActiveId = m_sessionModel->activeSessionId();
+            if (newActiveId.isEmpty()) {
+                if (m_messageModel) {
+                    m_messageModel->clear();
+                    m_messageModel->setCurrentSessionId("");
+                }
+                m_activeSessionId.clear();
+            } else {
+                m_activeSessionId = newActiveId;
+                loadSessionMessages(newActiveId);
+            }
             emit activeSessionChanged();
         }
     }
