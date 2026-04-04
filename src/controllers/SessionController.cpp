@@ -133,16 +133,43 @@ void SessionController::setProcessingController(ProcessingController* controller
 
 void SessionController::onMessageCountChanged()
 {
-    QString currentId = m_messageModel ? m_messageModel->currentSessionId() : QString();
-    if (currentId.isEmpty() || !m_messageModel) return;
+    if (!m_messageModel) return;
+    
+    QString currentId = m_messageModel->currentSessionId();
+    if (currentId.isEmpty()) return;
+    
+    // 【修复】校验 sessionId 一致性：只有当 MessageModel 的 sessionId 
+    // 与当前活动会话一致时才同步，防止跨会话数据污染
+    const QString activeId = m_sessionModel->activeSessionId();
+    if (currentId != activeId) {
+        qWarning() << "[SessionController] onMessageCountChanged: sessionId mismatch"
+                   << "messageModel:" << currentId << "active:" << activeId
+                   << "- skipping sync to prevent cross-session contamination";
+        return;
+    }
     
     Session* session = getSession(currentId);
     if (session) {
         m_messageModel->syncToSession(*session);
         rebuildMessageRowIndexForSession(currentId, session->messages);
+        
+        // 【修复】先收集当前消息ID集合，清理已删除消息的残留索引
+        QSet<QString> currentMessageIds;
         for (const Message& message : session->messages) {
             m_messageToSessionId[message.id] = currentId;
+            currentMessageIds.insert(message.id);
         }
+        
+        // 清理 m_messageToSessionId 中属于该会话但已不存在的消息
+        auto it = m_messageToSessionId.begin();
+        while (it != m_messageToSessionId.end()) {
+            if (it.value() == currentId && !currentMessageIds.contains(it.key())) {
+                it = m_messageToSessionId.erase(it);
+            } else {
+                ++it;
+            }
+        }
+        
         m_pendingNotifySessionIds.insert(currentId);
         if (m_sessionNotifyTimer) {
             m_sessionNotifyTimer->start();
@@ -217,15 +244,13 @@ void SessionController::switchSession(const QString& sessionId)
     // 1. 保存当前会话的消息
     saveCurrentSessionMessages();
 
-    // 2. 切换会话
+    // 2. 切换会话（会触发 activeSessionChanged 信号）
+    //    信号处理器会自动执行：保存旧会话消息 + 加载新会话消息
+    //    【修复】不再在这里手动调用 loadSessionMessages()，避免双重加载导致消息混乱
     m_sessionModel->switchSession(sessionId);
-    m_activeSessionId = sessionId;
-
-    // 3. 加载新会话的消息
-    loadSessionMessages(sessionId);
+    // m_activeSessionId 由信号处理器更新
 
     emit sessionSwitched(sessionId);
-    emit activeSessionChanged();
 }
 
 void SessionController::renameSession(const QString& sessionId, const QString& newName)
@@ -251,6 +276,9 @@ void SessionController::deleteSession(const QString& sessionId)
         qInfo() << "[SessionController] Deleted" << deletedCount << "media files for session:" << sessionId;
     }
     
+    // 【修复】deleteSession 内部的 switchSession 会触发 activeSessionChanged 信号，
+    // 信号处理器会自动保存旧会话消息 + 加载新会话消息，
+    // 不再需要手动调用 loadSessionMessages，避免双重加载导致消息混乱
     m_sessionModel->deleteSession(sessionId);
     rebuildSessionMessageIndex();
     
@@ -258,14 +286,14 @@ void SessionController::deleteSession(const QString& sessionId)
         QString newActiveId = m_sessionModel->activeSessionId();
         
         if (newActiveId.isEmpty()) {
+            // 没有活动会话了，确保清空（信号处理器也会处理，这里做防御性清理）
             if (m_messageModel) {
                 m_messageModel->clear();
                 m_messageModel->setCurrentSessionId("");
             }
-        } else {
-            m_activeSessionId = newActiveId;
-            loadSessionMessages(newActiveId);
+            m_activeSessionId.clear();
         }
+        // 有新活动会话时，由 activeSessionChanged 信号处理器自动加载
     }
     
     emit sessionDeleted(sessionId);
@@ -343,6 +371,8 @@ void SessionController::deleteSelectedSessions()
         }
     }
     
+    // 【修复】deleteSelectedSessions 内部会调用 switchSession 触发 activeSessionChanged 信号，
+    // 信号处理器会自动加载新会话消息，不再需要手动调用 loadSessionMessages
     int count = m_sessionModel->deleteSelectedSessions();
     if (count > 0) {
         rebuildSessionMessageIndex();
@@ -352,16 +382,15 @@ void SessionController::deleteSelectedSessions()
         if (activeSessionDeleted) {
             QString newActiveId = m_sessionModel->activeSessionId();
             if (newActiveId.isEmpty()) {
+                // 没有活动会话了，确保清空
                 if (m_messageModel) {
                     m_messageModel->clear();
                     m_messageModel->setCurrentSessionId("");
                 }
                 m_activeSessionId.clear();
-            } else {
-                m_activeSessionId = newActiveId;
-                loadSessionMessages(newActiveId);
             }
-            emit activeSessionChanged();
+            // 有新活动会话时，由 activeSessionChanged 信号处理器自动加载
+            // 不再手动调用 loadSessionMessages 和 emit activeSessionChanged
         }
     }
     setBatchSelectionMode(false);
@@ -703,9 +732,28 @@ void SessionController::loadSessions()
     m_sessionCounter = root["sessionCounter"].toInt(0);
     
     QJsonArray sessionsArray = root["sessions"].toArray();
+    
+    // 【修复】批量加载会话并按 sortIndex 排序，保留用户拖拽排序结果
+    QList<Session> allSessions;
+    allSessions.reserve(sessionsArray.size());
     for (const QJsonValue& value : sessionsArray) {
         Session session = jsonToSession(value.toObject());
-        m_sessionModel->addSession(session);
+        allSessions.append(session);
+    }
+    
+    // 按 sortIndex 排序（置顶会话在前，普通会话在后，同组内按 sortIndex 升序）
+    std::sort(allSessions.begin(), allSessions.end(),
+              [](const Session& a, const Session& b) {
+                  if (a.isPinned != b.isPinned) {
+                      return a.isPinned > b.isPinned; // 置顶在前
+                  }
+                  return a.sortIndex < b.sortIndex;
+              });
+    
+    // 批量加载到 SessionModel（不经过 addSession 避免重新计算插入位置）
+    // 注意：已按 sortIndex 排序，不需要再调用 updateSortIndices
+    if (!allSessions.isEmpty()) {
+        m_sessionModel->updateSessions(allSessions);
     }
 
     rebuildSessionMessageIndex();

@@ -403,6 +403,7 @@ void ProcessingController::processNextTask()
 
     // 查找下一个待处理的任务（FIFO原则）
     QueueTask* nextTask = nullptr;
+    bool hasSkippedAITask = false;
     for (auto& task : m_tasks) {
         if (task.status != ProcessingStatus::Pending) {
             continue;
@@ -412,6 +413,7 @@ void ProcessingController::processNextTask()
         if (m_taskMessages.contains(task.taskId)) {
             const Message& msg = m_taskMessages[task.taskId];
             if (msg.mode == ProcessingMode::AIInference && m_aiEnginePool->availableCount() <= 0) {
+                hasSkippedAITask = true;
                 continue;
             }
         }
@@ -421,6 +423,11 @@ void ProcessingController::processNextTask()
     }
 
     if (!nextTask) {
+        // 【修复】如果有等待 AI 引擎的任务被跳过，安排延迟重试
+        // 避免引擎释放延迟导致任务永远无法启动
+        if (hasSkippedAITask) {
+            QTimer::singleShot(200, this, &ProcessingController::processNextTask);
+        }
         return;
     }
 
@@ -842,6 +849,11 @@ void ProcessingController::completeTask(const QString& taskId, const QString& re
                                     failTask(taskId, tr("AI推理结果无效或输出文件缺失"));
                                     return;
                                 }
+                                
+                                // 【修复】AI 图像推理完成后，同步释放引擎，
+                                // 确保 finalizeTask → processNextTask 时引擎已可用
+                                disconnectAiEngineForTask(taskId);
+                                m_aiEnginePool->release(taskId);
                             }
 
                             const QString finalPath = !resultPath.isEmpty() ? resultPath : mf.filePath;
@@ -1048,6 +1060,16 @@ void ProcessingController::failTask(const QString& taskId, const QString& error)
             const QString messageId = task.messageId;
             const QString fileId = task.fileId;
             const QString sessionId = resolveSessionIdForMessage(messageId);
+
+            // 【修复】AI 推理任务失败时，在 finalizeTask 前同步释放引擎
+            // 确保后续任务能获取到空闲引擎
+            if (m_taskMessages.contains(taskId)) {
+                const Message& msg = m_taskMessages[taskId];
+                if (msg.mode == ProcessingMode::AIInference) {
+                    disconnectAiEngineForTask(taskId);
+                    m_aiEnginePool->release(taskId);
+                }
+            }
 
             task.status = ProcessingStatus::Failed;
             emit taskFailed(taskId, error);
