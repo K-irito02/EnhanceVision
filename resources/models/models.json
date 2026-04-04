@@ -29,9 +29,7 @@
                     "default": 4.0,
                     "step": 0.5,
                     "label": "输出放大倍数",
-                    "label_en": "Output Scale",
-                    "description": "最终输出的放大倍数",
-                    "description_en": "Final output scale factor"
+                    "label_en": "Output Scale"
                 },
                 "face_enhance": {
                     "type": "bool",

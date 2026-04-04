@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import EnhanceVision.Controllers
+import "../stores"
 import "../styles"
 import "../controls"
 
@@ -10,11 +11,12 @@ import "../controls"
  *
  * 显示模型类别列表和每个类别下的可用模型，
  * 从 ModelRegistry 动态加载数据。
+ * 使用 AIModelConfigStore 管理选中的模型状态。
  */
 ColumnLayout {
     id: root
 
-    property string selectedModelId: ""
+    property string selectedModelId: AIModelConfigStore.currentModelId
     property string selectedCategory: ""
     property var registry: processingController ? processingController.modelRegistry : null
 
@@ -186,7 +188,7 @@ ColumnLayout {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    root.selectedModelId = modelData.id
+                    AIModelConfigStore.selectModel(modelData.id)
                     root.modelSelected(modelData.id, root.selectedCategory)
                 }
             }

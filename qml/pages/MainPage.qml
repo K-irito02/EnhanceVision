@@ -613,23 +613,26 @@ Rectangle {
                     shadows: _getShaderParam("shaderShadows", 0.0)
                 }
             } else {
-                var selectedModelId = _getShaderParam("aiSelectedModelId", "")
-                var selectedCategory = _getShaderParam("aiSelectedCategory", "")
-                var useGpu = _getShaderParam("aiUseGpu", false)
-                var tileSize = _getShaderParam("aiTileSize", 0)
-                var modelParams = _getShaderParam("aiModelParams", {})
-
-                params = {
-                    modelId: selectedModelId,
-                    category: selectedCategory,
-                    useGpu: useGpu,
-                    tileSize: tileSize
+                var aiParams = null
+                var p = root.parent
+                while (p) {
+                    if (p.objectName === "AppRoot" && typeof p.getAIParams === "function") {
+                        aiParams = p.getAIParams()
+                        break
+                    }
+                    p = p.parent
                 }
-
-                if (modelParams) {
-                    var keys = Object.keys(modelParams)
-                    for (var i = 0; i < keys.length; ++i) {
-                        params[keys[i]] = modelParams[keys[i]]
+                if (aiParams) {
+                    params = aiParams
+                } else {
+                    var selectedCategory = _getShaderParam("aiSelectedCategory", "")
+                    var useGpu = _getShaderParam("aiUseGpu", false)
+                    var tileSize = _getShaderParam("aiTileSize", 0)
+                    params = {
+                        modelId: "",
+                        category: selectedCategory,
+                        useGpu: useGpu,
+                        tileSize: tileSize
                     }
                 }
             }

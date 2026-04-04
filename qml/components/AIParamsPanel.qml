@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import EnhanceVision.Controllers
+import "../stores"
 import "../styles"
 import "../controls" as Controls
 
@@ -13,19 +14,15 @@ import "../controls" as Controls
  * 2. 后台静默计算最优参数（_autoParams），推理时透明注入
  * 3. 用户手动调节的值具有最高优先级，会覆盖自动推荐值
  * 4. 分块大小提供自动/手动双模式切换
+ * 5. 使用 AIModelConfigStore 管理模型配置和参数状态，确保频繁切换时绑定稳定
  */
 ColumnLayout {
     id: root
 
-    // ── 外部绑定属性
-    property string modelId: ""
     property bool useGpu: false
     property int tileSize: 0
-    property var modelParams: ({})
-    property var registry: processingController ? processingController.modelRegistry : null
-    property var engine:   processingController ? processingController.aiEngine   : null
+    property var engine: processingController ? processingController.aiEngine : null
 
-    // ── 媒体信息（由外部绑定，驱动后台自动参数计算）
     property size currentMediaSize: Qt.size(0, 0)
     property bool currentMediaIsVideo: false
 
@@ -33,42 +30,24 @@ ColumnLayout {
 
     spacing: 8
 
-    // ── 内部状态
-    property var  currentModelInfo: (registry && modelId !== "") ? registry.getModelInfoMap(modelId) : null
-    property bool _isModelSwitching:   false
-    property var  _pendingParams:      ({})
+    readonly property var currentModelInfo: AIModelConfigStore.currentModelInfo
+    readonly property var modelParams: AIModelConfigStore.currentModelParams
+    readonly property string modelId: AIModelConfigStore.currentModelId
+
     property bool autoTileMode: true
-    property int  computedAutoTileSize: 0
-    property var  _autoParams: ({})
-    property int _paramsModelVersion: 0
-    
-    // ── 延迟处理定时器
+    property int computedAutoTileSize: 0
+    property var _autoParams: ({})
+
     Timer {
         id: _recomputeAutoParamsTimer
         interval: 100
         onTriggered: _recomputeAutoParams()
     }
 
-    // ── 自动优化就绪状态
     readonly property bool _autoReady: {
         return currentMediaSize.width > 0
             && currentModelInfo !== null
             && Object.keys(_autoParams).length > 0
-    }
-
-    onCurrentModelInfoChanged: function(info) {
-        if (info) {
-            _isModelSwitching = true
-            autoTileMode      = true
-            tileSize          = 0
-            computedAutoTileSize = 0
-            _autoParams       = {}
-            _pendingParams    = {}
-            modelParams       = {}
-            _paramsModelVersion++
-            _recomputeAutoParamsTimer.restart()
-            _isModelSwitching = false
-        }
     }
 
     function _recomputeAutoParams() {
@@ -77,52 +56,48 @@ ColumnLayout {
             computedAutoTileSize = (_autoParams["tileSize"] !== undefined)
                                    ? _autoParams["tileSize"] : 0
         } else {
-            _autoParams          = {}
+            _autoParams = {}
             computedAutoTileSize = 0
         }
     }
 
-    onCurrentMediaSizeChanged:    _recomputeAutoParams()
+    onCurrentModelInfoChanged: {
+        autoTileMode = true
+        tileSize = 0
+        computedAutoTileSize = 0
+        _autoParams = {}
+        _recomputeAutoParamsTimer.restart()
+    }
+
+    onCurrentMediaSizeChanged: _recomputeAutoParams()
     onCurrentMediaIsVideoChanged: _recomputeAutoParams()
 
     function _localText(param, zhKey, enKey) {
         if (!param) return ""
         var useEn = (Theme.language === "en_US")
         if (useEn && param[enKey]) return param[enKey]
-        return param[zhKey] || param.label || ""
+        return param[zhKey] || ""
     }
-    function getParamLabel(param) { 
-        return _localText(param, "label", "label_en") || param.label || param.key || "" 
+    function getParamLabel(param) {
+        return _localText(param, "label", "label_en") || param.label || param.key || ""
     }
-    function getParamDescription(param) { 
-        return _localText(param, "description", "description_en") || param.description || ""
+    function getParamDescription(param) {
+        return _localText(param, "description", "description_en")
     }
 
     function hasParamModifications() {
-        if (!currentModelInfo || !currentModelInfo.supportedParams) return false
-        var params = currentModelInfo.supportedParams
-        var keys = Object.keys(params)
-        for (var i = 0; i < keys.length; i++) {
-            var key = keys[i]
-            var param = params[key]
-            var userValue = root.modelParams[key]
-            var defaultValue = param["default"]
-            if (userValue !== undefined && userValue !== defaultValue) {
-                return true
-            }
-        }
-        return false
+        return AIModelConfigStore.hasParamModifications()
     }
 
     function getParams() {
         var params = {}
-        params.modelId      = root.modelId
-        params.useGpu       = root.useGpu
-        params.tileSize     = root.autoTileMode ? 0 : root.tileSize
+        params.modelId = AIModelConfigStore.currentModelId
+        params.useGpu = root.useGpu
+        params.tileSize = root.autoTileMode ? 0 : root.tileSize
         params.autoTileSize = root.autoTileMode
         params.mediaIsVideo = root.currentMediaIsVideo
         if (currentModelInfo) {
-            params.category    = currentModelInfo.category    || ""
+            params.category = currentModelInfo.category || ""
             params.scaleFactor = currentModelInfo.scaleFactor || 1
         }
         var autoKeys = Object.keys(root._autoParams)
@@ -130,14 +105,70 @@ ColumnLayout {
             var ak = autoKeys[a]
             if (ak !== "tileSize") params[ak] = root._autoParams[ak]
         }
-        var keys = Object.keys(root.modelParams)
+        var modelParams = AIModelConfigStore.currentModelParams
+        var keys = Object.keys(modelParams)
         for (var i = 0; i < keys.length; i++) {
-            params[keys[i]] = root.modelParams[keys[i]]
+            params[keys[i]] = modelParams[keys[i]]
         }
         return params
     }
 
-    // ===== 模型信息卡片 =====
+    ListModel {
+        id: paramsListModel
+    }
+
+    property var _paramsData: ({})
+
+    function _updateParamsListModel() {
+        paramsListModel.clear()
+        var info = currentModelInfo
+        if (info && info.supportedParams) {
+            _paramsData = info.supportedParams
+            var keys = Object.keys(info.supportedParams)
+            for (var i = 0; i < keys.length; i++) {
+                var key = keys[i]
+                var param = info.supportedParams[key]
+                if (!param || typeof param !== 'object') continue
+                var valuesJson = ""
+                if (param.values && Array.isArray(param.values)) {
+                    valuesJson = JSON.stringify(param.values)
+                }
+                var defaultVal = param["default"]
+                var defaultStr = defaultVal !== undefined ? String(defaultVal) : ""
+                paramsListModel.append({
+                    key: key,
+                    type: param.type || "float",
+                    defaultStr: defaultStr,
+                    minVal: param.min !== undefined ? param.min : 0,
+                    maxVal: param.max !== undefined ? param.max : 100,
+                    stepVal: param.step || 0.1,
+                    label: getParamLabel(param),
+                    description: getParamDescription(param),
+                    valuesJson: valuesJson,
+                    placeholder: param.placeholder || ""
+                })
+            }
+        }
+    }
+
+    Connections {
+        target: AIModelConfigStore
+        function onCurrentModelInfoChanged() {
+            _updateParamsListModel()
+        }
+    }
+
+    Connections {
+        target: Theme
+        function onLanguageChanged() {
+            _updateParamsListModel()
+        }
+    }
+
+    Component.onCompleted: {
+        _updateParamsListModel()
+    }
+
     Rectangle {
         Layout.fillWidth: true
         implicitHeight: _infoCol.implicitHeight + 16
@@ -189,7 +220,6 @@ ColumnLayout {
         }
     }
 
-    // ===== 自动优化状态栏 =====
     Rectangle {
         Layout.fillWidth: true
         height: _autoStatusRow.implicitHeight + 10
@@ -248,7 +278,6 @@ ColumnLayout {
 
     Divider { visible: currentModelInfo !== null }
 
-    // ===== 推理设备选择（CPU / Vulkan GPU） =====
     ColumnLayout {
         id: _deviceSection
         Layout.fillWidth: true; spacing: 10; visible: engine !== null
@@ -256,7 +285,6 @@ ColumnLayout {
         readonly property bool _gpuReady: engine ? engine.gpuAvailable : false
         readonly property string _gpuName: engine ? engine.gpuDeviceName : ""
 
-        // ── 标题行 ──
         RowLayout {
             Layout.fillWidth: true; spacing: 8
             ColoredIcon {
@@ -275,11 +303,9 @@ ColumnLayout {
             }
         }
 
-        // ── 卡片容器（固定高度确保中英文切换时一致） ──
         RowLayout {
             Layout.fillWidth: true; spacing: 10
 
-            // ── CPU 卡片 ──
             Rectangle {
                 id: _cpuCard
                 Layout.fillWidth: true
@@ -369,7 +395,6 @@ ColumnLayout {
                 }
             }
 
-            // ── GPU 卡片 ──
             Rectangle {
                 id: _gpuCard
                 Layout.fillWidth: true
@@ -519,7 +544,6 @@ ColumnLayout {
         function onAutoParamsComputed(autoTileSize) { root.computedAutoTileSize = autoTileSize }
     }
 
-    // ===== 分块大小（自动/手动双模式）=====
     ColumnLayout {
         Layout.fillWidth: true; spacing: 6
         visible: currentModelInfo !== null && currentModelInfo.tileSize > 0
@@ -582,20 +606,10 @@ ColumnLayout {
         }
     }
 
-    // ===== 模型特定参数 =====
     ColumnLayout {
         id: _modelParamsSection
         Layout.fillWidth: true; spacing: 6
-        visible: {
-            var _ver = root._paramsModelVersion
-            if (!currentModelInfo) return false
-            var p = currentModelInfo.supportedParams
-            if (!p || typeof p !== 'object') return false
-            try { 
-                var keys = Object.keys(p)
-                return keys.length > 0 
-            } catch(e) { return false }
-        }
+        visible: paramsListModel.count > 0
 
         Divider {}
 
@@ -605,34 +619,20 @@ ColumnLayout {
             Text { text: qsTr("模型参数"); color: Theme.colors.foreground; font.pixelSize: 12; font.weight: Font.DemiBold; Layout.fillWidth: true }
             Rectangle {
                 width: _resetLbl.implicitWidth + 12; height: 20; radius: Theme.radius.sm
-                color: hasParamModifications() ? Theme.colors.primary : Theme.colors.muted
-                border.width: hasParamModifications() ? 0 : 1
+                color: AIModelConfigStore.hasParamModifications() ? Theme.colors.primary : Theme.colors.muted
+                border.width: AIModelConfigStore.hasParamModifications() ? 0 : 1
                 border.color: Theme.colors.border
-                visible: currentModelInfo !== null && currentModelInfo.supportedParams && Object.keys(currentModelInfo.supportedParams).length > 0
+                visible: paramsListModel.count > 0
                 Text {
                     id: _resetLbl; anchors.centerIn: parent
                     text: qsTr("重置")
-                    color: hasParamModifications() ? Theme.colors.textOnPrimary : Theme.colors.foreground
+                    color: AIModelConfigStore.hasParamModifications() ? Theme.colors.textOnPrimary : Theme.colors.foreground
                     font.pixelSize: 10
                 }
                 MouseArea {
                     anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        var np = {}
-                        if (currentModelInfo && currentModelInfo.supportedParams) {
-                            var params = currentModelInfo.supportedParams
-                            var keys = Object.keys(params)
-                            for (var i = 0; i < keys.length; i++) {
-                                var key = keys[i]
-                                var param = params[key]
-                                if (param && param.type === "bool") {
-                                    np[key] = false
-                                } else if (param && param["default"] !== undefined) {
-                                    np[key] = param["default"]
-                                }
-                            }
-                        }
-                        root.modelParams = np
+                        AIModelConfigStore.resetCurrentParams()
                         root.paramsChanged()
                     }
                 }
@@ -641,150 +641,136 @@ ColumnLayout {
 
         Repeater {
             id: _paramsRepeater
-            model: {
-                var _ver = root._paramsModelVersion
-                if (!currentModelInfo) return []
-                var params = currentModelInfo.supportedParams
-                if (!params || typeof params !== 'object') return []
-                try {
-                    var keys = Object.keys(params)
-                    var items = []
-                    for (var i = 0; i < keys.length; i++) {
-                        var key = keys[i]
-                        var param = params[key]
-                        if (!param || typeof param !== 'object') continue
-                        var copy = JSON.parse(JSON.stringify(param))
-                        copy.key = key
-                        items.push(copy)
-                    }
-                    return items
-                } catch(e) { return [] }
-            }
+            model: paramsListModel
 
-            delegate: ColumnLayout {
-                Layout.fillWidth: true; spacing: 4
-                opacity: root._isModelSwitching ? 0.5 : 1.0
-                Behavior on opacity { NumberAnimation { duration: 150 } }
+            delegate: Item {
+                Layout.fillWidth: true
+                implicitHeight: _delegateContent.implicitHeight + 8
 
-                property string paramKey:     modelData.key
-                property string paramType:    modelData.type || "float"
-                property var    paramDefault: modelData["default"]
+                property string paramKey: model.key
+                property string paramType: model.type
+                property string paramDefaultStr: model.defaultStr
+                property var paramDefault: paramDefaultStr !== "" ? (paramType === "bool" ? paramDefaultStr === "true" : (paramType === "int" ? parseInt(paramDefaultStr) : (paramType === "float" ? parseFloat(paramDefaultStr) : paramDefaultStr))) : undefined
+                property var paramValues: model.valuesJson ? JSON.parse(model.valuesJson) : []
 
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 4
-                    Text { text: root.getParamLabel(modelData); color: Theme.colors.foreground; font.pixelSize: 11; Layout.fillWidth: true }
-                    Rectangle {
-                        height: 14; radius: Theme.radius.sm
-                        color: Theme.colors.primarySubtle; border.width: 1; border.color: Theme.colors.primary
-                        visible: root._autoReady && root._autoParams[paramKey] !== undefined && root.modelParams[paramKey] === undefined
-                        implicitWidth: _autoBadgeTxt.implicitWidth + 10
-                        Text { id: _autoBadgeTxt; anchors.centerIn: parent; text: qsTr("自动"); color: Theme.colors.primary; font.pixelSize: 9 }
-                    }
-                    Text {
-                        text: {
-                            if (paramType === "bool") return ""
-                            var val = root.modelParams[paramKey]
-                            var dv  = (val !== undefined) ? val : paramDefault
-                            return dv !== undefined ? dv.toString() : ""
+                ColumnLayout {
+                    id: _delegateContent
+                    anchors { left: parent.left; right: parent.right; top: parent.top }
+                    spacing: 4
+
+                    RowLayout {
+                        Layout.fillWidth: true; spacing: 4
+                        Text { text: model.label; color: Theme.colors.foreground; font.pixelSize: 11; Layout.fillWidth: true }
+                        Rectangle {
+                            height: 14; radius: Theme.radius.sm
+                            color: Theme.colors.primarySubtle; border.width: 1; border.color: Theme.colors.primary
+                            visible: root._autoReady && root._autoParams[paramKey] !== undefined && AIModelConfigStore.getParam(paramKey) === undefined
+                            implicitWidth: _autoBadgeTxt.implicitWidth + 10
+                            Text { id: _autoBadgeTxt; anchors.centerIn: parent; text: qsTr("自动"); color: Theme.colors.primary; font.pixelSize: 9 }
                         }
-                        color: Theme.colors.mutedForeground; font.pixelSize: 11
-                        Layout.rightMargin: 8
-                    }
-                }
-
-                Controls.Slider {
-                    id: _sliderCtrl
-                    Layout.fillWidth: true
-                    visible: paramType === "int" || paramType === "float"
-                    from: modelData.min !== undefined ? modelData.min : 0
-                    to:   modelData.max !== undefined ? modelData.max : 100
-                    stepSize: paramType === "int" ? 1 : (modelData.step || 0.1)
-                    value: { var v = root.modelParams[paramKey]; return v !== undefined ? v : (paramDefault !== undefined ? paramDefault : from) }
-                    Behavior on value { enabled: !_sliderCtrl.pressed; NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    onMoved: {
-                        var np = JSON.parse(JSON.stringify(root.modelParams))
-                        np[paramKey] = value; root.modelParams = np; root.paramsChanged()
-                    }
-                }
-
-                ComboBox {
-                    Layout.fillWidth: true; visible: paramType === "enum"
-                    model: modelData.values || []
-                    currentIndex: {
-                        var v = root.modelParams[paramKey]
-                        if (v === undefined) v = paramDefault
-                        return Math.max(0, (modelData.values || []).indexOf(v))
-                    }
-                    onCurrentIndexChanged: {
-                        if (visible && !root._isModelSwitching) {
-                            var vals = modelData.values || []
-                            if (currentIndex >= 0 && currentIndex < vals.length) {
-                                var np = JSON.parse(JSON.stringify(root.modelParams))
-                                np[paramKey] = vals[currentIndex]; root.modelParams = np; root.paramsChanged()
+                        Text {
+                            text: {
+                                if (paramType === "bool") return ""
+                                var val = AIModelConfigStore.getParam(paramKey)
+                                var dv = (val !== undefined) ? val : paramDefault
+                                return dv !== undefined ? dv.toString() : ""
                             }
+                            color: Theme.colors.mutedForeground; font.pixelSize: 11
+                            Layout.rightMargin: 8
                         }
                     }
-                }
 
-                RowLayout {
-                    Layout.fillWidth: true; visible: paramType === "bool"; spacing: 8
-                    Controls.Switch {
-                        id: _boolSwitch
-                        property var currentValue: root.modelParams[paramKey]
-                        checked: currentValue !== undefined ? currentValue : (paramDefault !== undefined ? paramDefault : false)
-                        onCurrentValueChanged: {
-                            checked = currentValue !== undefined ? currentValue : (paramDefault !== undefined ? paramDefault : false)
+                    Controls.Slider {
+                        id: _sliderCtrl
+                        Layout.fillWidth: true
+                        implicitHeight: 24
+                        visible: paramType === "int" || paramType === "float"
+                        from: model.minVal
+                        to: model.maxVal
+                        stepSize: paramType === "int" ? 1 : model.stepVal
+                        value: {
+                            var v = AIModelConfigStore.currentModelParams[paramKey]
+                            return v !== undefined ? v : (paramDefault !== undefined ? paramDefault : from)
                         }
-                        onToggled: {
-                            var np = JSON.parse(JSON.stringify(root.modelParams))
-                            np[paramKey] = checked
-                            root.modelParams = np
+                        Behavior on value { enabled: !_sliderCtrl.pressed; NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                        Behavior on from { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                        Behavior on to { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                        onMoved: {
+                            AIModelConfigStore.updateParam(paramKey, value)
                             root.paramsChanged()
                         }
                     }
-                    Text { text: _boolSwitch.checked ? qsTr("开启") : qsTr("关闭"); color: Theme.colors.mutedForeground; font.pixelSize: 11 }
-                    Item { Layout.fillWidth: true }
-                }
 
-                TextField {
-                    Layout.fillWidth: true; visible: paramType === "string"
-                    placeholderText: modelData.placeholder || ""
-                    text: { var v = root.modelParams[paramKey]; return v !== undefined ? v : (paramDefault !== undefined ? paramDefault : "") }
-                    onEditingFinished: {
-                        var np = JSON.parse(JSON.stringify(root.modelParams))
-                        np[paramKey] = text; root.modelParams = np; root.paramsChanged()
+                    ComboBox {
+                        id: _enumComboBox
+                        Layout.fillWidth: true; visible: paramType === "enum"
+                        implicitHeight: 28
+                        model: paramValues
+                        currentIndex: {
+                            var v = AIModelConfigStore.getParam(paramKey)
+                            if (v === undefined) v = paramDefault
+                            return Math.max(0, paramValues.indexOf(v))
+                        }
+                        onCurrentIndexChanged: {
+                            if (visible && currentIndex >= 0 && currentIndex < paramValues.length) {
+                                AIModelConfigStore.updateParam(paramKey, paramValues[currentIndex])
+                                root.paramsChanged()
+                            }
+                        }
                     }
-                }
 
-                Text {
-                    Layout.fillWidth: true
-                    text: root.getParamDescription(modelData)
-                    color: Theme.colors.mutedForeground; font.pixelSize: 10; wrapMode: Text.WordWrap
-                    visible: text !== "" && text !== root.getParamLabel(modelData)
+                    RowLayout {
+                        Layout.fillWidth: true; visible: paramType === "bool"; spacing: 8
+                        Controls.Switch {
+                            id: _boolSwitch
+                            property var currentValue: AIModelConfigStore.currentModelParams[paramKey]
+                            checked: currentValue !== undefined ? currentValue : (paramDefault !== undefined ? paramDefault : false)
+                            onCurrentValueChanged: {
+                                checked = currentValue !== undefined ? currentValue : (paramDefault !== undefined ? paramDefault : false)
+                            }
+                            onToggled: {
+                                AIModelConfigStore.updateParam(paramKey, checked)
+                                root.paramsChanged()
+                            }
+                        }
+                        Text { text: _boolSwitch.checked ? qsTr("开启") : qsTr("关闭"); color: Theme.colors.mutedForeground; font.pixelSize: 11 }
+                        Item { Layout.fillWidth: true }
+                    }
+
+                    TextField {
+                        Layout.fillWidth: true; visible: paramType === "string"
+                        implicitHeight: 28
+                        placeholderText: model.placeholder
+                        text: {
+                            var v = AIModelConfigStore.getParam(paramKey)
+                            return v !== undefined ? v : (paramDefault !== undefined ? paramDefault : "")
+                        }
+                        onEditingFinished: {
+                            AIModelConfigStore.updateParam(paramKey, text)
+                            root.paramsChanged()
+                        }
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: model.description
+                        color: Theme.colors.mutedForeground; font.pixelSize: 10; wrapMode: Text.WordWrap
+                        visible: text !== "" && text !== model.label
+                    }
                 }
             }
         }
     }
 
-    // ===== 语言切换监听 =====
     Connections {
         target: SettingsController
         function onLanguageChanged() {
-            _paramsRepeater.model = _paramsRepeater.model
-            _cpuTooltip.close()
-            _gpuTooltip.close()
-        }
-    }
-    Connections {
-        target: Theme
-        function onLanguageChanged() {
-            _paramsRepeater.model = _paramsRepeater.model
+            _updateParamsListModel()
             _cpuTooltip.close()
             _gpuTooltip.close()
         }
     }
 
-    // ===== 内部辅助组件 =====
     component Divider: Rectangle {
         Layout.fillWidth: true; height: 1; color: Theme.colors.border
     }
@@ -826,4 +812,4 @@ ColumnLayout {
             color: parent.isWarning ? Theme.colors.warning : Theme.colors.primary
         }
     }
-} 
+}

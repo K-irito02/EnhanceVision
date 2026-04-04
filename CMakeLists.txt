@@ -333,8 +333,10 @@ qt_add_qml_module(EnhanceVision
         qml/utils/Helpers.js
         qml/utils/ShortcutManager.qml
         qml/utils/NotificationManager.qml
+        qml/stores/AIModelConfigStore.qml
     RESOURCES
         qml/styles/qmldir
+        qml/stores/qmldir
         resources/icons/home.svg
         resources/icons/settings.svg
         resources/icons/folder.svg

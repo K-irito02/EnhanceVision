@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../styles"
 import "../controls"
+import "../stores"
 import "./" as Components
 import EnhanceVision.Controllers
 import EnhanceVision.Models
@@ -12,15 +13,14 @@ import EnhanceVision.Models
  *
  * 提供处理模式选择、参数调节、队列管理和操作按钮
  * 支持收缩/展开功能
+ * 使用 AIModelConfigStore 管理 AI 模型选择和参数状态
  */
 Rectangle {
     id: root
 
-    // ========== 属性定义 ==========
     property int processingMode: 0
     property int displayMode: 0
 
-    // Shader 参数
     property real brightness: 0.0
     property real contrast: 1.0
     property real saturation: 1.0
@@ -36,17 +36,12 @@ Rectangle {
     property real highlights: 0.0
     property real shadows: 0.0
 
-    property string aiSelectedModelId: ""
     property string aiSelectedCategory: ""
     property alias aiUseGpu: aiParamsPanel.useGpu
     property alias aiTileSize: aiParamsPanel.tileSize
-    property alias aiModelParams: aiParamsPanel.modelParams
-    // 当前选中模型的 AI 放大倍数（1 = 非超分模型或默认）
-    readonly property int aiScaleFactor: aiParamsPanel.currentModelInfo ? (aiParamsPanel.currentModelInfo.scaleFactor || 1) : 1
-    // 当前媒体类型和尺寸（由外部绑定后透传给 AIParamsPanel）
+    readonly property int aiScaleFactor: AIModelConfigStore.currentModelInfo ? (AIModelConfigStore.currentModelInfo.scaleFactor || 1) : 1
     property alias aiCurrentMediaSize: aiParamsPanel.currentMediaSize
     property alias aiCurrentMediaIsVideo: aiParamsPanel.currentMediaIsVideo
-    // 汇总推理参数（含自动计算值）
     function getAIParams() { return aiParamsPanel.getParams() }
     property bool collapsed: false
     
@@ -300,13 +295,10 @@ Rectangle {
                         Layout.preferredHeight: 250
                         Layout.minimumHeight: 200
 
-                        selectedModelId: root.aiSelectedModelId
                         selectedCategory: root.aiSelectedCategory
 
                         onModelSelected: function(modelId, category) {
-                            root.aiSelectedModelId = modelId
                             root.aiSelectedCategory = category
-                            aiParamsPanel.modelId = modelId
                         }
                     }
 
@@ -314,7 +306,7 @@ Rectangle {
                         Layout.fillWidth: true
                         height: 1
                         color: Theme.colors.border
-                        visible: root.aiSelectedModelId !== ""
+                        visible: AIModelConfigStore.currentModelId !== ""
                     }
 
                     ScrollView {
@@ -325,12 +317,11 @@ Rectangle {
                         clip: true
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                         ScrollBar.vertical.policy: ScrollBar.AsNeeded
-                        visible: root.aiSelectedModelId !== ""
+                        visible: AIModelConfigStore.currentModelId !== ""
 
                         Components.AIParamsPanel {
                             id: aiParamsPanel
                             width: aiParamsScrollView.availableWidth - 4
-                            modelId: root.aiSelectedModelId
                         }
                     }
                 }
