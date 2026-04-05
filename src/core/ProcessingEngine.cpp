@@ -238,7 +238,7 @@ void ProcessingEngine::startTask(const QueueTask& task, const Message& message)
     }
 
     if (mediaFile.filePath.isEmpty()) {
-        emit taskFinished(task, false, QString(), tr("未找到媒体文件"));
+        emit taskFinished(task, false, QString(), tr("Media file not found"));
         return;
     }
 
@@ -259,7 +259,7 @@ void ProcessingEngine::startTask(const QueueTask& task, const Message& message)
 
         // 加载模型
         if (!m_aiEngine->loadModel(modelId)) {
-            emit taskFinished(task, false, QString(), tr("模型加载失败: %1").arg(modelId));
+            emit taskFinished(task, false, QString(), tr("Model loading failed: %1").arg(modelId));
             return;
         }
 
@@ -350,7 +350,7 @@ void ProcessingEngine::onVideoFinished(bool success, const QString& resultPath, 
 
 void ProcessingEngine::onAIProgressChanged(double progress)
 {
-    emit taskProgressChanged(m_currentTaskId, static_cast<int>(progress * 100), tr("AI推理中..."));
+    emit taskProgressChanged(m_currentTaskId, static_cast<int>(progress * 100), tr("AI inferring..."));
 }
 
 void ProcessingEngine::onAIFinished(bool success, const QString& resultPath, const QString& error)

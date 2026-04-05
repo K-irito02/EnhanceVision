@@ -94,7 +94,7 @@ void AutoSaveService::autoSaveResult(const QString& taskId, const QString& resul
                 success = true;
                 qInfo() << "[AutoSaveService] Successfully auto-saved:" << resultPath << "to:" << destPath;
             } else {
-                error = tr("文件复制失败");
+                error = tr("File copy failed");
                 qWarning() << "[AutoSaveService] Failed to copy:" << resultPath << "to:" << destPath;
             }
         }

@@ -128,7 +128,7 @@ void SessionModel::switchSession(const QString &sessionId)
     int newIndex = findSessionIndex(sessionId);
 
     if (newIndex < 0) {
-        emit errorOccurred(tr("会话不存在: %1").arg(sessionId));
+        emit errorOccurred(tr("Session does not exist: %1").arg(sessionId));
         return;
     }
 
@@ -154,17 +154,17 @@ bool SessionModel::renameSession(const QString &sessionId, const QString &newNam
 {
     int index = findSessionIndex(sessionId);
     if (index < 0) {
-        emit errorOccurred(tr("会话不存在: %1").arg(sessionId));
+        emit errorOccurred(tr("Session does not exist: %1").arg(sessionId));
         return false;
     }
 
     if (newName.trimmed().isEmpty()) {
-        emit errorOccurred(tr("会话名称不能为空"));
+        emit errorOccurred(tr("Session name cannot be empty"));
         return false;
     }
 
     if (newName.length() > 50) {
-        emit errorOccurred(tr("会话名称不能超过50个字符"));
+        emit errorOccurred(tr("Session name cannot exceed 50 characters"));
         return false;
     }
 
@@ -182,7 +182,7 @@ bool SessionModel::deleteSession(const QString &sessionId)
 {
     int index = findSessionIndex(sessionId);
     if (index < 0) {
-        emit errorOccurred(tr("会话不存在: %1").arg(sessionId));
+        emit errorOccurred(tr("Session does not exist: %1").arg(sessionId));
         return false;
     }
 
@@ -212,7 +212,7 @@ void SessionModel::clearSession(const QString &sessionId)
 {
     int index = findSessionIndex(sessionId);
     if (index < 0) {
-        emit errorOccurred(tr("会话不存在: %1").arg(sessionId));
+        emit errorOccurred(tr("Session does not exist: %1").arg(sessionId));
         return;
     }
 
@@ -346,7 +346,7 @@ QString SessionModel::generateId() const
 
 QString SessionModel::generateDefaultName() const
 {
-    return tr("未命名会话 %1").arg(m_sessionCounter);
+    return tr("Unnamed Session %1").arg(m_sessionCounter);
 }
 
 int SessionModel::findSessionIndex(const QString &sessionId) const
@@ -379,7 +379,7 @@ void SessionModel::pinSession(const QString &sessionId, bool pinned)
 {
     int index = findSessionIndex(sessionId);
     if (index < 0) {
-        emit errorOccurred(tr("会话不存在: %1").arg(sessionId));
+        emit errorOccurred(tr("Session does not exist: %1").arg(sessionId));
         return;
     }
 
@@ -424,7 +424,7 @@ void SessionModel::moveSession(int fromIndex, int toIndex)
     bool toPinned = m_sessions[toIndex].isPinned;
 
     if (fromPinned != toPinned) {
-        emit errorOccurred(tr("不能跨越置顶区域移动会话"));
+        emit errorOccurred(tr("Cannot move session across pinned area"));
         return;
     }
 

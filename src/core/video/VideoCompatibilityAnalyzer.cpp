@@ -344,11 +344,11 @@ void VideoCompatibilityAnalyzer::generateWarningsAndErrors(VideoCompatibilityRep
         report.sizeAdaptationReason = tr("视频尺寸完全兼容，无需调整");
         break;
     case SizeCompatibility::NeedsPadding:
-        report.sizeAdaptationReason = tr("视频宽高比异常，需要填充处理");
+        report.sizeAdaptationReason = tr("Abnormal aspect ratio, needs padding");
         report.warnings.append(report.sizeAdaptationReason);
         break;
     case SizeCompatibility::NeedsDownscale:
-        report.sizeAdaptationReason = tr("视频尺寸超出安全范围，需要缩小处理");
+        report.sizeAdaptationReason = tr("Video size exceeds safe range, needs downscaling");
         report.warnings.append(report.sizeAdaptationReason);
         break;
     case SizeCompatibility::NeedsTiling:
@@ -366,11 +366,11 @@ void VideoCompatibilityAnalyzer::generateWarningsAndErrors(VideoCompatibilityRep
         report.formatAdaptationReason = tr("视频格式完全支持");
         break;
     case FormatCompatibility::NeedsTranscode:
-        report.formatAdaptationReason = tr("视频编码需要转码");
+        report.formatAdaptationReason = tr("Video codec requires transcoding");
         report.warnings.append(report.formatAdaptationReason);
         break;
     case FormatCompatibility::NeedsColorConvert:
-        report.formatAdaptationReason = tr("像素格式需要转换");
+        report.formatAdaptationReason = tr("Pixel format conversion required");
         report.warnings.append(report.formatAdaptationReason);
         break;
     case FormatCompatibility::NeedsToneMapping:
@@ -388,11 +388,11 @@ void VideoCompatibilityAnalyzer::generateWarningsAndErrors(VideoCompatibilityRep
     }
     
     if (report.isHDR) {
-        report.warnings.append(tr("检测到HDR视频，将应用色调映射"));
+        report.warnings.append(tr("HDR video detected, applying tone mapping"));
     }
     
     if (report.bitDepth > 8) {
-        report.warnings.append(tr("检测到%1-bit视频，将转换为8-bit").arg(report.bitDepth));
+        report.warnings.append(tr("%1-bit video detected, converting to 8-bit").arg(report.bitDepth));
     }
 }
 

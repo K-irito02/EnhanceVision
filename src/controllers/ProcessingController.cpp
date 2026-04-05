@@ -542,12 +542,11 @@ void ProcessingController::startTask(QueueTask& task)
             }
             
             if (inputPath.isEmpty()) {
-                failTask(taskId, tr("未找到媒体文件"));
+                failTask(taskId, tr("Media file not found"));
                 return;
             }
             
             if (ImageUtils::isImageFile(inputPath)) {
-                QFileInfo fileInfo(inputPath);
                 QString processedDir = SettingsController::instance()->getShaderImagePath();
                 QDir().mkpath(processedDir);
                 QString outputPath = processedDir + "/" + QUuid::createUuid().toString(QUuid::WithoutBraces) + ".png";
@@ -598,7 +597,7 @@ void ProcessingController::startTask(QueueTask& task)
             // AI 推理模式：使用 AIEngine 处理
             QString modelId = message.aiParams.modelId;
             if (modelId.isEmpty()) {
-                failTask(taskId, tr("未指定AI模型"));
+                failTask(taskId, tr("No AI model specified"));
                 return;
             }
 
@@ -615,22 +614,22 @@ void ProcessingController::startTask(QueueTask& task)
             }
 
             if (inputPath.isEmpty()) {
-                failTask(taskId, tr("未找到媒体文件"));
+                failTask(taskId, tr("Media file not found"));
                 return;
             }
 
             // 生成输出路径（AI图像和视频分别存储到不同目录）
-            QFileInfo fileInfo(inputPath);
             const bool isVideo = ImageUtils::isVideoFile(inputPath);
             const QString processedDir = isVideo 
                 ? SettingsController::instance()->getAIVideoPath()
                 : SettingsController::instance()->getAIImagePath();
             if (!QDir().mkpath(processedDir)) {
-                failTask(taskId, tr("无法创建AI输出目录: %1").arg(processedDir));
+                failTask(taskId, tr("Cannot create AI output directory: %1").arg(processedDir));
                 return;
             }
 
             // 视频文件输出为 .mp4，图像文件保持原格式（默认 png）
+            QFileInfo fileInfo(inputPath);
             const QString suffix = isVideo ? QStringLiteral("mp4")
                                            : (!fileInfo.suffix().isEmpty() ? fileInfo.suffix() : QStringLiteral("png"));
             const QString uniqueToken = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss_zzz") +
@@ -689,7 +688,7 @@ void ProcessingController::startTask(QueueTask& task)
                                    << "task:" << taskId
                                    << "model:" << loadedModelId
                                    << "error:" << error;
-                        failTask(taskId, error.isEmpty() ? tr("模型加载失败: %1").arg(loadedModelId) : error);
+                        failTask(taskId, error.isEmpty() ? tr("Model loading failed: %1").arg(loadedModelId) : error);
                         return;
                     }
                     
@@ -846,7 +845,7 @@ void ProcessingController::completeTask(const QString& taskId, const QString& re
                                                << "result:" << resultPath
                                                << "exists:" << aiOutputInfo.exists()
                                                << "size:" << aiOutputInfo.size();
-                                    failTask(taskId, tr("AI推理结果无效或输出文件缺失"));
+                                    failTask(taskId, tr("AI inference result invalid or output file missing"));
                                     return;
                                 }
                                 
@@ -878,7 +877,7 @@ void ProcessingController::completeTask(const QString& taskId, const QString& re
                                << "task:" << taskId
                                << "message:" << messageId
                                << "file:" << fileId;
-                    failTask(taskId, tr("未找到待更新的媒体文件"));
+                    failTask(taskId, tr("Media file to update not found"));
                     return;
                 }
             }
@@ -994,7 +993,7 @@ void ProcessingController::processShaderVideoThumbnailAsync(const QString& taskI
                                << "size:" << outputInfo.size();
                     updateFileStatusForSessionMessage(sessionId, messageId, fileId,
                         ProcessingStatus::Failed, QString());
-                    updateErrorForSessionMessage(sessionId, messageId, tr("视频输出文件无效"));
+                    updateErrorForSessionMessage(sessionId, messageId, tr("Video output file is invalid"));
                 } else {
                     // 成功后生成缩略图
                     if (ThumbnailProvider::instance()) {
@@ -1012,7 +1011,7 @@ void ProcessingController::processShaderVideoThumbnailAsync(const QString& taskI
                 updateFileStatusForSessionMessage(sessionId, messageId, fileId,
                     ProcessingStatus::Failed, QString());
                 updateErrorForSessionMessage(sessionId, messageId,
-                    error.isEmpty() ? tr("视频Shader处理失败") : error);
+                    error.isEmpty() ? tr("Video shader processing failed") : error);
             }
 
             finalizeTask(taskId, sessionId, messageId);
@@ -2062,7 +2061,7 @@ void ProcessingController::connectAiEngineForTask(AIEngine* engine, const QStrin
                            << "result:" << resultPath
                            << "exists:" << resultInfo.exists()
                            << "size:" << resultInfo.size();
-                failTask(taskId, tr("AI推理结果无效或未生成输出文件"));
+                failTask(taskId, tr("AI inference result invalid or no output file generated"));
                 return;
             }
             completeTask(taskId, resultPath);
@@ -2107,7 +2106,7 @@ void ProcessingController::launchAiInference(AIEngine* engine, const QString& ta
                                               const Message& message)
 {
     if (!engine || taskId.isEmpty()) {
-        failTask(taskId, tr("无效的推理参数"));
+        failTask(taskId, tr("Invalid inference parameters"));
         return;
     }
 

@@ -21,86 +21,132 @@ Rectangle {
     
     property int completedCount: 0
     property int totalFileCount: mediaFiles ? mediaFiles.count : 0
-    property int estimatedRemainingSec: 0
-    
-    property var _timeSamples: []
-    property real _lastProgress: 0
-    
+
+    // ========== 时间预测系统 ==========
+    // 外部设置的预测总时间（秒），由 TaskTimeEstimator 在任务发送时计算
+    property real predictedTotalSec: 0.0
+    // 当前剩余时间（秒），动态更新
+    property real _remainingSec: predictedTotalSec
+    // 实际处理开始时间戳
     property double _processingStartTime: 0
-    property int _elapsedSec: 0
-    
-    // 使用 onProgressChanged 更新剩余时间，避免绑定循环
-    onProgressChanged: {
-        _updateRemainingTime()
+    // 实际已用时间（秒）
+    property real _elapsedSec: 0
+    // 所有任务完成后的实际总耗时（秒）
+    property real _actualTotalSec: 0
+    // 是否使用 GPU
+    property bool useGpu: false
+    // AI 模型 ID
+    property string modelId: ""
+    // 从模型读取的持久化实际总耗时（用于恢复显示）
+    property real persistedActualTotalSec: 0
+
+    // 平滑动画目标值（避免数字跳变）
+    property real _displayRemainingSec: _remainingSec
+    Behavior on _displayRemainingSec {
+        NumberAnimation { duration: 800; easing.type: Easing.OutCubic }
     }
-    
-    on_ElapsedSecChanged: {
-        _updateRemainingTime()
+
+    // 标记是否已开始处理（避免进度条倒走）
+    property bool _hasStartedProcessing: false
+
+    // 基于时间的进度百分比（用于进度条）
+    readonly property real _timeBasedProgress: {
+        // 未开始处理时返回 0
+        if (!_hasStartedProcessing || _processingStartTime <= 0) return 0
+        if (predictedTotalSec <= 0) return 0
+        if (root.allFilesSettled) return 100
+        // 基于实际已用时间计算进度，而不是剩余时间
+        var progressPct = (_elapsedSec / predictedTotalSec) * 100
+        return Math.min(99, Math.max(0, progressPct))
     }
-    
-    function _updateRemainingTime() {
-        if (status !== 1 || progress <= 0) {
-            estimatedRemainingSec = 0
-            return
-        }
-        
-        // 检测进度回退（新任务开始）
-        if (_lastProgress > 0 && progress < _lastProgress - 10) {
-            _timeSamples = []
-            _lastProgress = progress
-            estimatedRemainingSec = 0
-            return
-        }
-        
-        if (_elapsedSec > 0 && progress > 1) {
-            var rate = _elapsedSec / progress
-            var remaining = Math.round(rate * (100 - progress))
-            
-            // 更新样本数组（创建新数组避免绑定循环）
-            var newSamples = _timeSamples.slice()
-            newSamples.push(remaining)
-            if (newSamples.length > 5) {
-                newSamples.shift()
-            }
-            _timeSamples = newSamples
-            
-            var smoothed = 0
-            for (var i = 0; i < _timeSamples.length; i++) {
-                smoothed += _timeSamples[i]
-            }
-            smoothed = Math.round(smoothed / _timeSamples.length)
-            
-            _lastProgress = progress
-            estimatedRemainingSec = Math.max(0, Math.min(smoothed, 3600 * 24))
-        } else {
-            estimatedRemainingSec = Math.max(0, Math.round((100 - progress) * 0.3))
-        }
-    }
-    
+
     Timer {
         id: elapsedTimer
         interval: 1000
         repeat: true
-        running: root.status === 1  // 仅在处理状态下运行
+        running: root.status === 1 || (root.processingFileCount > 0)
         onTriggered: {
             if (root._processingStartTime > 0) {
                 root._elapsedSec = Math.round((Date.now() - root._processingStartTime) / 1000)
             }
+            // 动态更新剩余时间：预测总时间 - 已用时间
+            // 允许负数：当实际耗时超过预测时，显示负数表示超时
+            if (root.predictedTotalSec > 0 && root._processingStartTime > 0) {
+                root._remainingSec = root.predictedTotalSec - root._elapsedSec
+            }
         }
     }
-    
+
     onStatusChanged: {
         if (status === 1) {
             // 开始处理：记录开始时间
             if (_processingStartTime <= 0) {
                 _processingStartTime = Date.now()
                 _elapsedSec = 0
+                _actualTotalSec = 0
+                _hasStartedProcessing = true
             }
-        } else {
-            // 处理结束：重置时间跟踪
-            _processingStartTime = 0
-            _elapsedSec = 0
+        } else if (status === 0) {
+            // 等待状态：重置标记
+            _hasStartedProcessing = false
         }
+    }
+
+    // 当所有文件处理完成后，计算实际总耗时并持久化
+    onAllFilesSettledChanged: {
+        if (allFilesSettled && _processingStartTime > 0) {
+            _actualTotalSec = Math.round((Date.now() - _processingStartTime) / 1000)
+            _remainingSec = 0
+            // 持久化到模型
+            if (typeof messageModel !== "undefined" && root.taskId) {
+                messageModel.updateActualTotalSec(root.taskId, _actualTotalSec)
+            }
+        }
+    }
+
+    // 从持久化值恢复实际总耗时（用于重新打开应用时显示）
+    onPersistedActualTotalSecChanged: {
+        if (persistedActualTotalSec > 0 && _actualTotalSec === 0) {
+            _actualTotalSec = persistedActualTotalSec
+        }
+    }
+
+    Component.onCompleted: {
+        // 初始化时从持久化值恢复
+        if (persistedActualTotalSec > 0) {
+            _actualTotalSec = persistedActualTotalSec
+        }
+    }
+
+    // 当文件被删除/完成/失败时，重新计算剩余时间
+    function recalculateRemainingTime() {
+        if (typeof taskTimeEstimator === "undefined" || !mediaFiles) return
+        if (predictedTotalSec <= 0) return
+
+        var remainingFiles = []
+        for (var i = 0; i < mediaFiles.count; i++) {
+            var item = mediaFiles.get(i)
+            // 只计算待处理和处理中的文件
+            if (item.status === 0 || item.status === 1) {
+                remainingFiles.push({
+                    width: item.width || 1920,
+                    height: item.height || 1080,
+                    isVideo: (item.mediaType === 1),
+                    durationMs: item.durationMs || 0,
+                    fps: item.fps || 30.0
+                })
+            }
+        }
+
+        if (remainingFiles.length === 0) {
+            _remainingSec = 0
+            return
+        }
+
+        var newRemaining = taskTimeEstimator.estimateMessageTotalTime(
+            root.mode, root.useGpu, root.modelId, remainingFiles
+        )
+        _remainingSec = Math.max(0, newRemaining)
     }
     
     property int successFileCount: 0
@@ -443,79 +489,111 @@ Rectangle {
         }
         
         ColumnLayout {
-            visible: ((status === 0 || status === 1) && !root._hasStatsSnapshot) || (root.pendingFileCount > 0 || root.processingFileCount > 0)
+            visible: (status === 0 || status === 1) && !root.allFilesSettled
             Layout.fillWidth: true
             spacing: 4
-            
+
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 4
-                
+                spacing: 6
+
+                // 左侧状态文本
                 Text {
-                    text: {
-                        if (status === 0) return qsTr("等待处理...")
-                        return qsTr("处理进度")
-                    }
+                    text: status === 0 ? qsTr("等待处理...") : qsTr("处理中")
                     color: Theme.colors.foreground
                     font.pixelSize: 12
                 }
-                
+
+                // 处理中显示文件进度
+                Text {
+                    visible: status === 1
+                    text: qsTr("(%1/%2)").arg(root.completedCount).arg(root.totalFileCount)
+                    color: Theme.colors.mutedForeground
+                    font.pixelSize: 11
+                }
+
                 Item { Layout.fillWidth: true }
-                
-                Text {
-                    visible: status === 1
-                    text: qsTr("%1/%2 文件").arg(root.completedCount).arg(root.totalFileCount)
-                    color: Theme.colors.mutedForeground
-                    font.pixelSize: 11
-                }
-                
-                Text {
-                    visible: status === 1
-                    text: Math.round(progress) + "%"
-                    color: Theme.colors.primary
-                    font.pixelSize: 12
-                    font.weight: Font.Bold
-                }
-                
-                Text {
-                    visible: status === 1 && root.estimatedRemainingSec > 0
-                    text: {
-                        var s = root.estimatedRemainingSec
-                        if (s >= 3600) return qsTr("预计 %1h%2m").arg(Math.floor(s/3600)).arg(Math.floor((s%3600)/60))
-                        if (s >= 60) return qsTr("预计 %1m%2s").arg(Math.floor(s/60)).arg(s%60)
-                        return qsTr("预计 %1s").arg(s)
+
+                // 时间显示区域
+                RowLayout {
+                    spacing: 6
+
+                    // 预测总时间
+                    Text {
+                        visible: root.predictedTotalSec > 0
+                        text: {
+                            var s = Math.round(root.predictedTotalSec)
+                            if (s >= 3600) return qsTr("预估: %1h%2m").arg(Math.floor(s/3600)).arg(Math.floor((s%3600)/60))
+                            if (s >= 60) return qsTr("预估: %1m%2s").arg(Math.floor(s/60)).arg(s%60)
+                            return qsTr("预估: %1s").arg(s)
+                        }
+                        color: Theme.colors.mutedForeground
+                        font.pixelSize: 10
                     }
-                    color: Theme.colors.mutedForeground
-                    font.pixelSize: 11
+
+                    // 分隔符
+                    Text {
+                        visible: status === 1 && root.predictedTotalSec > 0
+                        text: "|"
+                        color: Theme.colors.border
+                        font.pixelSize: 10
+                    }
+
+                    // 剩余时间（处理中时显示，支持负数表示超时）
+                    Text {
+                        visible: status === 1 && root.predictedTotalSec > 0
+                        text: {
+                            var s = Math.round(root._displayRemainingSec)
+                            var isOvertime = s < 0
+                            var absS = Math.abs(s)
+                            var prefix = isOvertime ? qsTr("超时: +") : qsTr("剩余: ")
+                            if (absS >= 3600) return prefix + qsTr("%1h%2m").arg(Math.floor(absS/3600)).arg(Math.floor((absS%3600)/60))
+                            if (absS >= 60) return prefix + qsTr("%1m%2s").arg(Math.floor(absS/60)).arg(absS%60)
+                            return prefix + qsTr("%1s").arg(absS)
+                        }
+                        // 超时时显示警告色，否则显示主色
+                        color: root._displayRemainingSec < 0 ? Theme.colors.warning : Theme.colors.primary
+                        font.pixelSize: 11
+                        font.weight: Font.DemiBold
+                    }
+
                 }
             }
-            
+
+            // 进度条（基于时间预测移动）
             Rectangle {
                 Layout.fillWidth: true
                 height: 4; radius: 2
                 color: Theme.colors.muted
-                
+                visible: !root.allFilesSettled
+
                 Rectangle {
                     width: {
                         if (root.status === 0) return 0
-                        if (root.status === 2) return parent.width
+                        if (root.allFilesSettled) return parent.width
+                        // 基于时间预测的进度
+                        if (root.predictedTotalSec > 0) {
+                            return parent.width * (root._timeBasedProgress / 100)
+                        }
+                        // 回退到基于任务的进度
                         return parent.width * (Math.min(root.progress, 100) / 100)
                     }
                     height: parent.height; radius: parent.radius
                     color: Theme.colors.primary
-                    
+
                     Behavior on width {
-                        NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+                        NumberAnimation { duration: 600; easing.type: Easing.OutCubic }
                     }
                 }
-                
+
+                // 等待状态动画
                 Rectangle {
                     visible: root.status === 0
                     width: parent.width * 0.3
                     height: parent.height; radius: parent.radius
                     color: Theme.colors.primary
                     opacity: 0.5
-                    
+
                     SequentialAnimation on x {
                         running: root.status === 0
                         loops: Animation.Infinite
@@ -614,6 +692,23 @@ Rectangle {
                 text: qsTr("%1 个文件").arg(root.totalFileCount)
                 color: Theme.colors.mutedForeground
                 font.pixelSize: 11
+            }
+
+            // 完成后显示实际总耗时（放在文件统计右侧）
+            // 显示条件：有总耗时数据即显示（来自实时计算或持久化恢复）
+            Text {
+                property real displayTotalSec: root._actualTotalSec > 0 ? root._actualTotalSec : root.persistedActualTotalSec
+                visible: displayTotalSec > 0
+                text: {
+                    var s = Math.round(displayTotalSec)
+                    if (s >= 3600) return qsTr("总耗时: %1h%2m%3s").arg(Math.floor(s/3600)).arg(Math.floor((s%3600)/60)).arg(s%60)
+                    if (s >= 60) return qsTr("总耗时: %1m%2s").arg(Math.floor(s/60)).arg(s%60)
+                    return qsTr("总耗时: %1s").arg(s)
+                }
+                // 使用蓝色
+                color: "#4a9eff"
+                font.pixelSize: 11
+                font.weight: Font.DemiBold
             }
         }
         

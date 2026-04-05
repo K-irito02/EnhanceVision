@@ -7,6 +7,7 @@
 #include "EnhanceVision/core/AIEngine.h"
 #include "EnhanceVision/core/ModelRegistry.h"
 #include "EnhanceVision/core/ProgressReporter.h"
+#include "EnhanceVision/core/TaskTimeEstimator.h"
 #include "EnhanceVision/utils/ImageUtils.h"
 #include <QFile>
 #include <QDir>
@@ -97,6 +98,19 @@ void AIEngine::probeGpuAvailability()
                 << "device:" << m_gpuDeviceName
                 << "count:" << deviceCount;
 
+        // 同步 GPU 信息到 TaskTimeEstimator
+        {
+            auto* estimator = TaskTimeEstimator::instance();
+            if (estimator) {
+                // GPU VRAM 估算：通过 heap budget 获取（如不可用则使用默认值）
+                qint64 vramMB = 0;
+                const ncnn::GpuInfo& info = ncnn::get_gpu_info(0);
+                vramMB = static_cast<qint64>(info.max_shared_memory_size() / (1024 * 1024));
+                if (vramMB <= 0) vramMB = 4096; // 默认 4GB
+                estimator->setGpuInfo(m_gpuDeviceName, vramMB, true);
+            }
+        }
+
         emit gpuDeviceInfoChanged();
     } catch (const std::exception& e) {
         qWarning() << "[AIEngine] Vulkan probe exception:" << e.what();
@@ -132,17 +146,17 @@ bool AIEngine::loadModel(const QString &modelId)
     
     if (m_isProcessing.load()) {
         qWarning() << "[AIEngine][loadModel] rejected: inference in progress, modelId:" << modelId;
-        emit processError(tr("推理进行中，无法切换模型"));
+        emit processError(tr("Inference in progress, cannot switch model"));
         return false;
     }
 
     if (!m_modelRegistry) {
-        emit processError(tr("ModelRegistry 未初始化"));
+        emit processError(tr("ModelRegistry not initialized"));
         return false;
     }
 
     if (!m_modelRegistry->hasModel(modelId)) {
-        emit processError(tr("模型未注册: %1").arg(modelId));
+        emit processError(tr("Model not registered: %1").arg(modelId));
         return false;
     }
 
@@ -157,7 +171,7 @@ bool AIEngine::loadModel(const QString &modelId)
     }
 
     if (!info.isAvailable) {
-        emit processError(tr("模型文件不可用: %1").arg(modelId));
+        emit processError(tr("Model file unavailable: %1").arg(modelId));
         return false;
     }
 
@@ -196,7 +210,7 @@ bool AIEngine::loadModel(const QString &modelId)
         
         if (!s_gpuInstanceCreated.load()) {
             qWarning() << "[AIEngine][loadModel] Global Vulkan instance not created, cannot use GPU";
-            emit processError(tr("Vulkan 实例未创建，无法使用 GPU"));
+            emit processError(tr("Vulkan instance not created, GPU unavailable"));
             return false;
         }
         
@@ -220,7 +234,7 @@ bool AIEngine::loadModel(const QString &modelId)
     int ret = m_net.load_param(info.paramPath.toStdString().c_str());
     if (ret != 0) {
         qWarning() << "[AIEngine][loadModel] Failed to load param file, ret:" << ret;
-        emit processError(tr("加载模型参数失败: %1").arg(info.paramPath));
+        emit processError(tr("Failed to load model parameters: %1").arg(info.paramPath));
         return false;
     }
     
@@ -231,7 +245,7 @@ bool AIEngine::loadModel(const QString &modelId)
     if (ret != 0) {
         qWarning() << "[AIEngine][loadModel] Failed to load bin file, ret:" << ret;
         m_net.clear();
-        emit processError(tr("加载模型权重失败: %1").arg(info.binPath));
+        emit processError(tr("Failed to load model weights: %1").arg(info.binPath));
         return false;
     }
 
@@ -257,7 +271,7 @@ void AIEngine::loadModelAsync(const QString &modelId)
         bool success = loadModel(modelId);
         QString error;
         if (!success) {
-            error = tr("模型加载失败: %1").arg(modelId);
+            error = tr("Model loading failed: %1").arg(modelId);
         }
         emit modelLoadCompleted(success, modelId, error);
     });
@@ -291,18 +305,18 @@ QImage AIEngine::process(const QImage &input)
     if (m_currentModelId.isEmpty() || !m_currentModel.isLoaded) {
         if (!m_currentModelId.isEmpty() && m_currentModel.paramPath.isEmpty()) {
         } else {
-            emitError(tr("未加载模型"));
+            emitError(tr("No model loaded"));
             return QImage();
         }
     }
 
     if (input.isNull() || input.bits() == nullptr) {
-        emitError(tr("输入图像为空或数据无效"));
+        emitError(tr("Input image is empty or data invalid"));
         return QImage();
     }
 
     if (input.width() <= 0 || input.height() <= 0) {
-        emitError(tr("输入图像尺寸无效: %1x%2").arg(input.width()).arg(input.height()));
+        emitError(tr("Invalid input image size: %1x%2").arg(input.width()).arg(input.height()));
         return QImage();
     }
 
@@ -415,8 +429,8 @@ QImage AIEngine::process(const QImage &input)
 void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
 {
     if (m_isProcessing.load()) {
-        emit processError(tr("已有推理任务正在进行"));
-        emit processFileCompleted(false, QString(), tr("已有推理任务正在进行"));
+        emit processError(tr("Inference task already in progress"));
+        emit processFileCompleted(false, QString(), tr("Inference task already in progress"));
         return;
     }
 
@@ -443,7 +457,7 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
 
         QImage inputImage(inputPath);
         if (inputImage.isNull()) {
-            QString error = tr("无法读取图像: %1").arg(inputPath);
+            QString error = tr("Cannot read image: %1").arg(inputPath);
             qWarning() << "[AIEngine][processAsync]" << error;
             setProcessing(false);
             emit processError(error);
@@ -452,7 +466,7 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
         }
 
         if (inputImage.format() == QImage::Format_Invalid) {
-            QString error = tr("图像格式无效: %1").arg(inputPath);
+            QString error = tr("Invalid image format: %1").arg(inputPath);
             setProcessing(false);
             emit processError(error);
             emit processFileCompleted(false, QString(), error);
@@ -475,12 +489,12 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
 
         if (m_cancelRequested) {
             setProcessing(false);
-            emit processFileCompleted(false, QString(), tr("推理已取消"));
+            emit processFileCompleted(false, QString(), tr("Inference cancelled"));
             return;
         }
 
         if (result.isNull()) {
-            QString error = lastError.isEmpty() ? tr("推理失败，请检查模型兼容性和输入图像") : lastError;
+            QString error = lastError.isEmpty() ? tr("Inference failed, please check model compatibility and input image") : lastError;
             qWarning() << "[AIEngine] inference failed:" << error;
             setProcessing(false);
             emit processFileCompleted(false, QString(), error);
@@ -488,7 +502,7 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
         }
 
         if (!result.save(outputPath)) {
-            QString error = tr("无法保存结果: %1").arg(outputPath);
+            QString error = tr("Cannot save result: %1").arg(outputPath);
             setProcessing(false);
             emit processError(error);
             emit processFileCompleted(false, QString(), error);
@@ -602,7 +616,7 @@ QImage AIEngine::inpaint(const QImage &input, const QImage &mask, int radius, in
     Q_UNUSED(method)
 
     if (input.isNull() || mask.isNull()) {
-        emit processError(tr("修复输入无效"));
+        emit processError(tr("Invalid repair input"));
         return QImage();
     }
 
@@ -655,8 +669,8 @@ void AIEngine::inpaintAsync(const QString &inputPath, const QString &maskPath,
                              const QString &outputPath, int radius, int method)
 {
     if (m_isProcessing.load()) {
-        emit processError(tr("已有任务正在进行"));
-        emit processFileCompleted(false, QString(), tr("已有任务正在进行"));
+        emit processError(tr("Task already in progress"));
+        emit processFileCompleted(false, QString(), tr("Task already in progress"));
         return;
     }
     QtConcurrent::run([this, inputPath, maskPath, outputPath, radius, method]() {
@@ -665,15 +679,15 @@ void AIEngine::inpaintAsync(const QString &inputPath, const QString &maskPath,
         QImage input(inputPath), mask(maskPath);
         if (input.isNull() || mask.isNull()) {
             setProcessing(false);
-            emit processFileCompleted(false, QString(), tr("无法读取图像: %1").arg(
+            emit processFileCompleted(false, QString(), tr("Cannot read image: %1").arg(
                 input.isNull() ? inputPath : maskPath));
             return;
         }
         setProgress(0.2);
         QImage result = inpaint(input, mask, radius, method);
         setProgress(0.8);
-        if (result.isNull()) { setProcessing(false); emit processFileCompleted(false, QString(), tr("修复失败")); return; }
-        if (!result.save(outputPath)) { setProcessing(false); emit processFileCompleted(false, QString(), tr("保存失败: %1").arg(outputPath)); return; }
+        if (result.isNull()) { setProcessing(false); emit processFileCompleted(false, QString(), tr("Repair failed")); return; }
+        if (!result.save(outputPath)) { setProcessing(false); emit processFileCompleted(false, QString(), tr("Save failed: %1").arg(outputPath)); return; }
         setProgress(1.0);
         setProcessing(false);
         emit processFileCompleted(true, outputPath, QString());
@@ -745,7 +759,7 @@ bool AIEngine::setBackendType(BackendType type)
 {
     if (m_isProcessing.load()) {
         qWarning() << "[AIEngine] Cannot switch backend during inference";
-        emit processError(tr("推理进行中，无法切换后端"));
+        emit processError(tr("Inference in progress, cannot switch backend"));
         return false;
     }
 
@@ -834,7 +848,7 @@ bool AIEngine::setBackendType(BackendType type)
 #else
     if (type == BackendType::NCNN_Vulkan) {
         qWarning() << "[AIEngine] Vulkan not available at compile time";
-        emit processError(tr("编译时未启用 Vulkan 支持"));
+        emit processError(tr("Vulkan support not enabled at compile time"));
         return false;
     }
 #endif
@@ -852,13 +866,13 @@ bool AIEngine::initializeVulkan(int gpuDeviceId)
         ensureGpuInstanceCreated();
         
         if (!s_gpuInstanceCreated.load()) {
-            emit processError(tr("创建 Vulkan 实例失败"));
+            emit processError(tr("Failed to create Vulkan instance"));
             return false;
         }
 
         int deviceCount = ncnn::get_gpu_count();
         if (deviceCount <= 0) {
-            emit processError(tr("未找到支持 Vulkan 的 GPU 设备"));
+            emit processError(tr("No Vulkan-capable GPU device found"));
             return false;
         }
 
@@ -892,17 +906,17 @@ bool AIEngine::initializeVulkan(int gpuDeviceId)
     } catch (const std::exception& e) {
         qWarning() << "[AIEngine] Vulkan init exception:" << e.what();
         shutdownVulkan();
-        emit processError(tr("GPU 初始化失败: %1").arg(e.what()));
+        emit processError(tr("GPU initialization failed: %1").arg(e.what()));
         return false;
     } catch (...) {
         qWarning() << "[AIEngine] Vulkan init unknown exception";
         shutdownVulkan();
-        emit processError(tr("GPU 初始化失败: 未知异常"));
+        emit processError(tr("GPU initialization failed: unknown exception"));
         return false;
     }
 #else
     Q_UNUSED(gpuDeviceId);
-    emit processError(tr("程序未编译 Vulkan 支持"));
+    emit processError(tr("Application not compiled with Vulkan support"));
     return false;
 #endif
 }
@@ -1179,17 +1193,17 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
     if (m_backendType == BackendType::NCNN_Vulkan) {
         if (!waitForModelSyncComplete(5000)) {
             qWarning() << "[AIEngine][Inference] Model sync not complete, aborting inference";
-            emitError(tr("模型同步未完成，无法开始推理"));
+            emitError(tr("Model sync incomplete, cannot start inference"));
             return ncnn::Mat();
         }
         if (!waitForGpuReady(3000)) {
             qWarning() << "[AIEngine][Inference] GPU not ready, aborting inference";
-            emitError(tr("GPU 未就绪，无法开始推理"));
+            emitError(tr("GPU not ready, cannot start inference"));
             return ncnn::Mat();
         }
         if (!s_gpuInstanceCreated.load()) {
             qWarning() << "[AIEngine][Inference] Vulkan instance not created";
-            emitError(tr("Vulkan 实例未创建"));
+            emitError(tr("Vulkan instance not created"));
             return ncnn::Mat();
         }
         qInfo() << "[AIEngine][Inference] GPU resources verified, proceeding with inference";
@@ -1247,7 +1261,7 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
                    << "requested:" << model.inputBlobName
                    << "tried:" << inputCandidates
                    << "ret:" << inputRet;
-        emitError(tr("推理输入失败，模型输入节点不匹配"));
+        emitError(tr("Inference input failed, model input node mismatch"));
         return ncnn::Mat();
     }
 
@@ -1269,7 +1283,7 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
         
         if (!s_gpuInstanceCreated.load()) {
             qWarning() << "[AIEngine][Inference] Vulkan instance not created before extract!";
-            emitError(tr("Vulkan 实例未创建"));
+            emitError(tr("Vulkan instance not created"));
             return ncnn::Mat();
         }
     }
@@ -1303,7 +1317,7 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
                    << "requested:" << model.outputBlobName
                    << "tried:" << outputCandidates
                    << "extractRet:" << extractRet;
-        emitError(tr("推理输出失败，模型输出节点不匹配 (ret=%1)").arg(extractRet));
+        emitError(tr("Inference output failed, model output node mismatch (ret=%1)").arg(extractRet));
         return ncnn::Mat();
     }
 
@@ -1670,7 +1684,7 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
             if (consecutiveFailures >= kMaxConsecutiveFailures) {
                 qWarning() << "[AIEngine][Tiled] fast-fail: too many consecutive failures";
                 painter.end();
-                emitError(tr("分块处理连续失败"));
+                emitError(tr("Consecutive tile processing failures"));
                 return QImage();
             }
 
@@ -1773,7 +1787,7 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
                    << "successful:" << successfulTiles
                    << "failed:" << failedTiles
                    << "total:" << totalTiles;
-        emitError(tr("推理未完整完成（%1/%2 分块成功）").arg(successfulTiles).arg(totalTiles));
+        emitError(tr("Inference not fully completed (%1/%2 tiles successful)").arg(successfulTiles).arg(totalTiles));
         return QImage();
     }
     
@@ -1808,7 +1822,7 @@ QImage AIEngine::processWithTTA(const QImage &input, const ModelInfo &model)
         if (m_cancelRequested) {
             return QImage();
         }
-        emit progressTextChanged(tr("TTA 处理中: %1/%2").arg(i + 1).arg(totalSteps));
+        emit progressTextChanged(tr("TTA processing: %1/%2").arg(i + 1).arg(totalSteps));
         double stepProgress = 0.05 + 0.85 * static_cast<double>(i) / totalSteps;
         setProgress(stepProgress);
 
@@ -1837,7 +1851,7 @@ QImage AIEngine::processWithTTA(const QImage &input, const ModelInfo &model)
     }
     
     setProgress(0.92);
-    emit progressTextChanged(tr("合并 TTA 结果..."));
+    emit progressTextChanged(tr("Merging TTA results..."));
     QImage merged = mergeTTAResults(results);
     setProgress(0.95);
     return merged;

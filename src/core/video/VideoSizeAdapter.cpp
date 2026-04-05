@@ -101,7 +101,7 @@ SizeAdaptationResult VideoSizeAdapter::analyze(const QSize& videoSize) const
         if (aspectRatio > constraints.maxAspectRatio || 
             aspectRatio < constraints.minAspectRatio) {
             result.compatibility = SizeCompatibility::NeedsPadding;
-            result.adaptationReason = tr("视频宽高比异常，需要填充处理");
+            result.adaptationReason = tr("Abnormal aspect ratio, needs padding");
             
             if (aspectRatio > constraints.maxAspectRatio) {
                 int targetH = static_cast<int>(w / constraints.maxAspectRatio);
@@ -121,7 +121,7 @@ SizeAdaptationResult VideoSizeAdapter::analyze(const QSize& videoSize) const
         if (alignedW != w || alignedH != h) {
             if (result.compatibility == SizeCompatibility::FullyCompatible) {
                 result.compatibility = SizeCompatibility::NeedsPadding;
-                result.adaptationReason = tr("视频尺寸需要填充以匹配模型要求");
+                result.adaptationReason = tr("Video size needs padding to match model requirements");
             }
             result.adaptedSize = QSize(alignedW, alignedH);
         }
@@ -132,7 +132,7 @@ SizeAdaptationResult VideoSizeAdapter::analyze(const QSize& videoSize) const
         if (model.tileSize > 0 || model.layerCount > 0) {
             result.compatibility = SizeCompatibility::NeedsTiling;
             result.recommendedTileSize = computeOptimalTileSize(videoSize);
-            result.adaptationReason = tr("视频尺寸较大，将使用分块处理");
+            result.adaptationReason = tr("Large video size, will use tile processing");
         } else {
             result.compatibility = SizeCompatibility::NeedsDownscale;
             double scale = std::sqrt(
@@ -140,7 +140,7 @@ SizeAdaptationResult VideoSizeAdapter::analyze(const QSize& videoSize) const
             result.adaptedSize = QSize(
                 static_cast<int>(w * scale),
                 static_cast<int>(h * scale));
-            result.adaptationReason = tr("视频尺寸超出安全范围，需要缩小处理");
+            result.adaptationReason = tr("Video size exceeds safe range, needs downscaling");
         }
     }
     
@@ -153,7 +153,7 @@ SizeAdaptationResult VideoSizeAdapter::analyze(const QSize& videoSize) const
         result.adaptedSize.height() * scaleFactor);
     
     if (result.compatibility == SizeCompatibility::FullyCompatible) {
-        result.adaptationReason = tr("视频尺寸完全兼容，无需调整");
+        result.adaptationReason = tr("Video size fully compatible, no adjustment needed");
     }
     
     return result;

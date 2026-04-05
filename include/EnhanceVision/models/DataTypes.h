@@ -267,6 +267,7 @@ struct Message {
     bool isSelected;               ///< 是否被选中（批量操作）
     int progress;                  ///< 处理进度（0-100）
     int queuePosition;             ///< 队列位置（-1 表示不在队列）
+    qint64 actualTotalSec;         ///< 实际总耗时（秒），处理完成后记录
 
     Message()
         : mode(ProcessingMode::Shader)
@@ -274,6 +275,7 @@ struct Message {
         , isSelected(false)
         , progress(0)
         , queuePosition(-1)
+        , actualTotalSec(0)
     {}
 };
 

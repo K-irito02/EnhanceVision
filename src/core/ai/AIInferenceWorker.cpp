@@ -167,7 +167,7 @@ void AIInferenceWorker::startTask(const AITaskRequest& request)
     
     // 设置状态为准备中
     setState(AITaskState::Preparing);
-    updateProgress(0.0, tr("准备中..."));
+    updateProgress(0.0, tr("Preparing..."));
     
     // 检查取消
     if (checkCancellation()) {
@@ -250,7 +250,7 @@ AITaskResult AIInferenceWorker::processImage(const AITaskRequest& request)
     }
     
     // 加载模型
-    updateProgress(0.10, tr("加载模型..."));
+    updateProgress(0.10, tr("Loading model..."));
     
     QString modelError;
     if (!ensureModelLoaded(request.modelId, modelError)) {
@@ -315,14 +315,14 @@ AITaskResult AIInferenceWorker::processImage(const AITaskRequest& request)
     }
     
     // 保存结果
-    updateProgress(0.92, tr("保存结果..."));
+    updateProgress(0.92, tr("Saving result..."));
     
     // 确保输出目录存在
     QFileInfo outputInfo(request.outputPath);
     QDir().mkpath(outputInfo.absolutePath());
     
     if (!resultImage.save(request.outputPath)) {
-        QString error = tr("无法保存结果: %1").arg(request.outputPath);
+        QString error = tr("Cannot save result: %1").arg(request.outputPath);
         qWarning() << "[AIInferenceWorker]" << error;
         setState(AITaskState::Failed);
         return AITaskResult::makeFailure(request.taskId, error, AIErrorType::FileWriteError);
@@ -396,7 +396,7 @@ AITaskResult AIInferenceWorker::processVideo(const AITaskRequest& request)
     QMetaObject::Connection progressConn = connect(m_videoProcessor.get(), &AIVideoProcessor::progressChanged,
         this, [this](double p) {
             double mappedProgress = 0.10 + p * 0.85;
-            updateProgress(mappedProgress, tr("处理视频中..."));
+            updateProgress(mappedProgress, tr("Processing video..."));
         }, Qt::DirectConnection);
     
     QMetaObject::Connection completedConn = connect(m_videoProcessor.get(), &AIVideoProcessor::completed,
@@ -426,12 +426,12 @@ AITaskResult AIInferenceWorker::processVideo(const AITaskRequest& request)
         qWarning() << "[AIInferenceWorker] Video processing failed:" << videoError;
         setState(AITaskState::Failed);
         return AITaskResult::makeFailure(request.taskId, 
-            videoError.isEmpty() ? tr("视频处理失败") : videoError, 
+            videoError.isEmpty() ? tr("Video processing failed") : videoError, 
             AIErrorType::InferenceFailed);
     }
     
     // 完成
-    updateProgress(1.0, tr("完成"));
+    updateProgress(1.0, tr("Completed"));
     setState(AITaskState::Completed);
     
     qint64 elapsedMs = m_taskTimer.elapsed();
@@ -449,7 +449,7 @@ bool AIInferenceWorker::ensureModelLoaded(const QString& modelId, QString& error
     }
     
     if (!m_modelRegistry) {
-        errorOut = tr("模型注册表未初始化");
+        errorOut = tr("Model registry not initialized");
         return false;
     }
     
@@ -485,7 +485,7 @@ bool AIInferenceWorker::checkCancellation()
     if (m_cancelRequested.load() || m_forceCancel.load()) {
         qInfo() << "[AIInferenceWorker] Cancellation detected for task:" << m_currentTaskId;
         setState(AITaskState::Cancelled);
-        updateProgress(m_progress.load(), tr("已取消"));
+        updateProgress(m_progress.load(), tr("Cancelled"));
         
         cleanupResources();
         

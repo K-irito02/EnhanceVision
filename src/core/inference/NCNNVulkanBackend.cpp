@@ -154,7 +154,7 @@ bool NCNNVulkanBackend::initGpuResources()
         } else {
             int ret = ncnn::create_gpu_instance();
             if (ret != 0) {
-                emitError(tr("创建 Vulkan 实例失败，错误码: %1").arg(ret));
+                emitError(tr("Failed to create Vulkan instance, error code: %1").arg(ret));
                 return false;
             }
             m_vulkanInstanceCreated = true;
@@ -162,7 +162,7 @@ bool NCNNVulkanBackend::initGpuResources()
 
         int deviceCount = ncnn::get_gpu_count();
         if (deviceCount <= 0) {
-            emitError(tr("未找到支持 Vulkan 的 GPU 设备"));
+            emitError(tr("No Vulkan-capable GPU device found"));
             return false;
         }
 
@@ -184,17 +184,17 @@ bool NCNNVulkanBackend::initGpuResources()
         return true;
     } catch (const std::exception& e) {
         qWarning() << "[NCNNVulkanBackend] GPU init exception:" << e.what();
-        emitError(tr("GPU 初始化失败: %1").arg(e.what()));
+        emitError(tr("GPU initialization failed: %1").arg(e.what()));
         releaseGpuResources();
         return false;
     } catch (...) {
         qWarning() << "[NCNNVulkanBackend] GPU init unknown exception";
-        emitError(tr("GPU 初始化失败: 未知异常"));
+        emitError(tr("GPU initialization failed: unknown exception"));
         releaseGpuResources();
         return false;
     }
 #else
-    emitError(tr("程序未编译 Vulkan 支持"));
+    emitError(tr("Application not compiled with Vulkan support"));
     return false;
 #endif
 }
@@ -233,7 +233,7 @@ bool NCNNVulkanBackend::loadModel(const ModelInfo& model)
     }
     
     if (!model.isAvailable) {
-        emitError(tr("模型文件不可用: %1").arg(model.id));
+        emitError(tr("Model file unavailable: %1").arg(model.id));
         return false;
     }
     
@@ -254,14 +254,14 @@ bool NCNNVulkanBackend::loadModel(const ModelInfo& model)
     
     int ret = m_net.load_param(model.paramPath.toStdString().c_str());
     if (ret != 0) {
-        emitError(tr("加载模型参数失败: %1").arg(model.paramPath));
+        emitError(tr("Failed to load model parameters: %1").arg(model.paramPath));
         return false;
     }
     
     ret = m_net.load_model(model.binPath.toStdString().c_str());
     if (ret != 0) {
         m_net.clear();
-        emitError(tr("加载模型权重失败: %1").arg(model.binPath));
+        emitError(tr("Failed to load model weights: %1").arg(model.binPath));
         return false;
     }
     
@@ -308,17 +308,17 @@ InferenceResult NCNNVulkanBackend::inference(const InferenceRequest& request)
     QMutexLocker inferenceLocker(&m_inferenceMutex);
     
     if (!m_isInitialized.load()) {
-        return InferenceResult::makeFailure(tr("后端未初始化"), 
+        return InferenceResult::makeFailure(tr("Backend not initialized"), 
                                             static_cast<int>(InferenceError::BackendNotInitialized));
     }
     
     if (!m_modelLoaded) {
-        return InferenceResult::makeFailure(tr("模型未加载"), 
+        return InferenceResult::makeFailure(tr("No model loaded"), 
                                             static_cast<int>(InferenceError::ModelNotLoaded));
     }
     
     if (request.input.isNull() || request.input.bits() == nullptr) {
-        return InferenceResult::makeFailure(tr("输入图像无效"), 
+        return InferenceResult::makeFailure(tr("Invalid input image"), 
                                             static_cast<int>(InferenceError::InvalidInput));
     }
 
@@ -367,25 +367,25 @@ InferenceResult NCNNVulkanBackend::inference(const InferenceRequest& request)
         qWarning() << "[NCNNVulkanBackend] GPU out of memory during inference";
         setInferenceRunning(false);
         setProgress(1.0);
-        emitError(tr("GPU 显存不足，请切换到 CPU 模式或减小分块大小"));
+        emitError(tr("GPU memory insufficient, please switch to CPU mode or reduce tile size"));
         return InferenceResult::makeFailure(
-            tr("GPU 显存不足，建议切换到 CPU 模式"),
+            tr("GPU memory insufficient, recommend switching to CPU mode"),
             static_cast<int>(InferenceError::OutOfMemory));
     } catch (const std::exception& e) {
         qWarning() << "[NCNNVulkanBackend] Inference exception:" << e.what();
         setInferenceRunning(false);
         setProgress(1.0);
-        emitError(tr("GPU 推理错误: %1").arg(e.what()));
+        emitError(tr("GPU inference error: %1").arg(e.what()));
         return InferenceResult::makeFailure(
-            tr("GPU 推理失败: %1").arg(e.what()),
+            tr("GPU inference failed: %1").arg(e.what()),
             static_cast<int>(InferenceError::InferenceFailed));
     } catch (...) {
         qWarning() << "[NCNNVulkanBackend] Unknown inference exception";
         setInferenceRunning(false);
         setProgress(1.0);
-        emitError(tr("GPU 推理发生未知错误"));
+        emitError(tr("GPU inference unknown error"));
         return InferenceResult::makeFailure(
-            tr("GPU 推理发生未知错误"),
+            tr("GPU inference unknown error"),
             static_cast<int>(InferenceError::Unknown));
     }
 #endif
@@ -416,12 +416,12 @@ InferenceResult NCNNVulkanBackend::processSingle(const QImage& input)
     
     ncnn::Mat in = ImagePreprocessor::qimageToMat(input, m_currentModel);
     if (in.empty()) {
-        return InferenceResult::makeFailure(tr("图像预处理失败"), 
+        return InferenceResult::makeFailure(tr("Image preprocessing failed"), 
                                             static_cast<int>(InferenceError::InvalidInput));
     }
     
     if (isCancelRequested()) {
-        return InferenceResult::makeFailure(tr("已取消"), 
+        return InferenceResult::makeFailure(tr("Cancelled"), 
                                             static_cast<int>(InferenceError::Cancelled));
     }
     
@@ -430,12 +430,12 @@ InferenceResult NCNNVulkanBackend::processSingle(const QImage& input)
     ncnn::Mat out = runInference(in);
     
     if (out.empty() || out.w <= 0 || out.h <= 0) {
-        return InferenceResult::makeFailure(tr("推理失败"), 
+        return InferenceResult::makeFailure(tr("Inference failed"), 
                                             static_cast<int>(InferenceError::InferenceFailed));
     }
     
     if (isCancelRequested()) {
-        return InferenceResult::makeFailure(tr("已取消"), 
+        return InferenceResult::makeFailure(tr("Cancelled"), 
                                             static_cast<int>(InferenceError::Cancelled));
     }
     
@@ -486,7 +486,7 @@ InferenceResult NCNNVulkanBackend::processTiled(const QImage& input, int tileSiz
     for (const auto& tileInfo : tiles) {
         if (isCancelRequested()) {
             painter.end();
-            return InferenceResult::makeFailure(tr("已取消"), 
+            return InferenceResult::makeFailure(tr("Cancelled"), 
                                                 static_cast<int>(InferenceError::Cancelled));
         }
         
@@ -540,7 +540,7 @@ InferenceResult NCNNVulkanBackend::processTiled(const QImage& input, int tileSiz
     
     if (successfulTiles < totalTiles) {
         return InferenceResult::makeFailure(
-            tr("分块处理未完成 (%1/%2)").arg(successfulTiles).arg(totalTiles), 
+            tr("Tile processing incomplete (%1/%2)").arg(successfulTiles).arg(totalTiles), 
             static_cast<int>(InferenceError::InferenceFailed));
     }
     
@@ -560,7 +560,7 @@ InferenceResult NCNNVulkanBackend::processWithTTA(const QImage& input)
     
     for (int i = 0; i < totalSteps; ++i) {
         if (isCancelRequested()) {
-            return InferenceResult::makeFailure(tr("已取消"), 
+            return InferenceResult::makeFailure(tr("Cancelled"), 
                                                 static_cast<int>(InferenceError::Cancelled));
         }
         
@@ -577,7 +577,7 @@ InferenceResult NCNNVulkanBackend::processWithTTA(const QImage& input)
     }
     
     if (results.empty()) {
-        return InferenceResult::makeFailure(tr("TTA 处理失败"), 
+        return InferenceResult::makeFailure(tr("TTA processing failed"), 
                                             static_cast<int>(InferenceError::InferenceFailed));
     }
     
@@ -623,7 +623,7 @@ ncnn::Mat NCNNVulkanBackend::runInference(const ncnn::Mat& input)
     }
     
     if (inputRet != 0) {
-        emitError(tr("推理输入失败，模型输入节点不匹配"));
+        emitError(tr("Inference input failed, model input node mismatch"));
         return ncnn::Mat();
     }
     
@@ -640,7 +640,7 @@ ncnn::Mat NCNNVulkanBackend::runInference(const ncnn::Mat& input)
     }
     
     if (extractRet != 0 || output.empty()) {
-        emitError(tr("推理输出失败，模型输出节点不匹配"));
+        emitError(tr("Inference output failed, model output node mismatch"));
         return ncnn::Mat();
     }
     

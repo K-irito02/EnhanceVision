@@ -132,14 +132,14 @@ ProcessingStage ImageProcessor::currentStage() const
 QString ImageProcessor::stageToString(ProcessingStage stage) const
 {
     switch (stage) {
-        case ProcessingStage::Idle: return tr("空闲");
-        case ProcessingStage::Loading: return tr("加载图像");
-        case ProcessingStage::Preprocessing: return tr("预处理");
-        case ProcessingStage::ColorAdjust: return tr("颜色调整");
-        case ProcessingStage::Effects: return tr("应用特效");
-        case ProcessingStage::Postprocessing: return tr("后处理");
-        case ProcessingStage::Saving: return tr("保存结果");
-        case ProcessingStage::Completed: return tr("完成");
+        case ProcessingStage::Idle: return tr("Idle");
+        case ProcessingStage::Loading: return tr("Loading Image");
+        case ProcessingStage::Preprocessing: return tr("Preprocessing");
+        case ProcessingStage::ColorAdjust: return tr("Color Adjustment");
+        case ProcessingStage::Effects: return tr("Applying Effects");
+        case ProcessingStage::Postprocessing: return tr("Postprocessing");
+        case ProcessingStage::Saving: return tr("Saving Result");
+        case ProcessingStage::Completed: return tr("Completed");
         default: return QString();
     }
 }
@@ -541,9 +541,9 @@ void ImageProcessor::processImageAsyncWithReporter(const QString& inputPath,
 {
     if (m_isProcessing) {
         if (finishCallback) {
-            finishCallback(false, QString(), tr("已有处理任务正在进行"));
+            finishCallback(false, QString(), tr("Processing task already in progress"));
         }
-        emit finished(false, QString(), tr("已有处理任务正在进行"));
+        emit finished(false, QString(), tr("Processing task already in progress"));
         return;
     }
 
@@ -553,7 +553,7 @@ void ImageProcessor::processImageAsyncWithReporter(const QString& inputPath,
 
     if (m_reporter) {
         m_reporter->reset();
-        m_reporter->beginBatch(5, tr("处理图像"));
+        m_reporter->beginBatch(5, tr("Processing Image"));
     }
 
     QtConcurrent::run([this, inputPath, outputPath, params, progressCallback, finishCallback]() {
@@ -563,25 +563,24 @@ void ImageProcessor::processImageAsyncWithReporter(const QString& inputPath,
 
         try {
             if (!shouldContinue()) {
-                throw std::runtime_error(tr("处理已取消").toStdString());
+                throw std::runtime_error(tr("Processing cancelled").toStdString());
             }
 
             reportStageProgress(ProcessingStage::Loading, 0.0);
-            if (progressCallback) progressCallback(kProgressLoadingStart, tr("正在读取图像..."));
-            emit progressChanged(kProgressLoadingStart, tr("正在读取图像..."));
+            if (progressCallback) progressCallback(kProgressLoadingStart, tr("Reading image..."));
+            emit progressChanged(kProgressLoadingStart, tr("Reading image..."));
 
             QImage inputImage(inputPath);
             if (inputImage.isNull()) {
-                throw std::runtime_error(tr("无法读取图像文件").toStdString());
+                throw std::runtime_error(tr("Cannot read image file").toStdString());
             }
 
             if (!shouldContinue()) {
-                throw std::runtime_error(tr("处理已取消").toStdString());
+                throw std::runtime_error(tr("Processing cancelled").toStdString());
             }
 
-            reportStageProgress(ProcessingStage::Loading, 1.0);
-            if (progressCallback) progressCallback(kProgressLoadingEnd, tr("图像加载完成"));
-            emit progressChanged(kProgressLoadingEnd, tr("图像加载完成"));
+            if (progressCallback) progressCallback(kProgressLoadingEnd, tr("Image loaded"));
+            emit progressChanged(kProgressLoadingEnd, tr("Image loaded"));
 
             reportStageProgress(ProcessingStage::Preprocessing, 0.0);
             QImage result = inputImage.convertToFormat(QImage::Format_RGB32);
@@ -592,7 +591,7 @@ void ImageProcessor::processImageAsyncWithReporter(const QString& inputPath,
             reportStageProgress(ProcessingStage::Preprocessing, 1.0);
 
             if (!shouldContinue()) {
-                throw std::runtime_error(tr("处理已取消").toStdString());
+                throw std::runtime_error(tr("Processing cancelled").toStdString());
             }
 
             reportStageProgress(ProcessingStage::ColorAdjust, 0.0);
@@ -702,15 +701,15 @@ void ImageProcessor::processImageAsyncWithReporter(const QString& inputPath,
                             (kProgressColorAdjustEnd - kProgressColorAdjustStart) * stageProgress);
                         
                         if (m_reporter) {
-                            m_reporter->setSubProgress(stageProgress, tr("颜色调整"));
+                            m_reporter->setSubProgress(stageProgress, tr("Color adjustment"));
                         }
-                        if (progressCallback) progressCallback(overallProgress, tr("应用颜色调整..."));
-                        emit progressChanged(overallProgress, tr("应用颜色调整..."));
+                        if (progressCallback) progressCallback(overallProgress, tr("Applying color adjustment..."));
+                        emit progressChanged(overallProgress, tr("Applying color adjustment..."));
                         
                         nextReportPixel += pixelReportInterval;
                         
                         if (!shouldContinue()) {
-                            throw std::runtime_error(tr("处理已取消").toStdString());
+                            throw std::runtime_error(tr("Processing cancelled").toStdString());
                         }
                     }
                 }
@@ -722,37 +721,37 @@ void ImageProcessor::processImageAsyncWithReporter(const QString& inputPath,
             const int effectProgressStep = (kProgressEffectsEnd - kProgressEffectsStart) / 3;
             
             if (params.blur > 0.001f) {
-                if (progressCallback) progressCallback(effectProgress, tr("应用模糊效果..."));
-                emit progressChanged(effectProgress, tr("应用模糊效果..."));
+                if (progressCallback) progressCallback(effectProgress, tr("Applying blur effect..."));
+                emit progressChanged(effectProgress, tr("Applying blur effect..."));
                 applyBlur(result, params.blur);
                 effectProgress += effectProgressStep;
             }
             
             if (params.denoise > 0.001f) {
-                if (progressCallback) progressCallback(effectProgress, tr("应用降噪效果..."));
-                emit progressChanged(effectProgress, tr("应用降噪效果..."));
+                if (progressCallback) progressCallback(effectProgress, tr("Applying denoise effect..."));
+                emit progressChanged(effectProgress, tr("Applying denoise effect..."));
                 applyDenoise(result, params.denoise);
                 effectProgress += effectProgressStep;
             }
             
             if (params.sharpness > 0.001f) {
-                if (progressCallback) progressCallback(effectProgress, tr("应用锐化效果..."));
-                emit progressChanged(effectProgress, tr("应用锐化效果..."));
+                if (progressCallback) progressCallback(effectProgress, tr("Applying sharpen effect..."));
+                emit progressChanged(effectProgress, tr("Applying sharpen effect..."));
                 applySharpen(result, params.sharpness);
             }
 
             reportStageProgress(ProcessingStage::Effects, 1.0);
 
             if (!shouldContinue()) {
-                throw std::runtime_error(tr("处理已取消").toStdString());
+                throw std::runtime_error(tr("Processing cancelled").toStdString());
             }
 
             reportStageProgress(ProcessingStage::Saving, 0.0);
-            if (progressCallback) progressCallback(kProgressSavingStart, tr("正在保存结果..."));
-            emit progressChanged(kProgressSavingStart, tr("正在保存结果..."));
+            if (progressCallback) progressCallback(kProgressSavingStart, tr("Saving result..."));
+            emit progressChanged(kProgressSavingStart, tr("Saving result..."));
 
             if (!result.save(outputPath)) {
-                throw std::runtime_error(tr("无法保存图像文件").toStdString());
+                throw std::runtime_error(tr("Cannot save image file").toStdString());
             }
 
             resultPath = outputPath;
@@ -764,8 +763,8 @@ void ImageProcessor::processImageAsyncWithReporter(const QString& inputPath,
             if (m_reporter) {
                 m_reporter->endBatch();
             }
-            if (progressCallback) progressCallback(100, tr("处理完成"));
-            emit progressChanged(100, tr("处理完成"));
+            if (progressCallback) progressCallback(100, tr("Processing complete"));
+            emit progressChanged(100, tr("Processing complete"));
 
         } catch (const std::exception& e) {
             error = QString::fromStdString(e.what());
@@ -780,9 +779,9 @@ void ImageProcessor::processImageAsyncWithReporter(const QString& inputPath,
         if (m_cancelled || (m_cancelToken && m_cancelToken->load())) {
             emit cancelled();
             if (finishCallback) {
-                finishCallback(false, QString(), tr("处理已取消"));
+                finishCallback(false, QString(), tr("Processing cancelled"));
             }
-            emit finished(false, QString(), tr("处理已取消"));
+            emit finished(false, QString(), tr("Processing cancelled"));
         } else {
             if (finishCallback) {
                 finishCallback(success, resultPath, error);

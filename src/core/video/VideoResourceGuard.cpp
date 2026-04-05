@@ -120,7 +120,7 @@ bool VideoResourceGuard::initializeInput(const QString& path)
 bool VideoResourceGuard::openInputFile(const QString& path)
 {
     if (avformat_open_input(&m_impl->inFmtCtx, path.toUtf8().constData(), nullptr, nullptr) < 0) {
-        m_impl->lastError = QObject::tr("无法打开视频文件: %1").arg(path);
+        m_impl->lastError = QObject::tr("Cannot open video file: %1").arg(path);
         return false;
     }
     return true;
@@ -129,7 +129,7 @@ bool VideoResourceGuard::openInputFile(const QString& path)
 bool VideoResourceGuard::findStreamInfo()
 {
     if (avformat_find_stream_info(m_impl->inFmtCtx, nullptr) < 0) {
-        m_impl->lastError = QObject::tr("无法获取视频流信息");
+        m_impl->lastError = QObject::tr("Cannot get video stream info");
         return false;
     }
     
@@ -142,7 +142,7 @@ bool VideoResourceGuard::findStreamInfo()
     }
     
     if (m_impl->videoIdx < 0) {
-        m_impl->lastError = QObject::tr("未找到视频流");
+        m_impl->lastError = QObject::tr("No video stream found");
         return false;
     }
     
@@ -167,7 +167,7 @@ bool VideoResourceGuard::openDecoder()
     
     const AVCodec* dec = avcodec_find_decoder(m_impl->inFmtCtx->streams[m_impl->videoIdx]->codecpar->codec_id);
     if (!dec) {
-        m_impl->lastError = QObject::tr("未找到合适的视频解码器");
+        m_impl->lastError = QObject::tr("No suitable video decoder found");
         return false;
     }
     
@@ -236,7 +236,7 @@ bool VideoResourceGuard::openEncoder(int width, int height)
     }
     
     if (!enc) {
-        m_impl->lastError = QObject::tr("未找到可用的视频编码器");
+        m_impl->lastError = QObject::tr("No available video encoder found");
         return false;
     }
     
@@ -271,7 +271,7 @@ bool VideoResourceGuard::openEncoder(int width, int height)
     av_dict_free(&encOpts);
     
     if (ret < 0) {
-        m_impl->lastError = QObject::tr("无法打开视频编码器");
+        m_impl->lastError = QObject::tr("Cannot open video encoder");
         return false;
     }
     
@@ -297,7 +297,7 @@ bool VideoResourceGuard::openEncoder(int width, int height)
     
     ret = avformat_write_header(m_impl->outFmtCtx, nullptr);
     if (ret < 0) {
-        m_impl->lastError = QObject::tr("无法写入视频文件头");
+        m_impl->lastError = QObject::tr("Cannot write video file header");
         return false;
     }
     m_impl->headerWritten = true;

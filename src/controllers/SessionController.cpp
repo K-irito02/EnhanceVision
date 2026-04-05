@@ -117,12 +117,20 @@ void SessionController::setMessageModel(MessageModel* model)
 {
     if (m_messageModel) {
         disconnect(m_messageModel, &MessageModel::countChanged, this, nullptr);
+        disconnect(m_messageModel, &MessageModel::actualTotalSecUpdated, this, nullptr);
     }
     
     m_messageModel = model;
     
     if (m_messageModel) {
         connect(m_messageModel, &MessageModel::countChanged, this, &SessionController::onMessageCountChanged);
+        // 当实际总耗时更新时，同步到会话并保存
+        connect(m_messageModel, &MessageModel::actualTotalSecUpdated, this, [this](const QString &messageId, qint64 totalSec) {
+            Q_UNUSED(messageId)
+            Q_UNUSED(totalSec)
+            syncCurrentMessagesToSession();
+            saveSessions();
+        });
     }
 }
 
@@ -614,7 +622,7 @@ QString SessionController::generateSessionId()
 QString SessionController::generateDefaultSessionName()
 {
     m_sessionCounter++;
-    return tr("未命名会话 %1").arg(m_sessionCounter);
+    return tr("Unnamed Session %1").arg(m_sessionCounter);
 }
 
 bool SessionController::autoSaveEnabled() const
@@ -669,7 +677,7 @@ void SessionController::saveSessions()
 
         QFile file(tempPath);
         if (!file.open(QIODevice::WriteOnly)) {
-            errorMessage = tr("无法保存会话数据");
+            errorMessage = tr("Cannot save session data");
         } else {
             QJsonDocument doc(root);
             file.write(doc.toJson(QJsonDocument::Indented));
@@ -681,7 +689,7 @@ void SessionController::saveSessions()
             }
 
             if (!file.rename(filePath)) {
-                errorMessage = tr("无法保存会话数据");
+                errorMessage = tr("Cannot save session data");
             }
         }
 
@@ -1012,6 +1020,9 @@ QJsonObject SessionController::messageToJson(const Message& message) const
     aiParamsJson["modelParams"] = QJsonObject::fromVariantMap(message.aiParams.modelParams);
     json["aiParams"] = aiParamsJson;
     
+    // 保存实际总耗时
+    json["actualTotalSec"] = message.actualTotalSec;
+    
     return json;
 }
 
@@ -1044,6 +1055,9 @@ Message SessionController::jsonToMessage(const QJsonObject& json) const
         message.aiParams.tileSize = aiParamsJson["tileSize"].toInt(0);
         message.aiParams.modelParams = aiParamsJson["modelParams"].toObject().toVariantMap();
     }
+    
+    // 恢复实际总耗时
+    message.actualTotalSec = json["actualTotalSec"].toVariant().toLongLong();
     
     if (message.status == ProcessingStatus::Processing) {
         message.status = ProcessingStatus::Pending;

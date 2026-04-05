@@ -187,9 +187,19 @@ ColumnLayout {
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
+                hoverEnabled: true
                 onClicked: {
                     AIModelConfigStore.selectModel(modelData.id)
                     root.modelSelected(modelData.id, root.selectedCategory)
+                }
+                onEntered: {
+                    perfTooltipTimer.targetItem = parent
+                    perfTooltipTimer.targetModelId = modelData.id || ""
+                    perfTooltipTimer.restart()
+                }
+                onExited: {
+                    perfTooltipTimer.stop()
+                    perfTooltip.close()
                 }
             }
         }
@@ -201,6 +211,79 @@ ColumnLayout {
             color: Theme.colors.mutedForeground
             font.pixelSize: 12
             anchors.centerIn: parent
+        }
+    }
+
+    // ========== 模型性能提示 ==========
+    RichTooltip {
+        id: perfTooltip
+    }
+
+    Timer {
+        id: perfTooltipTimer
+        interval: 600
+        repeat: false
+
+        property var targetItem: null
+        property string targetModelId: ""
+
+        onTriggered: {
+            if (!targetItem || targetModelId === "") return
+            if (typeof taskTimeEstimator === "undefined") return
+
+            // 模拟处理标准文件，使用 estimateMessageTotalTime 预测时间
+            var standardImage = [{
+                width: 1920,
+                height: 1080,
+                isVideo: false,
+                durationMs: 0,
+                fps: 30.0
+            }]
+            var standardVideo = [{
+                width: 1920,
+                height: 1080,
+                isVideo: true,
+                durationMs: 10000,  // 10秒
+                fps: 30.0
+            }]
+
+            // mode=1 表示 AI 处理模式
+            var gpuImageSec = taskTimeEstimator.estimateMessageTotalTime(1, true, targetModelId, standardImage)
+            var gpuVideoSec = taskTimeEstimator.estimateMessageTotalTime(1, true, targetModelId, standardVideo)
+            var cpuImageSec = taskTimeEstimator.estimateMessageTotalTime(1, false, targetModelId, standardImage)
+            var cpuVideoSec = taskTimeEstimator.estimateMessageTotalTime(1, false, targetModelId, standardVideo)
+
+            function _fmtTime(sec) {
+                if (sec < 60) return sec.toFixed(1) + "s"
+                if (sec < 3600) return (sec / 60).toFixed(1) + "min"
+                return (sec / 3600).toFixed(1) + "h"
+            }
+
+            perfTooltip.title = qsTr("性能预估 (1920×1080)")
+            perfTooltip.contentModel = [
+                {
+                    label: qsTr("GPU 图片:"),
+                    value: _fmtTime(gpuImageSec),
+                    rawValue: String(gpuImageSec)
+                },
+                {
+                    label: qsTr("GPU 视频 (10秒):"),
+                    value: _fmtTime(gpuVideoSec),
+                    rawValue: String(gpuVideoSec)
+                },
+                {
+                    label: qsTr("CPU 图片:"),
+                    value: _fmtTime(cpuImageSec),
+                    rawValue: String(cpuImageSec)
+                },
+                {
+                    label: qsTr("CPU 视频 (10秒):"),
+                    value: _fmtTime(cpuVideoSec),
+                    rawValue: String(cpuVideoSec)
+                }
+            ]
+            perfTooltip.footerNote = qsTr("实际耗时与文件尺寸、分辨率、帧数等因素有关")
+            perfTooltip.show(targetItem)
         }
     }
 

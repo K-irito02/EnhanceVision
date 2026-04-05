@@ -92,7 +92,7 @@ bool NCNNCPUBackend::loadModel(const ModelInfo& model)
     }
     
     if (!model.isAvailable) {
-        emitError(tr("模型文件不可用: %1").arg(model.id));
+        emitError(tr("Model file unavailable: %1").arg(model.id));
         return false;
     }
     
@@ -106,14 +106,14 @@ bool NCNNCPUBackend::loadModel(const ModelInfo& model)
     
     int ret = m_net.load_param(model.paramPath.toStdString().c_str());
     if (ret != 0) {
-        emitError(tr("加载模型参数失败: %1").arg(model.paramPath));
+        emitError(tr("Failed to load model parameters: %1").arg(model.paramPath));
         return false;
     }
     
     ret = m_net.load_model(model.binPath.toStdString().c_str());
     if (ret != 0) {
         m_net.clear();
-        emitError(tr("加载模型权重失败: %1").arg(model.binPath));
+        emitError(tr("Failed to load model weights: %1").arg(model.binPath));
         return false;
     }
     
@@ -160,17 +160,17 @@ InferenceResult NCNNCPUBackend::inference(const InferenceRequest& request)
     QMutexLocker inferenceLocker(&m_inferenceMutex);
     
     if (!m_isInitialized.load()) {
-        return InferenceResult::makeFailure(tr("后端未初始化"), 
+        return InferenceResult::makeFailure(tr("Backend not initialized"), 
                                             static_cast<int>(InferenceError::BackendNotInitialized));
     }
     
     if (!m_modelLoaded) {
-        return InferenceResult::makeFailure(tr("模型未加载"), 
+        return InferenceResult::makeFailure(tr("No model loaded"), 
                                             static_cast<int>(InferenceError::ModelNotLoaded));
     }
     
     if (request.input.isNull() || request.input.bits() == nullptr) {
-        return InferenceResult::makeFailure(tr("输入图像无效"), 
+        return InferenceResult::makeFailure(tr("Invalid input image"), 
                                             static_cast<int>(InferenceError::InvalidInput));
     }
     
@@ -237,12 +237,12 @@ InferenceResult NCNNCPUBackend::processSingle(const QImage& input)
     
     ncnn::Mat in = ImagePreprocessor::qimageToMat(input, m_currentModel);
     if (in.empty()) {
-        return InferenceResult::makeFailure(tr("图像预处理失败"), 
+        return InferenceResult::makeFailure(tr("Image preprocessing failed"), 
                                             static_cast<int>(InferenceError::InvalidInput));
     }
     
     if (isCancelRequested()) {
-        return InferenceResult::makeFailure(tr("已取消"), 
+        return InferenceResult::makeFailure(tr("Cancelled"), 
                                             static_cast<int>(InferenceError::Cancelled));
     }
     
@@ -251,12 +251,12 @@ InferenceResult NCNNCPUBackend::processSingle(const QImage& input)
     ncnn::Mat out = runInference(in);
     
     if (out.empty() || out.w <= 0 || out.h <= 0) {
-        return InferenceResult::makeFailure(tr("推理失败"), 
+        return InferenceResult::makeFailure(tr("Inference failed"), 
                                             static_cast<int>(InferenceError::InferenceFailed));
     }
     
     if (isCancelRequested()) {
-        return InferenceResult::makeFailure(tr("已取消"), 
+        return InferenceResult::makeFailure(tr("Cancelled"), 
                                             static_cast<int>(InferenceError::Cancelled));
     }
     
@@ -307,7 +307,7 @@ InferenceResult NCNNCPUBackend::processTiled(const QImage& input, int tileSize)
     for (const auto& tileInfo : tiles) {
         if (isCancelRequested()) {
             painter.end();
-            return InferenceResult::makeFailure(tr("已取消"), 
+            return InferenceResult::makeFailure(tr("Cancelled"), 
                                                 static_cast<int>(InferenceError::Cancelled));
         }
         
@@ -358,7 +358,7 @@ InferenceResult NCNNCPUBackend::processTiled(const QImage& input, int tileSize)
     
     if (successfulTiles < totalTiles) {
         return InferenceResult::makeFailure(
-            tr("分块处理未完成 (%1/%2)").arg(successfulTiles).arg(totalTiles), 
+            tr("Tile processing incomplete (%1/%2)").arg(successfulTiles).arg(totalTiles), 
             static_cast<int>(InferenceError::InferenceFailed));
     }
     
@@ -378,7 +378,7 @@ InferenceResult NCNNCPUBackend::processWithTTA(const QImage& input)
     
     for (int i = 0; i < totalSteps; ++i) {
         if (isCancelRequested()) {
-            return InferenceResult::makeFailure(tr("已取消"), 
+            return InferenceResult::makeFailure(tr("Cancelled"), 
                                                 static_cast<int>(InferenceError::Cancelled));
         }
         
@@ -395,7 +395,7 @@ InferenceResult NCNNCPUBackend::processWithTTA(const QImage& input)
     }
     
     if (results.empty()) {
-        return InferenceResult::makeFailure(tr("TTA 处理失败"), 
+        return InferenceResult::makeFailure(tr("TTA processing failed"), 
                                             static_cast<int>(InferenceError::InferenceFailed));
     }
     
@@ -441,7 +441,7 @@ ncnn::Mat NCNNCPUBackend::runInference(const ncnn::Mat& input)
     }
     
     if (inputRet != 0) {
-        emitError(tr("推理输入失败，模型输入节点不匹配"));
+        emitError(tr("Inference input failed, model input node mismatch"));
         return ncnn::Mat();
     }
     
@@ -458,7 +458,7 @@ ncnn::Mat NCNNCPUBackend::runInference(const ncnn::Mat& input)
     }
     
     if (extractRet != 0 || output.empty()) {
-        emitError(tr("推理输出失败，模型输出节点不匹配"));
+        emitError(tr("Inference output failed, model output node mismatch"));
         return ncnn::Mat();
     }
     

@@ -42,14 +42,14 @@ VideoProcessingStage VideoProcessor::currentStage() const
 QString VideoProcessor::stageToString(VideoProcessingStage stage) const
 {
     switch (stage) {
-        case VideoProcessingStage::Idle: return tr("空闲");
-        case VideoProcessingStage::Opening: return tr("打开文件");
-        case VideoProcessingStage::DecodingInit: return tr("初始化解码器");
-        case VideoProcessingStage::EncodingInit: return tr("初始化编码器");
-        case VideoProcessingStage::FrameProcessing: return tr("处理帧");
-        case VideoProcessingStage::EncodingFinalize: return tr("完成编码");
-        case VideoProcessingStage::Writing: return tr("写入文件");
-        case VideoProcessingStage::Completed: return tr("完成");
+        case VideoProcessingStage::Idle: return QStringLiteral("Idle");
+        case VideoProcessingStage::Opening: return QStringLiteral("Opening File");
+        case VideoProcessingStage::DecodingInit: return QStringLiteral("Initializing Decoder");
+        case VideoProcessingStage::EncodingInit: return QStringLiteral("Initializing Encoder");
+        case VideoProcessingStage::FrameProcessing: return QStringLiteral("Processing Frame");
+        case VideoProcessingStage::EncodingFinalize: return QStringLiteral("Finalizing Encoding");
+        case VideoProcessingStage::Writing: return QStringLiteral("Writing File");
+        case VideoProcessingStage::Completed: return QStringLiteral("Completed");
         default: return QString();
     }
 }
@@ -114,9 +114,9 @@ void VideoProcessor::processVideoAsyncWithReporter(const QString& inputPath,
 {
     if (m_isProcessing) {
         if (finishCallback) {
-            finishCallback(false, QString(), tr("已有处理任务正在进行"));
+            finishCallback(false, QString(), tr("Processing task already in progress"));
         }
-        emit finished(false, QString(), tr("已有处理任务正在进行"));
+        emit finished(false, QString(), tr("Processing task already in progress"));
         return;
     }
 
@@ -126,7 +126,7 @@ void VideoProcessor::processVideoAsyncWithReporter(const QString& inputPath,
 
     if (m_reporter) {
         m_reporter->reset();
-        m_reporter->beginBatch(6, tr("处理视频"));
+        m_reporter->beginBatch(6, tr("Processing Video"));
     }
 
     QtConcurrent::run([this, inputPath, outputPath, params, progressCallback, finishCallback]() {
@@ -201,18 +201,18 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
 
     try {
         if (m_cancelled) {
-            throw std::runtime_error(tr("处理已取消").toStdString());
+            throw std::runtime_error(tr("Processing Cancelled").toStdString());
         }
 
         reportStageProgress(VideoProcessingStage::Opening, 0.0);
-        reportProgress(kProgressOpeningStart, tr("正在分析视频文件..."));
+        reportProgress(kProgressOpeningStart, tr("Analyzing video file..."));
 
         if (avformat_open_input(&inputFormatContext, inputPath.toUtf8().constData(), nullptr, nullptr) != 0) {
-            throw std::runtime_error(tr("无法打开输入视频文件").toStdString());
+            throw std::runtime_error(tr("Cannot open input video file").toStdString());
         }
 
         if (avformat_find_stream_info(inputFormatContext, nullptr) < 0) {
-            throw std::runtime_error(tr("无法获取视频流信息").toStdString());
+            throw std::runtime_error(tr("Cannot get video stream info").toStdString());
         }
 
         for (unsigned int i = 0; i < inputFormatContext->nb_streams; i++) {
@@ -225,39 +225,39 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         }
 
         if (videoStreamIndex == -1) {
-            throw std::runtime_error(tr("未找到视频流").toStdString());
+            throw std::runtime_error(tr("No video stream found").toStdString());
         }
 
         AVStream* inVideoStream = inputFormatContext->streams[videoStreamIndex];
 
         reportStageProgress(VideoProcessingStage::Opening, 1.0);
-        reportProgress(kProgressOpeningEnd, tr("文件分析完成"));
+        reportProgress(kProgressOpeningEnd, tr("File analysis complete"));
 
         if (m_cancelled) {
-            throw std::runtime_error(tr("处理已取消").toStdString());
+            throw std::runtime_error(tr("Processing Cancelled").toStdString());
         }
 
         reportStageProgress(VideoProcessingStage::DecodingInit, 0.0);
-        reportProgress(kProgressDecodingInitStart, tr("正在初始化解码器..."));
+        reportProgress(kProgressDecodingInitStart, tr("Initializing decoder..."));
 
         const AVCodec* decoder = avcodec_find_decoder(inVideoStream->codecpar->codec_id);
         if (!decoder) {
-            throw std::runtime_error(tr("未找到合适的视频解码器").toStdString());
+            throw std::runtime_error(tr("No suitable video decoder found").toStdString());
         }
 
         videoDecoderContext = avcodec_alloc_context3(decoder);
         if (!videoDecoderContext) {
-            throw std::runtime_error(tr("无法分配解码器上下文").toStdString());
+            throw std::runtime_error(tr("Cannot allocate decoder context").toStdString());
         }
 
         if (avcodec_parameters_to_context(videoDecoderContext, inVideoStream->codecpar) < 0) {
-            throw std::runtime_error(tr("无法复制解码器参数").toStdString());
+            throw std::runtime_error(tr("Cannot copy decoder parameters").toStdString());
         }
 
         videoDecoderContext->thread_count = qMin(QThread::idealThreadCount(), 8);
 
         if (avcodec_open2(videoDecoderContext, decoder, nullptr) < 0) {
-            throw std::runtime_error(tr("无法打开视频解码器").toStdString());
+            throw std::runtime_error(tr("Cannot open video decoder").toStdString());
         }
 
         int srcWidth = videoDecoderContext->width;
@@ -265,23 +265,23 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         AVPixelFormat srcPixFmt = videoDecoderContext->pix_fmt;
 
         reportStageProgress(VideoProcessingStage::DecodingInit, 1.0);
-        reportProgress(kProgressDecodingInitEnd, tr("解码器初始化完成"));
+        reportProgress(kProgressDecodingInitEnd, tr("Decoder initialization complete"));
 
         if (m_cancelled) {
-            throw std::runtime_error(tr("处理已取消").toStdString());
+            throw std::runtime_error(tr("Processing Cancelled").toStdString());
         }
 
         reportStageProgress(VideoProcessingStage::EncodingInit, 0.0);
-        reportProgress(kProgressEncodingInitStart, tr("正在初始化编码器..."));
+        reportProgress(kProgressEncodingInitStart, tr("Initializing encoder..."));
 
         if (avformat_alloc_output_context2(&outputFormatContext, nullptr, nullptr, 
                                             outputPath.toUtf8().constData()) < 0) {
-            throw std::runtime_error(tr("无法创建输出格式上下文").toStdString());
+            throw std::runtime_error(tr("Cannot create output format context").toStdString());
         }
 
         AVStream* outVideoStream = avformat_new_stream(outputFormatContext, nullptr);
         if (!outVideoStream) {
-            throw std::runtime_error(tr("无法创建输出视频流").toStdString());
+            throw std::runtime_error(tr("Cannot create output video stream").toStdString());
         }
         outVideoStreamIndex = outVideoStream->index;
 
@@ -290,12 +290,12 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
             encoder = avcodec_find_encoder(outputFormatContext->oformat->video_codec);
         }
         if (!encoder) {
-            throw std::runtime_error(tr("未找到合适的视频编码器").toStdString());
+            throw std::runtime_error(tr("No suitable video encoder found").toStdString());
         }
 
         videoEncoderContext = avcodec_alloc_context3(encoder);
         if (!videoEncoderContext) {
-            throw std::runtime_error(tr("无法分配编码器上下文").toStdString());
+            throw std::runtime_error(tr("Cannot allocate encoder context").toStdString());
         }
 
         videoEncoderContext->width = srcWidth;
@@ -327,12 +327,12 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
 
         if (avcodec_open2(videoEncoderContext, encoder, &encoderOpts) < 0) {
             av_dict_free(&encoderOpts);
-            throw std::runtime_error(tr("无法打开视频编码器").toStdString());
+            throw std::runtime_error(tr("Cannot open video encoder").toStdString());
         }
         av_dict_free(&encoderOpts);
 
         if (avcodec_parameters_from_context(outVideoStream->codecpar, videoEncoderContext) < 0) {
-            throw std::runtime_error(tr("无法复制编码器参数到输出流").toStdString());
+            throw std::runtime_error(tr("Cannot copy encoder parameters to output stream").toStdString());
         }
         outVideoStream->time_base = videoEncoderContext->time_base;
 
@@ -353,19 +353,19 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
 
         if (!(outputFormatContext->oformat->flags & AVFMT_NOFILE)) {
             if (avio_open(&outputFormatContext->pb, outputPath.toUtf8().constData(), AVIO_FLAG_WRITE) < 0) {
-                throw std::runtime_error(tr("无法打开输出文件").toStdString());
+                throw std::runtime_error(tr("Cannot open output file").toStdString());
             }
         }
 
         if (avformat_write_header(outputFormatContext, nullptr) < 0) {
-            throw std::runtime_error(tr("无法写入文件头").toStdString());
+            throw std::runtime_error(tr("Cannot write file header").toStdString());
         }
 
         reportStageProgress(VideoProcessingStage::EncodingInit, 1.0);
-        reportProgress(kProgressEncodingInitEnd, tr("编码器初始化完成"));
+        reportProgress(kProgressEncodingInitEnd, tr("Encoder initialization complete"));
 
         if (m_cancelled) {
-            throw std::runtime_error(tr("处理已取消").toStdString());
+            throw std::runtime_error(tr("Processing Cancelled").toStdString());
         }
 
         swsContextToRGB = sws_getContext(
@@ -374,7 +374,7 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
             SWS_BILINEAR, nullptr, nullptr, nullptr
         );
         if (!swsContextToRGB) {
-            throw std::runtime_error(tr("无法创建RGB转换上下文").toStdString());
+            throw std::runtime_error(tr("Cannot create RGB conversion context").toStdString());
         }
 
         swsContextToYUV = sws_getContext(
@@ -383,7 +383,7 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
             SWS_BILINEAR, nullptr, nullptr, nullptr
         );
         if (!swsContextToYUV) {
-            throw std::runtime_error(tr("无法创建YUV转换上下文").toStdString());
+            throw std::runtime_error(tr("Cannot create YUV conversion context").toStdString());
         }
 
         frame = av_frame_alloc();
@@ -392,21 +392,21 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         packet = av_packet_alloc();
 
         if (!frame || !rgbFrame || !outFrame || !packet) {
-            throw std::runtime_error(tr("无法分配帧缓冲").toStdString());
+            throw std::runtime_error(tr("Cannot allocate frame buffer").toStdString());
         }
 
         rgbFrame->format = AV_PIX_FMT_RGB32;
         rgbFrame->width = srcWidth;
         rgbFrame->height = srcHeight;
         if (av_frame_get_buffer(rgbFrame, 32) < 0) {
-            throw std::runtime_error(tr("无法分配RGB帧缓冲").toStdString());
+            throw std::runtime_error(tr("Cannot allocate RGB frame buffer").toStdString());
         }
 
         outFrame->format = AV_PIX_FMT_YUV420P;
         outFrame->width = srcWidth;
         outFrame->height = srcHeight;
         if (av_frame_get_buffer(outFrame, 32) < 0) {
-            throw std::runtime_error(tr("无法分配输出帧缓冲").toStdString());
+            throw std::runtime_error(tr("Cannot allocate output frame buffer").toStdString());
         }
 
         int64_t totalFrames = inVideoStream->nb_frames;
@@ -421,7 +421,7 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         if (totalFrames <= 0) totalFrames = 1000;
 
         reportStageProgress(VideoProcessingStage::FrameProcessing, 0.0);
-        reportProgress(kProgressFrameProcessingStart, tr("开始处理视频帧..."));
+        reportProgress(kProgressFrameProcessingStart, tr("Starting video frame processing..."));
 
         int64_t frameCount = 0;
         int64_t encodedPts = 0;
@@ -431,7 +431,7 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         while (av_read_frame(inputFormatContext, packet) >= 0) {
             if (m_cancelled) {
                 av_packet_unref(packet);
-                throw std::runtime_error(tr("处理已取消").toStdString());
+                throw std::runtime_error(tr("Processing Cancelled").toStdString());
             }
 
             if (packet->stream_index == videoStreamIndex) {
@@ -442,7 +442,7 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
 
                 while (avcodec_receive_frame(videoDecoderContext, frame) == 0) {
                     if (m_cancelled) {
-                        throw std::runtime_error(tr("处理已取消").toStdString());
+                        throw std::runtime_error(tr("Processing Cancelled").toStdString());
                     }
 
                     sws_scale(swsContextToRGB,
@@ -499,7 +499,7 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
                     currentPercent = qBound(kProgressFrameProcessingStart, currentPercent, kProgressFrameProcessingEnd - 1);
                     
                     if (currentPercent - lastReportedPercent >= 1 || frameCount == 1) {
-                        QString statusMsg = tr("正在处理第 %1/%2 帧...").arg(frameCount).arg(totalFrames);
+                        QString statusMsg = tr("Processing frame %1/%2...").arg(frameCount).arg(totalFrames);
                         
                         if (reporter) {
                             reporter->setSubProgress(frameProgress, statusMsg);
@@ -530,11 +530,11 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         reportStageProgress(VideoProcessingStage::FrameProcessing, 1.0);
 
         if (m_cancelled) {
-            throw std::runtime_error(tr("处理已取消").toStdString());
+            throw std::runtime_error(tr("Processing Cancelled").toStdString());
         }
 
         reportStageProgress(VideoProcessingStage::EncodingFinalize, 0.0);
-        reportProgress(kProgressEncodingFinalizeStart, tr("正在完成编码..."));
+        reportProgress(kProgressEncodingFinalizeStart, tr("Finalizing encoding..."));
 
         avcodec_send_frame(videoEncoderContext, nullptr);
         AVPacket* outPacket = av_packet_alloc();
@@ -549,14 +549,14 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         reportStageProgress(VideoProcessingStage::EncodingFinalize, 1.0);
 
         if (m_cancelled) {
-            throw std::runtime_error(tr("处理已取消").toStdString());
+            throw std::runtime_error(tr("Processing Cancelled").toStdString());
         }
 
         reportStageProgress(VideoProcessingStage::Writing, 0.0);
-        reportProgress(kProgressWritingStart, tr("正在写入文件..."));
+        reportProgress(kProgressWritingStart, tr("Writing file..."));
 
         if (av_write_trailer(outputFormatContext) < 0) {
-            throw std::runtime_error(tr("无法写入文件尾").toStdString());
+            throw std::runtime_error(tr("Cannot write file trailer").toStdString());
         }
 
         resultPath = outputPath;
@@ -568,7 +568,7 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         if (reporter) {
             reporter->endBatch();
         }
-        reportProgress(100, tr("处理完成"));
+        reportProgress(100, tr("Processing complete"));
 
     } catch (const std::exception& e) {
         error = QString::fromStdString(e.what());
@@ -590,9 +590,9 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
 
     if (m_cancelled) {
         if (finishCallback) {
-            finishCallback(false, QString(), tr("处理已取消"));
+            finishCallback(false, QString(), tr("Processing Cancelled"));
         }
-        emit finished(false, QString(), tr("处理已取消"));
+        emit finished(false, QString(), tr("Processing Cancelled"));
     } else {
         if (finishCallback) {
             finishCallback(success, resultPath, error);

@@ -88,6 +88,8 @@ QVariant MessageModel::data(const QModelIndex &index, int role) const
             fileMap["status"] = static_cast<int>(file.status);
             fileMap["resultPath"] = file.resultPath;
             fileMap["duration"] = file.duration;
+            fileMap["width"] = file.resolution.width();
+            fileMap["height"] = file.resolution.height();
             
             if (file.status == ProcessingStatus::Completed && !file.resultPath.isEmpty()) {
                 fileMap["processedThumbnailId"] = "processed_" + file.id;
@@ -151,6 +153,8 @@ QVariant MessageModel::data(const QModelIndex &index, int role) const
         }
         return processedThumbnailIds;
     }
+    case ActualTotalSecRole:
+        return message.actualTotalSec;
     default:
         return QVariant();
     }
@@ -175,6 +179,7 @@ QHash<int, QByteArray> MessageModel::roleNames() const
     roles[StatusColorRole] = "statusColor";
     roles[FileIdsRole] = "fileIds";
     roles[ProcessedThumbnailIdsRole] = "processedThumbnailIds";
+    roles[ActualTotalSecRole] = "actualTotalSec";
     return roles;
 }
 
@@ -230,7 +235,7 @@ void MessageModel::updateStatus(const QString &messageId, int status)
 
     int index = findMessageIndex(messageId);
     if (index < 0) {
-        emit errorOccurred(tr("消息不存在: %1").arg(messageId));
+        emit errorOccurred(tr("Message does not exist: %1").arg(messageId));
         return;
     }
 
@@ -249,7 +254,7 @@ void MessageModel::updateProgress(const QString &messageId, int progress)
 
     int index = findMessageIndex(messageId);
     if (index < 0) {
-        emit errorOccurred(tr("消息不存在: %1").arg(messageId));
+        emit errorOccurred(tr("Message does not exist: %1").arg(messageId));
         return;
     }
 
@@ -264,7 +269,7 @@ void MessageModel::updateErrorMessage(const QString &messageId, const QString &e
 {
     int index = findMessageIndex(messageId);
     if (index < 0) {
-        emit errorOccurred(tr("消息不存在: %1").arg(messageId));
+        emit errorOccurred(tr("Message does not exist: %1").arg(messageId));
         return;
     }
 
@@ -273,11 +278,26 @@ void MessageModel::updateErrorMessage(const QString &messageId, const QString &e
     emit dataChanged(modelIndex, modelIndex, {ErrorMessageRole});
 }
 
+void MessageModel::updateActualTotalSec(const QString &messageId, qint64 totalSec)
+{
+    int index = findMessageIndex(messageId);
+    if (index < 0) {
+        return;
+    }
+
+    m_messages[index].actualTotalSec = totalSec;
+    QModelIndex modelIndex = createIndex(index, 0);
+    emit dataChanged(modelIndex, modelIndex, {ActualTotalSecRole});
+    
+    // 通知会话保存
+    emit actualTotalSecUpdated(messageId, totalSec);
+}
+
 bool MessageModel::removeMessage(const QString &messageId)
 {
     int index = findMessageIndex(messageId);
     if (index < 0) {
-        emit errorOccurred(tr("消息不存在: %1").arg(messageId));
+        emit errorOccurred(tr("Message does not exist: %1").arg(messageId));
         return false;
     }
 
@@ -562,17 +582,17 @@ QString MessageModel::getStatusText(ProcessingStatus status) const
 {
     switch (status) {
     case ProcessingStatus::Pending:
-        return tr("待处理");
+        return tr("Pending");
     case ProcessingStatus::Processing:
-        return tr("处理中");
+        return tr("Processing");
     case ProcessingStatus::Completed:
-        return tr("已完成");
+        return tr("Completed");
     case ProcessingStatus::Failed:
-        return tr("失败");
+        return tr("Failed");
     case ProcessingStatus::Cancelled:
-        return tr("已取消");
+        return tr("Cancelled");
     default:
-        return tr("未知");
+        return tr("Unknown");
     }
 }
 
@@ -598,13 +618,13 @@ QString MessageModel::getModeText(ProcessingMode mode) const
 {
     switch (mode) {
     case ProcessingMode::Shader:
-        return tr("Shader 滤镜");
+        return tr("Shader Filter");
     case ProcessingMode::AIInference:
-        return tr("AI 推理");
+        return tr("AI Inference");
     case ProcessingMode::Browse:
-        return tr("浏览");
+        return tr("Browse");
     default:
-        return tr("未知");
+        return tr("Unknown");
     }
 }
 

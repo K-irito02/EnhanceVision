@@ -41,7 +41,8 @@ public:
         StatusTextRole,
         StatusColorRole,
         FileIdsRole,
-        ProcessedThumbnailIdsRole
+        ProcessedThumbnailIdsRole,
+        ActualTotalSecRole
     };
 
     explicit MessageModel(QObject *parent = nullptr);
@@ -84,6 +85,13 @@ public:
      * @param errorMessage 错误信息
      */
     Q_INVOKABLE void updateErrorMessage(const QString &messageId, const QString &errorMessage);
+
+    /**
+     * @brief 更新消息实际总耗时
+     * @param messageId 消息ID
+     * @param totalSec 实际总耗时（秒）
+     */
+    Q_INVOKABLE void updateActualTotalSec(const QString &messageId, qint64 totalSec);
 
     /**
      * @brief 删除消息
@@ -303,6 +311,13 @@ signals:
      * @brief 模型重置完成信号（用于 QML 恢复滚动位置）
      */
     void modelResetCompleted();
+
+    /**
+     * @brief 消息实际总耗时更新信号（用于触发会话保存）
+     * @param messageId 消息ID
+     * @param totalSec 实际总耗时（秒）
+     */
+    void actualTotalSecUpdated(const QString &messageId, qint64 totalSec);
 
 private:
     struct FileStats {

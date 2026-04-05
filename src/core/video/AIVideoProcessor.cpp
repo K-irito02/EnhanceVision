@@ -75,7 +75,7 @@ void AIVideoProcessor::processAsync(const QString& inputPath, const QString& out
     }
     
     if (m_impl->isProcessing.load()) {
-        emit completed(false, QString(), tr("已有视频处理任务正在进行"));
+        emit completed(false, QString(), tr("Video processing task already in progress"));
         return;
     }
     
@@ -154,7 +154,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
         if (!m_impl->aiEngine) {
             qWarning() << "[AIVideoProcessor][DEBUG] AI engine is null at start";
             setProcessing(false);
-            emitCompleted(false, QString(), tr("AI引擎未初始化"));
+            emitCompleted(false, QString(), tr("AI engine not initialized"));
             return;
         }
         
@@ -162,7 +162,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
         if (m_impl->aiEngine->currentModelId().isEmpty()) {
             qWarning() << "[AIVideoProcessor][DEBUG] AI model not loaded";
             setProcessing(false);
-            emitCompleted(false, QString(), tr("AI模型未加载"));
+            emitCompleted(false, QString(), tr("AI model not loaded"));
             return;
         }
         
@@ -186,7 +186,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
     if (m_impl->cancelled.load()) {
         qInfo() << "[AIVideoProcessor][DEBUG] Cancelled before input initialization";
         setProcessing(false);
-        emitCompleted(false, QString(), tr("视频处理已取消"));
+        emitCompleted(false, QString(), tr("Video processing cancelled"));
         return;
     }
     
@@ -210,7 +210,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
     
     if (!compatibilityReport.canProcess) {
         QString error = compatibilityReport.errors.join("\n");
-        fail(error.isEmpty() ? tr("视频不兼容，无法处理") : error);
+        fail(error.isEmpty() ? tr("Video incompatible, cannot process") : error);
         return;
     }
     
@@ -226,7 +226,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
     
     auto* decCtx = guard.decoderContext();
     if (!decCtx) {
-        fail(tr("解码器初始化失败"));
+        fail(tr("Decoder initialization failed"));
         return;
     }
     
@@ -238,13 +238,13 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
     
     // 【安全验证】验证输入尺寸有效性
     if (srcW <= 0 || srcH <= 0 || srcW > 16384 || srcH > 16384) {
-        fail(tr("无效的视频尺寸: %1x%2").arg(srcW).arg(srcH));
+        fail(tr("Invalid video size: %1x%2").arg(srcW).arg(srcH));
         return;
     }
     
     // 【安全验证】验证输出尺寸有效性
     if (outW <= 0 || outH <= 0 || outW > 16384 || outH > 16384) {
-        fail(tr("无效的输出尺寸: %1x%2").arg(outW).arg(outH));
+        fail(tr("Invalid output size: %1x%2").arg(outW).arg(outH));
         return;
     }
     
@@ -331,7 +331,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
             av_packet_unref(pkt);
             cleanupFrames();
             setProcessing(false);
-            emitCompleted(false, QString(), tr("视频处理已取消"));
+            emitCompleted(false, QString(), tr("Video processing cancelled"));
             return;
         }
         
@@ -368,7 +368,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
             if (m_impl->cancelled.load()) {
                 cleanupFrames();
                 setProcessing(false);
-                emitCompleted(false, QString(), tr("视频处理已取消"));
+                emitCompleted(false, QString(), tr("Video processing cancelled"));
                 return;
             }
             
@@ -547,7 +547,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
                     av_frame_unref(decFrame);
                     cleanupFrames();
                     if (decSwsCtx) sws_freeContext(decSwsCtx);
-                    fail(tr("AI推理连续失败，可能是模型不兼容或显存不足"));
+                    fail(tr("AI inference failed repeatedly. The model may be incompatible or GPU memory insufficient"));
                     return;
                 }
                 
@@ -623,7 +623,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
                 if (av_frame_get_buffer(encFrame, 32) < 0) {
                     qWarning() << "[AIVideoProcessor][ERROR] Failed to allocate encoder frame buffer";
                     cleanupFrames();
-                    fail(tr("无法分配编码器帧缓冲区"));
+                    fail(tr("Failed to allocate encoder frame buffer"));
                     return;
                 }
             }
@@ -736,11 +736,11 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
                        << "path:" << effectiveOutputPath
                        << "exists:" << outFileInfo.exists()
                        << "size:" << outFileInfo.size();
-            emitCompleted(false, QString(), tr("视频处理完成但输出文件无效"));
+            emitCompleted(false, QString(), tr("Video processing completed but output file is invalid"));
         }
     } else {
         qWarning() << "[AIVideoProcessor][ERROR] No frames processed successfully";
-        emitCompleted(false, QString(), tr("视频处理失败：未能成功处理任何帧"));
+        emitCompleted(false, QString(), tr("Video processing failed: no frames successfully processed"));
     }
 }
 

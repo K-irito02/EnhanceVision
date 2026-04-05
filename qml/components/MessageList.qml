@@ -122,7 +122,25 @@ Item {
             queuePosition: model.queuePosition !== undefined ? model.queuePosition : 0
             errorMessage: model.errorMessage || ""
             selectable: batchMode
-            // estimatedRemainingSec 现在由 MessageItem 内部基于实际进度速率计算
+
+            // 时间预测属性（由 _buildMediaForDelegate 计算）
+            property real _predictedTotalSec: 0
+            predictedTotalSec: _predictedTotalSec
+            // 从模型读取持久化的实际总耗时
+            property real _modelActualTotalSec: model.actualTotalSec !== undefined ? model.actualTotalSec : 0
+            persistedActualTotalSec: _modelActualTotalSec
+            useGpu: {
+                if (!root._hasRealModel || model.mode !== 1) return false
+                var params = model.parameters
+                if (params && params.useGpu !== undefined) return params.useGpu
+                return false
+            }
+            modelId: {
+                if (!root._hasRealModel || model.mode !== 1) return ""
+                var params = model.parameters
+                if (params && params.modelId) return params.modelId
+                return ""
+            }
 
             property ListModel _cachedMedia: ListModel {}
             property int _successFileCount: 0
@@ -193,6 +211,11 @@ Item {
                 incByStatus(newStatus)
 
                 msgDelegate._applyFileStats(_successFileCount, _failedFileCount, _pendingFileCount, _processingFileCount)
+
+                // 文件状态变化时重新计算剩余时间
+                if (newStatus === 2 || newStatus === 3 || newStatus === 4) {
+                    msgDelegate.recalculateRemainingTime()
+                }
             }
 
             Component.onCompleted: {
@@ -283,7 +306,11 @@ Item {
                         "status": f.status !== undefined ? f.status : 0,
                         "resultPath": f.resultPath || "",
                         "originalPath": f.filePath || "",
-                        "processedThumbnailId": processedThumbId
+                        "processedThumbnailId": processedThumbId,
+                        "width": f.width || 0,
+                        "height": f.height || 0,
+                        "durationMs": f.duration || 0,
+                        "fps": 30.0
                     }
 
                     if (i < _cachedMedia.count) {
@@ -298,6 +325,48 @@ Item {
                 }
 
                 _resetFileStatsFromModel()
+                _calculatePredictedTime()
+            }
+
+            // 计算消息的预测总时间
+            function _calculatePredictedTime() {
+                if (typeof taskTimeEstimator === "undefined") {
+                    _predictedTotalSec = 0
+                    return
+                }
+                var files = []
+                for (var i = 0; i < _cachedMedia.count; i++) {
+                    var item = _cachedMedia.get(i)
+                    if (item.status === 0 || item.status === 1) {
+                        files.push({
+                            width: item.width || 1920,
+                            height: item.height || 1080,
+                            isVideo: (item.mediaType === 1),
+                            durationMs: item.durationMs || 0,
+                            fps: item.fps || 30.0
+                        })
+                    }
+                }
+                if (files.length === 0) {
+                    // 如果没有待处理文件，使用全部文件计算（初始状态）
+                    for (var j = 0; j < _cachedMedia.count; j++) {
+                        var it = _cachedMedia.get(j)
+                        files.push({
+                            width: it.width || 1920,
+                            height: it.height || 1080,
+                            isVideo: (it.mediaType === 1),
+                            durationMs: it.durationMs || 0,
+                            fps: it.fps || 30.0
+                        })
+                    }
+                }
+                if (files.length === 0) {
+                    _predictedTotalSec = 0
+                    return
+                }
+                _predictedTotalSec = taskTimeEstimator.estimateMessageTotalTime(
+                    msgDelegate.mode, msgDelegate.useGpu, msgDelegate.modelId, files
+                )
             }
 
             onCancelClicked: {

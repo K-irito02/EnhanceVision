@@ -149,7 +149,7 @@ bool FileModel::addFile(const QString &filePath)
     }
 
     if (!isSizeValid(filePath)) {
-        emit errorOccurred(tr("文件大小超过限制 (最大 2GB): %1").arg(filePath));
+        emit errorOccurred(tr("File size exceeds limit (max 2GB): %1").arg(filePath));
         return false;
     }
 

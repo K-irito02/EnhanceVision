@@ -44,7 +44,7 @@ int ModelRegistry::initialize(const QString &modelsRootPath)
 
     QString jsonPath = modelsRootPath + "/models.json";
     if (!loadModelsJson(jsonPath)) {
-        emit registryError(tr("无法加载模型配置文件: %1").arg(jsonPath));
+        emit registryError(tr("Cannot load model configuration file: %1").arg(jsonPath));
         return 0;
     }
 
@@ -300,18 +300,11 @@ bool ModelRegistry::isModelEnabledByPhase(const QString &modelId, const QString 
     const QString idLower = modelId.toLower();
     const QString pathLower = paramFilePath.toLower();
 
-    // 当前阶段：仅保留 Real-ESRGAN 系列模型
-    // 允许 id/path 中包含以下关键词的模型通过：
-    // - realesrgan-x4plus
-    // - realesr-animevideov3
-    const bool looksLikeRealEsrgan =
-        idLower.contains("realesrgan") ||
+    const bool isAnimeVideoV3 =
         idLower.contains("realesr_animevideov3") ||
-        pathLower.contains("real-esrgan") ||
-        pathLower.contains("realesrgan") ||
         pathLower.contains("realesr-animevideov3");
 
-    return looksLikeRealEsrgan;
+    return isAnimeVideoV3;
 }
 
 ModelCategory ModelRegistry::categoryFromString(const QString &str) const

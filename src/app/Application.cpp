@@ -19,6 +19,7 @@
 #include "EnhanceVision/providers/ThumbnailProvider.h"
 #include "EnhanceVision/core/ThumbnailDatabase.h"
 #include "EnhanceVision/core/LifecycleSupervisor.h"
+#include "EnhanceVision/core/TaskTimeEstimator.h"
 #include "EnhanceVision/utils/WindowHelper.h"
 #include "EnhanceVision/utils/SubWindowHelper.h"
 #include <QQmlEngine>
@@ -353,6 +354,10 @@ void Application::setupQmlContext(ThumbnailProvider* thumbnailProvider)
     
     // 将 ImageExportService 设置为上下文属性，供 QML 访问
     context->setContextProperty("imageExportService", m_imageExportService);
+    
+    // 初始化并注册 TaskTimeEstimator
+    TaskTimeEstimator::instance()->initialize();
+    context->setContextProperty("taskTimeEstimator", TaskTimeEstimator::instance());
     
     // 设置 ImageExportService 的 QML 根对象引用
     m_imageExportService->setQmlEngine(m_mainWidget->rootObject());
