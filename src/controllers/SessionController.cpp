@@ -1022,6 +1022,8 @@ QJsonObject SessionController::messageToJson(const Message& message) const
     
     // 保存实际总耗时
     json["actualTotalSec"] = message.actualTotalSec;
+    // 保存处理开始时间（用于会话切换后恢复进度）
+    json["processingStartTime"] = message.processingStartTime;
     
     return json;
 }
@@ -1058,6 +1060,8 @@ Message SessionController::jsonToMessage(const QJsonObject& json) const
     
     // 恢复实际总耗时
     message.actualTotalSec = json["actualTotalSec"].toVariant().toLongLong();
+    // 恢复处理开始时间（用于会话切换后恢复进度）
+    message.processingStartTime = json["processingStartTime"].toVariant().toLongLong();
     
     if (message.status == ProcessingStatus::Processing) {
         message.status = ProcessingStatus::Pending;
@@ -1721,8 +1725,12 @@ int SessionController::deleteSessionMediaFiles(const Session& session)
 {
     int deletedCount = 0;
     
+    // 获取 ThumbnailProvider 实例用于清理缩略图缓存
+    ThumbnailProvider* thumbnailProvider = ThumbnailProvider::instance();
+    
     for (const Message& msg : session.messages) {
         for (const MediaFile& file : msg.mediaFiles) {
+            // 清理结果文件
             if (!file.resultPath.isEmpty()) {
                 QFile resultFile(file.resultPath);
                 if (resultFile.exists()) {
@@ -1733,9 +1741,22 @@ int SessionController::deleteSessionMediaFiles(const Session& session)
                         qWarning() << "[SessionController] Failed to delete result file:" << file.resultPath;
                     }
                 }
+                
+                // 清理处理后的缩略图缓存
+                if (thumbnailProvider) {
+                    QString processedThumbnailId = "processed_" + file.id;
+                    thumbnailProvider->removeThumbnail(processedThumbnailId);
+                }
+            }
+            
+            // 清理原始文件的缩略图缓存
+            if (thumbnailProvider && !file.filePath.isEmpty()) {
+                thumbnailProvider->removeThumbnail(file.filePath);
             }
         }
     }
+    
+    qInfo() << "[SessionController] Cleaned up" << deletedCount << "result files and associated thumbnail caches";
     
     return deletedCount;
 }

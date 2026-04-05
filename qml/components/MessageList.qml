@@ -128,7 +128,9 @@ Item {
             predictedTotalSec: _predictedTotalSec
             // 从模型读取持久化的实际总耗时
             property real _modelActualTotalSec: model.actualTotalSec !== undefined ? model.actualTotalSec : 0
+            property double _modelProcessingStartTime: model.processingStartTime !== undefined ? model.processingStartTime : 0
             persistedActualTotalSec: _modelActualTotalSec
+            persistedProcessingStartTime: _modelProcessingStartTime
             useGpu: {
                 if (!root._hasRealModel || model.mode !== 1) return false
                 var params = model.parameters
@@ -372,6 +374,14 @@ Item {
             onCancelClicked: {
                 if (typeof processingController !== "undefined")
                     processingController.cancelMessageTasks(model.id)
+            }
+            onPauseClicked: {
+                if (typeof processingController !== "undefined")
+                    processingController.pauseMessageTasks(model.id)
+            }
+            onResumeClicked: {
+                if (typeof processingController !== "undefined")
+                    processingController.resumeMessageTasks(model.id)
             }
             onRetryClicked: {
                 root._handleRetry(model.id)

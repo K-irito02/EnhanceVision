@@ -7,7 +7,7 @@ trigger: always_on
 
 ## 规则优先级
 
-1. `communication-reflection` 始终优先（但编辑器的特殊模式除外，例如：plan、spec、debug等）
+1. `communication-reflection` 始终优先（但编辑器的特殊模式除外，例如：子代理Agent、plan、spec、debug等）
 2. `00-rule-governance.md`（治理总则）
 3. `02-architecture.md`（架构边界）
 4. 语言规范（`03`、`04`）

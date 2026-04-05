@@ -158,6 +158,7 @@ qt_add_executable(EnhanceVision
     src/core/LifecycleSupervisor.cpp
     src/core/CancellableTaskToken.cpp
     src/core/ThumbnailDatabase.cpp
+    src/core/TaskTimeEstimator.cpp
     src/core/ai/AITaskQueue.cpp
     src/core/ai/AIInferenceWorker.cpp
     src/core/ai/AIInferenceService.cpp
@@ -212,6 +213,7 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/core/LifecycleSupervisor.h
     include/EnhanceVision/core/CancellableTaskToken.h
     include/EnhanceVision/core/ThumbnailDatabase.h
+    include/EnhanceVision/core/TaskTimeEstimator.h
     include/EnhanceVision/core/ai/AIInferenceTypes.h
     include/EnhanceVision/core/ai/AITaskQueue.h
     include/EnhanceVision/core/ai/AIInferenceWorker.h
@@ -315,6 +317,7 @@ qt_add_qml_module(EnhanceVision
         qml/controls/ParamSlider.qml
         qml/controls/ParamGroup.qml
         qml/controls/Tooltip.qml
+        qml/controls/RichTooltip.qml
         qml/controls/Switch.qml
         qml/shaders/BrightnessContrast.qml
         qml/shaders/SaturationHue.qml

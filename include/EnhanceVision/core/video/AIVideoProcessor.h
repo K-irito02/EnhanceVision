@@ -38,6 +38,18 @@ public:
     void cancel();
     void waitForFinished(int timeoutMs = 5000);
     
+    /**
+     * @brief 等待当前帧处理完成
+     * @param timeoutMs 超时时间（毫秒）
+     * @return true 如果当前帧已完成，false 如果超时
+     */
+    bool waitForCurrentFrame(int timeoutMs = 3000);
+    
+    /**
+     * @brief 检查是否正在处理单帧
+     */
+    bool isProcessingFrame() const;
+    
     bool isProcessing() const;
     double progress() const;
     

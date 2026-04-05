@@ -39,6 +39,8 @@ Rectangle {
     property string modelId: ""
     // 从模型读取的持久化实际总耗时（用于恢复显示）
     property real persistedActualTotalSec: 0
+    // 从模型读取的持久化处理开始时间（用于会话切换后恢复进度）
+    property double persistedProcessingStartTime: 0
 
     // 平滑动画目标值（避免数字跳变）
     property real _displayRemainingSec: _remainingSec
@@ -78,6 +80,9 @@ Rectangle {
     }
 
     onStatusChanged: {
+        console.log("[MessageItem] onStatusChanged taskId:", root.taskId, "status:", status, 
+                    "_processingStartTime:", _processingStartTime,
+                    "persistedProcessingStartTime:", persistedProcessingStartTime)
         if (status === 1) {
             // 开始处理：记录开始时间
             if (_processingStartTime <= 0) {
@@ -85,10 +90,34 @@ Rectangle {
                 _elapsedSec = 0
                 _actualTotalSec = 0
                 _hasStartedProcessing = true
+                // 持久化开始时间到模型
+                if (typeof messageModel !== "undefined" && root.taskId) {
+                    console.log("[MessageItem] Persisting processingStartTime:", _processingStartTime)
+                    messageModel.updateProcessingStartTime(root.taskId, _processingStartTime)
+                }
             }
         } else if (status === 0) {
-            // 等待状态：重置标记
-            _hasStartedProcessing = false
+            // 等待状态：只有当没有持久化的开始时间时才重置
+            // 这样可以在会话切换后保持进度状态
+            if (persistedProcessingStartTime <= 0) {
+                _hasStartedProcessing = false
+            }
+        }
+    }
+    
+    // 从持久化值恢复处理开始时间（用于会话切换后恢复进度）
+    onPersistedProcessingStartTimeChanged: {
+        console.log("[MessageItem] onPersistedProcessingStartTimeChanged:", persistedProcessingStartTime,
+                    "_processingStartTime:", _processingStartTime)
+        if (persistedProcessingStartTime > 0) {
+            _processingStartTime = persistedProcessingStartTime
+            _hasStartedProcessing = true
+            // 计算已用时间
+            _elapsedSec = Math.round((Date.now() - _processingStartTime) / 1000)
+            // 更新剩余时间
+            if (predictedTotalSec > 0) {
+                _remainingSec = predictedTotalSec - _elapsedSec
+            }
         }
     }
 
@@ -112,9 +141,28 @@ Rectangle {
     }
 
     Component.onCompleted: {
+        console.log("[MessageItem] onCompleted taskId:", root.taskId, 
+                    "status:", status,
+                    "persistedProcessingStartTime:", persistedProcessingStartTime,
+                    "persistedActualTotalSec:", persistedActualTotalSec,
+                    "predictedTotalSec:", predictedTotalSec)
+        
         // 初始化时从持久化值恢复
         if (persistedActualTotalSec > 0) {
             _actualTotalSec = persistedActualTotalSec
+        }
+        // 恢复处理开始时间（用于会话切换后恢复进度显示）
+        if (persistedProcessingStartTime > 0 && _processingStartTime <= 0) {
+            _processingStartTime = persistedProcessingStartTime
+            _hasStartedProcessing = true
+            // 计算已用时间
+            _elapsedSec = Math.round((Date.now() - _processingStartTime) / 1000)
+            // 更新剩余时间
+            if (predictedTotalSec > 0) {
+                _remainingSec = predictedTotalSec - _elapsedSec
+            }
+            console.log("[MessageItem] Restored from persisted: _processingStartTime:", _processingStartTime,
+                        "_elapsedSec:", _elapsedSec, "_remainingSec:", _remainingSec)
         }
     }
 
@@ -169,6 +217,11 @@ Rectangle {
     signal saveMediaFile(int index)
     signal deleteMediaFile(int index)
     signal retrySingleFailedFile(int index)
+    signal pauseClicked()
+    signal resumeClicked()
+    
+    // 暂停状态（status === 5 表示 Paused）
+    property bool isPaused: status === 5
     
     property bool _hasStatsSnapshot: false
     property var _deletingFileIds: ({})
@@ -374,6 +427,22 @@ Rectangle {
                 spacing: 2
                 visible: root.totalFileCount > 0
                 
+                // 暂停/继续按钮 - 仅在处理中或暂停状态时显示
+                IconButton {
+                    iconName: root.isPaused ? "play" : "pause"
+                    iconSize: 14; btnSize: 26
+                    iconColor: root.isPaused ? Theme.colors.success : Theme.colors.warning
+                    tooltip: root.isPaused ? qsTr("继续处理") : qsTr("暂停处理")
+                    visible: (root.status === 1 || root.isPaused) && !root.allFilesSettled
+                    onClicked: {
+                        if (root.isPaused) {
+                            root.resumeClicked()
+                        } else {
+                            root.pauseClicked()
+                        }
+                    }
+                }
+                
                 IconButton {
                     iconName: "refresh-cw"; iconSize: 14; btnSize: 26
                     iconColor: Theme.colors.icon
@@ -489,7 +558,7 @@ Rectangle {
         }
         
         ColumnLayout {
-            visible: (status === 0 || status === 1) && !root.allFilesSettled
+            visible: (status === 0 || status === 1 || root.isPaused) && !root.allFilesSettled
             Layout.fillWidth: true
             spacing: 4
 
@@ -499,8 +568,12 @@ Rectangle {
 
                 // 左侧状态文本
                 Text {
-                    text: status === 0 ? qsTr("等待处理...") : qsTr("处理中")
-                    color: Theme.colors.foreground
+                    text: {
+                        if (root.isPaused) return qsTr("已暂停")
+                        if (status === 0) return qsTr("等待处理...")
+                        return qsTr("处理中")
+                    }
+                    color: root.isPaused ? Theme.colors.warning : Theme.colors.foreground
                     font.pixelSize: 12
                 }
 

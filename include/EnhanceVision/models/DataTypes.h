@@ -38,7 +38,8 @@ enum class ProcessingStatus {
     Processing,   ///< 处理中
     Completed,    ///< 已完成
     Failed,       ///< 失败
-    Cancelled     ///< 已取消
+    Cancelled,    ///< 已取消
+    Paused        ///< 已暂停
 };
 
 /**
@@ -268,6 +269,7 @@ struct Message {
     int progress;                  ///< 处理进度（0-100）
     int queuePosition;             ///< 队列位置（-1 表示不在队列）
     qint64 actualTotalSec;         ///< 实际总耗时（秒），处理完成后记录
+    qint64 processingStartTime;    ///< 处理开始时间戳（毫秒），用于恢复进度显示
 
     Message()
         : mode(ProcessingMode::Shader)
@@ -276,6 +278,7 @@ struct Message {
         , progress(0)
         , queuePosition(-1)
         , actualTotalSec(0)
+        , processingStartTime(0)
     {}
 };
 

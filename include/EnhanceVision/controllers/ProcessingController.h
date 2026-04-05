@@ -160,6 +160,25 @@ public:
     void pauseSessionTasks(const QString& sessionId);
     void resumeSessionTasks(const QString& sessionId);
     
+    /**
+     * @brief 暂停指定消息的所有任务
+     * @param messageId 消息ID
+     */
+    Q_INVOKABLE void pauseMessageTasks(const QString& messageId);
+    
+    /**
+     * @brief 恢复指定消息的所有任务
+     * @param messageId 消息ID
+     */
+    Q_INVOKABLE void resumeMessageTasks(const QString& messageId);
+    
+    /**
+     * @brief 检查消息任务是否已暂停
+     * @param messageId 消息ID
+     * @return true 如果已暂停
+     */
+    Q_INVOKABLE bool isMessagePaused(const QString& messageId) const;
+    
     void cancelVideoProcessing(const QString& taskId);
     
     void onSessionChanging(const QString& oldSessionId, const QString& newSessionId);
@@ -180,6 +199,8 @@ signals:
     
     void messageTasksCancelled(const QString& messageId);
     void sessionTasksCancelled(const QString& sessionId);
+    void messageTasksPaused(const QString& messageId);
+    void messageTasksResumed(const QString& messageId);
     
     void requestShaderExport(
         const QString& exportId,
@@ -246,6 +267,8 @@ private:
     
     QSet<QString> m_cancellingTaskIds;  ///< 正在取消的任务ID（防止并发取消）
     mutable QMutex m_cancelMutex;  ///< 取消操作的互斥锁
+    
+    QSet<QString> m_pausedMessageIds;  ///< 已暂停的消息ID集合
 
     enum class TaskLifecycle {
         Active,
@@ -302,6 +325,7 @@ private:
     void handleOrphanedVideoTask(const QString& taskId);
     void cleanupTask(const QString& taskId);
     void terminateTask(const QString& taskId, const QString& reason = QString());
+    void cleanupDyingProcessors();
     void connectAiEngineForTask(AIEngine* engine, const QString& taskId);
     void disconnectAiEngineForTask(const QString& taskId);
     

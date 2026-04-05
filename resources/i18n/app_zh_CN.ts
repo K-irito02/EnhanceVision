@@ -4,12 +4,12 @@
 <context>
     <name>AIModelPanel</name>
     <message>
-        <location filename="../../qml/components/AIModelPanel.qml" line="37"/>
+        <location filename="../../qml/components/AIModelPanel.qml" line="39"/>
         <source>AI 模型类别</source>
         <translation>AI 模型类别</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIModelPanel.qml" line="198"/>
+        <location filename="../../qml/components/AIModelPanel.qml" line="200"/>
         <source>请选择一个模型类别</source>
         <translation>请选择一个模型类别</translation>
     </message>
@@ -17,84 +17,77 @@
 <context>
     <name>AIParamsPanel</name>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="187"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="190"/>
         <source>选中模型</source>
         <translation>选中模型</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="250"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="252"/>
         <source>正在计算最优参数…</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="250"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="252"/>
         <source>上传文件后将自动优化参数</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="252"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="254"/>
         <source>视频</source>
         <translation type="unfinished">视频</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="252"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="254"/>
         <source>图像</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="253"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="255"/>
         <source>自动优化已就绪</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="270"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="272"/>
         <source>视频策略：优先稳定性（抑制帧间闪烁/拖影），适度降低质量参数</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="271"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="273"/>
         <source>图像策略：优先质量（TTA、锐度、人像增强等均按最优值配置）</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="509"/>
-        <source>GPU 推理模式：使用显卡进行 AI 加速。
-优点：处理速度快，适合大图和视频处理。
-缺点：显存占用高，部分设备不兼容。</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="585"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="579"/>
         <source>手动</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="609"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="603"/>
         <source>自动模式：根据图像分辨率与显存自动选择最优分块大小，推理时静默应用。</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="610"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="604"/>
         <source>手动模式：较小分块占用更少显存，但处理更慢。</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="644"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="628"/>
         <source>重置</source>
         <translation type="unfinished">重置</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="775"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="736"/>
         <source>开启</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="775"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="736"/>
         <source>关闭</source>
         <translation type="unfinished">关闭</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="448"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="446"/>
         <source>不可用</source>
         <translation>不可用</translation>
     </message>
@@ -114,55 +107,48 @@
         <translation>GPU 模式</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="345"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="343"/>
         <source>稳定通用，速度较慢</source>
         <translation>稳定通用，速度较慢</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="371"/>
-        <source>CPU 推理模式：使用处理器进行 AI 计算。
-优点：兼容所有硬件，稳定性高，内存占用可控。
-缺点：处理速度较慢，大图和视频耗时较长。</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="440"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="438"/>
         <source>GPU 推理</source>
         <translation>GPU 推理</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="340"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="338"/>
         <source>CPU 推理</source>
         <translation>CPU 推理</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="565"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="559"/>
         <source>分块大小</source>
         <translation>分块大小</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="570"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="564"/>
         <source>自动推荐</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="571"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="565"/>
         <source>自动（整图推理）</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="576"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="570"/>
         <source>不分块</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="585"/>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="711"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="579"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="669"/>
         <source>自动</source>
         <translation>自动</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="635"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="619"/>
         <source>模型参数</source>
         <translation>模型参数</translation>
     </message>
@@ -170,19 +156,19 @@
 <context>
     <name>App</name>
     <message>
-        <location filename="../../qml/App.qml" line="258"/>
+        <location filename="../../qml/App.qml" line="256"/>
         <source>检测到上次应用异常退出</source>
         <translation>检测到上次应用异常退出</translation>
     </message>
     <message>
-        <location filename="../../qml/App.qml" line="266"/>
+        <location filename="../../qml/App.qml" line="264"/>
         <source>为确保稳定性，已自动关闭&quot;自动重新处理&quot;功能。
 您可以在设置中重新开启此功能。</source>
         <translation>为确保稳定性，已自动关闭&quot;自动重新处理&quot;功能。
 您可以在设置中重新开启此功能。</translation>
     </message>
     <message>
-        <location filename="../../qml/App.qml" line="274"/>
+        <location filename="../../qml/App.qml" line="272"/>
         <source>知道了</source>
         <translation>知道了</translation>
     </message>
@@ -190,22 +176,22 @@
 <context>
     <name>ControlPanel</name>
     <message>
-        <location filename="../../qml/components/ControlPanel.qml" line="131"/>
+        <location filename="../../qml/components/ControlPanel.qml" line="123"/>
         <source>展开控制面板</source>
         <translation>展开控制面板</translation>
     </message>
     <message>
-        <location filename="../../qml/components/ControlPanel.qml" line="164"/>
+        <location filename="../../qml/components/ControlPanel.qml" line="156"/>
         <source>Shader</source>
         <translation>Shader</translation>
     </message>
     <message>
-        <location filename="../../qml/components/ControlPanel.qml" line="203"/>
+        <location filename="../../qml/components/ControlPanel.qml" line="195"/>
         <source>AI</source>
         <translation>AI</translation>
     </message>
     <message>
-        <location filename="../../qml/components/ControlPanel.qml" line="226"/>
+        <location filename="../../qml/components/ControlPanel.qml" line="218"/>
         <source>收缩控制面板</source>
         <translation>收缩控制面板</translation>
     </message>
@@ -343,172 +329,193 @@
 <context>
     <name>EnhanceVision::AIEngine</name>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="128"/>
-        <source>推理进行中，无法切换模型</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="135"/>
+        <source>Inference in progress, cannot switch model</source>
+        <translation>推理进行中，无法切换模型</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="133"/>
-        <source>ModelRegistry 未初始化</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="140"/>
+        <source>ModelRegistry not initialized</source>
+        <translation>ModelRegistry 未初始化</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="138"/>
-        <source>模型未注册: %1</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="145"/>
+        <source>Model not registered: %1</source>
+        <translation>模型未注册: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="153"/>
-        <source>模型文件不可用: %1</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="160"/>
+        <source>Model file unavailable: %1</source>
+        <translation>模型文件不可用: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="177"/>
-        <source>加载模型参数失败: %1</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="199"/>
+        <source>Vulkan instance not created, GPU unavailable</source>
+        <translation>Vulkan 实例未创建，无法使用 GPU</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="184"/>
-        <source>加载模型权重失败: %1</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="223"/>
+        <source>Failed to load model parameters: %1</source>
+        <translation>加载模型参数失败: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="207"/>
-        <source>模型加载失败: %1</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="234"/>
+        <source>Failed to load model weights: %1</source>
+        <translation>加载模型权重失败: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="241"/>
-        <source>未加载模型</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="260"/>
+        <source>Model loading failed: %1</source>
+        <translation>模型加载失败: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="252"/>
-        <source>输入图像尺寸无效: %1x%2</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="294"/>
+        <source>No model loaded</source>
+        <translation>未加载模型</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="365"/>
-        <location filename="../../src/core/AIEngine.cpp" line="366"/>
-        <source>已有推理任务正在进行</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="300"/>
+        <source>Input image is empty or data invalid</source>
+        <translation>输入图像为空或数据无效</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="393"/>
-        <location filename="../../src/core/AIEngine.cpp" line="615"/>
-        <source>无法读取图像: %1</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="305"/>
+        <source>Invalid input image size: %1x%2</source>
+        <translation>输入图像尺寸无效: %1x%2</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="402"/>
-        <source>图像格式无效: %1</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="418"/>
+        <location filename="../../src/core/AIEngine.cpp" line="419"/>
+        <source>Inference task already in progress</source>
+        <translation>已有推理任务正在进行</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="425"/>
-        <source>推理已取消</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="446"/>
+        <location filename="../../src/core/AIEngine.cpp" line="668"/>
+        <source>Cannot read image: %1</source>
+        <translation>无法读取图像: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="430"/>
-        <source>推理失败，请检查模型兼容性和输入图像</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="455"/>
+        <source>Invalid image format: %1</source>
+        <translation>图像格式无效: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="438"/>
-        <source>无法保存结果: %1</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="478"/>
+        <source>Inference cancelled</source>
+        <translation>推理已取消</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="552"/>
-        <source>修复输入无效</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="483"/>
+        <source>Inference failed, please check model compatibility and input image</source>
+        <translation>推理失败，请检查模型兼容性和输入图像</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="491"/>
+        <source>Cannot save result: %1</source>
+        <translation>无法保存结果: %1</translation>
     </message>
     <message>
         <location filename="../../src/core/AIEngine.cpp" line="605"/>
-        <location filename="../../src/core/AIEngine.cpp" line="606"/>
-        <source>已有任务正在进行</source>
-        <translation type="unfinished"></translation>
+        <source>Invalid repair input</source>
+        <translation>修复输入无效</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="622"/>
-        <source>修复失败</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="658"/>
+        <location filename="../../src/core/AIEngine.cpp" line="659"/>
+        <source>Task already in progress</source>
+        <translation>已有任务正在进行</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="623"/>
-        <source>保存失败: %1</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="675"/>
+        <source>Repair failed</source>
+        <translation>修复失败</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="695"/>
-        <source>推理进行中，无法切换后端</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../src/core/AIEngine.cpp" line="722"/>
-        <source>编译时未启用 Vulkan 支持</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../src/core/AIEngine.cpp" line="740"/>
-        <source>创建 Vulkan 实例失败，错误码: %1</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="676"/>
+        <source>Save failed: %1</source>
+        <translation>保存失败: %1</translation>
     </message>
     <message>
         <location filename="../../src/core/AIEngine.cpp" line="748"/>
-        <source>未找到支持 Vulkan 的 GPU 设备</source>
-        <translation type="unfinished"></translation>
+        <source>Inference in progress, cannot switch backend</source>
+        <translation>推理进行中，无法切换后端</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="775"/>
-        <source>GPU 初始化失败: %1</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="837"/>
+        <source>Vulkan support not enabled at compile time</source>
+        <translation>编译时未启用 Vulkan 支持</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="780"/>
-        <source>GPU 初始化失败: 未知异常</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="855"/>
+        <source>Failed to create Vulkan instance</source>
+        <translation>创建 Vulkan 实例失败</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="785"/>
-        <source>程序未编译 Vulkan 支持</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="861"/>
+        <source>No Vulkan-capable GPU device found</source>
+        <translation>未找到支持 Vulkan 的 GPU 设备</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="1111"/>
-        <source>推理输入失败，模型输入节点不匹配</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="895"/>
+        <source>GPU initialization failed: %1</source>
+        <translation>GPU 初始化失败: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="1612"/>
-        <source>推理未完整完成（%1/%2 分块成功）</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="900"/>
+        <source>GPU initialization failed: unknown exception</source>
+        <translation>GPU 初始化失败: 未知异常</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="1647"/>
-        <source>TTA 处理中: %1/%2</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="905"/>
+        <source>Application not compiled with Vulkan support</source>
+        <translation>程序未编译 Vulkan 支持</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="1676"/>
-        <source>合并 TTA 结果...</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="1182"/>
+        <source>Model sync incomplete, cannot start inference</source>
+        <translation>模型同步未完成，无法开始推理</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="247"/>
-        <source>输入图像为空或数据无效</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="1187"/>
+        <source>GPU not ready, cannot start inference</source>
+        <translation>GPU 未就绪，无法开始推理</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="1142"/>
-        <source>推理输出失败，模型输出节点不匹配 (ret=%1)</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="1192"/>
+        <location filename="../../src/core/AIEngine.cpp" line="1272"/>
+        <source>Vulkan instance not created</source>
+        <translation>Vulkan 实例未创建</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="1509"/>
-        <source>分块处理连续失败</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/core/AIEngine.cpp" line="1250"/>
+        <source>Inference input failed, model input node mismatch</source>
+        <translation>推理输入失败，模型输入节点不匹配</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="1306"/>
+        <source>Inference output failed, model output node mismatch (ret=%1)</source>
+        <translation>推理输出失败，模型输出节点不匹配 (ret=%1)</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="1673"/>
+        <source>Consecutive tile processing failures</source>
+        <translation>分块处理连续失败</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="1776"/>
+        <source>Inference not fully completed (%1/%2 tiles successful)</source>
+        <translation>推理未完整完成（%1/%2 分块成功）</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="1811"/>
+        <source>TTA processing: %1/%2</source>
+        <translation>TTA 处理中: %1/%2</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="1840"/>
+        <source>Merging TTA results...</source>
+        <translation>合并 TTA 结果...</translation>
     </message>
 </context>
 <context>
@@ -597,65 +604,65 @@
     <name>EnhanceVision::AIVideoProcessor</name>
     <message>
         <location filename="../../src/core/video/AIVideoProcessor.cpp" line="78"/>
-        <source>已有视频处理任务正在进行</source>
-        <translation type="unfinished"></translation>
+        <source>Video processing task already in progress</source>
+        <translation>已有视频处理任务正在进行</translation>
     </message>
     <message>
         <location filename="../../src/core/video/AIVideoProcessor.cpp" line="157"/>
-        <source>AI引擎未初始化</source>
-        <translation type="unfinished"></translation>
+        <source>AI engine not initialized</source>
+        <translation>AI引擎未初始化</translation>
     </message>
     <message>
         <location filename="../../src/core/video/AIVideoProcessor.cpp" line="165"/>
-        <source>AI模型未加载</source>
-        <translation type="unfinished"></translation>
+        <source>AI model not loaded</source>
+        <translation>AI模型未加载</translation>
     </message>
     <message>
         <location filename="../../src/core/video/AIVideoProcessor.cpp" line="189"/>
         <location filename="../../src/core/video/AIVideoProcessor.cpp" line="334"/>
         <location filename="../../src/core/video/AIVideoProcessor.cpp" line="371"/>
-        <source>视频处理已取消</source>
-        <translation type="unfinished"></translation>
+        <source>Video processing cancelled</source>
+        <translation>视频处理已取消</translation>
     </message>
     <message>
         <location filename="../../src/core/video/AIVideoProcessor.cpp" line="213"/>
-        <source>视频不兼容，无法处理</source>
-        <translation type="unfinished"></translation>
+        <source>Video incompatible, cannot process</source>
+        <translation>视频不兼容，无法处理</translation>
     </message>
     <message>
         <location filename="../../src/core/video/AIVideoProcessor.cpp" line="229"/>
-        <source>解码器初始化失败</source>
-        <translation type="unfinished"></translation>
+        <source>Decoder initialization failed</source>
+        <translation>解码器初始化失败</translation>
     </message>
     <message>
         <location filename="../../src/core/video/AIVideoProcessor.cpp" line="241"/>
-        <source>无效的视频尺寸: %1x%2</source>
-        <translation type="unfinished"></translation>
+        <source>Invalid video size: %1x%2</source>
+        <translation>无效的视频尺寸: %1x%2</translation>
     </message>
     <message>
         <location filename="../../src/core/video/AIVideoProcessor.cpp" line="247"/>
-        <source>无效的输出尺寸: %1x%2</source>
-        <translation type="unfinished"></translation>
+        <source>Invalid output size: %1x%2</source>
+        <translation>无效的输出尺寸: %1x%2</translation>
     </message>
     <message>
         <location filename="../../src/core/video/AIVideoProcessor.cpp" line="550"/>
-        <source>AI推理连续失败，可能是模型不兼容或显存不足</source>
-        <translation type="unfinished"></translation>
+        <source>AI inference failed repeatedly. The model may be incompatible or GPU memory insufficient</source>
+        <translation>AI推理连续失败，可能是模型不兼容或显存不足</translation>
     </message>
     <message>
         <location filename="../../src/core/video/AIVideoProcessor.cpp" line="626"/>
-        <source>无法分配编码器帧缓冲区</source>
-        <translation type="unfinished"></translation>
+        <source>Failed to allocate encoder frame buffer</source>
+        <translation>无法分配编码器帧缓冲区</translation>
     </message>
     <message>
         <location filename="../../src/core/video/AIVideoProcessor.cpp" line="739"/>
-        <source>视频处理完成但输出文件无效</source>
-        <translation type="unfinished"></translation>
+        <source>Video processing completed but output file is invalid</source>
+        <translation>视频处理完成但输出文件无效</translation>
     </message>
     <message>
         <location filename="../../src/core/video/AIVideoProcessor.cpp" line="743"/>
-        <source>视频处理失败：未能成功处理任何帧</source>
-        <translation type="unfinished"></translation>
+        <source>Video processing failed: no frames successfully processed</source>
+        <translation>视频处理失败：未能成功处理任何帧</translation>
     </message>
 </context>
 <context>
@@ -882,8 +889,6 @@
 <context>
     <name>EnhanceVision::MessageModel</name>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="233"/>
-        <location filename="../../src/models/MessageModel.cpp" line="252"/>
         <location filename="../../src/models/MessageModel.cpp" line="267"/>
         <location filename="../../src/models/MessageModel.cpp" line="280"/>
         <source>消息不存在: %1</source>
@@ -891,18 +896,24 @@
     </message>
     <message>
         <location filename="../../src/models/MessageModel.cpp" line="565"/>
-        <source>待处理</source>
-        <translation type="unfinished">待处理</translation>
+        <source>Pending</source>
+        <translation>待处理</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/MessageModel.cpp" line="233"/>
+        <location filename="../../src/models/MessageModel.cpp" line="252"/>
+        <source>Message does not exist: %1</source>
+        <translation>消息不存在: %1</translation>
     </message>
     <message>
         <location filename="../../src/models/MessageModel.cpp" line="567"/>
-        <source>处理中</source>
-        <translation type="unfinished">处理中</translation>
+        <source>Processing</source>
+        <translation>处理中</translation>
     </message>
     <message>
         <location filename="../../src/models/MessageModel.cpp" line="569"/>
-        <source>已完成</source>
-        <translation type="unfinished">已完成</translation>
+        <source>Completed</source>
+        <translation>已完成</translation>
     </message>
     <message>
         <location filename="../../src/models/MessageModel.cpp" line="571"/>
@@ -917,13 +928,13 @@
     <message>
         <location filename="../../src/models/MessageModel.cpp" line="575"/>
         <location filename="../../src/models/MessageModel.cpp" line="607"/>
-        <source>未知</source>
-        <translation type="unfinished">未知</translation>
+        <source>Unknown</source>
+        <translation>未知</translation>
     </message>
     <message>
         <location filename="../../src/models/MessageModel.cpp" line="601"/>
-        <source>Shader 滤镜</source>
-        <translation type="unfinished">Shader 滤镜</translation>
+        <source>Shader Filter</source>
+        <translation>Shader 滤镜</translation>
     </message>
     <message>
         <location filename="../../src/models/MessageModel.cpp" line="603"/>
@@ -940,254 +951,254 @@
     <name>EnhanceVision::ModelRegistry</name>
     <message>
         <location filename="../../src/core/ModelRegistry.cpp" line="47"/>
-        <source>无法加载模型配置文件: %1</source>
-        <translation type="unfinished"></translation>
+        <source>Cannot load model configuration file: %1</source>
+        <translation>无法加载模型配置文件: %1</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::NCNNCPUBackend</name>
     <message>
         <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="95"/>
-        <source>模型文件不可用: %1</source>
-        <translation type="unfinished"></translation>
+        <source>Model file unavailable: %1</source>
+        <translation>模型文件不可用: %1</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="109"/>
-        <source>加载模型参数失败: %1</source>
-        <translation type="unfinished"></translation>
+        <source>Failed to load model parameters: %1</source>
+        <translation>加载模型参数失败: %1</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="116"/>
-        <source>加载模型权重失败: %1</source>
-        <translation type="unfinished"></translation>
+        <source>Failed to load model weights: %1</source>
+        <translation>加载模型权重失败: %1</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="163"/>
-        <source>后端未初始化</source>
-        <translation type="unfinished"></translation>
+        <source>Backend not initialized</source>
+        <translation>后端未初始化</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="168"/>
-        <source>模型未加载</source>
-        <translation type="unfinished"></translation>
+        <source>No model loaded</source>
+        <translation>未加载模型</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="173"/>
-        <source>输入图像无效</source>
-        <translation type="unfinished"></translation>
+        <source>Invalid input image</source>
+        <translation>输入图像无效</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="240"/>
-        <source>图像预处理失败</source>
-        <translation type="unfinished"></translation>
+        <source>Image preprocessing failed</source>
+        <translation>图像预处理失败</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="245"/>
         <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="259"/>
         <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="310"/>
         <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="381"/>
-        <source>已取消</source>
-        <translation type="unfinished">已取消</translation>
+        <source>Cancelled</source>
+        <translation>已取消</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="254"/>
-        <source>推理失败</source>
-        <translation type="unfinished"></translation>
+        <source>Inference failed</source>
+        <translation>推理失败</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="361"/>
-        <source>分块处理未完成 (%1/%2)</source>
-        <translation type="unfinished"></translation>
+        <source>Tile processing incomplete (%1/%2)</source>
+        <translation>分块处理未完成 (%1/%2)</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="398"/>
-        <source>TTA 处理失败</source>
-        <translation type="unfinished"></translation>
+        <source>TTA processing failed</source>
+        <translation>TTA 处理失败</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="444"/>
-        <source>推理输入失败，模型输入节点不匹配</source>
-        <translation type="unfinished"></translation>
+        <source>Inference input failed, model input node mismatch</source>
+        <translation>推理输入失败，模型输入节点不匹配</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="461"/>
-        <source>推理输出失败，模型输出节点不匹配</source>
-        <translation type="unfinished"></translation>
+        <source>Inference output failed, model output node mismatch</source>
+        <translation>推理输出失败，模型输出节点不匹配</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::NCNNVulkanBackend</name>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="157"/>
-        <source>创建 Vulkan 实例失败，错误码: %1</source>
-        <translation type="unfinished"></translation>
+        <source>Failed to create Vulkan instance, error code: %1</source>
+        <translation>创建 Vulkan 实例失败，错误码: %1</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="165"/>
-        <source>未找到支持 Vulkan 的 GPU 设备</source>
-        <translation type="unfinished"></translation>
+        <source>No Vulkan-capable GPU device found</source>
+        <translation>未找到支持 Vulkan 的 GPU 设备</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="187"/>
-        <source>GPU 初始化失败: %1</source>
-        <translation type="unfinished"></translation>
+        <source>GPU initialization failed: %1</source>
+        <translation>GPU 初始化失败: %1</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="192"/>
-        <source>GPU 初始化失败: 未知异常</source>
-        <translation type="unfinished"></translation>
+        <source>GPU initialization failed: unknown exception</source>
+        <translation>GPU 初始化失败: 未知异常</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="197"/>
-        <source>程序未编译 Vulkan 支持</source>
-        <translation type="unfinished"></translation>
+        <source>Application not compiled with Vulkan support</source>
+        <translation>程序未编译 Vulkan 支持</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="236"/>
-        <source>模型文件不可用: %1</source>
-        <translation type="unfinished"></translation>
+        <source>Model file unavailable: %1</source>
+        <translation>模型文件不可用: %1</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="257"/>
-        <source>加载模型参数失败: %1</source>
-        <translation type="unfinished"></translation>
+        <source>Failed to load model parameters: %1</source>
+        <translation>加载模型参数失败: %1</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="264"/>
-        <source>加载模型权重失败: %1</source>
-        <translation type="unfinished"></translation>
+        <source>Failed to load model weights: %1</source>
+        <translation>加载模型权重失败: %1</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="311"/>
-        <source>后端未初始化</source>
-        <translation type="unfinished"></translation>
+        <source>Backend not initialized</source>
+        <translation>后端未初始化</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="316"/>
-        <source>模型未加载</source>
-        <translation type="unfinished"></translation>
+        <source>No model loaded</source>
+        <translation>未加载模型</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="321"/>
-        <source>输入图像无效</source>
-        <translation type="unfinished"></translation>
+        <source>Invalid input image</source>
+        <translation>输入图像无效</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="370"/>
-        <source>GPU 显存不足，请切换到 CPU 模式或减小分块大小</source>
-        <translation type="unfinished"></translation>
+        <source>GPU memory insufficient, please switch to CPU mode or reduce tile size</source>
+        <translation>GPU 显存不足，请切换到 CPU 模式或减小分块大小</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="372"/>
-        <source>GPU 显存不足，建议切换到 CPU 模式</source>
-        <translation type="unfinished"></translation>
+        <source>GPU memory insufficient, recommend switching to CPU mode</source>
+        <translation>GPU 显存不足，建议切换到 CPU 模式</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="378"/>
-        <source>GPU 推理错误: %1</source>
-        <translation type="unfinished"></translation>
+        <source>GPU inference error: %1</source>
+        <translation>GPU 推理错误: %1</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="380"/>
-        <source>GPU 推理失败: %1</source>
-        <translation type="unfinished"></translation>
+        <source>GPU inference failed: %1</source>
+        <translation>GPU 推理失败: %1</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="386"/>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="388"/>
-        <source>GPU 推理发生未知错误</source>
-        <translation type="unfinished"></translation>
+        <source>GPU inference unknown error</source>
+        <translation>GPU 推理发生未知错误</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="419"/>
-        <source>图像预处理失败</source>
-        <translation type="unfinished"></translation>
+        <source>Image preprocessing failed</source>
+        <translation>图像预处理失败</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="424"/>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="438"/>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="489"/>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="563"/>
-        <source>已取消</source>
-        <translation type="unfinished">已取消</translation>
+        <source>Cancelled</source>
+        <translation>已取消</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="433"/>
-        <source>推理失败</source>
-        <translation type="unfinished"></translation>
+        <source>Inference failed</source>
+        <translation>推理失败</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="543"/>
-        <source>分块处理未完成 (%1/%2)</source>
-        <translation type="unfinished"></translation>
+        <source>Tile processing incomplete (%1/%2)</source>
+        <translation>分块处理未完成 (%1/%2)</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="580"/>
-        <source>TTA 处理失败</source>
-        <translation type="unfinished"></translation>
+        <source>TTA processing failed</source>
+        <translation>TTA 处理失败</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="626"/>
-        <source>推理输入失败，模型输入节点不匹配</source>
-        <translation type="unfinished"></translation>
+        <source>Inference input failed, model input node mismatch</source>
+        <translation>推理输入失败，模型输入节点不匹配</translation>
     </message>
     <message>
         <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="643"/>
-        <source>推理输出失败，模型输出节点不匹配</source>
-        <translation type="unfinished"></translation>
+        <source>Inference output failed, model output node mismatch</source>
+        <translation>推理输出失败，模型输出节点不匹配</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::ProcessingController</name>
     <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="538"/>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="611"/>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="545"/>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="618"/>
         <source>未找到媒体文件</source>
         <translation type="unfinished">未找到媒体文件</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="594"/>
-        <source>未指定AI模型</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="601"/>
+        <source>No AI model specified</source>
+        <translation>未指定AI模型</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="622"/>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="629"/>
         <source>无法创建AI输出目录: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="685"/>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="692"/>
         <source>模型加载失败: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="842"/>
-        <source>AI推理结果无效或输出文件缺失</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="849"/>
+        <source>AI inference result invalid or output file missing</source>
+        <translation>AI推理结果无效或输出文件缺失</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="869"/>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="997"/>
+        <source>Video output file is invalid</source>
+        <translation>视频输出文件无效</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="2110"/>
+        <source>Invalid inference parameters</source>
+        <translation>无效的推理参数</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="881"/>
         <source>未找到待更新的媒体文件</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="985"/>
-        <source>视频输出文件无效</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="1003"/>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="1015"/>
         <source>视频Shader处理失败</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="2043"/>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="2065"/>
         <source>AI推理结果无效或未生成输出文件</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="2088"/>
-        <source>无效的推理参数</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1217,15 +1228,15 @@
 <context>
     <name>EnhanceVision::SessionController</name>
     <message>
-        <location filename="../../src/controllers/SessionController.cpp" line="579"/>
-        <source>未命名会话 %1</source>
-        <translation type="unfinished">未命名会话 %1</translation>
+        <location filename="../../src/controllers/SessionController.cpp" line="617"/>
+        <source>Unnamed Session %1</source>
+        <translation>未命名会话 %1</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/SessionController.cpp" line="634"/>
-        <location filename="../../src/controllers/SessionController.cpp" line="646"/>
-        <source>无法保存会话数据</source>
-        <translation type="unfinished"></translation>
+        <location filename="../../src/controllers/SessionController.cpp" line="672"/>
+        <location filename="../../src/controllers/SessionController.cpp" line="684"/>
+        <source>Cannot save session data</source>
+        <translation>无法保存会话数据</translation>
     </message>
 </context>
 <context>
@@ -1236,28 +1247,28 @@
         <location filename="../../src/models/SessionModel.cpp" line="185"/>
         <location filename="../../src/models/SessionModel.cpp" line="215"/>
         <location filename="../../src/models/SessionModel.cpp" line="382"/>
-        <source>会话不存在: %1</source>
-        <translation type="unfinished">会话不存在: %1</translation>
+        <source>Session does not exist: %1</source>
+        <translation>会话不存在: %1</translation>
     </message>
     <message>
         <location filename="../../src/models/SessionModel.cpp" line="162"/>
-        <source>会话名称不能为空</source>
-        <translation type="unfinished">会话名称不能为空</translation>
+        <source>Session name cannot be empty</source>
+        <translation>会话名称不能为空</translation>
     </message>
     <message>
         <location filename="../../src/models/SessionModel.cpp" line="167"/>
-        <source>会话名称不能超过50个字符</source>
-        <translation type="unfinished">会话名称不能超过50个字符</translation>
-    </message>
-    <message>
-        <location filename="../../src/models/SessionModel.cpp" line="349"/>
-        <source>未命名会话 %1</source>
-        <translation type="unfinished">未命名会话 %1</translation>
+        <source>Session name cannot exceed 50 characters</source>
+        <translation>会话名称不能超过50个字符</translation>
     </message>
     <message>
         <location filename="../../src/models/SessionModel.cpp" line="427"/>
-        <source>不能跨越置顶区域移动会话</source>
-        <translation type="unfinished">不能跨越置顶区域移动会话</translation>
+        <source>Cannot move session across pinned area</source>
+        <translation>不能跨越置顶区域移动会话</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/SessionModel.cpp" line="349"/>
+        <source>Unnamed Session %1</source>
+        <translation>未命名会话 %1</translation>
     </message>
 </context>
 <context>
@@ -1665,53 +1676,53 @@
         <translation>释放以添加文件</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="146"/>
+        <location filename="../../qml/pages/MainPage.qml" line="145"/>
         <source>开始新的处理任务</source>
         <translation>开始新的处理任务</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="155"/>
+        <location filename="../../qml/pages/MainPage.qml" line="154"/>
         <source>添加文件并选择处理模式来开始</source>
         <translation>添加文件并选择处理模式来开始</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="182"/>
-        <location filename="../../qml/pages/MainPage.qml" line="499"/>
+        <location filename="../../qml/pages/MainPage.qml" line="181"/>
+        <location filename="../../qml/pages/MainPage.qml" line="494"/>
         <source>添加文件</source>
         <translation>添加文件</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="201"/>
+        <location filename="../../qml/pages/MainPage.qml" line="200"/>
         <source>Ctrl+O 添加文件，Ctrl+N 新会话，支持拖放文件</source>
         <translation>Ctrl+O 添加文件，Ctrl+N 新会话，支持拖放文件</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="468"/>
+        <location filename="../../qml/pages/MainPage.qml" line="463"/>
         <source>AI推理</source>
         <translation>AI推理</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="562"/>
+        <location filename="../../qml/pages/MainPage.qml" line="557"/>
         <source>选择媒体文件</source>
         <translation>选择媒体文件</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="565"/>
+        <location filename="../../qml/pages/MainPage.qml" line="560"/>
         <source>所有支持的文件 (*.jpg *.jpeg *.png *.bmp *.webp *.tiff *.tif *.mp4 *.avi *.mkv *.mov *.flv)</source>
         <translation>所有支持的文件 (*.jpg *.jpeg *.png *.bmp *.webp *.tiff *.tif *.mp4 *.avi *.mkv *.mov *.flv)</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="566"/>
+        <location filename="../../qml/pages/MainPage.qml" line="561"/>
         <source>图片文件 (*.jpg *.jpeg *.png *.bmp *.webp *.tiff *.tif)</source>
         <translation>图片文件 (*.jpg *.jpeg *.png *.bmp *.webp *.tiff *.tif)</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="567"/>
+        <location filename="../../qml/pages/MainPage.qml" line="562"/>
         <source>视频文件 (*.mp4 *.avi *.mkv *.mov *.flv)</source>
         <translation>视频文件 (*.mp4 *.avi *.mkv *.mov *.flv)</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="568"/>
+        <location filename="../../qml/pages/MainPage.qml" line="563"/>
         <source>所有文件 (*.*)</source>
         <translation>所有文件 (*.*)</translation>
     </message>
@@ -1921,14 +1932,14 @@
 <context>
     <name>MessageList</name>
     <message>
-        <location filename="../../qml/components/MessageList.qml" line="377"/>
-        <source>暂无处理任务</source>
-        <translation>暂无处理任务</translation>
+        <location filename="../../qml/components/MessageList.qml" line="373"/>
+        <source>开始新的处理任务</source>
+        <translation type="unfinished">开始新的处理任务</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageList.qml" line="384"/>
-        <source>添加文件并点击发送开始处理</source>
-        <translation>添加文件并点击发送开始处理</translation>
+        <location filename="../../qml/components/MessageList.qml" line="381"/>
+        <source>添加文件并选择处理模式来开始</source>
+        <translation type="unfinished">添加文件并选择处理模式来开始</translation>
     </message>
 </context>
 <context>

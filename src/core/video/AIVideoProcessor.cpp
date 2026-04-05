@@ -33,8 +33,13 @@ struct AIVideoProcessor::Impl {
     
     std::atomic<bool> isProcessing{false};
     std::atomic<bool> cancelled{false};
+    std::atomic<bool> processingFrame{false};  // 当前是否正在处理单帧
     std::atomic<double> progress{0.0};
     std::atomic<qint64> lastProgressEmitMs{0};
+    
+    // 帧处理完成等待
+    std::mutex frameCompleteMutex;
+    std::condition_variable frameCompleteCv;
     
     QMutex mutex;
 };
@@ -91,8 +96,26 @@ void AIVideoProcessor::processAsync(const QString& inputPath, const QString& out
 void AIVideoProcessor::cancel()
 {
     if (!m_impl->cancelled.load()) {
-        qInfo() << "[AIVideoProcessor] Cancel requested";
+        qInfo() << "[AIVideoProcessor] Cancel requested, waiting for current frame to complete...";
         m_impl->cancelled.store(true);
+        
+        // 等待当前帧处理完成（带超时），确保不会在帧处理中途中断导致资源泄漏
+        if (m_impl->processingFrame.load()) {
+            constexpr int kFrameWaitTimeoutMs = 5000;  // 最多等待5秒
+            std::unique_lock<std::mutex> lock(m_impl->frameCompleteMutex);
+            bool completed = m_impl->frameCompleteCv.wait_for(
+                lock,
+                std::chrono::milliseconds(kFrameWaitTimeoutMs),
+                [this]() { return !m_impl->processingFrame.load(); }
+            );
+            
+            if (completed) {
+                qInfo() << "[AIVideoProcessor] Current frame completed before cancel";
+            } else {
+                qWarning() << "[AIVideoProcessor] Timeout waiting for current frame during cancel";
+            }
+        }
+        
         emit cancelled();
     }
 }
@@ -117,6 +140,35 @@ void AIVideoProcessor::waitForFinished(int timeoutMs)
             qInfo() << "[AIVideoProcessor] Processing finished after" << timer.elapsed() << "ms";
         }
     }
+}
+
+bool AIVideoProcessor::waitForCurrentFrame(int timeoutMs)
+{
+    if (!m_impl->processingFrame.load()) {
+        return true;  // 没有正在处理的帧
+    }
+    
+    qInfo() << "[AIVideoProcessor] Waiting for current frame to complete, timeout:" << timeoutMs << "ms";
+    
+    std::unique_lock<std::mutex> lock(m_impl->frameCompleteMutex);
+    bool completed = m_impl->frameCompleteCv.wait_for(
+        lock,
+        std::chrono::milliseconds(timeoutMs),
+        [this]() { return !m_impl->processingFrame.load(); }
+    );
+    
+    if (completed) {
+        qInfo() << "[AIVideoProcessor] Current frame completed";
+    } else {
+        qWarning() << "[AIVideoProcessor] Timeout waiting for current frame";
+    }
+    
+    return completed;
+}
+
+bool AIVideoProcessor::isProcessingFrame() const
+{
+    return m_impl->processingFrame.load();
 }
 
 bool AIVideoProcessor::isProcessing() const
@@ -530,7 +582,29 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
             qInfo() << "[AIVideoProcessor][DEBUG] Frame" << frameCount << "calling processFrame (AI inference)";
             fflush(stdout);
             
+            // 标记开始处理帧
+            m_impl->processingFrame.store(true);
+            
+            // 取消检测点：在AI推理前检查
+            if (m_impl->cancelled.load()) {
+                m_impl->processingFrame.store(false);
+                m_impl->frameCompleteCv.notify_all();
+                qInfo() << "[AIVideoProcessor][DEBUG] Cancelled before AI inference at frame" << frameCount;
+                av_frame_unref(decFrame);
+                cleanupFrames();
+                if (decSwsCtx) sws_freeContext(decSwsCtx);
+                setProcessing(false);
+                emitCompleted(false, QString(), tr("Video processing cancelled"));
+                return;
+            }
+            
             QImage resultImg = processFrame(adaptedFrame);
+            
+            // 标记帧处理完成
+            {
+                m_impl->processingFrame.store(false);
+                m_impl->frameCompleteCv.notify_all();
+            }
             if (resultImg.isNull()) {
                 consecutiveFrameFailures++;
                 
@@ -686,8 +760,20 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
                 updateProgress(prog);
             }
             
+            // 【内存管理增强】显式释放中间QImage对象，减少内存峰值
+            // QImage 使用隐式共享（COW），显式清空可强制释放底层数据
+            processedFrame = QImage();
+            adaptedFrame = QImage();
+            resultImg = QImage();
+            restoredImg = QImage();
+            
             // 【关键修复】释放解码帧引用，避免内存泄漏和堆损坏
             av_frame_unref(decFrame);
+            
+            // 【内存管理】每10帧强制执行一次GC提示（Qt不保证立即回收，但有助于释放大块内存）
+            if (frameCount % 10 == 0) {
+                m_impl->aiEngine->clearInferenceCache();
+            }
         }
     }
     

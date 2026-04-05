@@ -85,3 +85,6 @@ resources/models/
 # Test video assets (large files, distribute separately)
 tests/testAssetsDirectory/video/
 tests/testAssetsDirectory/image/
+
+# trae agents
+.trae/agents/

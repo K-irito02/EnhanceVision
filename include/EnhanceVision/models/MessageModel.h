@@ -42,7 +42,8 @@ public:
         StatusColorRole,
         FileIdsRole,
         ProcessedThumbnailIdsRole,
-        ActualTotalSecRole
+        ActualTotalSecRole,
+        ProcessingStartTimeRole
     };
 
     explicit MessageModel(QObject *parent = nullptr);
@@ -318,6 +319,14 @@ signals:
      * @param totalSec 实际总耗时（秒）
      */
     void actualTotalSecUpdated(const QString &messageId, qint64 totalSec);
+
+public slots:
+    /**
+     * @brief 更新消息的处理开始时间
+     * @param messageId 消息ID
+     * @param startTime 开始时间戳（毫秒）
+     */
+    Q_INVOKABLE void updateProcessingStartTime(const QString &messageId, qint64 startTime);
 
 private:
     struct FileStats {

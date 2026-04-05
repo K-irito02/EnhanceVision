@@ -42,6 +42,7 @@
         <file>../qml/controls/TextField.qml</file>
         <file>../qml/controls/ParamSlider.qml</file>
         <file>../qml/controls/Tooltip.qml</file>
+        <file>../qml/controls/RichTooltip.qml</file>
         <file>../qml/controls/ColoredIcon.qml</file>
         <file>../qml/controls/ParamGroup.qml</file>
         

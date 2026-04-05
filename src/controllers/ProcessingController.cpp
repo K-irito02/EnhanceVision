@@ -75,6 +75,13 @@ ProcessingController::ProcessingController(QObject* parent)
     m_aiEngine = nullptr;
     
     m_progressManager = std::make_unique<ProgressManager>(this);
+    
+    // 【资源清理】定期清理已完成的dying处理器，释放内存
+    QTimer* dyingProcessorCleanupTimer = new QTimer(this);
+    connect(dyingProcessorCleanupTimer, &QTimer::timeout, this, [this]() {
+        cleanupDyingProcessors();
+    });
+    dyingProcessorCleanupTimer->start(5000);  // 每5秒检查一次
 
     QString modelsPath = QCoreApplication::applicationDirPath() + "/models";
     if (!QDir(modelsPath).exists()) {
@@ -1716,6 +1723,71 @@ void ProcessingController::resumeSessionTasks(const QString& sessionId)
     }
 }
 
+void ProcessingController::pauseMessageTasks(const QString& messageId)
+{
+    if (messageId.isEmpty()) return;
+    
+    m_pausedMessageIds.insert(messageId);
+    
+    // 暂停该消息的所有任务
+    for (auto& task : m_tasks) {
+        if (m_taskMessages.contains(task.taskId)) {
+            const Message& msg = m_taskMessages[task.taskId];
+            if (msg.id == messageId) {
+                m_taskCoordinator->triggerPause(task.taskId, true);
+                
+                // 暂停正在处理的视频处理器
+                if (m_activeAIVideoProcessors.contains(task.taskId)) {
+                    // AIVideoProcessor 没有暂停方法，只能等待当前帧完成
+                    qInfo() << "[ProcessingController] Message task paused (will complete current frame):" << task.taskId;
+                }
+            }
+        }
+    }
+    
+    // 更新消息状态
+    if (m_messageModel) {
+        m_messageModel->updateStatus(messageId, static_cast<int>(ProcessingStatus::Paused));
+    }
+    
+    emit messageTasksPaused(messageId);
+    qInfo() << "[ProcessingController] Paused tasks for message:" << messageId;
+}
+
+void ProcessingController::resumeMessageTasks(const QString& messageId)
+{
+    if (messageId.isEmpty()) return;
+    
+    m_pausedMessageIds.remove(messageId);
+    
+    // 恢复该消息的所有任务
+    for (auto& task : m_tasks) {
+        if (m_taskMessages.contains(task.taskId)) {
+            const Message& msg = m_taskMessages[task.taskId];
+            if (msg.id == messageId) {
+                m_taskCoordinator->triggerPause(task.taskId, false);
+            }
+        }
+    }
+    
+    // 更新消息状态
+    if (m_messageModel) {
+        // 恢复为等待或处理中状态
+        m_messageModel->updateStatus(messageId, static_cast<int>(ProcessingStatus::Pending));
+    }
+    
+    emit messageTasksResumed(messageId);
+    qInfo() << "[ProcessingController] Resumed tasks for message:" << messageId;
+    
+    // 触发处理下一个任务
+    QTimer::singleShot(100, this, &ProcessingController::processNextTask);
+}
+
+bool ProcessingController::isMessagePaused(const QString& messageId) const
+{
+    return m_pausedMessageIds.contains(messageId);
+}
+
 void ProcessingController::onSessionChanging(const QString& oldSessionId, const QString& newSessionId)
 {
     QSet<QString> oldSessionTaskIds = m_taskCoordinator->sessionTaskIds(oldSessionId);
@@ -2026,6 +2098,56 @@ void ProcessingController::terminateTask(const QString& taskId, const QString& r
 void ProcessingController::cleanupTask(const QString& taskId)
 {
     terminateTask(taskId, "cleanupTask");
+}
+
+void ProcessingController::cleanupDyingProcessors()
+{
+    // 清理已完成处理的dying处理器，释放内存
+    QStringList toRemove;
+    
+    // 检查AI视频处理器
+    for (auto it = m_dyingProcessors.begin(); it != m_dyingProcessors.end(); ++it) {
+        const QString& taskId = it.key();
+        auto& processor = it.value();
+        
+        if (!processor || !processor->isProcessing()) {
+            toRemove.append(taskId);
+        }
+    }
+    
+    // 检查普通视频处理器
+    for (auto it = m_dyingVideoProcessors.begin(); it != m_dyingVideoProcessors.end(); ++it) {
+        const QString& taskId = it.key();
+        auto& processor = it.value();
+        
+        if (!processor || !processor->isProcessing()) {
+            if (!toRemove.contains(taskId)) {
+                toRemove.append(taskId);
+            }
+        }
+    }
+    
+    // 执行清理
+    for (const QString& taskId : toRemove) {
+        if (m_dyingProcessors.contains(taskId)) {
+            m_dyingProcessors.remove(taskId);
+        }
+        if (m_dyingVideoProcessors.contains(taskId)) {
+            m_dyingVideoProcessors.remove(taskId);
+        }
+        
+        // 确保引擎也被释放
+        m_aiEnginePool->release(taskId);
+        
+        // 更新生命周期状态
+        if (m_taskLifecycle.value(taskId) == TaskLifecycle::Draining) {
+            m_taskLifecycle[taskId] = TaskLifecycle::Dead;
+        }
+    }
+    
+    if (!toRemove.isEmpty()) {
+        qInfo() << "[ProcessingController] Cleaned up" << toRemove.size() << "dying processors";
+    }
 }
 
 void ProcessingController::connectAiEngineForTask(AIEngine* engine, const QString& taskId)

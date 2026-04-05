@@ -7,11 +7,13 @@
 #include "EnhanceVision/models/MessageModel.h"
 #include "EnhanceVision/controllers/ProcessingController.h"
 #include "EnhanceVision/core/TaskCoordinator.h"
+#include "EnhanceVision/providers/ThumbnailProvider.h"
 #include <QUuid>
 #include <QDateTime>
 #include <QtMath>
 #include <QCoreApplication>
 #include <QElapsedTimer>
+#include <QFile>
 
 namespace EnhanceVision {
 
@@ -155,6 +157,8 @@ QVariant MessageModel::data(const QModelIndex &index, int role) const
     }
     case ActualTotalSecRole:
         return message.actualTotalSec;
+    case ProcessingStartTimeRole:
+        return message.processingStartTime;
     default:
         return QVariant();
     }
@@ -180,6 +184,7 @@ QHash<int, QByteArray> MessageModel::roleNames() const
     roles[FileIdsRole] = "fileIds";
     roles[ProcessedThumbnailIdsRole] = "processedThumbnailIds";
     roles[ActualTotalSecRole] = "actualTotalSec";
+    roles[ProcessingStartTimeRole] = "processingStartTime";
     return roles;
 }
 
@@ -293,6 +298,18 @@ void MessageModel::updateActualTotalSec(const QString &messageId, qint64 totalSe
     emit actualTotalSecUpdated(messageId, totalSec);
 }
 
+void MessageModel::updateProcessingStartTime(const QString &messageId, qint64 startTime)
+{
+    int index = findMessageIndex(messageId);
+    if (index < 0) {
+        return;
+    }
+
+    m_messages[index].processingStartTime = startTime;
+    QModelIndex modelIndex = createIndex(index, 0);
+    emit dataChanged(modelIndex, modelIndex, {ProcessingStartTimeRole});
+}
+
 bool MessageModel::removeMessage(const QString &messageId)
 {
     int index = findMessageIndex(messageId);
@@ -305,6 +322,27 @@ bool MessageModel::removeMessage(const QString &messageId)
 
     if (m_processingController) {
         m_processingController->cancelMessageTasks(messageId);
+    }
+
+    // 【资源清理】清理消息中所有文件的缩略图缓存和结果文件
+    const Message& message = m_messages.at(index);
+    ThumbnailProvider* thumbnailProvider = ThumbnailProvider::instance();
+    for (const MediaFile& file : message.mediaFiles) {
+        // 清理处理结果文件
+        if (!file.resultPath.isEmpty()) {
+            QFile resultFile(file.resultPath);
+            if (resultFile.exists()) {
+                resultFile.remove();
+            }
+            // 清理处理后的缩略图缓存
+            if (thumbnailProvider) {
+                thumbnailProvider->removeThumbnail("processed_" + file.id);
+            }
+        }
+        // 清理原始文件的缩略图缓存
+        if (thumbnailProvider && !file.filePath.isEmpty()) {
+            thumbnailProvider->removeThumbnail(file.filePath);
+        }
     }
 
     beginRemoveRows(QModelIndex(), index, index);
@@ -845,7 +883,9 @@ bool MessageModel::removeMediaFile(const QString &messageId, int fileIndex)
         return false;
     }
 
-    const QString removedFileId = message.mediaFiles[fileIndex].id;
+    // 【资源清理】在删除前保存文件信息用于清理
+    const MediaFile removedFile = message.mediaFiles[fileIndex];
+    const QString removedFileId = removedFile.id;
 
     // 文件级防抖：同一 fileId 正在删除中则忽略
     if (m_removingFileIds.contains(removedFileId)) {
@@ -856,6 +896,21 @@ bool MessageModel::removeMediaFile(const QString &messageId, int fileIndex)
     // 同步取消该文件关联的处理任务
     if (m_processingController && !removedFileId.isEmpty()) {
         m_processingController->cancelMessageFileTasks(messageId, removedFileId);
+    }
+
+    // 【资源清理】清理文件相关的缩略图缓存和结果文件
+    ThumbnailProvider* thumbnailProvider = ThumbnailProvider::instance();
+    if (!removedFile.resultPath.isEmpty()) {
+        QFile resultFile(removedFile.resultPath);
+        if (resultFile.exists()) {
+            resultFile.remove();
+        }
+        if (thumbnailProvider) {
+            thumbnailProvider->removeThumbnail("processed_" + removedFileId);
+        }
+    }
+    if (thumbnailProvider && !removedFile.filePath.isEmpty()) {
+        thumbnailProvider->removeThumbnail(removedFile.filePath);
     }
 
     // 重新定位（取消任务过程中列表可能已变化）
