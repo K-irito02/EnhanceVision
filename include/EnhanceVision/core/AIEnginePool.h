@@ -23,6 +23,7 @@ enum class EngineState {
     Uninitialized,
     Ready,
     InUse,
+    Draining,
     Error
 };
 
@@ -54,6 +55,7 @@ public:
     int poolSize() const;
     int availableCount() const;
     int activeCount() const;
+    bool hasDrainingEngine() const;
 
     bool preloadModel(const QString& modelId);
     void unloadAll();
@@ -66,6 +68,7 @@ signals:
     void engineAcquired(const QString& taskId, int engineIndex);
     void engineReleased(const QString& taskId, int engineIndex);
     void poolExhausted();
+    void engineReady();
 
 private:
     void createEngines(int count);

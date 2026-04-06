@@ -17,6 +17,7 @@
 #include <QHash>
 #include "EnhanceVision/models/DataTypes.h"
 #include "EnhanceVision/models/SessionModel.h"
+#include "EnhanceVision/core/ProcessingTimeManager.h"
 
 class QTimer;
 
@@ -51,6 +52,12 @@ public:
     void setMessageModel(MessageModel* model);
     
     void setProcessingController(ProcessingController* controller);
+
+    /**
+     * @brief 获取处理时间管理器
+     * @return 处理时间管理器指针
+     */
+    ProcessingTimeManager* processingTimeManager() const { return m_processingTimeManager; }
 
     /**
      * @brief 创建新会话（不自动选中）
@@ -179,6 +186,7 @@ private:
     SessionModel* m_sessionModel;
     MessageModel* m_messageModel;
     ProcessingController* m_processingController = nullptr;
+    ProcessingTimeManager* m_processingTimeManager = nullptr;
     bool m_batchSelectionMode;
     int m_sessionCounter;
     bool m_autoSaveEnabled;

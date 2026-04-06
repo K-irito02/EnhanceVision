@@ -43,7 +43,12 @@ public:
         FileIdsRole,
         ProcessedThumbnailIdsRole,
         ActualTotalSecRole,
-        ProcessingStartTimeRole
+        ProcessingStartTimeRole,
+        // 时间预测系统角色
+        PredictedTotalSecRole,
+        ElapsedSecRole,
+        RemainingSecRole,
+        IsOvertimeRole
     };
 
     explicit MessageModel(QObject *parent = nullptr);
@@ -93,6 +98,25 @@ public:
      * @param totalSec 实际总耗时（秒）
      */
     Q_INVOKABLE void updateActualTotalSec(const QString &messageId, qint64 totalSec);
+
+    /**
+     * @brief 更新消息时间信息（由 ProcessingTimeManager 调用）
+     * @param messageId 消息ID
+     * @param elapsedSec 已用时间（秒）
+     * @param remainingSec 剩余时间（秒）
+     * @param isOvertime 是否超时
+     */
+    Q_INVOKABLE void updateTimeInfo(const QString &messageId, 
+                                     qint64 elapsedSec, 
+                                     qint64 remainingSec, 
+                                     bool isOvertime);
+
+    /**
+     * @brief 更新消息预测总时间
+     * @param messageId 消息ID
+     * @param predictedTotalSec 预测总时间（秒）
+     */
+    Q_INVOKABLE void updatePredictedTotalSec(const QString &messageId, qint64 predictedTotalSec);
 
     /**
      * @brief 删除消息

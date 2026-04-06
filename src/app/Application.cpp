@@ -329,6 +329,7 @@ void Application::setupQmlContext(ThumbnailProvider* thumbnailProvider)
     m_processingController->setFileController(m_fileController.get());
     m_processingController->setMessageModel(m_messageModel.get());
     m_processingController->setSessionController(m_sessionController.get());
+    m_processingController->setProcessingTimeManager(m_sessionController->processingTimeManager());
     m_sessionController->setProcessingController(m_processingController.get());
     m_messageModel->setProcessingController(m_processingController.get());
     

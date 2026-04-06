@@ -138,8 +138,34 @@ void VideoProcessor::cancel()
 {
     if (!m_cancelled) {
         m_cancelled = true;
+        m_paused = false;
+        m_pauseCv.notify_all();
         emit cancelled();
     }
+}
+
+void VideoProcessor::pause()
+{
+    if (!m_paused) {
+        qInfo() << "[VideoProcessor] Pause requested";
+        m_paused = true;
+        emit paused();
+    }
+}
+
+void VideoProcessor::resume()
+{
+    if (m_paused) {
+        qInfo() << "[VideoProcessor] Resume requested";
+        m_paused = false;
+        m_pauseCv.notify_all();
+        emit resumed();
+    }
+}
+
+bool VideoProcessor::isPaused() const
+{
+    return m_paused;
 }
 
 bool VideoProcessor::isProcessing() const
@@ -434,6 +460,19 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
                 throw std::runtime_error(tr("Processing Cancelled").toStdString());
             }
 
+            if (m_paused) {
+                qInfo() << "[VideoProcessor] Paused at frame" << frameCount;
+                std::unique_lock<std::mutex> lock(m_pauseMutex);
+                m_pauseCv.wait(lock, [this]() {
+                    return !m_paused || m_cancelled;
+                });
+                if (m_cancelled) {
+                    av_packet_unref(packet);
+                    throw std::runtime_error(tr("Processing Cancelled").toStdString());
+                }
+                qInfo() << "[VideoProcessor] Resumed at frame" << frameCount;
+            }
+
             if (packet->stream_index == videoStreamIndex) {
                 int ret = avcodec_send_packet(videoDecoderContext, packet);
                 if (ret < 0 && ret != AVERROR(EAGAIN) && ret != AVERROR_EOF) {
@@ -443,6 +482,18 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
                 while (avcodec_receive_frame(videoDecoderContext, frame) == 0) {
                     if (m_cancelled) {
                         throw std::runtime_error(tr("Processing Cancelled").toStdString());
+                    }
+
+                    if (m_paused) {
+                        qInfo() << "[VideoProcessor] Paused during frame decode at frame" << frameCount;
+                        std::unique_lock<std::mutex> lock(m_pauseMutex);
+                        m_pauseCv.wait(lock, [this]() {
+                            return !m_paused || m_cancelled;
+                        });
+                        if (m_cancelled) {
+                            throw std::runtime_error(tr("Processing Cancelled").toStdString());
+                        }
+                        qInfo() << "[VideoProcessor] Resumed during frame decode at frame" << frameCount;
                     }
 
                     sws_scale(swsContextToRGB,

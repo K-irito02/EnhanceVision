@@ -159,6 +159,14 @@ QVariant MessageModel::data(const QModelIndex &index, int role) const
         return message.actualTotalSec;
     case ProcessingStartTimeRole:
         return message.processingStartTime;
+    case PredictedTotalSecRole:
+        return message.predictedTotalSec;
+    case ElapsedSecRole:
+        return message.elapsedSec;
+    case RemainingSecRole:
+        return message.remainingSec;
+    case IsOvertimeRole:
+        return message.isOvertime;
     default:
         return QVariant();
     }
@@ -185,6 +193,10 @@ QHash<int, QByteArray> MessageModel::roleNames() const
     roles[ProcessedThumbnailIdsRole] = "processedThumbnailIds";
     roles[ActualTotalSecRole] = "actualTotalSec";
     roles[ProcessingStartTimeRole] = "processingStartTime";
+    roles[PredictedTotalSecRole] = "predictedTotalSec";
+    roles[ElapsedSecRole] = "elapsedSec";
+    roles[RemainingSecRole] = "remainingSec";
+    roles[IsOvertimeRole] = "isOvertime";
     return roles;
 }
 
@@ -308,6 +320,35 @@ void MessageModel::updateProcessingStartTime(const QString &messageId, qint64 st
     m_messages[index].processingStartTime = startTime;
     QModelIndex modelIndex = createIndex(index, 0);
     emit dataChanged(modelIndex, modelIndex, {ProcessingStartTimeRole});
+}
+
+void MessageModel::updateTimeInfo(const QString &messageId, 
+                                   qint64 elapsedSec, 
+                                   qint64 remainingSec, 
+                                   bool isOvertime)
+{
+    int index = findMessageIndex(messageId);
+    if (index < 0) {
+        return;
+    }
+
+    m_messages[index].elapsedSec = elapsedSec;
+    m_messages[index].remainingSec = remainingSec;
+    m_messages[index].isOvertime = isOvertime;
+    QModelIndex modelIndex = createIndex(index, 0);
+    emit dataChanged(modelIndex, modelIndex, {ElapsedSecRole, RemainingSecRole, IsOvertimeRole});
+}
+
+void MessageModel::updatePredictedTotalSec(const QString &messageId, qint64 predictedTotalSec)
+{
+    int index = findMessageIndex(messageId);
+    if (index < 0) {
+        return;
+    }
+
+    m_messages[index].predictedTotalSec = predictedTotalSec;
+    QModelIndex modelIndex = createIndex(index, 0);
+    emit dataChanged(modelIndex, modelIndex, {PredictedTotalSecRole});
 }
 
 bool MessageModel::removeMessage(const QString &messageId)

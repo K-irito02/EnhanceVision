@@ -201,38 +201,48 @@ TaskTimeEstimator::AITimingParams TaskTimeEstimator::getTimingParams(const QStri
     //   CPU: ~25-300min → 每帧 ~5-60s
     //   GPU: ~0.5-10min (30-600s) → 每帧 ~0.1-2s, 平均 ~0.5s
     
+    // 【修复】基于实际测试数据调整参数，使用更保守的估算
+    // 测试环境：Ryzen 5 5600H 12线程 + RTX 3050 Laptop 4GB
+    // 
+    // 实际测试数据（1920x1080, tileSize=160, 84块）：
+    //   GPU 图片: 2-5秒 → 每块约 0.03-0.06秒
+    //   GPU 视频: 每帧约 0.5-2秒（包含编解码）
+    //   CPU 图片: 60-180秒 → 每块约 0.7-2.1秒
+    //   CPU 视频: 每帧约 3-10秒
+    
     if (lowerModelId.contains("realesr") || lowerModelId.contains("animevideo")) {
         // RealESRGAN AnimeVideo V3 (4x) - 主要模型
-        params.cpuSingleTileSec = 1.0;    // ~90s / 84块 ≈ 1.07s
-        params.gpuSingleTileSec = 0.024;  // ~2s / 84块 ≈ 0.024s
-        params.cpuOverheadSec = 2.0;      // 模型加载 + 预处理
-        params.gpuOverheadSec = 1.0;      // Vulkan 初始化 + 模型加载
-        params.videoFrameOverheadSec = 0.03;  // 视频编解码开销 (解码+编码)
-        params.videoSetupSec = 1.0;       // 视频初始化
+        // 使用更保守的估算，宁可高估也不要低估
+        params.cpuSingleTileSec = 1.5;    // 保守估计
+        params.gpuSingleTileSec = 0.05;   // 保守估计
+        params.cpuOverheadSec = 3.0;      // 模型加载 + 预处理
+        params.gpuOverheadSec = 2.0;      // Vulkan 初始化 + 模型加载 + 同步延迟
+        params.videoFrameOverheadSec = 0.15;  // 视频编解码开销 (解码+编码+内存拷贝)
+        params.videoSetupSec = 3.0;       // 视频初始化 + FFmpeg 设置
     } else if (lowerModelId.contains("anime") || lowerModelId.contains("waifu")) {
         // 其他动漫模型
-        params.cpuSingleTileSec = 0.9;
-        params.gpuSingleTileSec = 0.022;
-        params.cpuOverheadSec = 1.5;
-        params.gpuOverheadSec = 0.8;
-        params.videoFrameOverheadSec = 0.03;
-        params.videoSetupSec = 0.8;
+        params.cpuSingleTileSec = 1.3;
+        params.gpuSingleTileSec = 0.045;
+        params.cpuOverheadSec = 2.5;
+        params.gpuOverheadSec = 1.5;
+        params.videoFrameOverheadSec = 0.12;
+        params.videoSetupSec = 2.5;
     } else if (lowerModelId.contains("photo") || lowerModelId.contains("general")) {
         // 通用/照片模型
-        params.cpuSingleTileSec = 1.1;
-        params.gpuSingleTileSec = 0.026;
-        params.cpuOverheadSec = 2.0;
-        params.gpuOverheadSec = 1.0;
-        params.videoFrameOverheadSec = 0.03;
-        params.videoSetupSec = 1.0;
+        params.cpuSingleTileSec = 1.6;
+        params.gpuSingleTileSec = 0.055;
+        params.cpuOverheadSec = 3.0;
+        params.gpuOverheadSec = 2.0;
+        params.videoFrameOverheadSec = 0.15;
+        params.videoSetupSec = 3.0;
     } else {
-        // 默认参数
-        params.cpuSingleTileSec = 1.0;
-        params.gpuSingleTileSec = 0.024;
-        params.cpuOverheadSec = 2.0;
-        params.gpuOverheadSec = 1.0;
-        params.videoFrameOverheadSec = 0.03;
-        params.videoSetupSec = 1.0;
+        // 默认参数 - 使用保守估计
+        params.cpuSingleTileSec = 1.5;
+        params.gpuSingleTileSec = 0.05;
+        params.cpuOverheadSec = 3.0;
+        params.gpuOverheadSec = 2.0;
+        params.videoFrameOverheadSec = 0.15;
+        params.videoSetupSec = 3.0;
     }
 
     return params;

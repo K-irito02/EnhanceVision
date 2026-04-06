@@ -18,6 +18,7 @@ Item {
     property bool onlyCompleted: false
     property bool showFailedFiles: false
     property bool messageMode: false
+    property bool messagePaused: false
     property int totalCount: mediaModel ? mediaModel.count : 0
     readonly property int visibleCount: filteredModel.count
 
@@ -409,12 +410,22 @@ Item {
                         property bool isSuccess: itemStatus === 2
                         property bool isFailed: itemStatus === 3
                         property bool isCancelled: itemStatus === 4
+                        property bool isPaused: itemStatus === 5
                         property bool isUnavailable: !isSuccess
                         property bool canRetry: isFailed || isCancelled
                         property int itemMediaType: mediaType
                         property bool _deleteInProgress: false
                         property real _deleteOpacity: 1.0
                         property real _imageOpacity: thumbImage.status === Image.Ready ? 1.0 : 0.0
+                        // 【修复】判断是否是第一个待处理文件（用于暂停状态传递时显示暂停图标）
+                        property bool isFirstPending: {
+                            if (!isPending) return false
+                            for (var i = 0; i < thumbDelegate.index; i++) {
+                                var item = filteredModel.get(i)
+                                if (item && item.status === 0) return false
+                            }
+                            return true
+                        }
 
                         Behavior on _deleteOpacity {
                             NumberAnimation { duration: 200; easing.type: Easing.InOutCubic }
@@ -573,18 +584,37 @@ Item {
                                 anchors.fill: parent
                                 radius: parent.radius
                                 color: Qt.rgba(0, 0, 0, 0.5)
-                                visible: thumbDelegate.isProcessing && root.messageMode
-                                ColoredIcon {
+                                visible: root.messageMode && (thumbDelegate.isProcessing || thumbDelegate.isPaused)
+                                
+                                Column {
                                     anchors.centerIn: parent
-                                    source: Theme.icon("loader")
-                                    iconSize: 20
-                                    color: Theme.colors.textOnPrimary
-                                    opacity: 0.8
-                                    RotationAnimation on rotation {
-                                        from: 0; to: 360
-                                        duration: 1500
-                                        loops: Animation.Infinite
-                                        running: thumbDelegate.isProcessing
+                                    spacing: 2
+                                    
+                                    ColoredIcon {
+                                        id: processingIcon
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        source: thumbDelegate.isPaused ? Theme.icon("pause") : Theme.icon("loader")
+                                        iconSize: 20
+                                        color: thumbDelegate.isPaused ? Theme.colors.warning : Theme.colors.textOnPrimary
+                                        opacity: 0.9
+                                        rotation: thumbDelegate.isPaused ? 0 : _loaderRotation
+                                        property real _loaderRotation: 0
+                                        RotationAnimation on _loaderRotation {
+                                            from: 0; to: 360
+                                            duration: 1500
+                                            loops: Animation.Infinite
+                                            running: thumbDelegate.isProcessing && !thumbDelegate.isPaused
+                                        }
+                                    }
+                                    
+                                    Text {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        text: thumbDelegate.isPaused ? qsTr("已暂停") : qsTr("处理中")
+                                        color: thumbDelegate.isPaused ? Theme.colors.warning : Theme.colors.textOnPrimary
+                                        font.pixelSize: 10
+                                        font.bold: true
+                                        opacity: 0.9
+                                        visible: thumbDelegate.isPaused
                                     }
                                 }
                             }
@@ -824,12 +854,22 @@ Item {
                         property bool isSuccess: itemStatus === 2
                         property bool isFailed: itemStatus === 3
                         property bool isCancelled: itemStatus === 4
+                        property bool isPaused: itemStatus === 5
                         property bool isUnavailable: !isSuccess
                         property bool canRetry: isFailed || isCancelled
                         property int itemMediaType: mediaType
                         property bool _deleteInProgress: false
                         property real _deleteOpacity: 1.0
                         property real _imageOpacity: thumbImage.status === Image.Ready ? 1.0 : 0.0
+                        // 【修复】判断是否是第一个待处理文件（用于暂停状态传递时显示暂停图标）
+                        property bool isFirstPending: {
+                            if (!isPending) return false
+                            for (var i = 0; i < thumbDelegate.index; i++) {
+                                var item = filteredModel.get(i)
+                                if (item && item.status === 0) return false
+                            }
+                            return true
+                        }
 
                         Behavior on _deleteOpacity {
                             NumberAnimation { duration: 200; easing.type: Easing.InOutCubic }
@@ -988,18 +1028,37 @@ Item {
                                 anchors.fill: parent
                                 radius: parent.radius
                                 color: Qt.rgba(0, 0, 0, 0.5)
-                                visible: thumbDelegate.isProcessing && root.messageMode
-                                ColoredIcon {
+                                visible: root.messageMode && (thumbDelegate.isProcessing || thumbDelegate.isPaused)
+                                
+                                Column {
                                     anchors.centerIn: parent
-                                    source: Theme.icon("loader")
-                                    iconSize: 20
-                                    color: Theme.colors.textOnPrimary
-                                    opacity: 0.8
-                                    RotationAnimation on rotation {
-                                        from: 0; to: 360
-                                        duration: 1500
-                                        loops: Animation.Infinite
-                                        running: thumbDelegate.isProcessing
+                                    spacing: 2
+                                    
+                                    ColoredIcon {
+                                        id: processingIcon
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        source: thumbDelegate.isPaused ? Theme.icon("pause") : Theme.icon("loader")
+                                        iconSize: 20
+                                        color: thumbDelegate.isPaused ? Theme.colors.warning : Theme.colors.textOnPrimary
+                                        opacity: 0.9
+                                        rotation: thumbDelegate.isPaused ? 0 : _loaderRotation
+                                        property real _loaderRotation: 0
+                                        RotationAnimation on _loaderRotation {
+                                            from: 0; to: 360
+                                            duration: 1500
+                                            loops: Animation.Infinite
+                                            running: thumbDelegate.isProcessing && !thumbDelegate.isPaused
+                                        }
+                                    }
+                                    
+                                    Text {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        text: thumbDelegate.isPaused ? qsTr("已暂停") : qsTr("处理中")
+                                        color: thumbDelegate.isPaused ? Theme.colors.warning : Theme.colors.textOnPrimary
+                                        font.pixelSize: 10
+                                        font.bold: true
+                                        opacity: 0.9
+                                        visible: thumbDelegate.isPaused
                                     }
                                 }
                             }

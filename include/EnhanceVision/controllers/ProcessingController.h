@@ -120,6 +120,7 @@ public:
     void setFileController(class FileController* fileController);
     void setMessageModel(MessageModel* messageModel);
     void setSessionController(class SessionController* sessionController);
+    void setProcessingTimeManager(class ProcessingTimeManager* manager);
 
     ProcessingModel* processingModel() const;
     QueueStatus queueStatus() const;
@@ -178,6 +179,23 @@ public:
      * @return true 如果已暂停
      */
     Q_INVOKABLE bool isMessagePaused(const QString& messageId) const;
+    
+    /**
+     * @brief 检查是否处于全局暂停状态（模式三）
+     * @return true 如果全局暂停已启用
+     */
+    Q_INVOKABLE bool isGlobalPauseEnabled() const;
+    
+    /**
+     * @brief 获取当前暂停模式
+     * @return 0=单任务暂停, 1=顺序暂停, 2=自由选择
+     */
+    Q_INVOKABLE int currentPauseMode() const;
+    
+    /**
+     * @brief 清除所有暂停状态（模式切换时使用）
+     */
+    Q_INVOKABLE void clearAllPauseStates();
     
     void cancelVideoProcessing(const QString& taskId);
     
@@ -248,6 +266,9 @@ private:
     QSet<QString> m_pendingModelLoadTaskIds;
     QHash<QString, QList<QMetaObject::Connection>> m_aiEngineConnections;
     
+    // 处理时间管理器（用于后台倒计时）
+    class ProcessingTimeManager* m_processingTimeManager = nullptr;
+    
     SessionSyncHelper* m_sessionSyncHelper;
     ProgressSyncHelper* m_progressSyncHelper;
     
@@ -269,6 +290,8 @@ private:
     mutable QMutex m_cancelMutex;  ///< 取消操作的互斥锁
     
     QSet<QString> m_pausedMessageIds;  ///< 已暂停的消息ID集合
+    bool m_globalPauseEnabled = false;   ///< 全局暂停标志（模式三使用）
+    qint64 m_lastPauseActionTime = 0;    ///< 上次暂停操作时间戳（防抖）
 
     enum class TaskLifecycle {
         Active,
@@ -347,6 +370,7 @@ private:
     };
     CancelResult cancelAndRemoveTask(int index, CancelMode mode);
     void processDeletionBatch(const QString& messageId);
+    QString findNextPendingMessageId() const;
 
     struct DeletionBatchItem {
         QString fileId;

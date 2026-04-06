@@ -423,6 +423,172 @@ Rectangle {
 
                 Rectangle {
                     Layout.fillWidth: true
+                    implicitHeight: taskControlCol.implicitHeight + 32
+                    color: Theme.colors.card
+                    border.width: 1
+                    border.color: Theme.colors.cardBorder
+                    radius: Theme.radius.lg
+
+                    ColumnLayout {
+                        id: taskControlCol
+                        anchors.fill: parent
+                        anchors.margins: 16
+                        spacing: 14
+
+                        RowLayout {
+                            spacing: 8
+                            ColoredIcon { iconSize: 18; source: Theme.icon("pause-circle"); color: Theme.colors.icon }
+                            Text { text: qsTr("任务控制"); color: Theme.colors.foreground; font.pixelSize: 15; font.weight: Font.DemiBold }
+                        }
+
+                        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.colors.border }
+
+                        Text { 
+                            text: qsTr("设置暂停处理任务时的行为模式")
+                            color: Theme.colors.mutedForeground
+                            font.pixelSize: 12
+                            wrapMode: Text.Wrap
+                            Layout.fillWidth: true
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: mode0Row.implicitHeight + 16
+                                radius: Theme.radius.md
+                                color: SettingsController.pauseMode === 0 ? Qt.rgba(Theme.colors.primary.r, Theme.colors.primary.g, Theme.colors.primary.b, 0.1) : "transparent"
+                                border.width: SettingsController.pauseMode === 0 ? 1 : 0
+                                border.color: Theme.colors.primary
+
+                                RowLayout {
+                                    id: mode0Row
+                                    anchors.fill: parent
+                                    anchors.margins: 8
+                                    spacing: 12
+
+                                    Rectangle {
+                                        width: 18; height: 18; radius: 9
+                                        color: SettingsController.pauseMode === 0 ? Theme.colors.primary : "transparent"
+                                        border.width: SettingsController.pauseMode === 0 ? 0 : 2
+                                        border.color: Theme.colors.border
+
+                                        Rectangle {
+                                            anchors.centerIn: parent
+                                            width: 6; height: 6; radius: 3
+                                            color: Theme.colors.textOnPrimary
+                                            visible: SettingsController.pauseMode === 0
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 2
+                                        Text { text: qsTr("单任务暂停"); color: Theme.colors.foreground; font.pixelSize: 13; font.weight: Font.Medium }
+                                        Text { text: qsTr("暂停后继续处理其他消息"); color: Theme.colors.mutedForeground; font.pixelSize: 11; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                                    }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: SettingsController.pauseMode = 0
+                                }
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: mode1Row.implicitHeight + 16
+                                radius: Theme.radius.md
+                                color: SettingsController.pauseMode === 1 ? Qt.rgba(Theme.colors.primary.r, Theme.colors.primary.g, Theme.colors.primary.b, 0.1) : "transparent"
+                                border.width: SettingsController.pauseMode === 1 ? 1 : 0
+                                border.color: Theme.colors.primary
+
+                                RowLayout {
+                                    id: mode1Row
+                                    anchors.fill: parent
+                                    anchors.margins: 8
+                                    spacing: 12
+
+                                    Rectangle {
+                                        width: 18; height: 18; radius: 9
+                                        color: SettingsController.pauseMode === 1 ? Theme.colors.primary : "transparent"
+                                        border.width: SettingsController.pauseMode === 1 ? 0 : 2
+                                        border.color: Theme.colors.border
+
+                                        Rectangle {
+                                            anchors.centerIn: parent
+                                            width: 6; height: 6; radius: 3
+                                            color: Theme.colors.textOnPrimary
+                                            visible: SettingsController.pauseMode === 1
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 2
+                                        Text { text: qsTr("顺序暂停"); color: Theme.colors.foreground; font.pixelSize: 13; font.weight: Font.Medium }
+                                        Text { text: qsTr("暂停后阻塞整个队列（默认）"); color: Theme.colors.mutedForeground; font.pixelSize: 11; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                                    }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: SettingsController.pauseMode = 1
+                                }
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: mode2Row.implicitHeight + 16
+                                radius: Theme.radius.md
+                                color: SettingsController.pauseMode === 2 ? Qt.rgba(Theme.colors.primary.r, Theme.colors.primary.g, Theme.colors.primary.b, 0.1) : "transparent"
+                                border.width: SettingsController.pauseMode === 2 ? 1 : 0
+                                border.color: Theme.colors.primary
+
+                                RowLayout {
+                                    id: mode2Row
+                                    anchors.fill: parent
+                                    anchors.margins: 8
+                                    spacing: 12
+
+                                    Rectangle {
+                                        width: 18; height: 18; radius: 9
+                                        color: SettingsController.pauseMode === 2 ? Theme.colors.primary : "transparent"
+                                        border.width: SettingsController.pauseMode === 2 ? 0 : 2
+                                        border.color: Theme.colors.border
+
+                                        Rectangle {
+                                            anchors.centerIn: parent
+                                            width: 6; height: 6; radius: 3
+                                            color: Theme.colors.textOnPrimary
+                                            visible: SettingsController.pauseMode === 2
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 2
+                                        Text { text: qsTr("自由选择"); color: Theme.colors.foreground; font.pixelSize: 13; font.weight: Font.Medium }
+                                        Text { text: qsTr("暂停后可手动选择处理哪些消息"); color: Theme.colors.mutedForeground; font.pixelSize: 11; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                                    }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: SettingsController.pauseMode = 2
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
                     implicitHeight: audioCol.implicitHeight + 32
                     color: Theme.colors.card
                     border.width: 1

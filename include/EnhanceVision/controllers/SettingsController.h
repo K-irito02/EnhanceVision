@@ -36,6 +36,7 @@ class SettingsController : public QObject
     Q_PROPERTY(bool videoAutoPlay READ videoAutoPlay WRITE setVideoAutoPlay NOTIFY videoAutoPlayChanged)
     Q_PROPERTY(bool videoAutoPlayOnSwitch READ videoAutoPlayOnSwitch WRITE setVideoAutoPlayOnSwitch NOTIFY videoAutoPlayOnSwitchChanged)
     Q_PROPERTY(bool videoRestorePosition READ videoRestorePosition WRITE setVideoRestorePosition NOTIFY videoRestorePositionChanged)
+    Q_PROPERTY(int pauseMode READ pauseMode WRITE setPauseMode NOTIFY pauseModeChanged)
 
     Q_PROPERTY(QString customDataPath READ customDataPath WRITE setCustomDataPath NOTIFY customDataPathChanged)
     Q_PROPERTY(qint64 aiImageSize READ aiImageSize NOTIFY dataSizeChanged)
@@ -92,6 +93,9 @@ public:
 
     bool videoRestorePosition() const;
     void setVideoRestorePosition(bool restore);
+
+    int pauseMode() const;
+    void setPauseMode(int mode);
 
     bool lastExitClean() const;
     bool crashDetectedOnStartup() const;
@@ -165,6 +169,7 @@ signals:
     void videoAutoPlayChanged();
     void videoAutoPlayOnSwitchChanged();
     void videoRestorePositionChanged();
+    void pauseModeChanged();
     void customDataPathChanged();
     void dataSizeChanged();
 
@@ -197,6 +202,7 @@ private:
     bool m_videoAutoPlay;
     bool m_videoAutoPlayOnSwitch;
     bool m_videoRestorePosition;
+    int m_pauseMode;  ///< 暂停模式: 0=单任务暂停, 1=顺序暂停, 2=自由选择
     QString m_customDataPath;
 
     qint64 m_aiImageSize;

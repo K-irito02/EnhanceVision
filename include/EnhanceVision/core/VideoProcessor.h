@@ -11,6 +11,8 @@
 #include <QString>
 #include <memory>
 #include <atomic>
+#include <mutex>
+#include <condition_variable>
 #include "EnhanceVision/models/DataTypes.h"
 
 extern "C" {
@@ -58,6 +60,9 @@ public:
                                        FinishCallback finishCallback = nullptr);
 
     void cancel();
+    void pause();
+    void resume();
+    bool isPaused() const;
     bool isProcessing() const;
     VideoProcessingStage currentStage() const;
 
@@ -66,6 +71,8 @@ signals:
     void finished(bool success, const QString& resultPath, const QString& error);
     void stageChanged(VideoProcessingStage stage);
     void cancelled();
+    void paused();
+    void resumed();
 
 private:
     void processVideoInternal(const QString& inputPath,
@@ -80,8 +87,12 @@ private:
 
     bool m_isProcessing;
     std::atomic<bool> m_cancelled{false};
+    std::atomic<bool> m_paused{false};
     ProgressReporter* m_reporter;
     std::atomic<VideoProcessingStage> m_currentStage{VideoProcessingStage::Idle};
+    
+    std::mutex m_pauseMutex;
+    std::condition_variable m_pauseCv;
 
     static constexpr int kProgressOpeningStart = 0;
     static constexpr int kProgressOpeningEnd = 5;

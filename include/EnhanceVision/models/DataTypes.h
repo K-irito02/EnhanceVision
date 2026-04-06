@@ -270,6 +270,12 @@ struct Message {
     int queuePosition;             ///< 队列位置（-1 表示不在队列）
     qint64 actualTotalSec;         ///< 实际总耗时（秒），处理完成后记录
     qint64 processingStartTime;    ///< 处理开始时间戳（毫秒），用于恢复进度显示
+    
+    // 时间预测系统字段（由 ProcessingTimeManager 管理）
+    qint64 predictedTotalSec;      ///< 预测总时间（秒）
+    qint64 elapsedSec;             ///< 已用时间（秒），由 TimeManager 更新
+    qint64 remainingSec;           ///< 剩余时间（秒），由 TimeManager 更新
+    bool isOvertime;               ///< 是否超时
 
     Message()
         : mode(ProcessingMode::Shader)
@@ -279,6 +285,10 @@ struct Message {
         , queuePosition(-1)
         , actualTotalSec(0)
         , processingStartTime(0)
+        , predictedTotalSec(0)
+        , elapsedSec(0)
+        , remainingSec(0)
+        , isOvertime(false)
     {}
 };
 

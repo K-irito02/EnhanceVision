@@ -43,6 +43,11 @@ AIEngine::AIEngine(QObject *parent)
 {
     qInfo() << "[AIEngine] Initializing AI engine (CPU/Vulkan dual-mode)";
 
+    // 【修复】连接 ProgressReporter 的信号到 AIEngine 的信号
+    // 确保 CPU 模式下进度能正确传递到 UI
+    connect(m_progressReporter.get(), &ProgressReporter::progressChanged,
+            this, &AIEngine::progressChanged);
+
     m_backendType = BackendType::NCNN_CPU;
     m_opt.num_threads = 1;
     m_opt.use_packing_layout = false;
@@ -490,6 +495,7 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
         if (m_cancelRequested) {
             setProcessing(false);
             emit processFileCompleted(false, QString(), tr("Inference cancelled"));
+            emit processingCancelled();
             return;
         }
 
@@ -1175,11 +1181,6 @@ QImage AIEngine::matToQimage(const ncnn::Mat &mat, const ModelInfo &model)
 
 ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
 {
-    qInfo() << "[AIEngine] runInference:"
-            << "inputMat:" << input.w << "x" << input.h << "x" << input.c
-            << "modelId:" << model.id;
-    fflush(stdout);
-    
     if (input.empty() || input.w <= 0 || input.h <= 0) {
         qWarning() << "[AIEngine][Inference] received empty input mat";
         return ncnn::Mat();
@@ -1206,12 +1207,8 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
             emitError(tr("Vulkan instance not created"));
             return ncnn::Mat();
         }
-        qInfo() << "[AIEngine][Inference] GPU resources verified, proceeding with inference";
     }
 #endif
-
-    qInfo() << "[AIEngine][Inference] Step 1: Preparing blob candidates";
-    fflush(stdout);
 
     QStringList inputCandidates;
     inputCandidates << model.inputBlobName << "input" << "data" << "in0" << "Input1";
@@ -1227,31 +1224,18 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
         qWarning() << "[AIEngine][Inference] empty blob candidate list";
         return ncnn::Mat();
     }
-
-    qInfo() << "[AIEngine][Inference] Step 2: Acquiring mutex lock";
-    fflush(stdout);
     
     QMutexLocker netLocker(&m_mutex);
-    
-    qInfo() << "[AIEngine][Inference] Step 3: Creating extractor";
-    fflush(stdout);
     
     ncnn::Extractor ex = m_net.create_extractor();
     ex.set_light_mode(false);
 
-    qInfo() << "[AIEngine][Inference] Step 4: Setting input blob, candidates:" << inputCandidates;
-    fflush(stdout);
-    
     QString selectedInputBlob;
     int inputRet = -1;
     for (const QString &candidate : inputCandidates) {
-        qInfo() << "[AIEngine][Inference] Trying input blob:" << candidate;
-        fflush(stdout);
         inputRet = ex.input(candidate.toStdString().c_str(), input);
         if (inputRet == 0) {
             selectedInputBlob = candidate;
-            qInfo() << "[AIEngine][Inference] Input blob set successfully:" << candidate;
-            fflush(stdout);
             break;
         }
     }
@@ -1265,22 +1249,12 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
         return ncnn::Mat();
     }
 
-    qInfo() << "[AIEngine][Inference] Step 5: Extracting output blob";
-    fflush(stdout);
-
     ncnn::Mat output;
     int extractRet = -1;
     QString selectedOutputBlob;
     
 #ifdef NCNN_VULKAN_AVAILABLE
     if (m_backendType == BackendType::NCNN_Vulkan) {
-        qInfo() << "[AIEngine][Inference] Vulkan mode - checking GPU state before extract:"
-                << "s_gpuInstanceCreated:" << s_gpuInstanceCreated.load()
-                << "m_gpuAvailable:" << m_gpuAvailable.load()
-                << "m_vulkanInstanceCreated:" << m_vulkanInstanceCreated
-                << "m_gpuDeviceId:" << m_gpuDeviceId;
-        fflush(stdout);
-        
         if (!s_gpuInstanceCreated.load()) {
             qWarning() << "[AIEngine][Inference] Vulkan instance not created before extract!";
             emitError(tr("Vulkan instance not created"));
@@ -1290,24 +1264,12 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
 #endif
     
     for (const QString &candidate : outputCandidates) {
-        qInfo() << "[AIEngine][Inference] Trying output blob:" << candidate;
-        fflush(stdout);
-        
-        qInfo() << "[AIEngine][Inference] About to call ex.extract()...";
-        fflush(stdout);
-        
         ncnn::Mat tmp;
         extractRet = ex.extract(candidate.toStdString().c_str(), tmp);
-        
-        qInfo() << "[AIEngine][Inference] ex.extract() returned:" << extractRet;
-        fflush(stdout);
         
         if (extractRet == 0 && !tmp.empty()) {
             output = tmp.clone();
             selectedOutputBlob = candidate;
-            qInfo() << "[AIEngine][Inference] Output blob extracted successfully:" << candidate
-                    << "size:" << output.w << "x" << output.h << "x" << output.c;
-            fflush(stdout);
             break;
         }
     }
@@ -1321,12 +1283,6 @@ ncnn::Mat AIEngine::runInference(const ncnn::Mat &input, const ModelInfo &model)
         return ncnn::Mat();
     }
 
-    qInfo() << "[AIEngine][Inference] Step 6: Inference complete, returning output";
-    fflush(stdout);
-
-    // 【关键修复】显式释放 extractor 资源，避免内存累积
-    // extractor 在作用域结束时会自动析构，但我们需要确保在返回前完成
-    
     return output;
 }
 
@@ -1399,17 +1355,10 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
 {
     setProgress(0.01);
     
-    qInfo() << "[AIEngine][Tiled] Step 1: Entry check";
-    fflush(stdout);
-    
     if (input.isNull() || input.width() <= 0 || input.height() <= 0) {
         qWarning() << "[AIEngine] invalid input image";
         return QImage();
     }
-    
-    qInfo() << "[AIEngine][Tiled] Step 2: Input valid, bits:" << (input.bits() ? "ok" : "null")
-            << "format:" << input.format();
-    fflush(stdout);
 
     setProgress(0.02);
     
@@ -1425,22 +1374,10 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
     
     int minDim = std::min(w, h);
     if (tileSize > minDim) {
-        qInfo() << "[AIEngine] tileSize" << tileSize << "exceeds min dimension" << minDim
-                << ", falling back to processSingle";
         return processSingle(input, model);
     }
 
-    qInfo() << "[AIEngine] processTiled:"
-            << "inputSize:" << w << "x" << h
-            << "tileSize:" << tileSize
-            << "scale:" << scale
-            << "padding:" << model.tilePadding;
-    fflush(stdout);
-
     setProgress(0.03);
-    
-    qInfo() << "[AIEngine][Tiled] Step 3: Computing padding";
-    fflush(stdout);
 
     int padding = model.tilePadding;
     const int layerCount = model.layerCount;
@@ -1452,10 +1389,6 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
         padding = std::max(padding, 24);
     }
     
-    qInfo() << "[AIEngine][Tiled] Step 4: Padding computed:" << padding << "layerCount:" << layerCount;
-    fflush(stdout);
-    
-    // 【关键修复】手动创建深拷贝，避免 QImage::copy() 在堆损坏时触发崩溃
     QImage normalizedInput(w, h, QImage::Format_RGB888);
     if (normalizedInput.isNull()) {
         qWarning() << "[AIEngine][Tiled] Failed to create normalizedInput";
@@ -1463,80 +1396,44 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
     }
     
     if (input.format() == QImage::Format_RGB888) {
-        qInfo() << "[AIEngine][Tiled] Step 5a: Input already RGB888, creating manual deep copy";
-        fflush(stdout);
-        
-        // 逐行拷贝数据，避免使用 QImage::copy()
         const int srcBytesPerLine = input.bytesPerLine();
-        const int dstBytesPerLine = w * 3;  // RGB888 紧凑排列
+        const int dstBytesPerLine = w * 3;
         for (int y = 0; y < h; ++y) {
             const uchar* srcLine = input.constScanLine(y);
             uchar* dstLine = normalizedInput.scanLine(y);
             std::memcpy(dstLine, srcLine, std::min(srcBytesPerLine, dstBytesPerLine));
         }
-        
-        qInfo() << "[AIEngine][Tiled] Step 5a-done: Manual deep copy created, normalizedInput.isNull:" << normalizedInput.isNull()
-                << "bits:" << (normalizedInput.bits() ? "ok" : "null")
-                << "bytesPerLine:" << normalizedInput.bytesPerLine();
-        fflush(stdout);
     } else {
-        qInfo() << "[AIEngine][Tiled] Step 5b: Converting input to RGB888 from format:" << input.format();
-        fflush(stdout);
-        
-        // 先转换格式，再手动深拷贝
         QImage tempConverted = input.convertToFormat(QImage::Format_RGB888);
         if (tempConverted.isNull()) {
             qWarning() << "[AIEngine][Tiled] Failed to convert input to RGB888";
             return processSingle(input, model);
         }
         
-        // 逐行拷贝数据
         const int srcBytesPerLine = tempConverted.bytesPerLine();
-        const int dstBytesPerLine = w * 3;  // RGB888 紧凑排列
+        const int dstBytesPerLine = w * 3;
         for (int y = 0; y < h; ++y) {
             const uchar* srcLine = tempConverted.constScanLine(y);
             uchar* dstLine = normalizedInput.scanLine(y);
             std::memcpy(dstLine, srcLine, std::min(srcBytesPerLine, dstBytesPerLine));
         }
-        
-        qInfo() << "[AIEngine][Tiled] Step 5b-done: Conversion and manual deep copy complete, normalizedInput.isNull:" << normalizedInput.isNull();
-        fflush(stdout);
     }
 
     if (normalizedInput.isNull() || normalizedInput.format() != QImage::Format_RGB888) {
         qWarning() << "[AIEngine] failed to normalize input format";
         return processSingle(input, model);
     }
-    
-    qInfo() << "[AIEngine][Tiled] Step 6: Normalized input ready, size:" << normalizedInput.width() << "x" << normalizedInput.height()
-            << "bits:" << (normalizedInput.bits() ? "ok" : "null")
-            << "bytesPerLine:" << normalizedInput.bytesPerLine();
-    fflush(stdout);
 
-    qInfo() << "[AIEngine][Tiled] Step 7: Creating paddedInput, size:" << (w + 2 * padding) << "x" << (h + 2 * padding);
-    fflush(stdout);
-    
     QImage paddedInput(w + 2 * padding, h + 2 * padding, QImage::Format_RGB888);
     if (paddedInput.isNull()) {
         qWarning() << "[AIEngine] failed to create padded image";
         return processSingle(input, model);
     }
     
-    qInfo() << "[AIEngine][Tiled] Step 8: paddedInput created, bits:" << (paddedInput.bits() ? "ok" : "null")
-            << "bytesPerLine:" << paddedInput.bytesPerLine();
-    fflush(stdout);
-    
     paddedInput.fill(Qt::black);
-    
-    qInfo() << "[AIEngine][Tiled] Step 9: paddedInput filled with black";
-    fflush(stdout);
     
     const int srcBytesPerLine = normalizedInput.bytesPerLine();
     const int expectedBytesPerLine = w * 3;
-    
-    qInfo() << "[AIEngine][Tiled] Step 10: Starting center region copy, srcBytesPerLine:" << srcBytesPerLine
-            << "expectedBytesPerLine:" << expectedBytesPerLine;
-    fflush(stdout);
 
     for (int y = 0; y < h; ++y) {
         const uchar* srcLine = normalizedInput.constScanLine(y);
@@ -1548,9 +1445,6 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
             std::memset(dstLine + padding * 3 + srcBytesPerLine, 0, expectedBytesPerLine - srcBytesPerLine);
         }
     }
-    
-    qInfo() << "[AIEngine][Tiled] Step 11: Center region copy done";
-    fflush(stdout);
     
     for (int y = 0; y < std::min(padding, h); ++y) {
         const uchar* srcLine = normalizedInput.constScanLine(y);
@@ -1572,16 +1466,13 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
             std::memset(dstLine + padding * 3 + srcBytesPerLine, 0, expectedBytesPerLine - srcBytesPerLine);
         }
     }
-    // 【安全边界检查】获取 paddedInput 的实际尺寸
     const int paddedWidth = paddedInput.width();
     const int paddedHeight = paddedInput.height();
     const int paddedBytesPerLine = paddedInput.bytesPerLine();
     
-    // 左右边界镜像填充
     for (int y = 0; y < h; ++y) {
         uchar* dstLine = paddedInput.scanLine(y + padding);
         const uchar* srcLine = normalizedInput.constScanLine(y);
-        // 左边界
         for (int x = 0; x < std::min(padding, w); ++x) {
             int srcX = x;
             int dstX = padding - 1 - x;
@@ -1591,7 +1482,6 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
                 dstLine[dstX * 3 + 2] = srcLine[srcX * 3 + 2];
             }
         }
-        // 右边界
         for (int x = 0; x < std::min(padding, w); ++x) {
             int srcX = w - 1 - x;
             int dstX = padding + w + x;
@@ -1662,21 +1552,14 @@ QImage AIEngine::processTiled(const QImage &input, const ModelInfo &model)
     int consecutiveFailures = 0;
     const int kMaxConsecutiveFailures = 3;
 
-    qInfo() << "[AIEngine] Starting tiled processing:"
-            << "tilesX:" << tilesX
-            << "tilesY:" << tilesY
-            << "totalTiles:" << totalTiles;
-
     for (int ty = 0; ty < tilesY; ++ty) {
         for (int tx = 0; tx < tilesX; ++tx) {
             if (m_cancelRequested) {
-                qInfo() << "[AIEngine] Tiled processing cancelled at tile" << tileIndex;
                 painter.end();
                 return QImage();
             }
             
             if (m_forceCancelled.load()) {
-                qInfo() << "[AIEngine] Tiled processing force-cancelled at tile" << tileIndex;
                 painter.end();
                 return QImage();
             }

@@ -194,7 +194,8 @@ void ProgressSyncHelper::syncMessageProgress(const QString& messageId, const QSt
                                              const QHash<QString, TaskContext>& taskContexts)
 {
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-    constexpr qint64 kMessageProgressSyncDebounceMs = 250;
+    // 【修复】降低防抖时间，确保 CPU 模式下进度更新更及时
+    constexpr qint64 kMessageProgressSyncDebounceMs = 100;
 
     const qint64 lastSyncMs = m_lastMessageProgressSyncMs.value(messageId, 0);
     if (lastSyncMs > 0 && (nowMs - lastSyncMs) < kMessageProgressSyncDebounceMs) {

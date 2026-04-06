@@ -86,5 +86,8 @@ resources/models/
 tests/testAssetsDirectory/video/
 tests/testAssetsDirectory/image/
 
+# Large icon files
+resources/icons/placeholder.png
+
 # trae agents
 .trae/agents/

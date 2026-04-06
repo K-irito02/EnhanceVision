@@ -31,6 +31,7 @@ SessionController::SessionController(QObject* parent)
     : QObject(parent)
     , m_sessionModel(new SessionModel(this))
     , m_messageModel(nullptr)
+    , m_processingTimeManager(new ProcessingTimeManager(this))
     , m_batchSelectionMode(false)
     , m_sessionCounter(0)
     , m_autoSaveEnabled(true)
@@ -131,6 +132,10 @@ void SessionController::setMessageModel(MessageModel* model)
             syncCurrentMessagesToSession();
             saveSessions();
         });
+        // 设置 ProcessingTimeManager 的 MessageModel 引用
+        if (m_processingTimeManager) {
+            m_processingTimeManager->setMessageModel(m_messageModel);
+        }
     }
 }
 

@@ -35,6 +35,7 @@ SettingsController::SettingsController(QObject* parent)
     , m_videoAutoPlay(true)
     , m_videoAutoPlayOnSwitch(true)
     , m_videoRestorePosition(true)
+    , m_pauseMode(1)  // 默认模式二：顺序暂停
     , m_customDataPath()
     , m_aiImageSize(0)
     , m_aiVideoSize(0)
@@ -269,6 +270,23 @@ void SettingsController::setVideoRestorePosition(bool restore)
         emit videoRestorePositionChanged();
         emit settingsChanged();
         saveSettings();
+    }
+}
+
+int SettingsController::pauseMode() const
+{
+    return m_pauseMode;
+}
+
+void SettingsController::setPauseMode(int mode)
+{
+    int clampedMode = qBound(0, mode, 2);
+    if (m_pauseMode != clampedMode) {
+        m_pauseMode = clampedMode;
+        emit pauseModeChanged();
+        emit settingsChanged();
+        saveSettings();
+        qInfo() << "[SettingsController] Pause mode changed to:" << m_pauseMode;
     }
 }
 
@@ -782,6 +800,7 @@ void SettingsController::saveSettings()
     m_settings->setValue("video/autoPlay", m_videoAutoPlay);
     m_settings->setValue("video/autoPlayOnSwitch", m_videoAutoPlayOnSwitch);
     m_settings->setValue("video/restorePosition", m_videoRestorePosition);
+    m_settings->setValue("task/pauseMode", m_pauseMode);
     m_settings->sync();
 }
 
@@ -803,6 +822,7 @@ void SettingsController::loadSettings()
     m_videoAutoPlay = m_settings->value("video/autoPlay", true).toBool();
     m_videoAutoPlayOnSwitch = m_settings->value("video/autoPlayOnSwitch", true).toBool();
     m_videoRestorePosition = m_settings->value("video/restorePosition", true).toBool();
+    m_pauseMode = m_settings->value("task/pauseMode", 1).toInt();  // 默认模式二
     
     if (!m_settings->contains("system/prevAutoReprocessShader")) {
         m_settings->setValue("system/prevAutoReprocessShader", m_autoReprocessShaderEnabled);
@@ -831,6 +851,7 @@ void SettingsController::resetToDefaults()
     m_videoAutoPlay = true;
     m_videoAutoPlayOnSwitch = true;
     m_videoRestorePosition = true;
+    m_pauseMode = 1;  // 默认模式二
 
     emit themeChanged();
     emit languageChanged();
@@ -845,6 +866,7 @@ void SettingsController::resetToDefaults()
     emit videoAutoPlayChanged();
     emit videoAutoPlayOnSwitchChanged();
     emit videoRestorePositionChanged();
+    emit pauseModeChanged();
     emit customDataPathChanged();
     emit settingsChanged();
 }

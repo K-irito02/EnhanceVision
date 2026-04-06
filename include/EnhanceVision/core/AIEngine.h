@@ -169,6 +169,7 @@ signals:
     void allAutoParamsComputed(const QVariantMap &autoParams);
     void backendTypeChanged(BackendType type);
     void gpuDeviceInfoChanged();
+    void processingCancelled();
 
 private:
     void setProgress(double value, bool forceEmit = false);

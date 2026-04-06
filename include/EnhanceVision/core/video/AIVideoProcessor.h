@@ -36,6 +36,9 @@ public:
     
     void processAsync(const QString& inputPath, const QString& outputPath);
     void cancel();
+    void pause();
+    void resume();
+    bool isPaused() const;
     void waitForFinished(int timeoutMs = 5000);
     
     /**
@@ -59,6 +62,8 @@ signals:
     void completed(bool success, const QString& resultPath, const QString& error);
     void warning(const QString& message);
     void cancelled();
+    void paused();
+    void resumed();
     
 private:
     void processInternal(const QString& inputPath, const QString& outputPath);

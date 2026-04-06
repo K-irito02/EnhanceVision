@@ -122,10 +122,23 @@ Item {
             queuePosition: model.queuePosition !== undefined ? model.queuePosition : 0
             errorMessage: model.errorMessage || ""
             selectable: batchMode
+            
+            // 暂停模式相关属性
+            globalPauseEnabled: typeof processingController !== "undefined" ? processingController.isGlobalPauseEnabled() : false
+            pauseMode: typeof SettingsController !== "undefined" ? SettingsController.pauseMode : 1
 
-            // 时间预测属性（由 _buildMediaForDelegate 计算）
-            property real _predictedTotalSec: 0
-            predictedTotalSec: _predictedTotalSec
+            // 时间预测属性（由 C++ ProcessingTimeManager 管理）
+            // 直接从模型读取，由 C++ 后端每秒更新
+            property real _modelElapsedSec: model.elapsedSec !== undefined ? model.elapsedSec : 0
+            property real _modelRemainingSec: model.remainingSec !== undefined ? model.remainingSec : 0
+            property bool _modelIsOvertime: model.isOvertime !== undefined ? model.isOvertime : false
+            property real _modelPredictedTotalSec: model.predictedTotalSec !== undefined ? model.predictedTotalSec : 0
+            
+            elapsedSec: _modelElapsedSec
+            remainingSec: _modelRemainingSec
+            isOvertime: _modelIsOvertime
+            predictedTotalSec: _modelPredictedTotalSec
+            
             // 从模型读取持久化的实际总耗时
             property real _modelActualTotalSec: model.actualTotalSec !== undefined ? model.actualTotalSec : 0
             property double _modelProcessingStartTime: model.processingStartTime !== undefined ? model.processingStartTime : 0
@@ -149,6 +162,7 @@ Item {
             property int _failedFileCount: 0
             property int _pendingFileCount: 0
             property int _processingFileCount: 0
+            property int _pausedFileCount: 0
             property bool _fileStatsInitialized: false
             mediaFiles: _cachedMedia
             totalFileCount: _cachedMedia.count
@@ -181,7 +195,7 @@ Item {
                 _pendingFileCount = pending
                 _processingFileCount = processing
                 _fileStatsInitialized = true
-                msgDelegate._applyFileStats(success, failed, pending, processing)
+                msgDelegate._applyFileStats(success, failed, pending, processing, 0)
             }
 
             function _bumpFileStats(oldStatus, newStatus) {
@@ -327,48 +341,6 @@ Item {
                 }
 
                 _resetFileStatsFromModel()
-                _calculatePredictedTime()
-            }
-
-            // 计算消息的预测总时间
-            function _calculatePredictedTime() {
-                if (typeof taskTimeEstimator === "undefined") {
-                    _predictedTotalSec = 0
-                    return
-                }
-                var files = []
-                for (var i = 0; i < _cachedMedia.count; i++) {
-                    var item = _cachedMedia.get(i)
-                    if (item.status === 0 || item.status === 1) {
-                        files.push({
-                            width: item.width || 1920,
-                            height: item.height || 1080,
-                            isVideo: (item.mediaType === 1),
-                            durationMs: item.durationMs || 0,
-                            fps: item.fps || 30.0
-                        })
-                    }
-                }
-                if (files.length === 0) {
-                    // 如果没有待处理文件，使用全部文件计算（初始状态）
-                    for (var j = 0; j < _cachedMedia.count; j++) {
-                        var it = _cachedMedia.get(j)
-                        files.push({
-                            width: it.width || 1920,
-                            height: it.height || 1080,
-                            isVideo: (it.mediaType === 1),
-                            durationMs: it.durationMs || 0,
-                            fps: it.fps || 30.0
-                        })
-                    }
-                }
-                if (files.length === 0) {
-                    _predictedTotalSec = 0
-                    return
-                }
-                _predictedTotalSec = taskTimeEstimator.estimateMessageTotalTime(
-                    msgDelegate.mode, msgDelegate.useGpu, msgDelegate.modelId, files
-                )
             }
 
             onCancelClicked: {
@@ -421,6 +393,11 @@ Item {
                     selectedIds = selectedIds.concat([mid])
                 } else {
                     selectedIds = selectedIds.filter(function(id) { return id !== mid })
+                }
+            }
+            onActualTotalSecChanged: function(totalSec) {
+                if (root._hasRealModel && totalSec > 0) {
+                    messageModel.updateActualTotalSec(model.id, Math.round(totalSec))
                 }
             }
         }

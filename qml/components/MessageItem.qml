@@ -22,15 +22,15 @@ Rectangle {
     property int completedCount: 0
     property int totalFileCount: mediaFiles ? mediaFiles.count : 0
 
-    // ========== 时间预测系统 ==========
-    // 外部设置的预测总时间（秒），由 TaskTimeEstimator 在任务发送时计算
+    // ========== 时间预测系统（由 C++ ProcessingTimeManager 管理）==========
+    // 直接从模型读取的值，由 C++ 后端每秒更新
     property real predictedTotalSec: 0.0
-    // 当前剩余时间（秒），动态更新
-    property real _remainingSec: predictedTotalSec
-    // 实际处理开始时间戳
+    property real elapsedSec: 0
+    property real remainingSec: 0
+    property bool isOvertime: false
+    
+    // 实际处理开始时间戳（用于持久化）
     property double _processingStartTime: 0
-    // 实际已用时间（秒）
-    property real _elapsedSec: 0
     // 所有任务完成后的实际总耗时（秒）
     property real _actualTotalSec: 0
     // 是否使用 GPU
@@ -42,94 +42,31 @@ Rectangle {
     // 从模型读取的持久化处理开始时间（用于会话切换后恢复进度）
     property double persistedProcessingStartTime: 0
 
-    // 平滑动画目标值（避免数字跳变）
-    property real _displayRemainingSec: _remainingSec
-    Behavior on _displayRemainingSec {
-        NumberAnimation { duration: 800; easing.type: Easing.OutCubic }
-    }
-
     // 标记是否已开始处理（避免进度条倒走）
-    property bool _hasStartedProcessing: false
+    property bool _hasStartedProcessing: persistedProcessingStartTime > 0 || _processingStartTime > 0
 
     // 基于时间的进度百分比（用于进度条）
     readonly property real _timeBasedProgress: {
-        // 未开始处理时返回 0
-        if (!_hasStartedProcessing || _processingStartTime <= 0) return 0
+        if (!_hasStartedProcessing) return 0
         if (predictedTotalSec <= 0) return 0
         if (root.allFilesSettled) return 100
-        // 基于实际已用时间计算进度，而不是剩余时间
-        var progressPct = (_elapsedSec / predictedTotalSec) * 100
+        var progressPct = (elapsedSec / predictedTotalSec) * 100
         return Math.min(99, Math.max(0, progressPct))
-    }
-
-    Timer {
-        id: elapsedTimer
-        interval: 1000
-        repeat: true
-        running: root.status === 1 || (root.processingFileCount > 0)
-        onTriggered: {
-            if (root._processingStartTime > 0) {
-                root._elapsedSec = Math.round((Date.now() - root._processingStartTime) / 1000)
-            }
-            // 动态更新剩余时间：预测总时间 - 已用时间
-            // 允许负数：当实际耗时超过预测时，显示负数表示超时
-            if (root.predictedTotalSec > 0 && root._processingStartTime > 0) {
-                root._remainingSec = root.predictedTotalSec - root._elapsedSec
-            }
-        }
-    }
-
-    onStatusChanged: {
-        console.log("[MessageItem] onStatusChanged taskId:", root.taskId, "status:", status, 
-                    "_processingStartTime:", _processingStartTime,
-                    "persistedProcessingStartTime:", persistedProcessingStartTime)
-        if (status === 1) {
-            // 开始处理：记录开始时间
-            if (_processingStartTime <= 0) {
-                _processingStartTime = Date.now()
-                _elapsedSec = 0
-                _actualTotalSec = 0
-                _hasStartedProcessing = true
-                // 持久化开始时间到模型
-                if (typeof messageModel !== "undefined" && root.taskId) {
-                    console.log("[MessageItem] Persisting processingStartTime:", _processingStartTime)
-                    messageModel.updateProcessingStartTime(root.taskId, _processingStartTime)
-                }
-            }
-        } else if (status === 0) {
-            // 等待状态：只有当没有持久化的开始时间时才重置
-            // 这样可以在会话切换后保持进度状态
-            if (persistedProcessingStartTime <= 0) {
-                _hasStartedProcessing = false
-            }
-        }
-    }
-    
-    // 从持久化值恢复处理开始时间（用于会话切换后恢复进度）
-    onPersistedProcessingStartTimeChanged: {
-        console.log("[MessageItem] onPersistedProcessingStartTimeChanged:", persistedProcessingStartTime,
-                    "_processingStartTime:", _processingStartTime)
-        if (persistedProcessingStartTime > 0) {
-            _processingStartTime = persistedProcessingStartTime
-            _hasStartedProcessing = true
-            // 计算已用时间
-            _elapsedSec = Math.round((Date.now() - _processingStartTime) / 1000)
-            // 更新剩余时间
-            if (predictedTotalSec > 0) {
-                _remainingSec = predictedTotalSec - _elapsedSec
-            }
-        }
     }
 
     // 当所有文件处理完成后，计算实际总耗时并持久化
     onAllFilesSettledChanged: {
-        if (allFilesSettled && _processingStartTime > 0) {
-            _actualTotalSec = Math.round((Date.now() - _processingStartTime) / 1000)
-            _remainingSec = 0
-            // 持久化到模型
-            if (typeof messageModel !== "undefined" && root.taskId) {
-                messageModel.updateActualTotalSec(root.taskId, _actualTotalSec)
+        // 【修复】只有在真正开始处理过（有处理开始时间）且所有文件都已结算时才计算总耗时
+        // 避免在任务还未开始时就显示总耗时
+        if (allFilesSettled && _actualTotalSec === 0 && _hasStartedProcessing) {
+            // 使用实际经过的时间，如果太短则使用持久化的值或默认1秒
+            var totalSec = elapsedSec > 0 ? elapsedSec : (persistedActualTotalSec > 0 ? persistedActualTotalSec : 1)
+            _actualTotalSec = totalSec
+            // 通知父组件持久化总耗时到 C++
+            if (totalSec > 0) {
+                actualTotalSecChanged(totalSec)
             }
+            console.log("[MessageItem] Total time calculated:", totalSec, "elapsedSec:", elapsedSec)
         }
     }
 
@@ -140,69 +77,13 @@ Rectangle {
         }
     }
 
-    Component.onCompleted: {
-        console.log("[MessageItem] onCompleted taskId:", root.taskId, 
-                    "status:", status,
-                    "persistedProcessingStartTime:", persistedProcessingStartTime,
-                    "persistedActualTotalSec:", persistedActualTotalSec,
-                    "predictedTotalSec:", predictedTotalSec)
-        
-        // 初始化时从持久化值恢复
-        if (persistedActualTotalSec > 0) {
-            _actualTotalSec = persistedActualTotalSec
-        }
-        // 恢复处理开始时间（用于会话切换后恢复进度显示）
-        if (persistedProcessingStartTime > 0 && _processingStartTime <= 0) {
-            _processingStartTime = persistedProcessingStartTime
-            _hasStartedProcessing = true
-            // 计算已用时间
-            _elapsedSec = Math.round((Date.now() - _processingStartTime) / 1000)
-            // 更新剩余时间
-            if (predictedTotalSec > 0) {
-                _remainingSec = predictedTotalSec - _elapsedSec
-            }
-            console.log("[MessageItem] Restored from persisted: _processingStartTime:", _processingStartTime,
-                        "_elapsedSec:", _elapsedSec, "_remainingSec:", _remainingSec)
-        }
-    }
-
-    // 当文件被删除/完成/失败时，重新计算剩余时间
-    function recalculateRemainingTime() {
-        if (typeof taskTimeEstimator === "undefined" || !mediaFiles) return
-        if (predictedTotalSec <= 0) return
-
-        var remainingFiles = []
-        for (var i = 0; i < mediaFiles.count; i++) {
-            var item = mediaFiles.get(i)
-            // 只计算待处理和处理中的文件
-            if (item.status === 0 || item.status === 1) {
-                remainingFiles.push({
-                    width: item.width || 1920,
-                    height: item.height || 1080,
-                    isVideo: (item.mediaType === 1),
-                    durationMs: item.durationMs || 0,
-                    fps: item.fps || 30.0
-                })
-            }
-        }
-
-        if (remainingFiles.length === 0) {
-            _remainingSec = 0
-            return
-        }
-
-        var newRemaining = taskTimeEstimator.estimateMessageTotalTime(
-            root.mode, root.useGpu, root.modelId, remainingFiles
-        )
-        _remainingSec = Math.max(0, newRemaining)
-    }
-    
     property int successFileCount: 0
     property int failedFileCount: 0
     property int pendingFileCount: 0
     property int processingFileCount: 0
+    property int pausedFileCount: 0
     property bool hasFailedFiles: failedFileCount > 0
-    property bool allFilesSettled: totalFileCount > 0 && pendingFileCount === 0 && processingFileCount === 0
+    property bool allFilesSettled: totalFileCount > 0 && pendingFileCount === 0 && processingFileCount === 0 && pausedFileCount === 0
     property bool allFilesPending: totalFileCount > 0 && pendingFileCount === totalFileCount
     property bool failedTipDismissed: false
     
@@ -219,19 +100,43 @@ Rectangle {
     signal retrySingleFailedFile(int index)
     signal pauseClicked()
     signal resumeClicked()
+    signal actualTotalSecChanged(real totalSec)
     
     // 暂停状态（status === 5 表示 Paused）
     property bool isPaused: status === 5
+    
+    // 全局暂停状态（模式三使用）
+    property bool globalPauseEnabled: false
+    
+    // 当前暂停模式：0=单任务暂停, 1=顺序暂停, 2=自由选择
+    property int pauseMode: 0
+    
+    // 是否应该显示继续按钮（模式三：全局暂停时所有待处理卡片显示继续按钮）
+    readonly property bool shouldShowResumeButton: {
+        if (root.isPaused) return true
+        if (pauseMode === 2 && globalPauseEnabled && !root.allFilesSettled && (status === 0 || status === 1)) {
+            return true
+        }
+        return false
+    }
+    
+    // 是否应该显示暂停按钮
+    readonly property bool shouldShowPauseButton: {
+        if (root.isPaused) return false
+        if (status === 1 && !root.allFilesSettled) return true  // 处理中
+        return false
+    }
     
     property bool _hasStatsSnapshot: false
     property var _deletingFileIds: ({})
     property int _deletingCount: 0
 
-    function _applyFileStats(success, failed, pending, processing) {
+    function _applyFileStats(success, failed, pending, processing, paused) {
         successFileCount = success
         failedFileCount = failed
         pendingFileCount = pending
         processingFileCount = processing
+        pausedFileCount = paused !== undefined ? paused : 0
         _hasStatsSnapshot = true
 
         if (failed === 0 || pending > 0 || processing > 0) {
@@ -244,6 +149,7 @@ Rectangle {
         var failed = 0
         var pending = 0
         var processing = 0
+        var paused = 0
         if (mediaFiles && mediaFiles.count > 0) {
             for (var i = 0; i < mediaFiles.count; i++) {
                 var item = mediaFiles.get(i)
@@ -255,11 +161,13 @@ Rectangle {
                     pending++
                 } else if (item.status === 1) {
                     processing++
+                } else if (item.status === 5) {
+                    paused++
                 }
             }
         }
 
-        _applyFileStats(success, failed, pending, processing)
+        _applyFileStats(success, failed, pending, processing, paused)
     }
 
     function scheduleFileCountUpdate(force) {
@@ -427,15 +335,15 @@ Rectangle {
                 spacing: 2
                 visible: root.totalFileCount > 0
                 
-                // 暂停/继续按钮 - 仅在处理中或暂停状态时显示
+                // 暂停/继续按钮 - 根据暂停模式和状态决定显示
                 IconButton {
-                    iconName: root.isPaused ? "play" : "pause"
+                    iconName: root.shouldShowResumeButton ? "play" : "pause"
                     iconSize: 14; btnSize: 26
-                    iconColor: root.isPaused ? Theme.colors.success : Theme.colors.warning
-                    tooltip: root.isPaused ? qsTr("继续处理") : qsTr("暂停处理")
-                    visible: (root.status === 1 || root.isPaused) && !root.allFilesSettled
+                    iconColor: root.shouldShowResumeButton ? Theme.colors.success : Theme.colors.warning
+                    tooltip: root.shouldShowResumeButton ? qsTr("继续处理") : qsTr("暂停处理")
+                    visible: (root.shouldShowPauseButton || root.shouldShowResumeButton) && !root.allFilesSettled
                     onClicked: {
-                        if (root.isPaused) {
+                        if (root.shouldShowResumeButton) {
                             root.resumeClicked()
                         } else {
                             root.pauseClicked()
@@ -479,6 +387,7 @@ Rectangle {
             onlyCompleted: false
             messageMode: true
             showFailedFiles: true
+            messagePaused: root.isPaused
             
             onViewFile: function(index) { root.viewMediaFile(index) }
             onSaveFile: function(index) { root.saveMediaFile(index) }
@@ -616,7 +525,7 @@ Rectangle {
                     Text {
                         visible: status === 1 && root.predictedTotalSec > 0
                         text: {
-                            var s = Math.round(root._displayRemainingSec)
+                            var s = Math.round(root.remainingSec)
                             var isOvertime = s < 0
                             var absS = Math.abs(s)
                             var prefix = isOvertime ? qsTr("超时: +") : qsTr("剩余: ")
@@ -625,7 +534,7 @@ Rectangle {
                             return prefix + qsTr("%1s").arg(absS)
                         }
                         // 超时时显示警告色，否则显示主色
-                        color: root._displayRemainingSec < 0 ? Theme.colors.warning : Theme.colors.primary
+                        color: root.remainingSec < 0 ? Theme.colors.warning : Theme.colors.primary
                         font.pixelSize: 11
                         font.weight: Font.DemiBold
                     }
@@ -644,18 +553,23 @@ Rectangle {
                     width: {
                         if (root.status === 0) return 0
                         if (root.allFilesSettled) return parent.width
-                        // 基于时间预测的进度
-                        if (root.predictedTotalSec > 0) {
+                        // 【修复】优先使用实际的任务进度（来自 AI 推理或其他处理器）
+                        // 只有当实际进度为 0 且有时间预测时才使用时间预测进度
+                        var actualProgress = Math.min(root.progress, 100)
+                        if (actualProgress > 0) {
+                            return parent.width * (actualProgress / 100)
+                        }
+                        // 回退到基于时间预测的进度
+                        if (root.predictedTotalSec > 0 && root._timeBasedProgress > 0) {
                             return parent.width * (root._timeBasedProgress / 100)
                         }
-                        // 回退到基于任务的进度
-                        return parent.width * (Math.min(root.progress, 100) / 100)
+                        return 0
                     }
                     height: parent.height; radius: parent.radius
                     color: Theme.colors.primary
 
                     Behavior on width {
-                        NumberAnimation { duration: 600; easing.type: Easing.OutCubic }
+                        NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
                     }
                 }
 
@@ -768,15 +682,19 @@ Rectangle {
             }
 
             // 完成后显示实际总耗时（放在文件统计右侧）
-            // 显示条件：有总耗时数据即显示（来自实时计算或持久化恢复）
+            // 显示条件：必须已开始处理且所有文件都已结算，或者有持久化的总耗时
             Text {
                 property real displayTotalSec: root._actualTotalSec > 0 ? root._actualTotalSec : root.persistedActualTotalSec
-                visible: displayTotalSec > 0
+                // 【修复】只有在真正处理完成后才显示总耗时
+                // 条件：(已开始处理 且 所有文件已结算 且 有耗时数据) 或 有持久化的耗时数据
+                visible: (root._hasStartedProcessing && root.allFilesSettled && displayTotalSec > 0) || root.persistedActualTotalSec > 0
                 text: {
-                    var s = Math.round(displayTotalSec)
-                    if (s >= 3600) return qsTr("总耗时: %1h%2m%3s").arg(Math.floor(s/3600)).arg(Math.floor((s%3600)/60)).arg(s%60)
-                    if (s >= 60) return qsTr("总耗时: %1m%2s").arg(Math.floor(s/60)).arg(s%60)
-                    return qsTr("总耗时: %1s").arg(s)
+                    var s = displayTotalSec
+                    if (s < 1) return qsTr("总耗时: <1s")
+                    var sInt = Math.round(s)
+                    if (sInt >= 3600) return qsTr("总耗时: %1h%2m%3s").arg(Math.floor(sInt/3600)).arg(Math.floor((sInt%3600)/60)).arg(sInt%60)
+                    if (sInt >= 60) return qsTr("总耗时: %1m%2s").arg(Math.floor(sInt/60)).arg(sInt%60)
+                    return qsTr("总耗时: %1s").arg(sInt)
                 }
                 // 使用蓝色
                 color: "#4a9eff"

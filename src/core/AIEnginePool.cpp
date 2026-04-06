@@ -67,7 +67,18 @@ AIEngine* AIEnginePool::acquire(const QString& taskId)
         }
     }
 
-    qWarning() << "[AIEnginePool] pool exhausted, no available engine for task:" << taskId;
+    // 检查是否有 Draining 状态的引擎（正在释放中）
+    bool hasDrainingEngine = false;
+    for (int i = 0; i < m_slots.size(); ++i) {
+        if (m_slots[i].state == EngineState::Draining) {
+            hasDrainingEngine = true;
+            qInfo() << "[AIEnginePool] Engine at slot" << i << "is draining, will be available soon for task:" << taskId;
+            break;
+        }
+    }
+
+    qWarning() << "[AIEnginePool] pool exhausted, no available engine for task:" << taskId
+               << (hasDrainingEngine ? "(engine is draining, will retry when ready)" : "");
     emit poolExhausted();
     return nullptr;
 }
@@ -173,19 +184,33 @@ void AIEnginePool::release(const QString& taskId)
     if (idx >= 0 && idx < m_slots.size()) {
         AIEngine* engine = m_slots[idx].engine;
         
-        // 释放前取消引擎处理，确保下次获取时引擎空闲
         if (engine && engine->isProcessing()) {
-            qInfo() << "[AIEnginePool] Cancelling engine before release, task:" << taskId;
+            qInfo() << "[AIEnginePool] Async cancelling engine for task:" << taskId;
+            
+            m_slots[idx].state = EngineState::Draining;
+            
+            connect(engine, &AIEngine::processingCancelled, this, [this, idx, taskId]() {
+                QMutexLocker locker(&m_mutex);
+                m_slots[idx].state = EngineState::Ready;
+                m_slots[idx].taskId.clear();
+                m_slots[idx].backendType = BackendType::NCNN_CPU;
+                m_slots[idx].wasUsed = true;
+                
+                qInfo() << "[AIEnginePool] Engine async released, task:" << taskId;
+                emit engineReleased(taskId, idx);
+                emit engineReady();
+            }, Qt::QueuedConnection);
+            
             engine->cancelProcess();
+        } else {
+            m_slots[idx].state = EngineState::Ready;
+            m_slots[idx].taskId.clear();
+            m_slots[idx].backendType = BackendType::NCNN_CPU;
+            m_slots[idx].wasUsed = true;
+            
+            qInfo() << "[AIEnginePool] Task released:" << taskId << ", slot index:" << idx;
+            emit engineReleased(taskId, idx);
         }
-        
-        m_slots[idx].state = EngineState::Ready;
-        m_slots[idx].taskId.clear();
-        m_slots[idx].backendType = BackendType::NCNN_CPU;
-        m_slots[idx].wasUsed = true;
-
-        qInfo() << "[AIEnginePool] Task released:" << taskId << ", slot index:" << idx;
-        emit engineReleased(taskId, idx);
     }
 }
 
@@ -221,7 +246,17 @@ int AIEnginePool::availableCount() const
 {
     int count = 0;
     for (const auto& slot : m_slots) {
-        if (slot.state == EngineState::Ready || slot.state == EngineState::Uninitialized) {
+        if (slot.state == EngineState::Ready || 
+            slot.state == EngineState::Uninitialized) {
+            if (slot.engine && !slot.engine->isProcessing()) {
+                count++;
+            } else if (!slot.engine) {
+                // 引擎未初始化，可以创建新引擎
+                count++;
+            }
+        } else if (slot.state == EngineState::Draining) {
+            // Draining 状态的引擎即将可用，计入可用引擎
+            // 这样队列可以继续处理其他任务，即使引擎还在取消处理中
             count++;
         }
     }
@@ -231,6 +266,17 @@ int AIEnginePool::availableCount() const
 int AIEnginePool::activeCount() const
 {
     return m_poolSize - availableCount();
+}
+
+bool AIEnginePool::hasDrainingEngine() const
+{
+    QMutexLocker locker(&m_mutex);
+    for (const auto& slot : m_slots) {
+        if (slot.state == EngineState::Draining) {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool AIEnginePool::preloadModel(const QString& modelId)

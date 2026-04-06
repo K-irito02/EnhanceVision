@@ -33,6 +33,7 @@ struct AIVideoProcessor::Impl {
     
     std::atomic<bool> isProcessing{false};
     std::atomic<bool> cancelled{false};
+    std::atomic<bool> paused{false};  // 暂停标志
     std::atomic<bool> processingFrame{false};  // 当前是否正在处理单帧
     std::atomic<double> progress{0.0};
     std::atomic<qint64> lastProgressEmitMs{0};
@@ -40,6 +41,10 @@ struct AIVideoProcessor::Impl {
     // 帧处理完成等待
     std::mutex frameCompleteMutex;
     std::condition_variable frameCompleteCv;
+    
+    // 暂停等待
+    std::mutex pauseMutex;
+    std::condition_variable pauseCv;
     
     QMutex mutex;
 };
@@ -118,6 +123,30 @@ void AIVideoProcessor::cancel()
         
         emit cancelled();
     }
+}
+
+void AIVideoProcessor::pause()
+{
+    if (!m_impl->paused.load()) {
+        qInfo() << "[AIVideoProcessor] Pause requested";
+        m_impl->paused.store(true);
+        emit paused();
+    }
+}
+
+void AIVideoProcessor::resume()
+{
+    if (m_impl->paused.load()) {
+        qInfo() << "[AIVideoProcessor] Resume requested";
+        m_impl->paused.store(false);
+        m_impl->pauseCv.notify_all();
+        emit resumed();
+    }
+}
+
+bool AIVideoProcessor::isPaused() const
+{
+    return m_impl->paused.load();
 }
 
 void AIVideoProcessor::waitForFinished(int timeoutMs)
@@ -387,6 +416,24 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
             return;
         }
         
+        // 【修复】检查暂停标志，等待恢复
+        if (m_impl->paused.load()) {
+            qInfo() << "[AIVideoProcessor] Paused at frame" << frameCount;
+            std::unique_lock<std::mutex> lock(m_impl->pauseMutex);
+            m_impl->pauseCv.wait(lock, [this]() {
+                return !m_impl->paused.load() || m_impl->cancelled.load();
+            });
+            // 恢复后再次检查取消标志
+            if (m_impl->cancelled.load()) {
+                qInfo() << "[AIVideoProcessor] Cancelled while paused";
+                av_packet_unref(pkt);
+                cleanupFrames();
+                setProcessing(false);
+                emitCompleted(false, QString(), tr("Video processing cancelled"));
+                return;
+            }
+            qInfo() << "[AIVideoProcessor] Resumed at frame" << frameCount;
+        }
         
         if (pkt->stream_index == guard.audioStreamIndex() && encoderInitialized) {
             AVPacket* audioPkt = av_packet_clone(pkt);
