@@ -186,6 +186,7 @@ qt_add_executable(EnhanceVision
     src/core/ProcessingTimeManager.cpp
     src/controllers/SessionSyncHelper.cpp
     src/controllers/ProgressSyncHelper.cpp
+    src/controllers/UIStateController.cpp
     src/services/ImageExportService.cpp
     src/services/AutoSaveService.cpp
     include/EnhanceVision/app/Application.h
@@ -240,6 +241,7 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/controllers/ProcessingController.h
     include/EnhanceVision/controllers/SessionSyncHelper.h
     include/EnhanceVision/controllers/ProgressSyncHelper.h
+    include/EnhanceVision/controllers/UIStateController.h
     include/EnhanceVision/services/ImageExportService.h
     include/EnhanceVision/services/AutoSaveService.h
     resources/qml.qrc

@@ -10,6 +10,7 @@ import EnhanceVision.Controllers
  * 2. 管理每个模型的参数状态，确保参数独立存储
  * 3. 提供稳定的属性绑定接口，解决频繁切换模型时绑定断开的问题
  * 4. 实现参数持久化，用户修改的参数在模型切换时保留
+ * 5. 集成 UIStateController 持久化选中的模型ID
  */
 QtObject {
     id: store
@@ -40,16 +41,11 @@ QtObject {
 
     readonly property bool hasCurrentModel: _currentModelId !== "" && currentModelInfo !== null
 
-    function _refreshCurrentParams() {
-        if (_currentModelId === "") {
-            _currentParamsInternal = {}
-            return
-        }
-        var cached = _paramsCache[_currentModelId]
-        if (cached !== undefined) {
-            _currentParamsInternal = cached
-        } else {
-            _currentParamsInternal = _getDefaultParams(_currentModelId)
+    // 从 UIStateController 恢复上次选中的模型
+    function _restoreFromUIState() {
+        if (UIStateController.aiSelectedModelId !== "") {
+            _currentModelId = UIStateController.aiSelectedModelId
+            _refreshCurrentParams()
         }
     }
 
@@ -93,11 +89,27 @@ QtObject {
         return JSON.parse(JSON.stringify(defaults))
     }
 
+    function _refreshCurrentParams() {
+        if (_currentModelId === "") {
+            _currentParamsInternal = {}
+            return
+        }
+        var cached = _paramsCache[_currentModelId]
+        if (cached !== undefined) {
+            _currentParamsInternal = cached
+        } else {
+            _currentParamsInternal = _getDefaultParams(_currentModelId)
+        }
+    }
+
     function selectModel(modelId) {
         if (_currentModelId === modelId) return
         _currentModelId = modelId
         _refreshCurrentParams()
         modelSelected(modelId)
+        
+        // 持久化到 UIStateController
+        UIStateController.aiSelectedModelId = modelId
     }
 
     function updateParam(paramKey, value) {
@@ -112,6 +124,9 @@ QtObject {
         _paramsCache[_currentModelId] = newParams
         _currentParamsInternal = newParams
         paramsChanged(_currentModelId)
+        
+        // 持久化到 UIStateController
+        UIStateController.setAIModelParams(newParams)
     }
 
     function updateParams(newParams) {
@@ -119,6 +134,9 @@ QtObject {
         _paramsCache[_currentModelId] = JSON.parse(JSON.stringify(newParams))
         _currentParamsInternal = _paramsCache[_currentModelId]
         paramsChanged(_currentModelId)
+        
+        // 持久化到 UIStateController
+        UIStateController.setAIModelParams(newParams)
     }
 
     function resetCurrentParams() {
@@ -127,6 +145,9 @@ QtObject {
         _paramsCache[_currentModelId] = defaults
         _currentParamsInternal = defaults
         paramsChanged(_currentModelId)
+        
+        // 持久化到 UIStateController
+        UIStateController.setAIModelParams({})
     }
 
     function resetAllParams() {
@@ -135,6 +156,9 @@ QtObject {
             _refreshCurrentParams()
             paramsChanged(_currentModelId)
         }
+        
+        // 清除 UIStateController 中的 AI 模型参数
+        UIStateController.setAIModelParams({})
     }
 
     function getParams() {
@@ -177,5 +201,8 @@ QtObject {
         if (registry && registry.modelsChanged) {
             registry.modelsChanged.connect(refreshCache)
         }
+        
+        // 从 UIStateController 恢复上次选中的模型
+        _restoreFromUIState()
     }
 }

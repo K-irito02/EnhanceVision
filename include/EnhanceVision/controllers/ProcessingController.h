@@ -290,10 +290,11 @@ private:
     mutable QMutex m_cancelMutex;  ///< 取消操作的互斥锁
     
     QSet<QString> m_pausedMessageIds;  ///< 已暂停的消息ID集合
-    bool m_globalPauseEnabled = false;   ///< 全局暂停标志（模式三使用）
+    bool m_globalPauseEnabled = false;   ///< 全局暂停标志（已废弃，保留兼容）
     qint64 m_lastPauseActionTime = 0;    ///< 上次暂停操作时间戳（防抖）
-    QList<QString> m_priorityResumeMessageIds;  ///< 优先恢复队列（模式0使用，当前消息完成后优先处理）
-    QString m_currentProcessingMessageId;  ///< 当前正在处理的消息ID（模式0使用，跟踪消息完成状态）
+    QList<QString> m_priorityResumeMessageIds;  ///< 优先恢复队列（模式0和模式2使用，当前消息完成后优先处理）
+    QString m_currentProcessingMessageId;  ///< 当前正在处理的消息ID（模式0和模式2使用，跟踪消息完成状态）
+    QSet<QString> m_activatedMessageIds;  ///< 已激活的消息ID集合（模式2使用，用户点击过"继续"的消息）
 
     enum class TaskLifecycle {
         Active,

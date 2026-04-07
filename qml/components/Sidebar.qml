@@ -103,62 +103,13 @@ Rectangle {
         color: Theme.colors.sidebarBorder
     }
     
-    Rectangle {
-        id: resizeHandle
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        anchors.right: parent.right
-        width: 6
-        color: "transparent"
-        
-        Rectangle {
-            anchors.centerIn: parent
-            width: 2
-            height: parent.height
-            color: resizeMouse.containsMouse || resizeMouse.pressed ? 
-                   Theme.colors.primary : "transparent"
-            opacity: resizeMouse.containsMouse || resizeMouse.pressed ? 0.8 : 0
-            
-            Behavior on opacity {
-                NumberAnimation { duration: 100 }
-            }
-        }
-        
-        MouseArea {
-            id: resizeMouse
-            anchors.fill: parent
-            anchors.leftMargin: -4
-            anchors.rightMargin: -2
-            hoverEnabled: true
-            cursorShape: Qt.SplitHCursor
-            preventStealing: true
-            
-            property real lastGlobalX: 0
-            
-            onPressed: function(mouse) {
-                var globalPos = mapToGlobal(mouse.x, mouse.y)
-                lastGlobalX = globalPos.x
-                root.resizeStarted()
-            }
-            
-            onReleased: {
-                root.resizeFinished()
-            }
-            
-            onPositionChanged: function(mouse) {
-                if (pressed) {
-                    var globalPos = mapToGlobal(mouse.x, mouse.y)
-                    var delta = globalPos.x - lastGlobalX
-                    lastGlobalX = globalPos.x
-                    root.resizeDelta(delta)
-                }
-            }
-        }
-    }
-    
     ColumnLayout {
+        id: mainLayout
         anchors.fill: parent
-        anchors.margins: 10
+        anchors.leftMargin: 10
+        anchors.rightMargin: 10
+        anchors.topMargin: 10
+        anchors.bottomMargin: 10
         spacing: 10
         
         RowLayout {

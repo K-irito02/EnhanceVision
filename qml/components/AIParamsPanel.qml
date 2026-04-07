@@ -15,12 +15,13 @@ import "../controls" as Controls
  * 3. 用户手动调节的值具有最高优先级，会覆盖自动推荐值
  * 4. 分块大小提供自动/手动双模式切换
  * 5. 使用 AIModelConfigStore 管理模型配置和参数状态，确保频繁切换时绑定稳定
+ * 6. 使用 UIStateController 持久化 UI 状态
  */
 ColumnLayout {
     id: root
 
-    property bool useGpu: false
-    property int tileSize: 0
+    property bool useGpu: UIStateController.aiUseGpu
+    property int tileSize: UIStateController.aiTileSize
     property var engine: processingController ? processingController.aiEngine : null
 
     property size currentMediaSize: Qt.size(0, 0)
@@ -34,7 +35,7 @@ ColumnLayout {
     readonly property var modelParams: AIModelConfigStore.currentModelParams
     readonly property string modelId: AIModelConfigStore.currentModelId
 
-    property bool autoTileMode: true
+    property bool autoTileMode: UIStateController.aiAutoTileMode
     property int computedAutoTileSize: 0
     property var _autoParams: ({})
 
@@ -354,7 +355,13 @@ ColumnLayout {
                 MouseArea {
                     id: _cpuMouseArea
                     anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                    onClicked: { if (root.useGpu) { root.useGpu = false; _onBackendChanged(); } }
+                    onClicked: {
+                        if (root.useGpu) {
+                            root.useGpu = false
+                            UIStateController.aiUseGpu = false
+                            _onBackendChanged()
+                        }
+                    }
                     hoverEnabled: true
                     onEntered: if (root.useGpu) _cpuCard.opacity = 0.85
                     onExited: _cpuCard.opacity = 1.0
@@ -493,7 +500,13 @@ ColumnLayout {
                     anchors.fill: parent
                     cursorShape: _deviceSection._gpuReady ? Qt.PointingHandCursor : Qt.ForbiddenCursor
                     enabled: _deviceSection._gpuReady
-                    onClicked: { if (!root.useGpu && _deviceSection._gpuReady) { root.useGpu = true; _onBackendChanged(); } }
+                    onClicked: {
+                        if (!root.useGpu && _deviceSection._gpuReady) {
+                            root.useGpu = true
+                            UIStateController.aiUseGpu = true
+                            _onBackendChanged()
+                        }
+                    }
                     hoverEnabled: true
                     onEntered: if (_deviceSection._gpuReady && !root.useGpu) _gpuCard.opacity = 0.9
                     onExited: if (_deviceSection._gpuReady) _gpuCard.opacity = 1.0
@@ -583,6 +596,7 @@ ColumnLayout {
                     anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         root.autoTileMode = !root.autoTileMode
+                        UIStateController.aiAutoTileMode = root.autoTileMode
                         if (root.autoTileMode) root.tileSize = 0
                         root.paramsChanged()
                     }
@@ -594,7 +608,11 @@ ColumnLayout {
             Layout.fillWidth: true; visible: !root.autoTileMode
             from: 64; to: 1024; stepSize: 64
             value: root.tileSize > 0 ? root.tileSize : 512
-            onMoved: { root.tileSize = value; root.paramsChanged() }
+            onMoved: {
+                root.tileSize = value
+                UIStateController.aiTileSize = value
+                root.paramsChanged()
+            }
         }
 
         Text {

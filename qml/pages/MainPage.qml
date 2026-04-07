@@ -6,6 +6,7 @@ import "../styles"
 import "../components"
 import "../controls"
 import "../utils"
+import EnhanceVision.Controllers
 
 /**
  * @brief 主页面组件
@@ -21,7 +22,7 @@ Rectangle {
     color: Theme.colors.background
 
     // ========== 属性定义 ==========
-    property int processingMode: 0  // 0: Shader, 1: AI
+    property int processingMode: UIStateController.processingMode  // 0: Shader, 1: AI
     property bool hasFiles: typeof fileModel !== "undefined" ? fileModel.count > 0 : pendingFilesModel.count > 0
     property bool hasMessages: typeof messageModel !== "undefined" ? messageModel.count > 0 : true
     property string currentSessionId: typeof sessionController !== "undefined" ? sessionController.activeSessionId : ""
@@ -429,7 +430,7 @@ Rectangle {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                root.processingMode = 0
+                                UIStateController.processingMode = 0
                                 root.expandControlPanel()
                             }
                         }
@@ -471,7 +472,7 @@ Rectangle {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                root.processingMode = 1
+                                UIStateController.processingMode = 1
                                 root.expandControlPanel()
                             }
                         }

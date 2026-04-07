@@ -70,7 +70,6 @@ Item {
         sequence: useMacShortcuts ? "Cmd+O" : "Ctrl+O"
         enabled: root.enabled && root.isOnMainPage
         onActivated: {
-            console.log("[ShortcutManager] Add files shortcut activated")
             root.addFilesRequested()
         }
     }
@@ -84,7 +83,6 @@ Item {
         sequence: useMacShortcuts ? "Cmd+N" : "Ctrl+N"
         enabled: root.enabled && root.isOnMainPage
         onActivated: {
-            console.log("[ShortcutManager] New session shortcut activated")
             root.newSessionRequested()
         }
     }

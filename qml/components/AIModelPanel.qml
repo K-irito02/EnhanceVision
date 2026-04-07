@@ -12,12 +12,13 @@ import "../controls"
  * 显示模型类别列表和每个类别下的可用模型，
  * 从 ModelRegistry 动态加载数据。
  * 使用 AIModelConfigStore 管理选中的模型状态。
+ * 使用 UIStateController 持久化 UI 状态。
  */
 ColumnLayout {
     id: root
 
     property string selectedModelId: AIModelConfigStore.currentModelId
-    property string selectedCategory: ""
+    property string selectedCategory: UIStateController.aiSelectedCategory
     property var registry: processingController ? processingController.modelRegistry : null
 
     signal modelSelected(string modelId, string category)
@@ -79,6 +80,7 @@ ColumnLayout {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         root.selectedCategory = modelData.id
+                        UIStateController.aiSelectedCategory = modelData.id
                         modelListView.model = registry.getModelsByCategoryStr(modelData.id)
                     }
                 }

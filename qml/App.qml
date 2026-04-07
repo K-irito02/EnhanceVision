@@ -18,14 +18,14 @@ FocusScope {
     id: root
     objectName: "AppRoot"
     
-    property bool sidebarExpanded: true
+    property bool sidebarExpanded: UIStateController.sidebarExpanded
     property bool controlPanelExpanded: true
-    property bool controlPanelCollapsed: false
+    property bool controlPanelCollapsed: UIStateController.controlPanelCollapsed
     property int currentPage: 0
-    property int processingMode: 0
+    property int processingMode: UIStateController.processingMode
     
     // 侧边栏宽度（可拖拽调整）
-    property int sidebarWidth: 200
+    property int sidebarWidth: UIStateController.sidebarWidth
     readonly property int sidebarMinWidth: 160
     readonly property int sidebarMaxWidth: 320
 
@@ -90,7 +90,10 @@ FocusScope {
             Layout.fillWidth: true
             Layout.preferredHeight: 48
 
-            onToggleSidebar: root.sidebarExpanded = !root.sidebarExpanded
+            onToggleSidebar: {
+                root.sidebarExpanded = !root.sidebarExpanded
+                UIStateController.sidebarExpanded = root.sidebarExpanded
+            }
             onToggleControlPanel: root.controlPanelExpanded = !root.controlPanelExpanded
             
             onToggleBrowseMode: {
@@ -98,6 +101,8 @@ FocusScope {
                 if (hasExpanded) {
                     root.sidebarExpanded = false
                     root.controlPanelCollapsed = true
+                    UIStateController.sidebarExpanded = false
+                    UIStateController.controlPanelCollapsed = true
                 }
             }
             
@@ -117,32 +122,13 @@ FocusScope {
             spacing: 0
 
             // ========== 侧边栏 ==========
-            Sidebar {
-                id: sidebar
-                visible: true
-                expanded: root.sidebarExpanded
-                Layout.preferredWidth: sidebarExpanded ? root.sidebarWidth : 0
+            Item {
+                id: sidebarContainer
+                Layout.preferredWidth: root.sidebarExpanded ? root.sidebarWidth : 0
                 Layout.fillHeight: true
-                Layout.maximumWidth: sidebarExpanded ? root.sidebarWidth : 0
-                Layout.minimumWidth: 0
-                clip: true
-                minWidth: root.sidebarMinWidth
-                maxWidth: root.sidebarMaxWidth
+                Layout.maximumWidth: root.sidebarExpanded ? root.sidebarMaxWidth : 0
+                Layout.minimumWidth: root.sidebarExpanded ? root.sidebarMinWidth : 0
                 
-                onResizeStarted: {
-                    sidebarAnimation.enabled = false
-                }
-                
-                onResizeFinished: {
-                    sidebarAnimation.enabled = true
-                }
-                
-                onResizeDelta: function(delta) {
-                    var newWidth = root.sidebarWidth + delta
-                    root.sidebarWidth = Math.max(root.sidebarMinWidth, 
-                                                 Math.min(root.sidebarMaxWidth, Math.round(newWidth)))
-                }
-
                 Behavior on Layout.preferredWidth {
                     id: sidebarAnimation
                     enabled: true
@@ -151,8 +137,35 @@ FocusScope {
                         easing.type: Easing.OutCubic
                     }
                 }
+                
+                Sidebar {
+                    id: sidebar
+                    anchors.fill: parent
+                    visible: true
+                    expanded: root.sidebarExpanded
+                    clip: true
+                    minWidth: root.sidebarMinWidth
+                    maxWidth: root.sidebarMaxWidth
+                    
+                    onResizeStarted: {
+                        sidebarAnimation.enabled = false
+                    }
+                    
+                    onResizeFinished: {
+                        sidebarAnimation.enabled = true
+                    }
+                    
+                    onResizeDelta: function(delta) {
+                        var newWidth = root.sidebarWidth + delta
+                        var clampedWidth = Math.max(root.sidebarMinWidth, 
+                                                   Math.min(root.sidebarMaxWidth, Math.round(newWidth)))
+                        root.sidebarWidth = clampedWidth
+                        UIStateController.sidebarWidth = clampedWidth
+                    }
+                }
+                
             }
-
+            
             // ========== 主页面容器 ==========
             StackLayout {
                 id: pageStack
@@ -163,9 +176,7 @@ FocusScope {
                 // 主页面
                 MainPage {
                     id: mainPage
-                    processingMode: root.processingMode
                     aiScaleFactor: root.aiScaleFactor
-                    onProcessingModeChanged: root.processingMode = processingMode
                     onExpandControlPanel: {
                         root.controlPanelCollapsed = false
                     }
@@ -317,13 +328,71 @@ FocusScope {
         anchors.fill: parent
         z: 9998
         acceptedButtons: Qt.LeftButton
+        propagateComposedEvents: true
         onPressed: function(mouse) {
             var focusObject = Window.window ? Window.window.activeFocusItem : null
             if (root._isInputItem(focusObject)) {
                 root.clearAllFocus()
-                mouse.accepted = true
-            } else {
-                mouse.accepted = false
+            }
+            mouse.accepted = false
+        }
+    }
+    
+    // ========== 侧边栏拖拽调整大小手柄 ==========
+    Rectangle {
+        id: sidebarResizeHandle
+        x: sidebarContainer.x + sidebarContainer.width - width
+        y: titleBar.height
+        width: 6
+        height: parent.height - titleBar.height
+        color: "transparent"
+        visible: root.sidebarExpanded
+        z: 10000
+        
+        Rectangle {
+            anchors.centerIn: parent
+            width: 2
+            height: parent.height
+            color: sidebarResizeMouse.containsMouse || sidebarResizeMouse.pressed ?
+                   Theme.colors.primary : "transparent"
+            opacity: sidebarResizeMouse.containsMouse || sidebarResizeMouse.pressed ? 0.8 : 0 
+
+            Behavior on opacity {
+                NumberAnimation { duration: 100 }
+            }
+        }
+        
+        MouseArea {
+            id: sidebarResizeMouse
+            anchors.fill: parent
+            anchors.leftMargin: -4
+            anchors.rightMargin: -2
+            hoverEnabled: true
+            cursorShape: Qt.SizeHorCursor
+            
+            property real lastGlobalX: 0
+            
+            onPressed: function(mouse) {
+                var globalPos = mapToGlobal(mouse.x, mouse.y)
+                lastGlobalX = globalPos.x
+                sidebar.resizeStarted()
+            }
+            
+            onReleased: {
+                sidebar.resizeFinished()
+            }
+            
+            onPositionChanged: function(mouse) {
+                if (pressed) {
+                    var globalPos = mapToGlobal(mouse.x, mouse.y)
+                    var delta = globalPos.x - lastGlobalX
+                    lastGlobalX = globalPos.x
+                    sidebar.resizeDelta(delta)
+                }
+            }
+            
+            onCanceled: {
+                sidebar.resizeFinished()
             }
         }
     }

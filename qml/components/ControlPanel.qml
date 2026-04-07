@@ -14,36 +14,47 @@ import EnhanceVision.Models
  * 提供处理模式选择、参数调节、队列管理和操作按钮
  * 支持收缩/展开功能
  * 使用 AIModelConfigStore 管理 AI 模型选择和参数状态
+ * 使用 UIStateController 持久化 UI 状态
  */
 Rectangle {
     id: root
 
-    property int processingMode: 0
-    property int displayMode: 0
+    property int processingMode: UIStateController.processingMode
+    // displayMode 是控制面板本地的显示模式，可以独立于 UIStateController.processingMode
+    // 当 UIStateController.processingMode 改变时，同步更新 displayMode
+    property int displayMode: UIStateController.processingMode
+    
+    // 监听 UIStateController.processingMode 变化，同步到 displayMode
+    Connections {
+        target: UIStateController
+        function onProcessingModeChanged() {
+            root.displayMode = UIStateController.processingMode
+        }
+    }
 
-    property real brightness: 0.0
-    property real contrast: 1.0
-    property real saturation: 1.0
-    property real hue: 0.0
-    property real sharpness: 0.0
-    property real blur: 0.0
-    property real denoise: 0.0
-    property real exposure: 0.0
-    property real gamma: 1.0
-    property real temperature: 0.0
-    property real tint: 0.0
-    property real vignette: 0.0
-    property real highlights: 0.0
-    property real shadows: 0.0
+    property real brightness: UIStateController.brightness
+    property real contrast: UIStateController.contrast
+    property real saturation: UIStateController.saturation
+    property real hue: UIStateController.hue
+    property real sharpness: UIStateController.sharpness
+    property real blur: UIStateController.blur
+    property real denoise: UIStateController.denoise
+    property real exposure: UIStateController.exposure
+    property real gamma: UIStateController.gamma
+    property real temperature: UIStateController.temperature
+    property real tint: UIStateController.tint
+    property real vignette: UIStateController.vignette
+    property real highlights: UIStateController.highlights
+    property real shadows: UIStateController.shadows
 
-    property string aiSelectedCategory: ""
+    property string aiSelectedCategory: UIStateController.aiSelectedCategory
     property alias aiUseGpu: aiParamsPanel.useGpu
     property alias aiTileSize: aiParamsPanel.tileSize
     readonly property int aiScaleFactor: AIModelConfigStore.currentModelInfo ? (AIModelConfigStore.currentModelInfo.scaleFactor || 1) : 1
     property alias aiCurrentMediaSize: aiParamsPanel.currentMediaSize
     property alias aiCurrentMediaIsVideo: aiParamsPanel.currentMediaIsVideo
     function getAIParams() { return aiParamsPanel.getParams() }
-    property bool collapsed: false
+    property bool collapsed: UIStateController.controlPanelCollapsed
     
     readonly property bool hasShaderModifications: {
         return Math.abs(brightness) > 0.001 ||
@@ -64,15 +75,6 @@ Rectangle {
 
     // ========== 信号 ==========
     signal collapseToggleRequested()
-
-    // ========== 属性监听 ==========
-    onProcessingModeChanged: {
-        displayMode = processingMode
-    }
-
-    Component.onCompleted: {
-        displayMode = processingMode
-    }
 
     // ========== 属性定义 ==========
     property bool isAnyEditing: false
@@ -121,7 +123,10 @@ Rectangle {
                 iconSize: 16
                 btnSize: 28
                 tooltip: qsTr("展开控制面板")
-                onClicked: root.collapseToggleRequested()
+                onClicked: {
+                    UIStateController.controlPanelCollapsed = false
+                    root.collapseToggleRequested()
+                }
             }
 
             // 展开状态：显示模式按钮
@@ -163,7 +168,8 @@ Rectangle {
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: displayMode = 0
+                        // 右侧控制面板按钮只更新本地 displayMode，不影响 UIStateController
+                        onClicked: root.displayMode = 0
                     }
 
                     Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
@@ -202,7 +208,8 @@ Rectangle {
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: displayMode = 1
+                        // 右侧控制面板按钮只更新本地 displayMode，不影响 UIStateController
+                        onClicked: root.displayMode = 1
                     }
 
                     Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
@@ -216,7 +223,10 @@ Rectangle {
                     iconSize: 14
                     btnSize: 28
                     tooltip: qsTr("收缩控制面板")
-                    onClicked: root.collapseToggleRequested()
+                    onClicked: {
+                        UIStateController.controlPanelCollapsed = true
+                        root.collapseToggleRequested()
+                    }
                 }
             }
         }

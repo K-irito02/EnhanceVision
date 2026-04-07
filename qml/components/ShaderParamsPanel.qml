@@ -6,33 +6,34 @@ import QtQuick.Window
 import "../styles"
 import "../controls"
 import EnhanceVision.Utils
+import EnhanceVision.Controllers
 
 ColumnLayout {
     id: root
 
-    property real brightness: 0.0
-    property real contrast: 1.0
-    property real saturation: 1.0
-    property real hue: 0.0
-    property real sharpness: 0.0
-    property real blur: 0.0
-    property real denoise: 0.0
-    property real exposure: 0.0
-    property real gamma: 1.0
-    property real temperature: 0.0
-    property real tint: 0.0
-    property real vignette: 0.0
-    property real highlights: 0.0
-    property real shadows: 0.0
+    property real brightness: UIStateController.brightness
+    property real contrast: UIStateController.contrast
+    property real saturation: UIStateController.saturation
+    property real hue: UIStateController.hue
+    property real sharpness: UIStateController.sharpness
+    property real blur: UIStateController.blur
+    property real denoise: UIStateController.denoise
+    property real exposure: UIStateController.exposure
+    property real gamma: UIStateController.gamma
+    property real temperature: UIStateController.temperature
+    property real tint: UIStateController.tint
+    property real vignette: UIStateController.vignette
+    property real highlights: UIStateController.highlights
+    property real shadows: UIStateController.shadows
 
-    property var customCategories: []
-    property var customPresets: []
+    property var customCategories: UIStateController.getCustomCategories()
+    property var customPresets: UIStateController.getCustomPresets()
 
     signal paramChanged(string name, real value)
 
     spacing: 6
 
-    property string selectedCategory: "all"
+    property string selectedCategory: UIStateController.shaderSelectedCategory
     property var builtinCategories: ["basic", "tone", "vintage", "cinema", "bw", "scene", "art", "social"]
     property var categoryNames: ({
         "all": qsTr("全部"),
@@ -54,6 +55,26 @@ ColumnLayout {
 
     property var currentPreset: null
     property string currentPresetName: ""
+
+    // 统一的参数更新函数，同时更新 UIStateController
+    function updateParam(name, value) {
+        if (name === "brightness") UIStateController.brightness = value
+        else if (name === "contrast") UIStateController.contrast = value
+        else if (name === "saturation") UIStateController.saturation = value
+        else if (name === "hue") UIStateController.hue = value
+        else if (name === "sharpness") UIStateController.sharpness = value
+        else if (name === "blur") UIStateController.blur = value
+        else if (name === "denoise") UIStateController.denoise = value
+        else if (name === "exposure") UIStateController.exposure = value
+        else if (name === "gamma") UIStateController.gamma = value
+        else if (name === "temperature") UIStateController.temperature = value
+        else if (name === "tint") UIStateController.tint = value
+        else if (name === "vignette") UIStateController.vignette = value
+        else if (name === "highlights") UIStateController.highlights = value
+        else if (name === "shadows") UIStateController.shadows = value
+        
+        root.paramChanged(name, value)
+    }
 
     function isCurrentPresetActive() {
         if (!currentPreset) return false
@@ -1822,7 +1843,7 @@ ColumnLayout {
                     decimals: 2
                     onParamValueChanged: function(newValue) {
                         root.brightness = newValue
-                        root.paramChanged("brightness", newValue)
+                        root.updateParam("brightness", newValue)
                     }
                 }
 
@@ -1836,7 +1857,7 @@ ColumnLayout {
                     decimals: 2
                     onParamValueChanged: function(newValue) {
                         root.contrast = newValue
-                        root.paramChanged("contrast", newValue)
+                        root.updateParam("contrast", newValue)
                     }
                 }
 
@@ -1850,7 +1871,7 @@ ColumnLayout {
                     decimals: 2
                     onParamValueChanged: function(newValue) {
                         root.saturation = newValue
-                        root.paramChanged("saturation", newValue)
+                        root.updateParam("saturation", newValue)
                     }
                 }
 
@@ -1864,7 +1885,7 @@ ColumnLayout {
                     decimals: 2
                     onParamValueChanged: function(newValue) {
                         root.hue = newValue
-                        root.paramChanged("hue", newValue)
+                        root.updateParam("hue", newValue)
                     }
                 }
 
@@ -1900,10 +1921,10 @@ ColumnLayout {
                                 contrast = 1.0
                                 saturation = 1.0
                                 hue = 0.0
-                                root.paramChanged("brightness", 0.0)
-                                root.paramChanged("contrast", 1.0)
-                                root.paramChanged("saturation", 1.0)
-                                root.paramChanged("hue", 0.0)
+                                root.updateParam("brightness", 0.0)
+                                root.updateParam("contrast", 1.0)
+                                root.updateParam("saturation", 1.0)
+                                root.updateParam("hue", 0.0)
                             }
                         }
                     }
@@ -1931,7 +1952,7 @@ ColumnLayout {
                     decimals: 2
                     onParamValueChanged: function(newValue) {
                         root.sharpness = newValue
-                        root.paramChanged("sharpness", newValue)
+                        root.updateParam("sharpness", newValue)
                     }
                 }
 
@@ -1945,7 +1966,7 @@ ColumnLayout {
                     decimals: 2
                     onParamValueChanged: function(newValue) {
                         root.blur = newValue
-                        root.paramChanged("blur", newValue)
+                        root.updateParam("blur", newValue)
                     }
                 }
 
@@ -1959,7 +1980,7 @@ ColumnLayout {
                     decimals: 2
                     onParamValueChanged: function(newValue) {
                         root.denoise = newValue
-                        root.paramChanged("denoise", newValue)
+                        root.updateParam("denoise", newValue)
                     }
                 }
 
@@ -1994,9 +2015,9 @@ ColumnLayout {
                                 sharpness = 0.0
                                 blur = 0.0
                                 denoise = 0.0
-                                root.paramChanged("sharpness", 0.0)
-                                root.paramChanged("blur", 0.0)
-                                root.paramChanged("denoise", 0.0)
+                                root.updateParam("sharpness", 0.0)
+                                root.updateParam("blur", 0.0)
+                                root.updateParam("denoise", 0.0)
                             }
                         }
                     }
@@ -2024,7 +2045,7 @@ ColumnLayout {
                     decimals: 2
                     onParamValueChanged: function(newValue) {
                         root.exposure = newValue
-                        root.paramChanged("exposure", newValue)
+                        root.updateParam("exposure", newValue)
                     }
                 }
 
@@ -2038,7 +2059,7 @@ ColumnLayout {
                     decimals: 2
                     onParamValueChanged: function(newValue) {
                         root.gamma = newValue
-                        root.paramChanged("gamma", newValue)
+                        root.updateParam("gamma", newValue)
                     }
                 }
 
@@ -2052,7 +2073,7 @@ ColumnLayout {
                     decimals: 2
                     onParamValueChanged: function(newValue) {
                         root.highlights = newValue
-                        root.paramChanged("highlights", newValue)
+                        root.updateParam("highlights", newValue)
                     }
                 }
 
@@ -2066,7 +2087,7 @@ ColumnLayout {
                     decimals: 2
                     onParamValueChanged: function(newValue) {
                         root.shadows = newValue
-                        root.paramChanged("shadows", newValue)
+                        root.updateParam("shadows", newValue)
                     }
                 }
 
@@ -2102,10 +2123,10 @@ ColumnLayout {
                                 gamma = 1.0
                                 highlights = 0.0
                                 shadows = 0.0
-                                root.paramChanged("exposure", 0.0)
-                                root.paramChanged("gamma", 1.0)
-                                root.paramChanged("highlights", 0.0)
-                                root.paramChanged("shadows", 0.0)
+                                root.updateParam("exposure", 0.0)
+                                root.updateParam("gamma", 1.0)
+                                root.updateParam("highlights", 0.0)
+                                root.updateParam("shadows", 0.0)
                             }
                         }
                     }
@@ -2133,7 +2154,7 @@ ColumnLayout {
                     decimals: 2
                     onParamValueChanged: function(newValue) {
                         root.temperature = newValue
-                        root.paramChanged("temperature", newValue)
+                        root.updateParam("temperature", newValue)
                     }
                 }
 
@@ -2147,7 +2168,7 @@ ColumnLayout {
                     decimals: 2
                     onParamValueChanged: function(newValue) {
                         root.tint = newValue
-                        root.paramChanged("tint", newValue)
+                        root.updateParam("tint", newValue)
                     }
                 }
 
@@ -2161,7 +2182,7 @@ ColumnLayout {
                     decimals: 2
                     onParamValueChanged: function(newValue) {
                         root.vignette = newValue
-                        root.paramChanged("vignette", newValue)
+                        root.updateParam("vignette", newValue)
                     }
                 }
 
@@ -2196,9 +2217,9 @@ ColumnLayout {
                                 temperature = 0.0
                                 tint = 0.0
                                 vignette = 0.0
-                                root.paramChanged("temperature", 0.0)
-                                root.paramChanged("tint", 0.0)
-                                root.paramChanged("vignette", 0.0)
+                                root.updateParam("temperature", 0.0)
+                                root.updateParam("tint", 0.0)
+                                root.updateParam("vignette", 0.0)
                             }
                         }
                     }
@@ -2235,20 +2256,20 @@ ColumnLayout {
         var newHighlights = preset.highlights !== undefined ? preset.highlights : 0.0
         var newShadows = preset.shadows !== undefined ? preset.shadows : 0.0
         
-        root.paramChanged("brightness", newBrightness)
-        root.paramChanged("contrast", newContrast)
-        root.paramChanged("saturation", newSaturation)
-        root.paramChanged("hue", newHue)
-        root.paramChanged("sharpness", newSharpness)
-        root.paramChanged("blur", newBlur)
-        root.paramChanged("denoise", newDenoise)
-        root.paramChanged("exposure", newExposure)
-        root.paramChanged("gamma", newGamma)
-        root.paramChanged("temperature", newTemperature)
-        root.paramChanged("tint", newTint)
-        root.paramChanged("vignette", newVignette)
-        root.paramChanged("highlights", newHighlights)
-        root.paramChanged("shadows", newShadows)
+        root.updateParam("brightness", newBrightness)
+        root.updateParam("contrast", newContrast)
+        root.updateParam("saturation", newSaturation)
+        root.updateParam("hue", newHue)
+        root.updateParam("sharpness", newSharpness)
+        root.updateParam("blur", newBlur)
+        root.updateParam("denoise", newDenoise)
+        root.updateParam("exposure", newExposure)
+        root.updateParam("gamma", newGamma)
+        root.updateParam("temperature", newTemperature)
+        root.updateParam("tint", newTint)
+        root.updateParam("vignette", newVignette)
+        root.updateParam("highlights", newHighlights)
+        root.updateParam("shadows", newShadows)
         
         brightness = newBrightness
         contrast = newContrast
@@ -2284,6 +2305,22 @@ ColumnLayout {
         vignette = 0.0
         highlights = 0.0
         shadows = 0.0
+        
+        // 重置所有参数到 UIStateController
+        UIStateController.brightness = 0.0
+        UIStateController.contrast = 1.0
+        UIStateController.saturation = 1.0
+        UIStateController.hue = 0.0
+        UIStateController.sharpness = 0.0
+        UIStateController.blur = 0.0
+        UIStateController.denoise = 0.0
+        UIStateController.exposure = 0.0
+        UIStateController.gamma = 1.0
+        UIStateController.temperature = 0.0
+        UIStateController.tint = 0.0
+        UIStateController.vignette = 0.0
+        UIStateController.highlights = 0.0
+        UIStateController.shadows = 0.0
     }
 }
 

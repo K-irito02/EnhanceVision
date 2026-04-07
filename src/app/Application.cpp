@@ -13,6 +13,7 @@
 #include "EnhanceVision/controllers/FileController.h"
 #include "EnhanceVision/controllers/SessionController.h"
 #include "EnhanceVision/controllers/ProcessingController.h"
+#include "EnhanceVision/controllers/UIStateController.h"
 #include "EnhanceVision/services/ImageExportService.h"
 #include "EnhanceVision/services/AutoSaveService.h"
 #include "EnhanceVision/providers/PreviewProvider.h"
@@ -230,6 +231,9 @@ void Application::initialize()
 
     AutoSaveService::instance()->initialize();
 
+    // 初始化 UIStateController
+    UIStateController::instance();
+
     m_sessionController->loadSessions();
     m_sessionController->restoreThumbnails();
     
@@ -310,6 +314,12 @@ void Application::registerQmlTypes()
     qmlRegisterSingletonType<SettingsController>("EnhanceVision.Controllers", 1, 0, "SettingsController",
         [](QQmlEngine*, QJSEngine*) -> QObject* {
             return SettingsController::instance();
+        });
+
+    // 注册 UIStateController 为单例
+    qmlRegisterSingletonType<UIStateController>("EnhanceVision.Controllers", 1, 0, "UIStateController",
+        [](QQmlEngine*, QJSEngine*) -> QObject* {
+            return UIStateController::instance();
         });
 
     // 注册其他控制器类型

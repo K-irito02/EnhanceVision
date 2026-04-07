@@ -66,7 +66,6 @@ Rectangle {
             if (totalSec > 0) {
                 actualTotalSecChanged(totalSec)
             }
-            console.log("[MessageItem] Total time calculated:", totalSec, "elapsedSec:", elapsedSec)
         }
     }
 
