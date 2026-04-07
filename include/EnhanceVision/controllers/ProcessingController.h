@@ -292,6 +292,8 @@ private:
     QSet<QString> m_pausedMessageIds;  ///< 已暂停的消息ID集合
     bool m_globalPauseEnabled = false;   ///< 全局暂停标志（模式三使用）
     qint64 m_lastPauseActionTime = 0;    ///< 上次暂停操作时间戳（防抖）
+    QList<QString> m_priorityResumeMessageIds;  ///< 优先恢复队列（模式0使用，当前消息完成后优先处理）
+    QString m_currentProcessingMessageId;  ///< 当前正在处理的消息ID（模式0使用，跟踪消息完成状态）
 
     enum class TaskLifecycle {
         Active,
