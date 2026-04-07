@@ -556,12 +556,11 @@ void ProcessingController::processNextTask()
     bool waitingForCurrentMessage = false;
     
     if ((pauseMode == 0 || pauseMode == 2) && !m_priorityResumeMessageIds.isEmpty()) {
-        // 如果当前消息还有待处理任务，优先恢复队列中的消息需要等待
-        // 除非正在处理的就是优先队列中的消息
-        if (!m_currentProcessingMessageId.isEmpty() && 
-            !m_priorityResumeMessageIds.contains(m_currentProcessingMessageId)) {
-            // 当前消息还有待处理任务，优先队列需要等待整个消息完成
-            qInfo() << "[ProcessingController] Mode" << pauseMode << ": Priority queue waiting, current message has pending tasks:" 
+        // 如果当前消息还有待处理任务，必须先完成当前消息
+        // 即使优先队列中有其他消息，也要等待当前消息完成
+        if (!m_currentProcessingMessageId.isEmpty() && currentMessageHasPendingTasks) {
+            // 当前消息还有待处理任务，必须先完成当前消息
+            qInfo() << "[ProcessingController] Mode" << pauseMode << ": Current message has pending tasks, continue processing:" 
                     << m_currentProcessingMessageId;
             // 设置等待标志，后面的循环会只处理当前消息的任务
             waitingForCurrentMessage = true;

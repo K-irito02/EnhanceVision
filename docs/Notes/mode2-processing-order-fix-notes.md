@@ -103,10 +103,29 @@ if (m_priorityResumeMessageIds.isEmpty() && !m_activatedMessageIds.isEmpty()) {
 | 激活A、B、C | 处理顺序A→B→C | ✅ 通过 |
 | 激活A、B、C，暂停A后恢复 | A处理完后继续处理后续消息 | ✅ 通过 |
 | 暂停后恢复的消息添加到队列末尾 | 不会插队 | ✅ 通过 |
+| A暂停→B处理→恢复A | B的所有文件完成后才处理A | ✅ 通过 |
 
 ---
 
-## 六、清理工作
+## 六、补充修复（2026-04-07）
+
+### 问题3：恢复A后，B处理一个文件就切换到A
+- **现象**：A暂停后恢复，B处理完一个文件后就开始处理A，而不是等B全部完成
+- **原因**：`processNextTask()` 中的等待逻辑检查条件不正确，没有正确判断当前消息是否还有待处理任务
+- **修复**：修改条件为 `!m_currentProcessingMessageId.isEmpty() && currentMessageHasPendingTasks`
+
+```cpp
+// 修复前：检查当前消息是否在优先队列中
+if (!m_currentProcessingMessageId.isEmpty() && 
+    !m_priorityResumeMessageIds.contains(m_currentProcessingMessageId))
+
+// 修复后：检查当前消息是否还有待处理任务
+if (!m_currentProcessingMessageId.isEmpty() && currentMessageHasPendingTasks)
+```
+
+---
+
+## 七、清理工作
 
 - 删除了任务级别的冗余调试日志
 - 保留了消息级别的关键日志
