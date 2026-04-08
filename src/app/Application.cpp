@@ -33,6 +33,7 @@
 #include <QQuickWindow>
 #include <QWindow>
 #include <QEvent>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QVector>
 #include <QPointer>
@@ -45,6 +46,34 @@
 namespace EnhanceVision {
 
 namespace {
+
+bool isEnglishLanguage(const QString& language)
+{
+    const QString lower = language.toLower();
+    return lower.startsWith(QStringLiteral("en"));
+}
+
+QString languageBase(const QString& language)
+{
+    const int separatorIndex = language.indexOf(QLatin1Char('_'));
+    if (separatorIndex > 0) {
+        return language.left(separatorIndex);
+    }
+    return language;
+}
+
+QStringList uniqueStringList(const QStringList& list)
+{
+    QStringList result;
+    result.reserve(list.size());
+    for (const QString& value : list) {
+        if (value.isEmpty() || result.contains(value)) {
+            continue;
+        }
+        result.append(value);
+    }
+    return result;
+}
 
 class FrameTimeProbe final : public QObject
 {
@@ -198,7 +227,7 @@ Application::~Application()
 
 void Application::initialize()
 {
-    m_mainWidget->setWindowFlags(Qt::FramelessWindowHint);
+    m_mainWidget->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
 
     QQmlEngine *engine = m_mainWidget->engine();
     engine->addImageProvider(QStringLiteral("preview"), new PreviewProvider());
@@ -243,9 +272,6 @@ void Application::initialize()
 
     if (auto* quickWindow = m_mainWidget->quickWindow()) {
         new FrameTimeProbe(quickWindow, m_mainWidget);
-        qInfo() << "[Perf][Frame] probe attached";
-    } else {
-        qWarning() << "[Perf][Frame] probe attach failed: quickWindow is null";
     }
 
     if (m_mainWidget->status() == QQuickWidget::Error) {
@@ -265,6 +291,8 @@ void Application::show()
 {
     m_mainWidget->resize(1280, 720);
     m_mainWidget->show();
+    m_mainWidget->raise();
+    m_mainWidget->activateWindow();
     m_mainWindowEverShown = true;
 }
 
@@ -402,13 +430,43 @@ bool Application::switchTranslator(const QString& language)
     QString qmFile = QString(":/i18n/app_%1.qm").arg(language);
     if (m_translator->load(qmFile)) {
         QCoreApplication::installTranslator(m_translator.data());
+    } else {
+        qWarning() << "[Application] Failed to load app translator:" << qmFile;
     }
 
     m_qtTranslator.reset(new QTranslator);
-    QString qtQmFile = QString("qtbase_%1").arg(language);
-    QString qtTranslationsPath = QLibraryInfo::path(QLibraryInfo::TranslationsPath);
-    if (m_qtTranslator->load(qtQmFile, qtTranslationsPath)) {
-        QCoreApplication::installTranslator(m_qtTranslator.data());
+    if (!isEnglishLanguage(language)) {
+        const QString base = languageBase(language);
+        const QStringList candidates = uniqueStringList({
+            QStringLiteral("qtbase_%1").arg(language),
+            QStringLiteral("qt_%1").arg(language),
+            QStringLiteral("qtbase_%1").arg(base),
+            QStringLiteral("qt_%1").arg(base)
+        });
+        const QStringList searchPaths = uniqueStringList({
+            QDir::cleanPath(QCoreApplication::applicationDirPath() + QStringLiteral("/translations")),
+            QLibraryInfo::path(QLibraryInfo::TranslationsPath)
+        });
+
+        bool loaded = false;
+        for (const QString& path : searchPaths) {
+            for (const QString& candidate : candidates) {
+                if (m_qtTranslator->load(candidate, path)) {
+                    loaded = true;
+                    break;
+                }
+            }
+            if (loaded) {
+                break;
+            }
+        }
+
+        if (loaded) {
+            QCoreApplication::installTranslator(m_qtTranslator.data());
+        } else {
+            qWarning() << "[Application] Failed to load Qt translator for language:"
+                       << language << "candidates:" << candidates << "paths:" << searchPaths;
+        }
     }
 
     return true;

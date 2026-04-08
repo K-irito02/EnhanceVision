@@ -23,6 +23,9 @@ Rectangle {
     signal navigateToHome()
     signal newSession()
     
+    // ========== 属性 ==========
+    property bool controlPanelCollapsed: false
+    
     // ========== 视觉属性 ==========
     color: Theme.colors.titleBar
     height: 48
@@ -136,6 +139,14 @@ Rectangle {
                 iconSize: 16
                 tooltip: qsTr("展开/收缩会话栏")
                 onClicked: root.toggleSidebar()
+            }
+            
+            // 控制面板切换
+            IconButton {
+                iconName: "panel-right"
+                iconSize: 16
+                tooltip: root.controlPanelCollapsed ? qsTr("展开控制面板") : qsTr("收缩控制面板")
+                onClicked: root.toggleControlPanel()
             }
             
             // 分隔线

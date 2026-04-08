@@ -637,9 +637,9 @@ Rectangle {
                             ComboBox {
                                 model: [qsTr("简体中文"), "English"]
                                 currentIndex: SettingsController.language === "zh_CN" ? 0 : 1
-                                onCurrentIndexChanged: {
+                                onActivated: function(index) {
+                                    currentIndex = index
                                     var lang = currentIndex === 0 ? "zh_CN" : "en_US"
-                                    SettingsController.language = lang
                                     Theme.setLanguage(lang)
                                 }
                             }

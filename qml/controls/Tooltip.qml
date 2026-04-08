@@ -11,6 +11,11 @@ Popup {
     property int arrowSize: 5
     property int tooltipOffset: 8
     property int tooltipPadding: 4
+    property int minWidth: 0
+    property int maxWidth: Theme.tooltip.maxWidth
+    property int textMaximumLineCount: 3
+    property int textElideMode: Text.ElideRight
+    property int textHorizontalAlignment: Text.AlignHCenter
 
     property color backgroundColor: Theme.colors.tooltip
     property color textColor: Theme.colors.tooltipForeground
@@ -24,7 +29,10 @@ Popup {
     modal: false
     dim: false
 
-    implicitWidth: textLabel.implicitWidth + tooltipPadding * 2
+    readonly property int availableTooltipWidth: Overlay.overlay ? Math.max(120, Overlay.overlay.width - 20) : maxWidth
+    implicitWidth: Math.max(minWidth,
+                            Math.min(textLabel.implicitWidth + tooltipPadding * 2,
+                                     Math.min(maxWidth, availableTooltipWidth)))
     implicitHeight: textLabel.implicitHeight + tooltipPadding * 2
 
     background: Canvas {
@@ -86,10 +94,12 @@ Popup {
         color: root.textColor
         font.pixelSize: 11
         font.weight: Font.Medium
-        horizontalAlignment: Text.AlignHCenter
+        wrapMode: Text.WordWrap
+        maximumLineCount: root.textMaximumLineCount
+        elide: root.textElideMode
+        horizontalAlignment: root.textHorizontalAlignment
         verticalAlignment: Text.AlignVCenter
-        width: root.implicitWidth
-        height: root.implicitHeight
+        width: Math.max(0, root.implicitWidth - root.tooltipPadding * 2)
         anchors.centerIn: parent
         anchors.verticalCenterOffset: arrowCanvas.arrowDirection === "up" ? root.arrowSize / 2 + 2 : -root.arrowSize / 2 + 2
     }

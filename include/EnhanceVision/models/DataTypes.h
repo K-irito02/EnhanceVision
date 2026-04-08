@@ -277,6 +277,8 @@ struct Message {
     qint64 elapsedSec;             ///< 已用时间（秒），由 TimeManager 更新
     qint64 remainingSec;           ///< 剩余时间（秒），由 TimeManager 更新
     bool isOvertime;               ///< 是否超时
+    bool failedTipDismissed;       ///< 失败警告提示是否已被手动关闭
+    bool errorTipDismissed;        ///< 错误提示是否已被手动关闭
 
     Message()
         : mode(ProcessingMode::Shader)
@@ -290,6 +292,8 @@ struct Message {
         , elapsedSec(0)
         , remainingSec(0)
         , isOvertime(false)
+        , failedTipDismissed(false)
+        , errorTipDismissed(false)
     {}
 };
 

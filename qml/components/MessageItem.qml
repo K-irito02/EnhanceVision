@@ -41,6 +41,9 @@ Rectangle {
     property real persistedActualTotalSec: 0
     // 从模型读取的持久化处理开始时间（用于会话切换后恢复进度）
     property double persistedProcessingStartTime: 0
+    // 从模型读取的提示关闭状态（用于重启后恢复）
+    property bool persistedFailedTipDismissed: false
+    property bool persistedErrorTipDismissed: false
 
     // 标记是否已开始处理（避免进度条倒走）
     property bool _hasStartedProcessing: persistedProcessingStartTime > 0 || _processingStartTime > 0
@@ -90,6 +93,14 @@ Rectangle {
     property bool allFilesSettled: totalFileCount > 0 && pendingFileCount === 0 && processingFileCount === 0 && pausedFileCount === 0 && recoverableFileCount === 0
     property bool allFilesPending: totalFileCount > 0 && pendingFileCount === totalFileCount
     property bool failedTipDismissed: false
+    property bool errorTipDismissed: false
+
+    onPersistedFailedTipDismissedChanged: {
+        failedTipDismissed = persistedFailedTipDismissed
+    }
+    onPersistedErrorTipDismissedChanged: {
+        errorTipDismissed = persistedErrorTipDismissed
+    }
     
     // 状态变化时显式控制动画
     onStatusChanged: {
@@ -113,6 +124,45 @@ Rectangle {
         } else {
             waitingAnimation.stop()
         }
+    }
+
+    function _formatCompactDuration(seconds) {
+        var s = Math.max(0, Math.round(seconds))
+        if (s >= 3600) return qsTr("%1h%2m").arg(Math.floor(s / 3600)).arg(Math.floor((s % 3600) / 60))
+        if (s >= 60) return qsTr("%1m%2s").arg(Math.floor(s / 60)).arg(s % 60)
+        return qsTr("%1s").arg(s)
+    }
+
+    function _formatEstimatedDuration(seconds) {
+        return qsTr("预估: %1").arg(_formatCompactDuration(seconds))
+    }
+
+    function _formatElapsedDuration(seconds, paused) {
+        var prefix = paused ? qsTr("暂停于: ") : qsTr("已耗时: ")
+        return prefix + _formatCompactDuration(seconds)
+    }
+
+    function _formatTotalDuration(seconds) {
+        if (seconds < 1) return qsTr("总耗时: <1s")
+        return qsTr("总耗时: %1").arg(_formatCompactDuration(seconds))
+    }
+
+    function _localizedErrorMessage(rawError) {
+        if (!rawError || rawError.length === 0) return ""
+
+        var lower = rawError.toLowerCase()
+        if (rawError.indexOf("应用关闭导致任务中断") !== -1 || lower.indexOf("app was closed") !== -1) {
+            return qsTr("应用关闭导致任务中断，未执行恢复")
+        }
+        if (rawError.indexOf("恢复快照不可用") !== -1 || lower.indexOf("recovery snapshot") !== -1) {
+            return qsTr("恢复快照不可用，未完成任务已标记为失败")
+        }
+        return rawError
+    }
+
+    function _syncTipDismissState() {
+        if (typeof messageModel === "undefined" || !taskId || taskId.length === 0) return
+        messageModel.updateTipDismissState(taskId, failedTipDismissed, errorTipDismissed)
     }
     
     signal cancelClicked()
@@ -172,7 +222,10 @@ Rectangle {
         _hasStatsSnapshot = true
 
         if (failed === 0 || pending > 0 || processing > 0 || recoverableFileCount > 0) {
-            failedTipDismissed = false
+            if (failedTipDismissed) {
+                failedTipDismissed = false
+                _syncTipDismissState()
+            }
         }
     }
 
@@ -285,7 +338,7 @@ Rectangle {
         }
     }
     
-    readonly property string modeText: mode === 0 ? "Shader" : "AI"
+    readonly property string modeText: mode === 0 ? qsTr("Shader") : qsTr("AI")
     readonly property string modeIconName: mode === 0 ? "sliders" : "sparkles"
     
     MouseArea {
@@ -496,6 +549,7 @@ Rectangle {
                     onClicked: {
                         // 手动关闭单条提示仍可用；当状态再次变化时会自动重新评估显示
                         root.failedTipDismissed = true
+                        root._syncTipDismissState()
                     }
                 }
             }
@@ -520,6 +574,8 @@ Rectangle {
                     }
                     color: root.isRecoverable ? Theme.colors.primary : (root.isPaused ? Theme.colors.warning : Theme.colors.foreground)
                     font.pixelSize: 12
+                    elide: Text.ElideRight
+                    Layout.maximumWidth: Math.max(100, root.width * 0.28)
                 }
 
                 // 处理中显示文件进度
@@ -528,52 +584,50 @@ Rectangle {
                     text: qsTr("(%1/%2)").arg(root.completedCount).arg(root.totalFileCount)
                     color: Theme.colors.mutedForeground
                     font.pixelSize: 11
+                    elide: Text.ElideRight
+                    Layout.maximumWidth: Math.max(60, root.width * 0.18)
                 }
 
                 Item { Layout.fillWidth: true }
 
-                // 时间显示区域
-                RowLayout {
-                    spacing: 6
+                // 时间显示区域，右侧紧凑成组，避免被拉得过开
+                Item {
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                    implicitWidth: timeInfoRow.implicitWidth
 
-                    // 预测总时间
-                    Text {
-                        visible: root.predictedTotalSec > 0
-                        text: {
-                            var s = Math.round(root.predictedTotalSec)
-                            if (s >= 3600) return qsTr("预估: %1h%2m").arg(Math.floor(s/3600)).arg(Math.floor((s%3600)/60))
-                            if (s >= 60) return qsTr("预估: %1m%2s").arg(Math.floor(s/60)).arg(s%60)
-                            return qsTr("预估: %1s").arg(s)
+                    Row {
+                        id: timeInfoRow
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 6
+
+                        Text {
+                            visible: root.predictedTotalSec > 0
+                            text: root._formatEstimatedDuration(root.predictedTotalSec)
+                            color: Theme.colors.mutedForeground
+                            font.pixelSize: 10
+                            width: visible ? Math.min(96, parent.parent.width * 0.42) : 0
+                            elide: Text.ElideRight
                         }
-                        color: Theme.colors.mutedForeground
-                        font.pixelSize: 10
-                    }
 
-                    // 分隔符
-                    Text {
-                        visible: status === 1 && root.predictedTotalSec > 0
-                        text: "|"
-                        color: Theme.colors.border
-                        font.pixelSize: 10
-                    }
-
-                    // 已耗时（正向计时，处理中或暂停时显示）
-                    Text {
-                        visible: (status === 1 || root.isPaused) && root.elapsedSec > 0
-                        text: {
-                            var s = Math.round(root.elapsedSec)
-                            // 暂停时显示"暂停于"前缀
-                            var prefix = root.isPaused ? qsTr("暂停于: ") : qsTr("已耗时: ")
-                            if (s >= 3600) return prefix + qsTr("%1h%2m").arg(Math.floor(s/3600)).arg(Math.floor((s%3600)/60))
-                            if (s >= 60) return prefix + qsTr("%1m%2s").arg(Math.floor(s/60)).arg(s%60)
-                            return prefix + qsTr("%1s").arg(s)
+                        Text {
+                            visible: (status === 1 || root.isPaused) && root.elapsedSec > 0 && root.predictedTotalSec > 0
+                            text: "|"
+                            color: Theme.colors.border
+                            font.pixelSize: 10
                         }
-                        // 暂停时显示警告色，否则显示主色
-                        color: root.isPaused ? Theme.colors.warning : Theme.colors.primary
-                        font.pixelSize: 11
-                        font.weight: Font.DemiBold
-                    }
 
+                        Text {
+                            visible: (status === 1 || root.isPaused) && root.elapsedSec > 0
+                            text: root._formatElapsedDuration(root.elapsedSec, root.isPaused)
+                            color: root.isPaused ? Theme.colors.warning : Theme.colors.primary
+                            font.pixelSize: 11
+                            font.weight: Font.DemiBold
+                            width: visible ? Math.min(112, parent.parent.width * 0.48) : 0
+                            elide: Text.ElideRight
+                        }
+                    }
                 }
             }
 
@@ -730,6 +784,8 @@ Rectangle {
                 text: qsTr("%1 个文件").arg(root.totalFileCount)
                 color: Theme.colors.mutedForeground
                 font.pixelSize: 11
+                elide: Text.ElideRight
+                Layout.maximumWidth: Math.max(70, root.width * 0.2)
             }
 
             // 完成后显示实际总耗时（放在文件统计右侧）
@@ -739,41 +795,66 @@ Rectangle {
                 // 【修复】只有在真正处理完成后才显示总耗时
                 // 条件：(已开始处理 且 所有文件已结算 且 有耗时数据) 或 有持久化的耗时数据
                 visible: (root._hasStartedProcessing && root.allFilesSettled && displayTotalSec > 0) || root.persistedActualTotalSec > 0
-                text: {
-                    var s = displayTotalSec
-                    if (s < 1) return qsTr("总耗时: <1s")
-                    var sInt = Math.round(s)
-                    if (sInt >= 3600) return qsTr("总耗时: %1h%2m%3s").arg(Math.floor(sInt/3600)).arg(Math.floor((sInt%3600)/60)).arg(sInt%60)
-                    if (sInt >= 60) return qsTr("总耗时: %1m%2s").arg(Math.floor(sInt/60)).arg(sInt%60)
-                    return qsTr("总耗时: %1s").arg(sInt)
-                }
+                text: root._formatTotalDuration(displayTotalSec)
                 // 使用蓝色
                 color: "#4a9eff"
                 font.pixelSize: 11
                 font.weight: Font.DemiBold
+                elide: Text.ElideRight
+                Layout.maximumWidth: Math.max(85, root.width * 0.26)
             }
         }
         
         Rectangle {
-            visible: status === 3 && errorMessage !== ""
+            visible: status === 3 && errorMessage !== "" && !root.errorTipDismissed
             Layout.fillWidth: true
-            height: errorText.implicitHeight + 12
+            height: Math.max(36, errorRow.implicitHeight + 12)
             radius: Theme.radius.sm
             color: Theme.colors.destructiveSubtle
-            
-            Text {
-                id: errorText
-                anchors.fill: parent
-                anchors.margins: 6
-                text: errorMessage
-                color: Theme.colors.destructive
-                font.pixelSize: 11
-                wrapMode: Text.Wrap
+
+            Row {
+                id: errorRow
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: 6
+                anchors.rightMargin: 6
+                spacing: 6
+
+                Text {
+                    id: errorText
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - errorCloseBtn.width - parent.spacing
+                    text: root._localizedErrorMessage(errorMessage)
+                    color: Theme.colors.destructive
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                }
+
+                IconButton {
+                    id: errorCloseBtn
+                    anchors.verticalCenter: parent.verticalCenter
+                    iconName: "x"
+                    iconSize: 14
+                    btnSize: 24
+                    tooltip: qsTr("关闭提示")
+                    background: Rectangle {
+                        anchors.fill: parent
+                        radius: Theme.radius.sm
+                        color: parent.hovered ? Qt.rgba(Theme.colors.destructive.r, Theme.colors.destructive.g, Theme.colors.destructive.b, 0.18) : "transparent"
+                    }
+                    onClicked: {
+                        root.errorTipDismissed = true
+                        root._syncTipDismissState()
+                    }
+                }
             }
         }
     }
     
     Component.onCompleted: {
+        failedTipDismissed = persistedFailedTipDismissed
+        errorTipDismissed = persistedErrorTipDismissed
         _updateBreathAnimation()
         _updateWaitingAnimation()
     }

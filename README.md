@@ -143,7 +143,7 @@ cmake --build build/msvc2022/Release --config Release -j 8
 
 ## 开发规范
 
-详见 `.trae/rules/` 目录：
+详见 `.agents/rules/` 目录：
 
 | 文件 | 内容 |
 |------|------|
@@ -157,6 +157,15 @@ cmake --build build/msvc2022/Release --config Release -j 8
 | `08-ui-design.md` | UI 设计规范 |
 | `09-shader-standards.md` | GLSL Shader 规范 |
 | `10-skills-and-tools.md` | 技能和工具指南 |
+
+## 日志与国际化排障
+
+- 运行日志：`logs/runtime_output.log`
+- 若出现语言切换告警，优先检查：
+1. `resources/i18n/app_*.qm` 是否生成并打包
+2. `build/.../translations/qt_*.qm` 是否存在
+3. Qt 翻译加载是否按“应用目录 translations -> Qt 安装 translations”回退
+- 英文环境允许不加载 Qt 基础翻译，避免无效告警刷屏
 
 ## 许可证
 

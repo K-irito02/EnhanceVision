@@ -19,6 +19,17 @@ Popup {
     property int arrowSize: 6
     property int tooltipOffset: 8
     property int tooltipPadding: 10
+    property int maxWidth: 360
+    property int rowLeftMargin: 6
+    property int rowRightMargin: 6
+    property int rowSpacing: 10
+    property int labelMinWidth: 52
+    property real labelMaxRatio: 0.34
+    property real valueMaxRatio: 0.66
+    property bool wrapValueText: false
+    property int valueMaximumLineCount: 0
+    property int valueElideMode: Text.ElideNone
+    property int valueHorizontalAlignment: Text.AlignLeft
 
     property color backgroundColor: Theme.colors.tooltip
     property color textColor: Theme.colors.tooltipForeground
@@ -34,7 +45,8 @@ Popup {
     modal: false
     dim: false
 
-    implicitWidth: contentColumn.implicitWidth + tooltipPadding * 2
+    readonly property int availableTooltipWidth: Overlay.overlay ? Math.max(220, Overlay.overlay.width - 20) : maxWidth
+    implicitWidth: Math.min(contentColumn.implicitWidth + tooltipPadding * 2, Math.min(maxWidth, availableTooltipWidth))
     implicitHeight: contentColumn.implicitHeight + tooltipPadding * 2
 
     background: Canvas {
@@ -92,7 +104,7 @@ Popup {
 
     contentItem: ColumnLayout {
         id: contentColumn
-        width: root.implicitWidth
+        width: Math.max(0, root.implicitWidth - root.tooltipPadding * 2)
         anchors.centerIn: parent
         anchors.verticalCenterOffset: arrowCanvas.arrowDirection === "up" ? root.arrowSize / 2 : -root.arrowSize / 2
         spacing: 4
@@ -124,10 +136,10 @@ Popup {
             model: root.contentModel
 
             RowLayout {
-                spacing: 16
+                spacing: root.rowSpacing
                 Layout.fillWidth: true
-                Layout.leftMargin: 6
-                Layout.rightMargin: 6
+                Layout.leftMargin: root.rowLeftMargin
+                Layout.rightMargin: root.rowRightMargin
 
                 Text {
                     text: modelData.label || ""
@@ -135,9 +147,10 @@ Popup {
                     font.pixelSize: 10
                     font.weight: Font.Medium
                     Layout.alignment: Qt.AlignLeft
+                    Layout.preferredWidth: Math.max(root.labelMinWidth, root.implicitWidth * root.labelMaxRatio)
+                    Layout.maximumWidth: Math.max(root.labelMinWidth, root.implicitWidth * root.labelMaxRatio)
+                    elide: Text.ElideRight
                 }
-
-                Item { Layout.fillWidth: true; Layout.minimumWidth: 12 }
 
                 Text {
                     text: modelData.value || ""
@@ -145,7 +158,13 @@ Popup {
                     color: "#4a9eff"
                     font.pixelSize: 10
                     font.weight: Font.Bold
-                    Layout.alignment: Qt.AlignRight
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignLeft
+                    Layout.maximumWidth: Math.max(90, root.implicitWidth * root.valueMaxRatio)
+                    wrapMode: root.wrapValueText ? Text.WordWrap : Text.NoWrap
+                    maximumLineCount: root.valueMaximumLineCount
+                    elide: root.valueElideMode
+                    horizontalAlignment: root.valueHorizontalAlignment
                 }
             }
         }
@@ -170,7 +189,7 @@ Popup {
             Layout.leftMargin: 10
             Layout.rightMargin: 6
             Layout.topMargin: -2
-            Layout.maximumWidth: 200
+            Layout.maximumWidth: Math.max(140, root.implicitWidth - 16)
             horizontalAlignment: Text.AlignLeft
         }
     }

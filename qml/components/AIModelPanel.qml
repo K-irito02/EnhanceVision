@@ -219,6 +219,7 @@ ColumnLayout {
     // ========== 模型性能提示 ==========
     RichTooltip {
         id: perfTooltip
+        valueHorizontalAlignment: Text.AlignRight
     }
 
     Timer {

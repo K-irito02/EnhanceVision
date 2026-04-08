@@ -167,6 +167,10 @@ QVariant MessageModel::data(const QModelIndex &index, int role) const
         return message.remainingSec;
     case IsOvertimeRole:
         return message.isOvertime;
+    case FailedTipDismissedRole:
+        return message.failedTipDismissed;
+    case ErrorTipDismissedRole:
+        return message.errorTipDismissed;
     default:
         return QVariant();
     }
@@ -197,6 +201,8 @@ QHash<int, QByteArray> MessageModel::roleNames() const
     roles[ElapsedSecRole] = "elapsedSec";
     roles[RemainingSecRole] = "remainingSec";
     roles[IsOvertimeRole] = "isOvertime";
+    roles[FailedTipDismissedRole] = "failedTipDismissed";
+    roles[ErrorTipDismissedRole] = "errorTipDismissed";
     return roles;
 }
 
@@ -290,9 +296,13 @@ void MessageModel::updateErrorMessage(const QString &messageId, const QString &e
         return;
     }
 
+    const bool errorChanged = (m_messages[index].errorMessage != errorMessage);
     m_messages[index].errorMessage = errorMessage;
+    if (errorChanged && !errorMessage.isEmpty()) {
+        m_messages[index].errorTipDismissed = false;
+    }
     QModelIndex modelIndex = createIndex(index, 0);
-    emit dataChanged(modelIndex, modelIndex, {ErrorMessageRole});
+    emit dataChanged(modelIndex, modelIndex, {ErrorMessageRole, ErrorTipDismissedRole});
 }
 
 void MessageModel::updateActualTotalSec(const QString &messageId, qint64 totalSec)
@@ -349,6 +359,26 @@ void MessageModel::updatePredictedTotalSec(const QString &messageId, qint64 pred
     m_messages[index].predictedTotalSec = predictedTotalSec;
     QModelIndex modelIndex = createIndex(index, 0);
     emit dataChanged(modelIndex, modelIndex, {PredictedTotalSecRole});
+}
+
+void MessageModel::updateTipDismissState(const QString &messageId, bool failedDismissed, bool errorDismissed)
+{
+    int index = findMessageIndex(messageId);
+    if (index < 0) {
+        return;
+    }
+
+    Message &msg = m_messages[index];
+    if (msg.failedTipDismissed == failedDismissed && msg.errorTipDismissed == errorDismissed) {
+        return;
+    }
+
+    msg.failedTipDismissed = failedDismissed;
+    msg.errorTipDismissed = errorDismissed;
+
+    QModelIndex modelIndex = createIndex(index, 0);
+    emit dataChanged(modelIndex, modelIndex, {FailedTipDismissedRole, ErrorTipDismissedRole});
+    emit tipDismissStateUpdated(messageId, failedDismissed, errorDismissed);
 }
 
 bool MessageModel::removeMessage(const QString &messageId)
@@ -521,6 +551,8 @@ void MessageModel::setMessages(const QList<Message>& messages)
             a.isSelected != b.isSelected ||
             a.progress != b.progress ||
             a.queuePosition != b.queuePosition ||
+            a.failedTipDismissed != b.failedTipDismissed ||
+            a.errorTipDismissed != b.errorTipDismissed ||
             a.mediaFiles.size() != b.mediaFiles.size()) {
             return false;
         }

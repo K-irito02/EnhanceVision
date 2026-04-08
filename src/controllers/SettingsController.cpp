@@ -102,6 +102,7 @@ QString SettingsController::language() const
 void SettingsController::setLanguage(const QString& language)
 {
     if (m_language != language) {
+        qInfo() << "[SettingsController] Language changed:" << m_language << "->" << language;
         m_language = language;
         emit languageChanged();
         emit settingsChanged();

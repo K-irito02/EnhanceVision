@@ -22,7 +22,6 @@ namespace EnhanceVision {
 namespace {
 
 constexpr int kRecoverySnapshotVersion = 1;
-const QString kRecoveryFailureMessage = QStringLiteral("应用关闭导致任务中断，未执行恢复");
 
 QString runIntentToString(RecoveryRunIntent intent)
 {
@@ -653,7 +652,7 @@ void TaskRecoveryController::resolveRestorePreviousState()
     }
 
     if (!m_restoreAvailable || !m_processingController || !m_processingController->restoreFromRecoverySnapshot(m_snapshot)) {
-        failRecoverableTasks(QStringLiteral("恢复快照不可用，未完成任务已标记为失败"));
+        failRecoverableTasks(tr("恢复快照不可用，未完成任务已标记为失败"));
         return;
     }
 
@@ -679,7 +678,7 @@ void TaskRecoveryController::resolveFailAllRecoverableTasks()
     if (!m_hasPendingRecovery) {
         return;
     }
-    failRecoverableTasks(kRecoveryFailureMessage);
+    failRecoverableTasks(tr("应用关闭导致任务中断，未执行恢复"));
 }
 
 void TaskRecoveryController::scheduleSnapshotSync()

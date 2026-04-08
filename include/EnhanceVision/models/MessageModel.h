@@ -48,7 +48,9 @@ public:
         PredictedTotalSecRole,
         ElapsedSecRole,
         RemainingSecRole,
-        IsOvertimeRole
+        IsOvertimeRole,
+        FailedTipDismissedRole,
+        ErrorTipDismissedRole
     };
 
     explicit MessageModel(QObject *parent = nullptr);
@@ -117,6 +119,7 @@ public:
      * @param predictedTotalSec 预测总时间（秒）
      */
     Q_INVOKABLE void updatePredictedTotalSec(const QString &messageId, qint64 predictedTotalSec);
+    Q_INVOKABLE void updateTipDismissState(const QString &messageId, bool failedDismissed, bool errorDismissed);
 
     /**
      * @brief 删除消息
@@ -343,6 +346,7 @@ signals:
      * @param totalSec 实际总耗时（秒）
      */
     void actualTotalSecUpdated(const QString &messageId, qint64 totalSec);
+    void tipDismissStateUpdated(const QString &messageId, bool failedDismissed, bool errorDismissed);
 
 public slots:
     /**

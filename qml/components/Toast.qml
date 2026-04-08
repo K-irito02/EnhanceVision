@@ -172,8 +172,8 @@ Item {
     Rectangle {
         id: toastRect
         anchors.horizontalCenter: parent.horizontalCenter
-        width: Math.min(420, toastRow.implicitWidth + 40)
-        height: 48
+        width: Math.min(520, toastRow.implicitWidth + 40)
+        height: Math.max(48, toastText.implicitHeight + 24)
         radius: Theme.radius.xl
         color: backgroundColor
 
@@ -195,14 +195,16 @@ Item {
 
             // 消息文本
             Text {
+                id: toastText
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignVCenter
                 text: message
                 font.pixelSize: 13
                 font.weight: Font.Medium
                 color: Theme.colors.textOnPrimary
+                wrapMode: Text.WordWrap
+                maximumLineCount: 2
                 elide: Text.ElideRight
-                maximumLineCount: 1
             }
 
             // 关闭按钮

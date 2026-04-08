@@ -6,8 +6,7 @@ QtObject {
     id: root
 
     property bool isDark: true
-
-    property string language: "zh_CN"
+    readonly property string language: SettingsController.language
 
     function toggle() {
         isDark = !isDark
@@ -21,17 +20,14 @@ QtObject {
 
     function toggleLanguage() {
         var newLang = (language === "zh_CN") ? "en_US" : "zh_CN"
-        language = newLang
         SettingsController.language = newLang
     }
 
     function setLanguage(lang) {
-        language = lang
         SettingsController.language = lang
     }
 
     Component.onCompleted: {
-        language = SettingsController.language
         isDark = (SettingsController.theme === "dark")
     }
 

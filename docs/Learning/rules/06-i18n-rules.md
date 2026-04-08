@@ -22,3 +22,16 @@
 
 - 切换后界面文本实时生效
 - 不允许“部分翻译/部分未翻译”状态
+
+## Qt 翻译加载顺序
+
+- 业务翻译：`:/i18n/app_*.qm`
+- Qt 基础翻译优先 `applicationDirPath()/translations`
+- 若未命中，回退 `QLibraryInfo::TranslationsPath`
+- 候选名按顺序回退：`qtbase_xx_YY` -> `qt_xx_YY` -> `qtbase_xx` -> `qt_xx`
+- 英文环境可跳过 Qt 基础翻译加载，避免无效告警
+
+## 日志要求
+
+- 翻译切换禁止冗余成功日志刷屏
+- 只在实际加载失败且影响可见语种时打印 `WARN`

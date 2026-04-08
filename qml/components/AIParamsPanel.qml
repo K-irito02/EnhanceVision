@@ -368,14 +368,24 @@ ColumnLayout {
                 }
                 Behavior on opacity { NumberAnimation { duration: Theme.animation.fast } }
 
-                Tooltip {
+                RichTooltip {
                     id: _cpuTooltip
-                    text: {
-                        var isEn = (Theme.language === "en_US")
-                        return isEn
-                            ? "CPU Inference: Uses processor for AI computation.\nPros: Compatible with all hardware, stable, controllable memory.\nCons: Slower processing, longer time for large images and videos."
-                            : "CPU 推理模式：使用处理器进行 AI 计算。\n优点：兼容所有硬件，稳定性高，内存占用可控。\n缺点：处理速度较慢，大图和视频耗时较长。"
-                    }
+                    title: qsTr("CPU 推理模式")
+                    maxWidth: Theme.language === "en_US" ? 380 : 340
+                    rowLeftMargin: Theme.language === "en_US" ? 8 : 10
+                    rowRightMargin: Theme.language === "en_US" ? 8 : 10
+                    rowSpacing: Theme.language === "en_US" ? 6 : 6
+                    labelMinWidth: Theme.language === "en_US" ? 56 : 44
+                    labelMaxRatio: Theme.language === "en_US" ? 0.22 : 0.18
+                    valueMaxRatio: Theme.language === "en_US" ? 0.76 : 0.78
+                    wrapValueText: true
+                    valueMaximumLineCount: 0
+                    valueElideMode: Text.ElideNone
+                    contentModel: [
+                        { label: qsTr("说明"), value: qsTr("使用处理器进行 AI 计算") },
+                        { label: qsTr("优点"), value: qsTr("兼容所有硬件，稳定，内存占用可控") },
+                        { label: qsTr("缺点"), value: qsTr("处理速度较慢，大图和视频耗时较长") }
+                    ]
                 }
 
                 Timer {
@@ -512,14 +522,24 @@ ColumnLayout {
                     onExited: if (_deviceSection._gpuReady) _gpuCard.opacity = 1.0
                 }
 
-                Tooltip {
+                RichTooltip {
                     id: _gpuTooltip
-                    text: {
-                        var isEn = (Theme.language === "en_US")
-                        return isEn
-                            ? "GPU Inference: Uses GPU for AI acceleration.\nPros: Fast processing, ideal for large images and videos.\nCons: High VRAM usage, incompatible with some devices."
-                            : "GPU 推理模式：使用显卡进行 AI 加速。\n优点：处理速度快，适合大图和视频处理。\n缺点：显存占用高，部分设备不兼容。"
-                    }
+                    title: qsTr("GPU 推理模式")
+                    maxWidth: Theme.language === "en_US" ? 380 : 340
+                    rowLeftMargin: Theme.language === "en_US" ? 8 : 10
+                    rowRightMargin: Theme.language === "en_US" ? 8 : 10
+                    rowSpacing: Theme.language === "en_US" ? 6 : 6
+                    labelMinWidth: Theme.language === "en_US" ? 56 : 44
+                    labelMaxRatio: Theme.language === "en_US" ? 0.22 : 0.18
+                    valueMaxRatio: Theme.language === "en_US" ? 0.76 : 0.78
+                    wrapValueText: true
+                    valueMaximumLineCount: 0
+                    valueElideMode: Text.ElideNone
+                    contentModel: [
+                        { label: qsTr("说明"), value: qsTr("使用显卡进行 AI 加速") },
+                        { label: qsTr("优点"), value: qsTr("处理速度快，适合大图和视频处理") },
+                        { label: qsTr("缺点"), value: qsTr("显存占用高，部分设备不兼容") }
+                    ]
                 }
 
                 Timer {

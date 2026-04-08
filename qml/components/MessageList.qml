@@ -121,6 +121,8 @@ Item {
             progress: model.progress !== undefined ? model.progress : 0.0
             queuePosition: model.queuePosition !== undefined ? model.queuePosition : 0
             errorMessage: model.errorMessage || ""
+            persistedFailedTipDismissed: model.failedTipDismissed !== undefined ? model.failedTipDismissed : false
+            persistedErrorTipDismissed: model.errorTipDismissed !== undefined ? model.errorTipDismissed : false
             selectable: batchMode
             
             // 暂停模式相关属性

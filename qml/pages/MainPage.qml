@@ -395,10 +395,11 @@ Rectangle {
                 // ========== 模式选择 ==========
                 RowLayout {
                     spacing: 4
+                    readonly property int modeButtonWidth: 84
                     
                     // Shader 模式按钮
                     Rectangle {
-                        width: shaderRow.implicitWidth + 16
+                        width: parent.modeButtonWidth
                         height: 36
                         radius: Theme.radius.md
                         color: root.processingMode === 0 ? Theme.colors.primary : "transparent"
@@ -419,19 +420,50 @@ Rectangle {
                             
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "Shader"
+                                text: qsTr("Shader")
                                 font.pixelSize: 13
                                 font.weight: Font.DemiBold
                                 color: root.processingMode === 0 ? "#FFFFFF" : Theme.colors.foreground
+                                elide: Text.ElideRight
                             }
                         }
                         
                         MouseArea {
+                            id: shaderModeMouseArea
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
+                            hoverEnabled: true
                             onClicked: {
                                 UIStateController.processingMode = 0
                                 root.expandControlPanel()
+                            }
+                        }
+
+                        Tooltip {
+                            id: shaderModeTooltip
+                            text: qsTr("切换到 Shader 模式")
+                        }
+
+                        Timer {
+                            id: shaderModeTooltipTimer
+                            interval: Theme.tooltip.delay
+                            repeat: false
+                            onTriggered: {
+                                if (shaderModeMouseArea.containsMouse) {
+                                    shaderModeTooltip.show(shaderModeMouseArea)
+                                }
+                            }
+                        }
+
+                        Connections {
+                            target: shaderModeMouseArea
+                            function onContainsMouseChanged() {
+                                if (shaderModeMouseArea.containsMouse) {
+                                    shaderModeTooltipTimer.start()
+                                } else {
+                                    shaderModeTooltipTimer.stop()
+                                    shaderModeTooltip.close()
+                                }
                             }
                         }
                         
@@ -440,12 +472,13 @@ Rectangle {
                     
                     // AI 模式按钮
                     Rectangle {
-                        width: aiRow.implicitWidth + 16
+                        width: parent.modeButtonWidth
                         height: 36
                         radius: Theme.radius.md
                         color: root.processingMode === 1 ? Theme.colors.primary : "transparent"
                         border.width: root.processingMode === 1 ? 0 : 1
                         border.color: Theme.colors.border
+                        clip: true
                         
                         Row {
                             id: aiRow
@@ -460,20 +493,53 @@ Rectangle {
                             }
                             
                             Text {
+                                id: aiModeText
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: qsTr("AI推理")
                                 font.pixelSize: 13
                                 font.weight: Font.DemiBold
                                 color: root.processingMode === 1 ? "#FFFFFF" : Theme.colors.foreground
+                                width: parent.parent.width - 16 - 14 - parent.spacing
+                                elide: Text.ElideRight
                             }
                         }
                         
                         MouseArea {
+                            id: aiModeMouseArea
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
+                            hoverEnabled: true
                             onClicked: {
                                 UIStateController.processingMode = 1
                                 root.expandControlPanel()
+                            }
+                        }
+
+                        Tooltip {
+                            id: aiModeTooltip
+                            text: qsTr("切换到 AI 推理模式")
+                        }
+
+                        Timer {
+                            id: aiModeTooltipTimer
+                            interval: Theme.tooltip.delay
+                            repeat: false
+                            onTriggered: {
+                                if (aiModeMouseArea.containsMouse) {
+                                    aiModeTooltip.show(aiModeMouseArea)
+                                }
+                            }
+                        }
+
+                        Connections {
+                            target: aiModeMouseArea
+                            function onContainsMouseChanged() {
+                                if (aiModeMouseArea.containsMouse) {
+                                    aiModeTooltipTimer.start()
+                                } else {
+                                    aiModeTooltipTimer.stop()
+                                    aiModeTooltip.close()
+                                }
                             }
                         }
                         

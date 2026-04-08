@@ -415,9 +415,11 @@ Item {
                         }
                         
                         Text {
-                            text: model.messageCount + (Theme.language === "zh_CN" ? " 条消息" : " messages")
+                            text: qsTr("%1 条消息").arg(model.messageCount)
                             color: delegateRoot.isActive ? Qt.rgba(1,1,1,0.8) : Theme.colors.mutedForeground
                             font.pixelSize: 11
+                            elide: Text.ElideRight
+                            Layout.maximumWidth: Math.max(72, root.width * 0.26)
                         }
                     }
                 }

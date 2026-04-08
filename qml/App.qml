@@ -90,12 +90,16 @@ FocusScope {
             id: titleBar
             Layout.fillWidth: true
             Layout.preferredHeight: 48
+            controlPanelCollapsed: root.controlPanelCollapsed
 
             onToggleSidebar: {
                 root.sidebarExpanded = !root.sidebarExpanded
                 UIStateController.sidebarExpanded = root.sidebarExpanded
             }
-            onToggleControlPanel: root.controlPanelExpanded = !root.controlPanelExpanded
+            onToggleControlPanel: {
+                root.controlPanelCollapsed = !root.controlPanelCollapsed
+                UIStateController.controlPanelCollapsed = root.controlPanelCollapsed
+            }
             
             onToggleBrowseMode: {
                 var hasExpanded = root.sidebarExpanded || !root.controlPanelCollapsed

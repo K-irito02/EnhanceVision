@@ -119,6 +119,7 @@ void SessionController::setMessageModel(MessageModel* model)
     if (m_messageModel) {
         disconnect(m_messageModel, &MessageModel::countChanged, this, nullptr);
         disconnect(m_messageModel, &MessageModel::actualTotalSecUpdated, this, nullptr);
+        disconnect(m_messageModel, &MessageModel::tipDismissStateUpdated, this, nullptr);
     }
     
     m_messageModel = model;
@@ -131,6 +132,13 @@ void SessionController::setMessageModel(MessageModel* model)
             Q_UNUSED(totalSec)
             syncCurrentMessagesToSession();
             saveSessions();
+        });
+        connect(m_messageModel, &MessageModel::tipDismissStateUpdated, this, [this](const QString &messageId, bool failedDismissed, bool errorDismissed) {
+            Q_UNUSED(messageId)
+            Q_UNUSED(failedDismissed)
+            Q_UNUSED(errorDismissed)
+            syncCurrentMessagesToSession();
+            saveSessionsImmediately();
         });
         // 设置 ProcessingTimeManager 的 MessageModel 引用
         if (m_processingTimeManager) {
@@ -960,6 +968,8 @@ QJsonObject SessionController::messageToJson(const Message& message) const
     json["elapsedSec"] = message.elapsedSec;
     json["remainingSec"] = message.remainingSec;
     json["isOvertime"] = message.isOvertime;
+    json["failedTipDismissed"] = message.failedTipDismissed;
+    json["errorTipDismissed"] = message.errorTipDismissed;
     
     return json;
 }
@@ -1004,6 +1014,8 @@ Message SessionController::jsonToMessage(const QJsonObject& json) const
     message.elapsedSec = json["elapsedSec"].toVariant().toLongLong();
     message.remainingSec = json["remainingSec"].toVariant().toLongLong();
     message.isOvertime = json["isOvertime"].toBool(false);
+    message.failedTipDismissed = json["failedTipDismissed"].toBool(false);
+    message.errorTipDismissed = json["errorTipDismissed"].toBool(false);
     
     return message;
 }

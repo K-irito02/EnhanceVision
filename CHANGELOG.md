@@ -18,6 +18,13 @@
   - Prediction parameters reduced by ~9x based on user feedback (predicted 9min, actual 1min)
 
 ### Fixed
+- **运行日志与国际化告警治理**：修复语言切换时 Qt 基础翻译加载持续告警
+  - Qt 翻译加载支持候选名回退：`qtbase_xx_YY` -> `qt_xx_YY` -> `qtbase_xx` -> `qt_xx`
+  - Qt 翻译加载路径支持回退：应用目录 `translations` -> `QLibraryInfo::TranslationsPath`
+  - 英文环境跳过 Qt 基础翻译加载，避免无效告警
+  - 清理翻译切换与帧探针相关冗余日志
+- **消息卡片提示持久化修复**：手动关闭警告/错误提示后立即落盘，重启不再回弹
+- **CPU/GPU Tooltip 显示修复**：中英文内容改为完整多行展示，优化对齐与宽度自适应
 - **队列继续处理问题修复**：修复模式0（单任务暂停）下暂停第一个任务后队列没有继续处理其他任务的问题
   - 根据暂停模式调整跳过逻辑，模式0下只跳过状态为 Paused 的任务
   - 在模式0下暂停任务时同时释放 AI 引擎和资源
