@@ -40,6 +40,21 @@ public:
     void updateBatch(int completedItems, const QString& subStage = QString());
     void endBatch();
     
+    /**
+     * @brief 暂停进度报告（锁定当前状态）
+     */
+    void pause();
+    
+    /**
+     * @brief 恢复进度报告
+     */
+    void resume();
+    
+    /**
+     * @brief 检查是否暂停
+     */
+    bool isPaused() const;
+    
     int totalSteps() const;
     int currentStep() const;
     QString subStage() const;
@@ -82,6 +97,9 @@ private:
     std::atomic<int> m_batchTotal{0};
     std::atomic<int> m_batchCompleted{0};
     std::atomic<bool> m_batchMode{false};
+    std::atomic<bool> m_isPaused{false};       ///< 暂停状态
+    std::atomic<qint64> m_pauseStartMs{0};     ///< 暂停开始时间
+    std::atomic<qint64> m_totalPausedMs{0};    ///< 总暂停时长
 
     static constexpr double kMaxJumpDelta = 0.10;
     static constexpr qint64 kSmoothIntervalMs = 50;

@@ -548,20 +548,19 @@ Rectangle {
                         font.pixelSize: 10
                     }
 
-                    // 剩余时间（处理中时显示，支持负数表示超时）
+                    // 已耗时（正向计时，处理中或暂停时显示）
                     Text {
-                        visible: status === 1 && root.predictedTotalSec > 0
+                        visible: (status === 1 || root.isPaused) && root.elapsedSec > 0
                         text: {
-                            var s = Math.round(root.remainingSec)
-                            var isOvertime = s < 0
-                            var absS = Math.abs(s)
-                            var prefix = isOvertime ? qsTr("超时: +") : qsTr("剩余: ")
-                            if (absS >= 3600) return prefix + qsTr("%1h%2m").arg(Math.floor(absS/3600)).arg(Math.floor((absS%3600)/60))
-                            if (absS >= 60) return prefix + qsTr("%1m%2s").arg(Math.floor(absS/60)).arg(absS%60)
-                            return prefix + qsTr("%1s").arg(absS)
+                            var s = Math.round(root.elapsedSec)
+                            // 暂停时显示"暂停于"前缀
+                            var prefix = root.isPaused ? qsTr("暂停于: ") : qsTr("已耗时: ")
+                            if (s >= 3600) return prefix + qsTr("%1h%2m").arg(Math.floor(s/3600)).arg(Math.floor((s%3600)/60))
+                            if (s >= 60) return prefix + qsTr("%1m%2s").arg(Math.floor(s/60)).arg(s%60)
+                            return prefix + qsTr("%1s").arg(s)
                         }
-                        // 超时时显示警告色，否则显示主色
-                        color: root.remainingSec < 0 ? Theme.colors.warning : Theme.colors.primary
+                        // 暂停时显示警告色，否则显示主色
+                        color: root.isPaused ? Theme.colors.warning : Theme.colors.primary
                         font.pixelSize: 11
                         font.weight: Font.DemiBold
                     }

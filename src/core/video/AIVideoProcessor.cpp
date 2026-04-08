@@ -220,10 +220,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
     m_impl->lastProgressEmitMs.store(0);
     setProcessing(true);
     
-    qInfo() << "[AIVideoProcessor][DEBUG] processInternal started:"
-            << "input:" << inputPath
-            << "output:" << outputPath
-            << "threadId:" << QThread::currentThreadId();
+    qInfo() << "[AIVideoProcessor] Processing video:" << inputPath << "to" << outputPath;
     
     if (m_progressReporter) {
         m_progressReporter->reset();
@@ -247,8 +244,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
             return;
         }
         
-        qInfo() << "[AIVideoProcessor][DEBUG] AI engine ready:"
-                << "modelId:" << m_impl->aiEngine->currentModelId();
+        qInfo() << "[AIVideoProcessor] AI engine ready, model:" << m_impl->aiEngine->currentModelId();
     }
     
     VideoResourceGuard guard;
@@ -265,7 +261,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
     
     // 早期取消检测
     if (m_impl->cancelled.load()) {
-        qInfo() << "[AIVideoProcessor][DEBUG] Cancelled before input initialization";
+        qInfo() << "[AIVideoProcessor] Cancelled before input initialization";
         setProcessing(false);
         emitCompleted(false, QString(), tr("Video processing cancelled"));
         return;
@@ -279,10 +275,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
     // 调试信息：输出视频基本信息
     auto* inputFmtCtx = guard.inputFormatContext();
     if (inputFmtCtx) {
-        qInfo() << "[AIVideoProcessor][DEBUG] Input video info:"
-                << "path:" << inputPath
-                << "streams:" << inputFmtCtx->nb_streams
-                << "duration:" << inputFmtCtx->duration / AV_TIME_BASE << "s";
+        qInfo() << "[AIVideoProcessor] Input video info: streams=" << inputFmtCtx->nb_streams << ", duration=" << inputFmtCtx->duration / AV_TIME_BASE << "s";
     }
     
     VideoCompatibilityAnalyzer compatibilityAnalyzer;
@@ -330,14 +323,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
     }
     
     // 调试信息：输出解码器和尺寸信息
-    qInfo() << "[AIVideoProcessor][DEBUG] Decoder info:"
-            << "srcSize:" << srcW << "x" << srcH
-            << "scale:" << scale
-            << "outSize:" << outW << "x" << outH
-            << "pixFmt:" << decCtx->pix_fmt
-            << "codecId:" << decCtx->codec_id
-            << "modelId:" << m_impl->modelInfo.id
-            << "tileSize:" << m_impl->modelInfo.tileSize;
+    qInfo() << "[AIVideoProcessor] Decoder: " << srcW << "x" << srcH << "->" << outW << "x" << outH << ", tileSize=" << m_impl->modelInfo.tileSize;
     
     QString effectiveOutputPath = outputPath;
     QFileInfo outInfo(outputPath);
@@ -350,8 +336,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
         return;
     }
     
-    qInfo() << "[AIVideoProcessor][DEBUG] Output initialized:"
-            << "outputPath:" << effectiveOutputPath;
+    qInfo() << "[AIVideoProcessor] Output initialized:" << effectiveOutputPath;
     
     AVFrame* decFrame = av_frame_alloc();
     AVFrame* encFrame = av_frame_alloc();
@@ -371,8 +356,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
     int64_t failedFrames = 0;
     const int64_t totalFrames = guard.totalFrames();
     
-    qInfo() << "[AIVideoProcessor][DEBUG] Starting frame loop:"
-            << "totalFrames:" << totalFrames;
+    qInfo() << "[AIVideoProcessor] Processing" << totalFrames << "frames";
     
     auto cleanupFrames = [&]() {
         if (decFrame) av_frame_free(&decFrame);

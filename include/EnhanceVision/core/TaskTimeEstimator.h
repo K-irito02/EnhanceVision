@@ -13,6 +13,8 @@
 #include <QVariantMap>
 #include <QVariantList>
 #include <QMutex>
+#include <QHash>
+#include <QDateTime>
 
 namespace EnhanceVision {
 
@@ -45,6 +47,26 @@ struct FileTimeEstimate {
     int width = 0;
     int height = 0;
     double durationSec = 0.0;       ///< 视频时长（秒）
+};
+
+/**
+ * @brief 任务时间跟踪数据结构
+ * 用于动态修正预测时间
+ */
+struct TaskTimeTracker {
+    QString taskId;                   ///< 任务ID（messageId）
+    double initialPredictedSec = 0.0; ///< 初始预测时间（秒）
+    double currentPredictedSec = 0.0; ///< 当前修正后预测时间（秒）
+    double elapsedSec = 0.0;          ///< 已用时间（秒）
+    double progress = 0.0;            ///< 当前进度 (0.0 ~ 1.0)
+    qint64 startTimeMs = 0;           ///< 开始时间戳
+    qint64 pausedTimeMs = 0;          ///< 暂停时累计的时间（毫秒）
+    qint64 lastPauseStartMs = 0;      ///< 最后一次暂停开始时间
+    bool isPaused = false;            ///< 是否暂停
+    int correctionCount = 0;          ///< 修正次数
+    double correctionFactor = 1.0;    ///< 动态修正系数
+    
+    TaskTimeTracker() = default;
 };
 
 /**
@@ -138,8 +160,75 @@ public:
                           int width, int height, bool isVideo,
                           double durationSec, double fps) const;
 
+    // ========== 功能3：动态时间跟踪与修正 ==========
+
+    /**
+     * @brief 开始跟踪任务时间
+     * @param taskId 任务ID（通常是 messageId）
+     * @param initialPredictedSec 初始预测时间（秒）
+     */
+    void startTracking(const QString& taskId, double initialPredictedSec);
+
+    /**
+     * @brief 更新任务进度并动态修正预测时间
+     * @param taskId 任务ID
+     * @param progress 当前进度 (0.0 ~ 1.0)
+     * @return 修正后的剩余时间（秒），如果任务不存在返回 -1
+     */
+    Q_INVOKABLE double updateProgress(const QString& taskId, double progress);
+
+    /**
+     * @brief 暂停任务计时
+     * @param taskId 任务ID
+     */
+    void pauseTracking(const QString& taskId);
+
+    /**
+     * @brief 恢复任务计时
+     * @param taskId 任务ID
+     */
+    void resumeTracking(const QString& taskId);
+
+    /**
+     * @brief 停止跟踪任务
+     * @param taskId 任务ID
+     */
+    void stopTracking(const QString& taskId);
+
+    /**
+     * @brief 获取任务的当前时间信息
+     * @param taskId 任务ID
+     * @return QVariantMap 包含 predictedSec, elapsedSec, remainingSec, isPaused, isOvertime
+     */
+    Q_INVOKABLE QVariantMap getTaskTimeInfo(const QString& taskId) const;
+
+    /**
+     * @brief 检查任务是否正在被跟踪
+     * @param taskId 任务ID
+     * @return 是否正在跟踪
+     */
+    Q_INVOKABLE bool isTracking(const QString& taskId) const;
+
+    /**
+     * @brief 检查任务是否暂停
+     * @param taskId 任务ID
+     * @return 是否暂停
+     */
+    Q_INVOKABLE bool isTaskPaused(const QString& taskId) const;
+
 signals:
     void gpuAvailableChanged();
+    
+    /**
+     * @brief 任务时间信息更新信号
+     * @param taskId 任务ID
+     * @param predictedSec 预测总时间
+     * @param elapsedSec 已用时间
+     * @param remainingSec 剩余时间（可为负数表示超时）
+     * @param isOvertime 是否超时
+     */
+    void taskTimeUpdated(const QString& taskId, double predictedSec, 
+                         double elapsedSec, double remainingSec, bool isOvertime);
 
 private:
     explicit TaskTimeEstimator(QObject* parent = nullptr);
@@ -176,10 +265,27 @@ private:
 
     AITimingParams getTimingParams(const QString& modelId) const;
 
+    /**
+     * @brief 计算动态修正后的剩余时间
+     * @param tracker 任务跟踪器
+     * @return 修正后的剩余时间（秒）
+     */
+    double calculateCorrectedRemainingTime(TaskTimeTracker& tracker) const;
+
+    /**
+     * @brief 获取任务的实际已用时间（排除暂停时间）
+     * @param tracker 任务跟踪器
+     * @return 实际已用时间（秒）
+     */
+    double getEffectiveElapsedSec(const TaskTimeTracker& tracker) const;
+
     static TaskTimeEstimator* s_instance;
     HardwareInfo m_hwInfo;
     mutable QMutex m_mutex;
     bool m_initialized = false;
+    
+    // 任务时间跟踪数据
+    QHash<QString, TaskTimeTracker> m_trackers;
 };
 
 } // namespace EnhanceVision

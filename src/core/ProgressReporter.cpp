@@ -75,11 +75,16 @@ bool ProgressReporter::isBatchMode() const
 
 void ProgressReporter::setProgress(double value, const QString& stage)
 {
+    // 暂停时不更新进度（但允许重置和完成）
     const double clampedValue = std::clamp(value, 0.0, 1.0);
-    
-    double previous = m_rawProgress.load();
     const bool isReset = (clampedValue < 0.01);
     const bool isComplete = (clampedValue >= 0.99);
+    
+    if (m_isPaused.load() && !isReset && !isComplete) {
+        return; // 暂停时锁定进度
+    }
+    
+    double previous = m_rawProgress.load();
     const bool isAnomaly = isAnomalyJump(clampedValue);
     
     if (!isReset && !isComplete && isAnomaly) {
@@ -337,6 +342,39 @@ void ProgressReporter::emitSignals(double progress, const QString& stage)
             }
         }, Qt::QueuedConnection);
     }
+}
+
+void ProgressReporter::pause()
+{
+    if (m_isPaused.load()) {
+        return; // 已经暂停
+    }
+    
+    m_pauseStartMs.store(QDateTime::currentMSecsSinceEpoch());
+    m_isPaused.store(true);
+}
+
+void ProgressReporter::resume()
+{
+    if (!m_isPaused.load()) {
+        return; // 没有暂停
+    }
+    
+    // 累加暂停时长
+    qint64 pauseStart = m_pauseStartMs.load();
+    if (pauseStart > 0) {
+        qint64 now = QDateTime::currentMSecsSinceEpoch();
+        qint64 pauseDuration = now - pauseStart;
+        m_totalPausedMs.fetch_add(pauseDuration);
+    }
+    
+    m_pauseStartMs.store(0);
+    m_isPaused.store(false);
+}
+
+bool ProgressReporter::isPaused() const
+{
+    return m_isPaused.load();
 }
 
 } // namespace EnhanceVision

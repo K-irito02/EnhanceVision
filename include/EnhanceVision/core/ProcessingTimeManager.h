@@ -12,10 +12,12 @@
 #include <QHash>
 #include <QSet>
 #include <QDateTime>
+#include <QPointer>
 
 namespace EnhanceVision {
 
 class MessageModel;
+class TaskTimeEstimator;
 
 /**
  * @brief 任务时间信息结构
@@ -116,6 +118,13 @@ public:
      * @return 是否暂停
      */
     bool isTaskPaused(const QString& messageId) const;
+
+    /**
+     * @brief 更新任务进度（用于动态修正预测时间）
+     * @param messageId 消息ID
+     * @param progress 当前进度 (0.0 ~ 1.0)
+     */
+    void updateTaskProgress(const QString& messageId, double progress);
 
 signals:
     /**

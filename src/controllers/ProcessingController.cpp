@@ -1122,6 +1122,12 @@ void ProcessingController::updateTaskProgress(const QString& taskId, int progres
                 if (normalizedProgress != previousProgress) {
                     syncMessageProgress(task.messageId);
                 }
+                
+                // 同步进度到 ProcessingTimeManager 触发动态时间修正
+                if (m_processingTimeManager && m_processingTimeManager->isTaskRegistered(task.messageId)) {
+                    double progressRatio = normalizedProgress / 100.0;
+                    m_processingTimeManager->updateTaskProgress(task.messageId, progressRatio);
+                }
             }
             break;
         }

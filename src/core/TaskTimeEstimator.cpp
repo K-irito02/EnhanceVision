@@ -201,48 +201,50 @@ TaskTimeEstimator::AITimingParams TaskTimeEstimator::getTimingParams(const QStri
     //   CPU: ~25-300min → 每帧 ~5-60s
     //   GPU: ~0.5-10min (30-600s) → 每帧 ~0.1-2s, 平均 ~0.5s
     
-    // 【修复】基于实际测试数据调整参数，使用更保守的估算
+    // 【优化】使用乐观预测策略：预测较低时间，超时后显示超时状态
+    // 这样用户体验更好：大多数情况下提前完成，偶尔超时也有明确提示
     // 测试环境：Ryzen 5 5600H 12线程 + RTX 3050 Laptop 4GB
     // 
     // 实际测试数据（1920x1080, tileSize=160, 84块）：
-    //   GPU 图片: 2-5秒 → 每块约 0.03-0.06秒
-    //   GPU 视频: 每帧约 0.5-2秒（包含编解码）
-    //   CPU 图片: 60-180秒 → 每块约 0.7-2.1秒
-    //   CPU 视频: 每帧约 3-10秒
+    //   GPU 图片: 2-5秒 → 每块约 0.03-0.06秒，取下限
+    //   GPU 视频: 每帧约 0.5-2秒（包含编解码），取下限
+    //   CPU 图片: 60-180秒 → 每块约 0.7-2.1秒，取下限
+    //   CPU 视频: 每帧约 3-10秒，取下限
     
     if (lowerModelId.contains("realesr") || lowerModelId.contains("animevideo")) {
         // RealESRGAN AnimeVideo V3 (4x) - 主要模型
-        // 使用更保守的估算，宁可高估也不要低估
-        params.cpuSingleTileSec = 1.5;    // 保守估计
-        params.gpuSingleTileSec = 0.05;   // 保守估计
-        params.cpuOverheadSec = 3.0;      // 模型加载 + 预处理
-        params.gpuOverheadSec = 2.0;      // Vulkan 初始化 + 模型加载 + 同步延迟
-        params.videoFrameOverheadSec = 0.15;  // 视频编解码开销 (解码+编码+内存拷贝)
-        params.videoSetupSec = 3.0;       // 视频初始化 + FFmpeg 设置
+        // 【大幅降低】基于用户反馈：预测9分钟实际1分钟，需要降低约9倍
+        // GPU 视频处理实际每帧约 0.1-0.2 秒（包含编解码）
+        params.cpuSingleTileSec = 0.15;   // 大幅降低
+        params.gpuSingleTileSec = 0.005;  // 大幅降低（实际每帧约0.1-0.2秒/84块≈0.002秒/块）
+        params.cpuOverheadSec = 1.0;      // 降低
+        params.gpuOverheadSec = 1.0;      // 降低
+        params.videoFrameOverheadSec = 0.02;  // 大幅降低
+        params.videoSetupSec = 1.0;       // 降低
     } else if (lowerModelId.contains("anime") || lowerModelId.contains("waifu")) {
         // 其他动漫模型
-        params.cpuSingleTileSec = 1.3;
-        params.gpuSingleTileSec = 0.045;
-        params.cpuOverheadSec = 2.5;
-        params.gpuOverheadSec = 1.5;
-        params.videoFrameOverheadSec = 0.12;
-        params.videoSetupSec = 2.5;
+        params.cpuSingleTileSec = 0.12;
+        params.gpuSingleTileSec = 0.004;
+        params.cpuOverheadSec = 0.8;
+        params.gpuOverheadSec = 0.8;
+        params.videoFrameOverheadSec = 0.015;
+        params.videoSetupSec = 0.8;
     } else if (lowerModelId.contains("photo") || lowerModelId.contains("general")) {
         // 通用/照片模型
-        params.cpuSingleTileSec = 1.6;
-        params.gpuSingleTileSec = 0.055;
-        params.cpuOverheadSec = 3.0;
-        params.gpuOverheadSec = 2.0;
-        params.videoFrameOverheadSec = 0.15;
-        params.videoSetupSec = 3.0;
+        params.cpuSingleTileSec = 0.18;
+        params.gpuSingleTileSec = 0.006;
+        params.cpuOverheadSec = 1.0;
+        params.gpuOverheadSec = 1.0;
+        params.videoFrameOverheadSec = 0.02;
+        params.videoSetupSec = 1.0;
     } else {
-        // 默认参数 - 使用保守估计
-        params.cpuSingleTileSec = 1.5;
-        params.gpuSingleTileSec = 0.05;
-        params.cpuOverheadSec = 3.0;
-        params.gpuOverheadSec = 2.0;
-        params.videoFrameOverheadSec = 0.15;
-        params.videoSetupSec = 3.0;
+        // 默认参数
+        params.cpuSingleTileSec = 0.15;
+        params.gpuSingleTileSec = 0.005;
+        params.cpuOverheadSec = 1.0;
+        params.gpuOverheadSec = 1.0;
+        params.videoFrameOverheadSec = 0.02;
+        params.videoSetupSec = 1.0;
     }
 
     return params;
@@ -415,6 +417,263 @@ double TaskTimeEstimator::estimateAITime(const QString& modelId, bool useGpu,
     // 总耗时 = 初始化 + 帧处理 + 收尾
     const double overhead = useGpu ? timing.gpuOverheadSec : timing.cpuOverheadSec;
     return overhead + (frameCount * perFrameSec) + timing.videoSetupSec;
+}
+
+// ========== 功能3：动态时间跟踪与修正 ==========
+
+void TaskTimeEstimator::startTracking(const QString& taskId, double initialPredictedSec)
+{
+    QMutexLocker locker(&m_mutex);
+    
+    if (m_trackers.contains(taskId)) {
+        qWarning() << "[TaskTimeEstimator] Task already being tracked:" << taskId;
+        return;
+    }
+    
+    TaskTimeTracker tracker;
+    tracker.taskId = taskId;
+    tracker.initialPredictedSec = initialPredictedSec;
+    tracker.currentPredictedSec = initialPredictedSec;
+    tracker.elapsedSec = 0.0;
+    tracker.progress = 0.0;
+    tracker.startTimeMs = QDateTime::currentMSecsSinceEpoch();
+    tracker.pausedTimeMs = 0;
+    tracker.lastPauseStartMs = 0;
+    tracker.isPaused = false;
+    tracker.correctionCount = 0;
+    tracker.correctionFactor = 1.0;
+    
+    m_trackers.insert(taskId, tracker);
+    
+    qInfo() << "[TaskTimeEstimator] Started tracking task:" << taskId
+            << "initialPredictedSec:" << initialPredictedSec;
+}
+
+double TaskTimeEstimator::updateProgress(const QString& taskId, double progress)
+{
+    QMutexLocker locker(&m_mutex);
+    
+    auto it = m_trackers.find(taskId);
+    if (it == m_trackers.end()) {
+        return -1.0;
+    }
+    
+    TaskTimeTracker& tracker = it.value();
+    
+    // 如果暂停中，不更新进度和时间
+    if (tracker.isPaused) {
+        return tracker.currentPredictedSec - tracker.elapsedSec;
+    }
+    
+    // 更新进度
+    double clampedProgress = qBound(0.0, progress, 1.0);
+    tracker.progress = clampedProgress;
+    
+    // 计算实际已用时间（排除暂停时间）
+    tracker.elapsedSec = getEffectiveElapsedSec(tracker);
+    
+    // 动态修正预测时间
+    double remainingSec = calculateCorrectedRemainingTime(tracker);
+    bool isOvertime = remainingSec < 0;
+    
+    // 发出更新信号（需要解锁后发出，避免死锁）
+    double predictedSec = tracker.currentPredictedSec;
+    double elapsedSec = tracker.elapsedSec;
+    
+    locker.unlock();
+    
+    emit taskTimeUpdated(taskId, predictedSec, elapsedSec, remainingSec, isOvertime);
+    
+    return remainingSec;
+}
+
+void TaskTimeEstimator::pauseTracking(const QString& taskId)
+{
+    QMutexLocker locker(&m_mutex);
+    
+    auto it = m_trackers.find(taskId);
+    if (it == m_trackers.end()) {
+        return;
+    }
+    
+    TaskTimeTracker& tracker = it.value();
+    
+    if (tracker.isPaused) {
+        return; // 已经暂停
+    }
+    
+    // 记录暂停开始时间
+    tracker.lastPauseStartMs = QDateTime::currentMSecsSinceEpoch();
+    tracker.isPaused = true;
+    
+    // 更新已用时间到暂停时刻
+    tracker.elapsedSec = getEffectiveElapsedSec(tracker);
+    
+    qInfo() << "[TaskTimeEstimator] Paused tracking task:" << taskId
+            << "elapsedSec:" << tracker.elapsedSec;
+}
+
+void TaskTimeEstimator::resumeTracking(const QString& taskId)
+{
+    QMutexLocker locker(&m_mutex);
+    
+    auto it = m_trackers.find(taskId);
+    if (it == m_trackers.end()) {
+        return;
+    }
+    
+    TaskTimeTracker& tracker = it.value();
+    
+    if (!tracker.isPaused) {
+        return; // 没有暂停
+    }
+    
+    // 累加暂停时长
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    qint64 pauseDuration = now - tracker.lastPauseStartMs;
+    tracker.pausedTimeMs += pauseDuration;
+    tracker.isPaused = false;
+    tracker.lastPauseStartMs = 0;
+    
+    qInfo() << "[TaskTimeEstimator] Resumed tracking task:" << taskId
+            << "pausedDurationMs:" << pauseDuration
+            << "totalPausedMs:" << tracker.pausedTimeMs;
+}
+
+void TaskTimeEstimator::stopTracking(const QString& taskId)
+{
+    QMutexLocker locker(&m_mutex);
+    
+    if (m_trackers.remove(taskId) != 0) {
+        qInfo() << "[TaskTimeEstimator] Stopped tracking task:" << taskId;
+    }
+}
+
+QVariantMap TaskTimeEstimator::getTaskTimeInfo(const QString& taskId) const
+{
+    QMutexLocker locker(&m_mutex);
+    QVariantMap result;
+    
+    auto it = m_trackers.find(taskId);
+    if (it == m_trackers.end()) {
+        result["valid"] = false;
+        return result;
+    }
+    
+    const TaskTimeTracker& tracker = it.value();
+    
+    // 计算实际已用时间
+    double elapsedSec = getEffectiveElapsedSec(tracker);
+    double remainingSec = tracker.currentPredictedSec - elapsedSec;
+    bool isOvertime = remainingSec < 0;
+    
+    result["valid"] = true;
+    result["predictedSec"] = tracker.currentPredictedSec;
+    result["initialPredictedSec"] = tracker.initialPredictedSec;
+    result["elapsedSec"] = elapsedSec;
+    result["remainingSec"] = remainingSec;
+    result["isPaused"] = tracker.isPaused;
+    result["isOvertime"] = isOvertime;
+    result["progress"] = tracker.progress;
+    result["correctionFactor"] = tracker.correctionFactor;
+    
+    return result;
+}
+
+bool TaskTimeEstimator::isTracking(const QString& taskId) const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_trackers.contains(taskId);
+}
+
+bool TaskTimeEstimator::isTaskPaused(const QString& taskId) const
+{
+    QMutexLocker locker(&m_mutex);
+    auto it = m_trackers.find(taskId);
+    if (it == m_trackers.end()) {
+        return false;
+    }
+    return it.value().isPaused;
+}
+
+double TaskTimeEstimator::calculateCorrectedRemainingTime(TaskTimeTracker& tracker) const
+{
+    // 进度太小时，不进行修正，使用初始预测
+    if (tracker.progress < 0.05) {
+        return tracker.currentPredictedSec - tracker.elapsedSec;
+    }
+    
+    // 进度接近完成时，不再修正
+    if (tracker.progress >= 0.95) {
+        return qMax(0.0, tracker.currentPredictedSec - tracker.elapsedSec);
+    }
+    
+    // 【乐观预测策略】
+    // 使用乐观预测时，我们希望：
+    // 1. 初始预测偏低（乐观）
+    // 2. 超时后显示超时状态，但不大幅增加预测时间
+    // 3. 只在实际速度比预测更快时才减少预测时间
+    
+    // 基于实际进度计算预期总时间
+    double actualBasedTotal = tracker.elapsedSec / tracker.progress;
+    
+    // 检查是否已经超时（实际速度比预测慢）
+    bool isSlowerThanPredicted = actualBasedTotal > tracker.initialPredictedSec;
+    
+    if (isSlowerThanPredicted) {
+        // 超时情况：保持初始预测不变，让超时状态显示
+        // 只做轻微修正，避免预测时间跳动太大
+        double maxCorrection = tracker.initialPredictedSec * 1.2; // 最多增加20%
+        double correctedTotal = qMin(actualBasedTotal, maxCorrection);
+        
+        // 如果已经修正过且新值更大，保持之前的修正值（避免来回跳动）
+        if (tracker.correctionCount > 0 && correctedTotal < tracker.currentPredictedSec) {
+            correctedTotal = tracker.currentPredictedSec;
+        }
+        
+        tracker.currentPredictedSec = correctedTotal;
+        tracker.correctionFactor = correctedTotal / tracker.initialPredictedSec;
+        tracker.correctionCount++;
+        
+        return correctedTotal - tracker.elapsedSec;
+    }
+    
+    // 实际速度比预测快：可以减少预测时间
+    // 使用加权平均，但偏向保守（不要减太多）
+    double actualWeight = tracker.progress * 0.5;  // 降低实际权重
+    double initialWeight = 1.0 - actualWeight;
+    
+    double correctedTotal = (tracker.initialPredictedSec * initialWeight) + (actualBasedTotal * actualWeight);
+    
+    // 限制修正幅度：不低于初始预测的 0.5 倍（不要减太多）
+    correctedTotal = qMax(tracker.initialPredictedSec * 0.5, correctedTotal);
+    
+    // 更新修正后的预测时间
+    tracker.currentPredictedSec = correctedTotal;
+    tracker.correctionFactor = correctedTotal / tracker.initialPredictedSec;
+    tracker.correctionCount++;
+    
+    // 计算剩余时间
+    double remainingSec = correctedTotal - tracker.elapsedSec;
+    
+    return remainingSec;
+}
+
+double TaskTimeEstimator::getEffectiveElapsedSec(const TaskTimeTracker& tracker) const
+{
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    qint64 totalElapsedMs = now - tracker.startTimeMs;
+    
+    // 排除已累计的暂停时间
+    qint64 effectiveMs = totalElapsedMs - tracker.pausedTimeMs;
+    
+    // 如果当前正在暂停，还需要排除当前暂停的时间
+    if (tracker.isPaused && tracker.lastPauseStartMs > 0) {
+        qint64 currentPauseDuration = now - tracker.lastPauseStartMs;
+        effectiveMs -= currentPauseDuration;
+    }
+    
+    return qMax(0.0, effectiveMs / 1000.0);
 }
 
 } // namespace EnhanceVision

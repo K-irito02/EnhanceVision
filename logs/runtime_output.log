@@ -1,0 +1,48 @@
+[2026-04-08 15:31:37.241] [INFO] Log file created: "logs/runtime_output.log"
+[2026-04-08 15:31:37.245] [INFO] ========================================
+[2026-04-08 15:31:37.245] [INFO] EnhanceVision starting...
+[2026-04-08 15:31:37.245] [INFO] Qt version: 6.10.2
+[2026-04-08 15:31:37.245] [INFO] ========================================
+[2026-04-08 15:31:37.245] [INFO] [ProcessingTimeManager] Initialized, timer started
+[2026-04-08 15:31:37.246] [INFO] [AIEngine] Initializing AI engine (CPU/Vulkan dual-mode)
+[2026-04-08 15:31:37.246] [INFO] [AIEngine] Engine created, default mode: CPU (safe configuration)
+[2026-04-08 15:31:37.267] [INFO] [ThumbnailDatabase] Initialized successfully at: "C:/Users/31432/AppData/Local/EnhanceVision/EnhanceVision/thumbnail_meta.db" - entries: 23 - disk size: 991 KB
+[2026-04-08 15:31:37.300] [INFO] [ThumbnailProvider] Persistence initialized: 23 thumbnails loaded from disk cache
+[2026-04-08 15:31:37.301] [INFO] [TaskTimeEstimator] Initialized: CPU: "AMD Ryzen 5 5600H with Radeon Graphics" cores: 12 threads: 12 freq: 3.294 GHz RAM: 16236 MB GPU: "N/A" VRAM: 0 MB
+[2026-04-08 15:31:37.827] [INFO] [LifecycleSupervisor] Created
+[2026-04-08 15:31:37.827] [INFO] [LifecycleSupervisor] Window watchdog started (interval: 300ms)
+[2026-04-08 15:31:37.827] [INFO] [LifecycleSupervisor] Process watchdog started (interval: 1000ms)
+[2026-04-08 15:31:37.828] [INFO] [SettingsController] Checking crash recovery: lastExitClean= true , lastExitReason= "main_window_closed"
+[2026-04-08 15:31:37.828] [INFO] [SettingsController] Last exit was clean, no crash recovery needed
+[2026-04-08 15:31:37.837] [INFO] [AutoSaveService] Initialized
+[2026-04-08 15:31:37.838] [INFO] [UIStateController] State loaded from: "C:/Users/31432/AppData/Local/EnhanceVision/EnhanceVision/EnhanceVision/ui_state.json"
+[2026-04-08 15:31:37.840] [INFO] [SessionController] Starting thumbnail restoration...
+[2026-04-08 15:31:39.136] [INFO] [SessionController] Thumbnail restoration completed: restored: 3 missing: 0 total: 3
+[2026-04-08 15:31:39.563] [INFO] Using Qt multimedia with FFmpeg version 7.1.2 LGPL version 2.1 or later
+[2026-04-08 15:31:41.562] [INFO] [Perf][Frame] probe attached
+[2026-04-08 15:31:41.732] [INFO] [AIEngine] Probing Vulkan GPU availability at startup...
+[2026-04-08 15:31:41.732] [INFO] [AIEngine] Creating global Vulkan GPU instance (once)
+[2026-04-08 15:31:41.920] [INFO] [AIEngine] Global Vulkan GPU instance created successfully
+[2026-04-08 15:31:41.920] [INFO] [AIEngine] GPU instance ref count incremented to: 1
+[2026-04-08 15:31:41.920] [INFO] [AIEngine] Vulkan GPU available at startup: device: "NVIDIA GeForce RTX 3050 Laptop GPU" count: 1
+[2026-04-08 15:31:41.920] [INFO] [TaskTimeEstimator] GPU info updated: model: "NVIDIA GeForce RTX 3050 Laptop GPU" VRAM: 4096 MB available: true
+[2026-04-08 15:31:41.975] [INFO] [LifecycleSupervisor] Main window shown detected
+[2026-04-08 15:31:52.682] [WARN] [LifecycleSupervisor] Shutdown requested: "main_window_closed"
+[2026-04-08 15:31:52.699] [INFO] [SettingsController] Normal exit marked with reason: "main_window_closed"
+[2026-04-08 15:31:52.699] [INFO] [LifecycleSupervisor] State transition: "Running" -> "ShutdownRequested"
+[2026-04-08 15:31:52.699] [INFO] [LifecycleSupervisor] Starting shutdown pipeline
+[2026-04-08 15:31:52.701] [INFO] [LifecycleSupervisor] Exit reason: "main_window_closed"
+[2026-04-08 15:31:52.701] [INFO] [LifecycleSupervisor] State transition: "ShutdownRequested" -> "CancellingTasks"
+[2026-04-08 15:31:52.701] [INFO] [LifecycleSupervisor] Phase 1: Cancelling tasks
+[2026-04-08 15:31:52.701] [INFO] [LifecycleSupervisor] Executing phase: "CancelTasks" timeout: 2000 ms
+[2026-04-08 15:31:52.701] [WARN] [ProcessingController] Force cancelling all tasks currentTaskCount: 0 processingCount: 0
+[2026-04-08 15:31:52.701] [WARN] [ProcessingController] All tasks force cancelled successfully
+[2026-04-08 15:31:52.701] [INFO] [LifecycleSupervisor] Phase "CancelTasks" completed in 0 ms, result: true
+[2026-04-08 15:31:52.701] [INFO] [LifecycleSupervisor] State transition: "CancellingTasks" -> "ReleasingResources"
+[2026-04-08 15:31:52.702] [INFO] [LifecycleSupervisor] Phase 2: Releasing resources
+[2026-04-08 15:31:52.702] [INFO] [LifecycleSupervisor] Executing phase: "ReleaseResources" timeout: 1000 ms
+[2026-04-08 15:31:52.702] [INFO] [LifecycleSupervisor] Phase "ReleaseResources" completed in 0 ms, result: true
+[2026-04-08 15:31:52.702] [INFO] [LifecycleSupervisor] State transition: "ReleasingResources" -> "ForceExit"
+[2026-04-08 15:31:52.702] [INFO] [LifecycleSupervisor] Phase 3: Force exit
+[2026-04-08 15:31:52.703] [INFO] [LifecycleSupervisor] Force terminate timer started ( 500 ms)
+[2026-04-08 15:31:52.703] [INFO] EnhanceVision exiting with code: 0

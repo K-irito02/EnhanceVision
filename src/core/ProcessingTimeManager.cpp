@@ -5,6 +5,7 @@
  */
 
 #include "EnhanceVision/core/ProcessingTimeManager.h"
+#include "EnhanceVision/core/TaskTimeEstimator.h"
 #include "EnhanceVision/models/MessageModel.h"
 #include <QDebug>
 
@@ -48,6 +49,9 @@ void ProcessingTimeManager::registerTask(const QString& messageId,
 
     m_tasks.insert(messageId, info);
     
+    // 同步到 TaskTimeEstimator 进行动态跟踪
+    TaskTimeEstimator::instance()->startTracking(messageId, static_cast<double>(predictedTotalSec));
+    
     qInfo() << "[ProcessingTimeManager] Registered task:" << messageId
             << "predictedTotalSec:" << predictedTotalSec
             << "startTime:" << info.processingStartTime;
@@ -55,7 +59,33 @@ void ProcessingTimeManager::registerTask(const QString& messageId,
 
 void ProcessingTimeManager::unregisterTask(const QString& messageId)
 {
-    if (m_tasks.remove(messageId) > 0) {
+    auto it = m_tasks.find(messageId);
+    if (it != m_tasks.end()) {
+        // 在注销前获取最终的实际耗时
+        TaskTimeEstimator* estimator = TaskTimeEstimator::instance();
+        QVariantMap timeInfo = estimator->getTaskTimeInfo(messageId);
+        
+        qint64 actualTotalSec = 0;
+        if (timeInfo.value("valid", false).toBool()) {
+            actualTotalSec = static_cast<qint64>(timeInfo.value("elapsedSec", 0.0).toDouble());
+        } else {
+            // 回退：使用本地记录的已用时间
+            actualTotalSec = it.value().elapsedSec;
+        }
+        
+        // 更新 MessageModel 中的实际总耗时
+        if (m_messageModel && actualTotalSec > 0) {
+            m_messageModel->updateActualTotalSec(messageId, actualTotalSec);
+            qInfo() << "[ProcessingTimeManager] Updated actualTotalSec for:" << messageId << "value:" << actualTotalSec;
+        }
+        
+        // 同步停止 TaskTimeEstimator 跟踪
+        estimator->stopTracking(messageId);
+        
+        m_tasks.erase(it);
+        m_pausedTasks.remove(messageId);
+        m_pausedElapsedSec.remove(messageId);
+        
         qInfo() << "[ProcessingTimeManager] Unregistered task:" << messageId;
     }
 }
@@ -100,6 +130,9 @@ void ProcessingTimeManager::pauseTask(const QString& messageId)
     m_pausedElapsedSec[messageId] = info.elapsedSec;
     m_pausedTasks.insert(messageId);
     
+    // 同步到 TaskTimeEstimator
+    TaskTimeEstimator::instance()->pauseTracking(messageId);
+    
     qInfo() << "[ProcessingTimeManager] Paused task:" << messageId
             << "elapsedSec:" << info.elapsedSec;
 }
@@ -124,6 +157,9 @@ void ProcessingTimeManager::resumeTask(const QString& messageId)
     m_pausedTasks.remove(messageId);
     m_pausedElapsedSec.remove(messageId);
     
+    // 同步到 TaskTimeEstimator
+    TaskTimeEstimator::instance()->resumeTracking(messageId);
+    
     qInfo() << "[ProcessingTimeManager] Resumed task:" << messageId
             << "adjustedStartTime:" << info.processingStartTime;
 }
@@ -133,27 +169,69 @@ bool ProcessingTimeManager::isTaskPaused(const QString& messageId) const
     return m_pausedTasks.contains(messageId);
 }
 
+void ProcessingTimeManager::updateTaskProgress(const QString& messageId, double progress)
+{
+    if (!m_tasks.contains(messageId)) {
+        return;
+    }
+    
+    // 使用 TaskTimeEstimator 进行动态修正
+    TaskTimeEstimator* estimator = TaskTimeEstimator::instance();
+    double remainingSec = estimator->updateProgress(messageId, progress);
+    
+    if (remainingSec >= 0) {
+        // 从 TaskTimeEstimator 获取修正后的时间信息
+        QVariantMap timeInfo = estimator->getTaskTimeInfo(messageId);
+        if (timeInfo.value("valid", false).toBool()) {
+            TaskTimeInfo& info = m_tasks[messageId];
+            info.predictedTotalSec = static_cast<qint64>(timeInfo.value("predictedSec", 0.0).toDouble());
+            info.elapsedSec = static_cast<qint64>(timeInfo.value("elapsedSec", 0.0).toDouble());
+            info.remainingSec = static_cast<qint64>(remainingSec);
+            info.isOvertime = timeInfo.value("isOvertime", false).toBool();
+            
+            // 发出更新信号
+            emit timeInfoUpdated(messageId, info.elapsedSec, info.remainingSec, info.isOvertime);
+            
+            // 更新 MessageModel
+            if (m_messageModel) {
+                m_messageModel->updateTimeInfo(messageId, info.elapsedSec, info.remainingSec, info.isOvertime);
+                // 同时更新修正后的预测总时间
+                m_messageModel->updatePredictedTotalSec(messageId, info.predictedTotalSec);
+            }
+        }
+    }
+}
+
 void ProcessingTimeManager::onTimerTick()
 {
     if (m_tasks.isEmpty()) {
         return;
     }
 
-    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    TaskTimeEstimator* estimator = TaskTimeEstimator::instance();
 
     for (auto it = m_tasks.begin(); it != m_tasks.end(); ++it) {
         TaskTimeInfo& info = it.value();
         
-        // 【修复】跳过暂停的任务，不更新其时间
+        // 跳过暂停的任务，不更新其时间
         if (m_pausedTasks.contains(info.messageId)) {
             continue;
         }
         
-        info.elapsedSec = (now - info.processingStartTime) / 1000;
-        
-        info.remainingSec = info.predictedTotalSec - info.elapsedSec;
-        
-        info.isOvertime = info.remainingSec < 0;
+        // 从 TaskTimeEstimator 获取最新的时间信息（含动态修正）
+        QVariantMap timeInfo = estimator->getTaskTimeInfo(info.messageId);
+        if (timeInfo.value("valid", false).toBool()) {
+            info.predictedTotalSec = static_cast<qint64>(timeInfo.value("predictedSec", 0.0).toDouble());
+            info.elapsedSec = static_cast<qint64>(timeInfo.value("elapsedSec", 0.0).toDouble());
+            info.remainingSec = static_cast<qint64>(timeInfo.value("remainingSec", 0.0).toDouble());
+            info.isOvertime = timeInfo.value("isOvertime", false).toBool();
+        } else {
+            // 回退到原有逻辑（TaskTimeEstimator 未跟踪时）
+            qint64 now = QDateTime::currentMSecsSinceEpoch();
+            info.elapsedSec = (now - info.processingStartTime) / 1000;
+            info.remainingSec = info.predictedTotalSec - info.elapsedSec;
+            info.isOvertime = info.remainingSec < 0;
+        }
 
         emit timeInfoUpdated(info.messageId, 
                              info.elapsedSec, 

@@ -1030,6 +1030,12 @@ QJsonObject SessionController::messageToJson(const Message& message) const
     // 保存处理开始时间（用于会话切换后恢复进度）
     json["processingStartTime"] = message.processingStartTime;
     
+    // 保存时间预测系统字段（用于应用关闭后恢复）
+    json["predictedTotalSec"] = message.predictedTotalSec;
+    json["elapsedSec"] = message.elapsedSec;
+    json["remainingSec"] = message.remainingSec;
+    json["isOvertime"] = message.isOvertime;
+    
     return json;
 }
 
@@ -1067,6 +1073,12 @@ Message SessionController::jsonToMessage(const QJsonObject& json) const
     message.actualTotalSec = json["actualTotalSec"].toVariant().toLongLong();
     // 恢复处理开始时间（用于会话切换后恢复进度）
     message.processingStartTime = json["processingStartTime"].toVariant().toLongLong();
+    
+    // 恢复时间预测系统字段
+    message.predictedTotalSec = json["predictedTotalSec"].toVariant().toLongLong();
+    message.elapsedSec = json["elapsedSec"].toVariant().toLongLong();
+    message.remainingSec = json["remainingSec"].toVariant().toLongLong();
+    message.isOvertime = json["isOvertime"].toBool(false);
     
     if (message.status == ProcessingStatus::Processing) {
         message.status = ProcessingStatus::Pending;

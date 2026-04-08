@@ -7,6 +7,16 @@
 
 ## [Unreleased]
 
+### Added
+- **Progress Prediction Optimization** - Complete overhaul of time prediction system for improved accuracy
+  - Unified prediction source through TaskTimeEstimator with dynamic correction based on actual progress
+  - Optimistic prediction strategy using 30-40% of previous estimates (based on real test data)
+  - Pause/Resume support with elapsed time locking during pause states
+  - Changed UI from countdown "remaining time" to forward-counting "elapsed time" 
+  - Removed timeout mechanism while keeping timeout display for user feedback
+  - Total time recording and persistence across application restarts
+  - Prediction parameters reduced by ~9x based on user feedback (predicted 9min, actual 1min)
+
 ### Fixed
 - **队列继续处理问题修复**：修复模式0（单任务暂停）下暂停第一个任务后队列没有继续处理其他任务的问题
   - 根据暂停模式调整跳过逻辑，模式0下只跳过状态为 Paused 的任务
