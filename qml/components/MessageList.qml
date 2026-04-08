@@ -227,11 +227,6 @@ Item {
                 incByStatus(newStatus)
 
                 msgDelegate._applyFileStats(_successFileCount, _failedFileCount, _pendingFileCount, _processingFileCount)
-
-                // 文件状态变化时重新计算剩余时间
-                if (newStatus === 2 || newStatus === 3 || newStatus === 4) {
-                    msgDelegate.recalculateRemainingTime()
-                }
             }
 
             Component.onCompleted: {

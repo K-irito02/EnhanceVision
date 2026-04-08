@@ -45,6 +45,10 @@ Rectangle {
     // 标记是否已开始处理（避免进度条倒走）
     property bool _hasStartedProcessing: persistedProcessingStartTime > 0 || _processingStartTime > 0
 
+    // 动画控制属性
+    property bool _shouldBreathAnimate: status === 1
+    property bool _shouldWaitingAnimate: status === 0
+
     // 基于时间的进度百分比（用于进度条）
     readonly property real _timeBasedProgress: {
         if (!_hasStartedProcessing) return 0
@@ -85,6 +89,30 @@ Rectangle {
     property bool allFilesSettled: totalFileCount > 0 && pendingFileCount === 0 && processingFileCount === 0 && pausedFileCount === 0
     property bool allFilesPending: totalFileCount > 0 && pendingFileCount === totalFileCount
     property bool failedTipDismissed: false
+    
+    // 状态变化时显式控制动画
+    onStatusChanged: {
+        _updateBreathAnimation()
+        _updateWaitingAnimation()
+    }
+    
+    // 呼吸感动画控制函数
+    function _updateBreathAnimation() {
+        if (_shouldBreathAnimate) {
+            breathAnimation.start()
+        } else {
+            breathAnimation.stop()
+        }
+    }
+    
+    // 等待状态动画控制函数
+    function _updateWaitingAnimation() {
+        if (_shouldWaitingAnimate) {
+            waitingAnimation.start()
+        } else {
+            waitingAnimation.stop()
+        }
+    }
     
     signal cancelClicked()
     signal retryClicked()
@@ -227,7 +255,7 @@ Rectangle {
     
     SequentialAnimation {
         id: breathAnimation
-        running: root.status === 1
+        running: false
         loops: Animation.Infinite
         
         ColorAnimation {
@@ -574,27 +602,34 @@ Rectangle {
 
                 // 等待状态动画
                 Rectangle {
+                    id: waitingBar
                     visible: root.status === 0
                     width: parent.width * 0.3
                     height: parent.height; radius: parent.radius
                     color: Theme.colors.primary
                     opacity: 0.5
-
-                    SequentialAnimation on x {
-                        running: root.status === 0
-                        loops: Animation.Infinite
-                        NumberAnimation {
-                            from: 0
-                            to: root.width * 0.7
-                            duration: 1500
-                            easing.type: Easing.InOutQuad
-                        }
-                        NumberAnimation {
-                            from: root.width * 0.7
-                            to: 0
-                            duration: 1500
-                            easing.type: Easing.InOutQuad
-                        }
+                }
+                
+                SequentialAnimation {
+                    id: waitingAnimation
+                    running: root._shouldWaitingAnimate
+                    loops: Animation.Infinite
+                    
+                    NumberAnimation {
+                        target: waitingBar
+                        property: "x"
+                        from: 0
+                        to: waitingBar.parent.width * 0.7
+                        duration: 1500
+                        easing.type: Easing.InOutQuad
+                    }
+                    NumberAnimation {
+                        target: waitingBar
+                        property: "x"
+                        from: waitingBar.parent.width * 0.7
+                        to: 0
+                        duration: 1500
+                        easing.type: Easing.InOutQuad
                     }
                 }
             }
@@ -719,6 +754,11 @@ Rectangle {
                 wrapMode: Text.Wrap
             }
         }
+    }
+    
+    Component.onCompleted: {
+        _updateBreathAnimation()
+        _updateWaitingAnimation()
     }
     
     Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
