@@ -359,4 +359,14 @@ void WindowHelper::addExcludeRegion(int x, int y, int width, int height)
     m_excludeRegions.append(QRect(x, y, width, height));
 }
 
+void WindowHelper::setOverrideCursor(int cursorShape)
+{
+    QGuiApplication::setOverrideCursor(QCursor(static_cast<Qt::CursorShape>(cursorShape)));
+}
+
+void WindowHelper::restoreOverrideCursor()
+{
+    QGuiApplication::restoreOverrideCursor();
+}
+
 } // namespace EnhanceVision

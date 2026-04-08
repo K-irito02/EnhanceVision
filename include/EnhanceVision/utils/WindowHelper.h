@@ -38,6 +38,8 @@ public:
     Q_INVOKABLE void prepareRestoreAndMove(int mouseX, int mouseY, int areaWidth, int areaHeight);
     Q_INVOKABLE void clearExcludeRegions();
     Q_INVOKABLE void addExcludeRegion(int x, int y, int width, int height);
+    Q_INVOKABLE void setOverrideCursor(int cursorShape);
+    Q_INVOKABLE void restoreOverrideCursor();
     
     bool isResizing() const { return m_isResizing; }
     

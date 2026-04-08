@@ -385,9 +385,10 @@ Item {
         color: Theme.colors.background
         z: root.z
         
-        // 关键：阻止点击事件穿透到底层的消息列表
+        // 关键：阻止点击事件穿透到底层的消息列表（不覆盖标题栏，以便标题栏的拖拽光标正常显示）
         MouseArea {
             anchors.fill: parent
+            anchors.topMargin: titleBar.height
             acceptedButtons: Qt.AllButtons
             hoverEnabled: true
             onPressed: function(mouse) {
@@ -418,18 +419,65 @@ Item {
             
             Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: Theme.colors.titleBarBorder }
             
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 16
+                anchors.rightMargin: 8
+                spacing: 12
+                
+                Text { text: root.currentFile ? root.currentFile.fileName : qsTr("媒体查看器"); color: Theme.colors.foreground; font.pixelSize: 14; font.weight: Font.Medium; elide: Text.ElideMiddle; Layout.fillWidth: true; Layout.alignment: Qt.AlignVCenter }
+                Text { text: root.mediaFiles.length > 0 ? (root.currentIndex+1) + "/" + root.mediaFiles.length : ""; color: Theme.colors.mutedForeground; font.pixelSize: 12; Layout.alignment: Qt.AlignVCenter }
+                
+                Rectangle {
+                    id: compareButton
+                    visible: root._hasShaderOrOriginal
+                    width: cmpRow.implicitWidth + 16; height: 28; radius: 6
+                    color: root.showOriginal ? Theme.colors.primary : Theme.colors.muted
+                    Layout.alignment: Qt.AlignVCenter
+                    Row { id: cmpRow; anchors.centerIn: parent; spacing: 6
+                        ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("eye"); iconSize: 14; color: root.showOriginal ? "#FFF" : Theme.colors.foreground }
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: root.showOriginal ? qsTr("成果") : qsTr("源件"); color: root.showOriginal ? "#FFF" : Theme.colors.foreground; font.pixelSize: 12 }
+                    }
+                    MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.showOriginal = !root.showOriginal; z: 20 }
+                }
+                
+                Row {
+                    id: btnRow; spacing: 2
+                    Layout.alignment: Qt.AlignVCenter
+                    IconButton { iconName: "external-link"; iconSize: 16; btnSize: 32; tooltip: qsTr("独立窗口"); onClicked: root.switchToDetached() }
+                    IconButton { iconName: "minus"; iconSize: 16; btnSize: 32; tooltip: qsTr("最小化"); onClicked: root.minimize() }
+                    IconButton { iconName: "x"; iconSize: 16; btnSize: 32; danger: true; tooltip: qsTr("关闭"); onClicked: root.close() }
+                }
+            }
+            
+            // 拖拽区域放在 RowLayout 之后声明，确保在渲染顺序上覆盖 RowLayout（但避开按钮区域）
             MouseArea {
                 id: titleDragArea
-                anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom; anchors.rightMargin: btnRow.width + 8
+                anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom
+                anchors.rightMargin: btnRow.width + (compareButton.visible ? compareButton.width + 20 : 8)
+                
                 property real startX: 0
                 property real startY: 0
                 property bool isDraggingOut: false
                 
-                cursorShape: Qt.OpenHandCursor
+                hoverEnabled: true
+                
+                onContainsMouseChanged: {
+                    if (containsMouse) {
+                        WindowHelper.setOverrideCursor(pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
+                    } else {
+                        WindowHelper.restoreOverrideCursor()
+                    }
+                }
+                onPressedChanged: {
+                    if (containsMouse) {
+                        WindowHelper.restoreOverrideCursor()
+                        WindowHelper.setOverrideCursor(pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
+                    }
+                }
                 onPressed: function(m) {
                     startX = m.x
                     startY = m.y
-                    cursorShape = Qt.ClosedHandCursor
                 }
                 onPositionChanged: function(m) {
                     if (!pressed) return
@@ -459,8 +507,6 @@ Item {
                     }
                 }
                 onReleased: {
-                    cursorShape = Qt.OpenHandCursor
-                    
                     if (isDraggingOut) {
                         isDraggingOut = false
                         var finalX = dragPreviewWindow.x
@@ -477,38 +523,6 @@ Item {
                             })
                         }
                     }
-                }
-            }
-            
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 16
-                anchors.rightMargin: 8
-                spacing: 12
-                z: 10
-                
-                Text { text: root.currentFile ? root.currentFile.fileName : qsTr("媒体查看器"); color: Theme.colors.foreground; font.pixelSize: 14; font.weight: Font.Medium; elide: Text.ElideMiddle; Layout.fillWidth: true; Layout.alignment: Qt.AlignVCenter }
-                Text { text: root.mediaFiles.length > 0 ? (root.currentIndex+1) + "/" + root.mediaFiles.length : ""; color: Theme.colors.mutedForeground; font.pixelSize: 12; Layout.alignment: Qt.AlignVCenter }
-                
-                Rectangle {
-                    id: compareButton
-                    visible: root._hasShaderOrOriginal
-                    width: cmpRow.implicitWidth + 16; height: 28; radius: 6
-                    color: root.showOriginal ? Theme.colors.primary : Theme.colors.muted
-                    Layout.alignment: Qt.AlignVCenter
-                    Row { id: cmpRow; anchors.centerIn: parent; spacing: 6
-                        ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("eye"); iconSize: 14; color: root.showOriginal ? "#FFF" : Theme.colors.foreground }
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: root.showOriginal ? qsTr("成果") : qsTr("源件"); color: root.showOriginal ? "#FFF" : Theme.colors.foreground; font.pixelSize: 12 }
-                    }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.showOriginal = !root.showOriginal; z: 20 }
-                }
-                
-                Row {
-                    id: btnRow; spacing: 2
-                    Layout.alignment: Qt.AlignVCenter
-                    IconButton { iconName: "external-link"; iconSize: 16; btnSize: 32; tooltip: qsTr("独立窗口"); onClicked: root.switchToDetached() }
-                    IconButton { iconName: "minus"; iconSize: 16; btnSize: 32; tooltip: qsTr("最小化"); onClicked: root.minimize() }
-                    IconButton { iconName: "x"; iconSize: 16; btnSize: 32; danger: true; tooltip: qsTr("关闭"); onClicked: root.close() }
                 }
             }
         }
