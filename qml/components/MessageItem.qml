@@ -362,7 +362,22 @@ Rectangle {
                 spacing: 2
                 visible: root.totalFileCount > 0
                 
-                // 暂停/继续按钮 - 根据暂停模式和状态决定显示
+                IconButton {
+                    iconName: "download"; iconSize: 14; btnSize: 26
+                    iconColor: Theme.colors.icon
+                    tooltip: qsTr("保存成功文件")
+                    visible: root.successFileCount > 0
+                    onClicked: root.saveSuccessfulFilesClicked()
+                }
+                
+                IconButton {
+                    iconName: "refresh-cw"; iconSize: 14; btnSize: 26
+                    iconColor: Theme.colors.icon
+                    tooltip: qsTr("重新处理失败文件")
+                    visible: root.hasFailedFiles
+                    onClicked: root.retryFailedFilesClicked()
+                }
+                
                 IconButton {
                     iconName: root.shouldShowResumeButton ? "play" : "pause"
                     iconSize: 14; btnSize: 26
@@ -376,22 +391,6 @@ Rectangle {
                             root.pauseClicked()
                         }
                     }
-                }
-                
-                IconButton {
-                    iconName: "refresh-cw"; iconSize: 14; btnSize: 26
-                    iconColor: Theme.colors.icon
-                    tooltip: qsTr("重新处理失败文件")
-                    visible: root.hasFailedFiles
-                    onClicked: root.retryFailedFilesClicked()
-                }
-                
-                IconButton {
-                    iconName: "download"; iconSize: 14; btnSize: 26
-                    iconColor: Theme.colors.icon
-                    tooltip: qsTr("保存成功文件")
-                    visible: root.successFileCount > 0
-                    onClicked: root.saveSuccessfulFilesClicked()
                 }
                 
                 IconButton {
