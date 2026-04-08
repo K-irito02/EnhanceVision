@@ -92,3 +92,5 @@ resources/icons/placeholder.png
 
 # trae agents
 .trae/agents/
+.codex/
+.mcp.json
