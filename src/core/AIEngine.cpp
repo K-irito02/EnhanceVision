@@ -272,7 +272,7 @@ bool AIEngine::loadModel(const QString &modelId)
 
 void AIEngine::loadModelAsync(const QString &modelId)
 {
-    QtConcurrent::run([this, modelId]() {
+    auto future = QtConcurrent::run([this, modelId]() {
         bool success = loadModel(modelId);
         QString error;
         if (!success) {
@@ -280,6 +280,7 @@ void AIEngine::loadModelAsync(const QString &modelId)
         }
         emit modelLoadCompleted(success, modelId, error);
     });
+    Q_UNUSED(future);
 }
 
 void AIEngine::unloadModel()
@@ -456,7 +457,7 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
     setProgress(0.0);
     m_cancelRequested = false;
 
-    QtConcurrent::run([this, inputPath, outputPath, snapshotParams]() {
+    auto future = QtConcurrent::run([this, inputPath, outputPath, snapshotParams]() {
         QElapsedTimer perfTimer;
         perfTimer.start();
 
@@ -518,6 +519,7 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
         setProcessing(false);
         emit processFileCompleted(true, outputPath, QString());
     });
+    Q_UNUSED(future);
 }
 
 void AIEngine::cancelProcess()
@@ -679,7 +681,7 @@ void AIEngine::inpaintAsync(const QString &inputPath, const QString &maskPath,
         emit processFileCompleted(false, QString(), tr("Task already in progress"));
         return;
     }
-    QtConcurrent::run([this, inputPath, maskPath, outputPath, radius, method]() {
+    auto future = QtConcurrent::run([this, inputPath, maskPath, outputPath, radius, method]() {
         setProcessing(true);
         setProgress(0.0);
         QImage input(inputPath), mask(maskPath);
@@ -698,6 +700,7 @@ void AIEngine::inpaintAsync(const QString &inputPath, const QString &maskPath,
         setProcessing(false);
         emit processFileCompleted(true, outputPath, QString());
     });
+    Q_UNUSED(future);
 }
 
 // ========== 参数设置 ==========

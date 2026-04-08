@@ -45,5 +45,6 @@ trigger: glob
 ## 日志规范
 
 1. **关键路径必须有日志**：初始化、任务开始/结束、错误
-2. **日志格式统一**：`[ClassName][DEBUG] message`
-3. **禁止输出敏感路径**：使用相对路径或 `[FILE]` 占位
+2. **控制日志量**：调度循环/热路径使用 `qDebug()`，避免 `qInfo()` 造成日志爆量
+3. **格式尽量统一**：推荐 `"[ClassName] message"`，必要时补充子标签如 `"[ClassName][Sub]"`（示例：`[ProcessingController][tryStartTask] ...`）
+4. **禁止输出敏感路径**：使用相对路径或 `[FILE]` 占位

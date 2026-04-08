@@ -58,7 +58,7 @@ bool ResourceManager::tryAcquire(const QString& taskId, qint64 memoryMB, qint64 
 }
 
 void ResourceManager::release(const QString& taskId) {
-    if (m_taskResources.remove(taskId) > 0) {
+    if (m_taskResources.remove(taskId) != 0) {
         emit resourceReleased(taskId);
     }
 }

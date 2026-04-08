@@ -28,10 +28,19 @@ trigger: glob
 | AIEngine | AI 模型加载与推理 |
 | AIEnginePool | AI 引擎池管理（并发控制） |
 | ProcessingController | 处理任务编排 |
+| TaskRecoveryController | 启动恢复编排（快照/待恢复/恢复决策） |
 | ResourceManager | 资源配额管理 |
 | TaskCoordinator | 任务协调与调度 |
 | VideoProcessor | 视频处理管道 |
 | ImageProcessor | 图像处理管道 |
+
+## 启动恢复约束
+
+当应用退出时，如果仍存在未完成任务（`处理中 / 等待中 / 暂停中`），下次启动必须走统一恢复流程：
+
+1. 未完成任务先统一映射为 `待恢复`（`ProcessingStatus::Recoverable`），避免启动后立即自动跑导致语义错乱
+2. 用户必须在启动恢复弹窗中二选一：恢复关闭前状态，或全部标记为失败
+3. 在恢复决策完成前不允许切换任务控制模式；决策完成后，只要仍有未完成任务也不允许切换
 
 ## 数据流规范
 

@@ -129,9 +129,10 @@ void VideoProcessor::processVideoAsyncWithReporter(const QString& inputPath,
         m_reporter->beginBatch(6, tr("Processing Video"));
     }
 
-    QtConcurrent::run([this, inputPath, outputPath, params, progressCallback, finishCallback]() {
+    auto future = QtConcurrent::run([this, inputPath, outputPath, params, progressCallback, finishCallback]() {
         processVideoInternal(inputPath, outputPath, params, m_reporter, progressCallback, finishCallback);
     });
+    Q_UNUSED(future);
 }
 
 void VideoProcessor::cancel()

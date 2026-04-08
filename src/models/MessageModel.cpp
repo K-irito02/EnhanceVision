@@ -670,6 +670,10 @@ QString MessageModel::getStatusText(ProcessingStatus status) const
         return tr("Failed");
     case ProcessingStatus::Cancelled:
         return tr("Cancelled");
+    case ProcessingStatus::Paused:
+        return tr("Paused");
+    case ProcessingStatus::Recoverable:
+        return tr("Recoverable");
     default:
         return tr("Unknown");
     }
@@ -688,6 +692,10 @@ QString MessageModel::getStatusColor(ProcessingStatus status) const
         return "#ef4444"; // red-500
     case ProcessingStatus::Cancelled:
         return "#6b7280"; // gray-500
+    case ProcessingStatus::Paused:
+        return "#f59e0b"; // amber-500
+    case ProcessingStatus::Recoverable:
+        return "#2563eb"; // blue-600
     default:
         return "#6b7280"; // gray-500
     }

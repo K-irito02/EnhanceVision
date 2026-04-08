@@ -556,7 +556,7 @@ void ImageProcessor::processImageAsyncWithReporter(const QString& inputPath,
         m_reporter->beginBatch(5, tr("Processing Image"));
     }
 
-    QtConcurrent::run([this, inputPath, outputPath, params, progressCallback, finishCallback]() {
+    auto future = QtConcurrent::run([this, inputPath, outputPath, params, progressCallback, finishCallback]() {
         bool success = false;
         QString error;
         QString resultPath;
@@ -789,6 +789,7 @@ void ImageProcessor::processImageAsyncWithReporter(const QString& inputPath,
             emit finished(success, resultPath, error);
         }
     });
+    Q_UNUSED(future);
 }
 
 void ImageProcessor::cancel()

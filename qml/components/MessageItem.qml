@@ -85,8 +85,9 @@ Rectangle {
     property int pendingFileCount: 0
     property int processingFileCount: 0
     property int pausedFileCount: 0
+    property int recoverableFileCount: 0
     property bool hasFailedFiles: failedFileCount > 0
-    property bool allFilesSettled: totalFileCount > 0 && pendingFileCount === 0 && processingFileCount === 0 && pausedFileCount === 0
+    property bool allFilesSettled: totalFileCount > 0 && pendingFileCount === 0 && processingFileCount === 0 && pausedFileCount === 0 && recoverableFileCount === 0
     property bool allFilesPending: totalFileCount > 0 && pendingFileCount === totalFileCount
     property bool failedTipDismissed: false
     
@@ -131,6 +132,7 @@ Rectangle {
     
     // 暂停状态（status === 5 表示 Paused）
     property bool isPaused: status === 5
+    property bool isRecoverable: status === 6
     
     // 全局暂停状态（模式三使用）
     property bool globalPauseEnabled: false
@@ -141,6 +143,7 @@ Rectangle {
     // 是否应该显示继续按钮（模式三：全局暂停时所有待处理卡片显示继续按钮）
     readonly property bool shouldShowResumeButton: {
         if (root.isPaused) return true
+        if (root.isRecoverable) return false
         if (pauseMode === 2 && globalPauseEnabled && !root.allFilesSettled && (status === 0 || status === 1)) {
             return true
         }
@@ -150,6 +153,7 @@ Rectangle {
     // 是否应该显示暂停按钮
     readonly property bool shouldShowPauseButton: {
         if (root.isPaused) return false
+        if (root.isRecoverable) return false
         if (status === 1 && !root.allFilesSettled) return true  // 处理中
         return false
     }
@@ -158,15 +162,16 @@ Rectangle {
     property var _deletingFileIds: ({})
     property int _deletingCount: 0
 
-    function _applyFileStats(success, failed, pending, processing, paused) {
+    function _applyFileStats(success, failed, pending, processing, paused, recoverable) {
         successFileCount = success
         failedFileCount = failed
         pendingFileCount = pending
         processingFileCount = processing
         pausedFileCount = paused !== undefined ? paused : 0
+        recoverableFileCount = recoverable !== undefined ? recoverable : 0
         _hasStatsSnapshot = true
 
-        if (failed === 0 || pending > 0 || processing > 0) {
+        if (failed === 0 || pending > 0 || processing > 0 || recoverableFileCount > 0) {
             failedTipDismissed = false
         }
     }
@@ -177,6 +182,7 @@ Rectangle {
         var pending = 0
         var processing = 0
         var paused = 0
+        var recoverable = 0
         if (mediaFiles && mediaFiles.count > 0) {
             for (var i = 0; i < mediaFiles.count; i++) {
                 var item = mediaFiles.get(i)
@@ -190,11 +196,13 @@ Rectangle {
                     processing++
                 } else if (item.status === 5) {
                     paused++
+                } else if (item.status === 6) {
+                    recoverable++
                 }
             }
         }
 
-        _applyFileStats(success, failed, pending, processing, paused)
+        _applyFileStats(success, failed, pending, processing, paused, recoverable)
     }
 
     function scheduleFileCountUpdate(force) {
@@ -242,12 +250,13 @@ Rectangle {
     
     border.width: {
         if (selected) return 2
-        if (status === 1) return 1.5
+        if (status === 1 || root.isRecoverable) return 1.5
         return 1
     }
     border.color: {
         if (selected) return Theme.colors.primary
         if (status === 1) return breathColor
+        if (root.isRecoverable) return Qt.rgba(Theme.colors.primary.r, Theme.colors.primary.g, Theme.colors.primary.b, 0.45)
         return Theme.colors.cardBorder
     }
     
@@ -493,7 +502,7 @@ Rectangle {
         }
         
         ColumnLayout {
-            visible: (status === 0 || status === 1 || root.isPaused) && !root.allFilesSettled
+            visible: (status === 0 || status === 1 || root.isPaused || root.isRecoverable) && !root.allFilesSettled
             Layout.fillWidth: true
             spacing: 4
 
@@ -504,11 +513,12 @@ Rectangle {
                 // 左侧状态文本
                 Text {
                     text: {
+                        if (root.isRecoverable) return qsTr("待恢复")
                         if (root.isPaused) return qsTr("已暂停")
                         if (status === 0) return qsTr("等待处理...")
                         return qsTr("处理中")
                     }
-                    color: root.isPaused ? Theme.colors.warning : Theme.colors.foreground
+                    color: root.isRecoverable ? Theme.colors.primary : (root.isPaused ? Theme.colors.warning : Theme.colors.foreground)
                     font.pixelSize: 12
                 }
 
@@ -565,6 +575,15 @@ Rectangle {
                     }
 
                 }
+            }
+
+            Text {
+                visible: root.isRecoverable
+                Layout.fillWidth: true
+                text: qsTr("上次退出时未完成，等待恢复决策")
+                color: Theme.colors.mutedForeground
+                font.pixelSize: 11
+                wrapMode: Text.Wrap
             }
 
             // 进度条（基于时间预测移动）

@@ -163,6 +163,7 @@ Item {
             property int _pendingFileCount: 0
             property int _processingFileCount: 0
             property int _pausedFileCount: 0
+            property int _recoverableFileCount: 0
             property bool _fileStatsInitialized: false
             mediaFiles: _cachedMedia
             totalFileCount: _cachedMedia.count
@@ -177,6 +178,8 @@ Item {
                 var failed = 0
                 var pending = 0
                 var processing = 0
+                var paused = 0
+                var recoverable = 0
                 for (var i = 0; i < _cachedMedia.count; i++) {
                     var entry = _cachedMedia.get(i)
                     if (entry.status === 2) {
@@ -185,6 +188,10 @@ Item {
                         failed++
                     } else if (entry.status === 1) {
                         processing++
+                    } else if (entry.status === 5) {
+                        paused++
+                    } else if (entry.status === 6) {
+                        recoverable++
                     } else {
                         pending++
                     }
@@ -194,8 +201,10 @@ Item {
                 _failedFileCount = failed
                 _pendingFileCount = pending
                 _processingFileCount = processing
+                _pausedFileCount = paused
+                _recoverableFileCount = recoverable
                 _fileStatsInitialized = true
-                msgDelegate._applyFileStats(success, failed, pending, processing, 0)
+                msgDelegate._applyFileStats(success, failed, pending, processing, paused, recoverable)
             }
 
             function _bumpFileStats(oldStatus, newStatus) {
@@ -206,6 +215,10 @@ Item {
                         _failedFileCount = Math.max(0, _failedFileCount - 1)
                     } else if (statusValue === 1) {
                         _processingFileCount = Math.max(0, _processingFileCount - 1)
+                    } else if (statusValue === 5) {
+                        _pausedFileCount = Math.max(0, _pausedFileCount - 1)
+                    } else if (statusValue === 6) {
+                        _recoverableFileCount = Math.max(0, _recoverableFileCount - 1)
                     } else {
                         _pendingFileCount = Math.max(0, _pendingFileCount - 1)
                     }
@@ -218,6 +231,10 @@ Item {
                         _failedFileCount += 1
                     } else if (statusValue === 1) {
                         _processingFileCount += 1
+                    } else if (statusValue === 5) {
+                        _pausedFileCount += 1
+                    } else if (statusValue === 6) {
+                        _recoverableFileCount += 1
                     } else {
                         _pendingFileCount += 1
                     }
@@ -226,7 +243,7 @@ Item {
                 decByStatus(oldStatus)
                 incByStatus(newStatus)
 
-                msgDelegate._applyFileStats(_successFileCount, _failedFileCount, _pendingFileCount, _processingFileCount)
+                msgDelegate._applyFileStats(_successFileCount, _failedFileCount, _pendingFileCount, _processingFileCount, _pausedFileCount, _recoverableFileCount)
             }
 
             Component.onCompleted: {
@@ -528,7 +545,7 @@ Item {
                     child._pendingFileCount = pendingCount
                     child._processingFileCount = processingCount
                     child._fileStatsInitialized = true
-                    child._applyFileStats(successCount, failedCount, pendingCount, processingCount)
+                    child._applyFileStats(successCount, failedCount, pendingCount, processingCount, child._pausedFileCount || 0, child._recoverableFileCount || 0)
                     break
                 }
             }

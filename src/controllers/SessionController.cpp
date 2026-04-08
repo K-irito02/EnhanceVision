@@ -834,97 +834,22 @@ void SessionController::loadSessionMessages(const QString& sessionId)
 
     Session* session = getSession(sessionId);
     if (session) {
-        if (m_processingController) {
-            auto* settings = SettingsController::instance();
-            QStringList interruptedMessageIds;
-            interruptedMessageIds.reserve(session->messages.size());
-            bool hasStatusChanges = false;
-
-            for (const Message& msg : session->messages) {
-                if (m_autoRetriedMessageIds.contains(msg.id)) {
-                    continue;
-                }
-
-                bool hasInterruptedFiles = false;
-                for (const MediaFile& file : msg.mediaFiles) {
-                    if (file.status == ProcessingStatus::Pending || file.status == ProcessingStatus::Processing) {
-                        // 【关键修复】检查任务是否在队列中（无论是等待还是执行中）
-                        QString taskId = findTaskIdForFile(msg.id, file.id);
-                        
-                        if (!taskId.isEmpty()) {
-                            // 任务在队列中，检查是否正在执行
-                            if (TaskStateManager::instance()->isTaskActive(taskId)) {
-                                // 任务正在执行，不是中断
-                                continue;
-                            }
-                            
-                            // 任务在队列中等待（Pending 状态），也不是中断
-                            // 【重要】等待中的任务不应该被标记为失败
-                            continue;
-                        }
-                        
-                        // 任务既不在队列中，也不在执行中，才是真正中断的任务
-                        hasInterruptedFiles = true;
-                        break;
-                    }
-                }
-
-                if (hasInterruptedFiles) {
-                    bool shouldAutoReprocess = false;
-                    
-                    if (msg.mode == ProcessingMode::Shader) {
-                        shouldAutoReprocess = settings->autoReprocessShaderEnabled();
-                    } else if (msg.mode == ProcessingMode::AIInference) {
-                        shouldAutoReprocess = settings->autoReprocessAIEnabled();
-                    }
-                    
-                    if (shouldAutoReprocess) {
-                        m_autoRetriedMessageIds.insert(msg.id);
-                        interruptedMessageIds.append(msg.id);
-                    } else {
-                        // 只有真正中断的任务才标记为失败
-                        for (Message& m : session->messages) {
-                            if (m.id == msg.id) {
-                                for (MediaFile& file : m.mediaFiles) {
-                                    QString taskId = findTaskIdForFile(msg.id, file.id);
-                                    // 再次确认任务不在队列中
-                                    if ((file.status == ProcessingStatus::Pending || 
-                                         file.status == ProcessingStatus::Processing) &&
-                                        taskId.isEmpty()) {
-                                        file.status = ProcessingStatus::Failed;
-                                        hasStatusChanges = true;
-                                    }
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (hasStatusChanges) {
-                saveSessions();
-            }
-
-            m_messageModel->setMessages(session->messages);
-            m_messageModel->setCurrentSessionId(session->id);
-
-            if (!interruptedMessageIds.isEmpty()) {
-                QTimer::singleShot(0, this, [this, sessionId, interruptedMessageIds]() {
-                    if (!m_processingController) {
-                        return;
-                    }
-
-                    for (const QString& messageId : interruptedMessageIds) {
-                        m_processingController->autoRetryInterruptedFiles(messageId, sessionId);
-                    }
-                });
-            }
-        } else {
-            m_messageModel->setMessages(session->messages);
-            m_messageModel->setCurrentSessionId(session->id);
-        }
+        m_messageModel->setMessages(session->messages);
+        m_messageModel->setCurrentSessionId(session->id);
     }
+}
+
+void SessionController::reloadActiveSessionMessages()
+{
+    if (m_activeSessionId.isEmpty()) {
+        if (m_messageModel) {
+            m_messageModel->clear();
+            m_messageModel->setCurrentSessionId(QString());
+        }
+        return;
+    }
+
+    loadSessionMessages(m_activeSessionId);
 }
 
 QString SessionController::sessionsFilePath() const
@@ -1080,12 +1005,6 @@ Message SessionController::jsonToMessage(const QJsonObject& json) const
     message.remainingSec = json["remainingSec"].toVariant().toLongLong();
     message.isOvertime = json["isOvertime"].toBool(false);
     
-    if (message.status == ProcessingStatus::Processing) {
-        message.status = ProcessingStatus::Pending;
-        message.progress = 0;
-        message.queuePosition = -1;
-    }
-    
     return message;
 }
 
@@ -1117,10 +1036,6 @@ MediaFile SessionController::jsonToMediaFile(const QJsonObject& json) const
     file.resolution = QSize(json["width"].toInt(0), json["height"].toInt(0));
     file.status = static_cast<ProcessingStatus>(json["status"].toInt(0));
     file.resultPath = json["resultPath"].toString();
-    
-    if (file.status == ProcessingStatus::Processing) {
-        file.status = ProcessingStatus::Pending;
-    }
     
     return file;
 }
@@ -1324,94 +1239,7 @@ void SessionController::rebuildSessionMessageIndex()
 
 void SessionController::checkAndAutoRetryAllInterruptedTasks()
 {
-    if (!m_processingController) {
-        qWarning() << "[SessionController] checkAndAutoRetryAllInterruptedTasks: ProcessingController not set";
-        return;
-    }
-
-    auto* settings = SettingsController::instance();
-    if (!settings) {
-        qWarning() << "[SessionController] checkAndAutoRetryAllInterruptedTasks: SettingsController not available";
-        return;
-    }
-
-    QStringList interruptedMessageIds;
-    QHash<QString, QString> messageToSession;
-    bool hasStatusChanges = false;
-
-    QList<Session>& sessions = m_sessionModel->sessionsRef();
-    for (int sessionIdx = 0; sessionIdx < sessions.size(); ++sessionIdx) {
-        Session& session = sessions[sessionIdx];
-        
-        for (Message& msg : session.messages) {
-            if (m_autoRetriedMessageIds.contains(msg.id)) {
-                continue;
-            }
-
-            bool hasInterruptedFiles = false;
-            for (const MediaFile& file : msg.mediaFiles) {
-                if (file.status == ProcessingStatus::Pending || file.status == ProcessingStatus::Processing) {
-                    hasInterruptedFiles = true;
-                    break;
-                }
-            }
-
-            if (hasInterruptedFiles) {
-                bool shouldAutoReprocess = false;
-                
-                if (msg.mode == ProcessingMode::Shader) {
-                    shouldAutoReprocess = settings->autoReprocessShaderEnabled();
-                } else if (msg.mode == ProcessingMode::AIInference) {
-                    shouldAutoReprocess = settings->autoReprocessAIEnabled();
-                }
-                
-                if (shouldAutoReprocess) {
-                    m_autoRetriedMessageIds.insert(msg.id);
-                    interruptedMessageIds.append(msg.id);
-                    messageToSession[msg.id] = session.id;
-                    qInfo() << "[SessionController] Found interrupted task for auto-retry:"
-                            << "session:" << session.id
-                            << "message:" << msg.id
-                            << "mode:" << static_cast<int>(msg.mode);
-                } else {
-                    for (MediaFile& file : msg.mediaFiles) {
-                        if (file.status == ProcessingStatus::Pending || 
-                            file.status == ProcessingStatus::Processing) {
-                            file.status = ProcessingStatus::Failed;
-                            hasStatusChanges = true;
-                        }
-                    }
-                    
-                    int failedCount = 0;
-                    for (const MediaFile& f : msg.mediaFiles) {
-                        if (f.status == ProcessingStatus::Failed) failedCount++;
-                    }
-                    if (failedCount > 0) {
-                        msg.status = ProcessingStatus::Failed;
-                    }
-                }
-            }
-        }
-    }
-
-    if (hasStatusChanges) {
-        saveSessionsImmediately();
-    }
-
-    if (!interruptedMessageIds.isEmpty()) {
-        qInfo() << "[SessionController] Auto-retrying" << interruptedMessageIds.size() << "interrupted tasks";
-        
-        QTimer::singleShot(500, this, [this, interruptedMessageIds, messageToSession]() {
-            if (!m_processingController) {
-                return;
-            }
-
-            for (const QString& messageId : interruptedMessageIds) {
-                const QString sessionId = messageToSession.value(messageId);
-                m_processingController->autoRetryInterruptedFiles(messageId, sessionId);
-            }
-        });
-    }
+    qInfo() << "[SessionController] Startup auto-retry is disabled; recovery is handled by TaskRecoveryController";
 }
 
 void SessionController::saveSessionsImmediately()

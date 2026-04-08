@@ -112,6 +112,7 @@ public:
     
     Q_INVOKABLE void saveSessions();
     Q_INVOKABLE void loadSessions();
+    void reloadActiveSessionMessages();
     
     /**
      * @brief 恢复已处理文件的缩略图

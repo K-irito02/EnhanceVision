@@ -13,6 +13,7 @@
 #include "EnhanceVision/controllers/FileController.h"
 #include "EnhanceVision/controllers/SessionController.h"
 #include "EnhanceVision/controllers/ProcessingController.h"
+#include "EnhanceVision/controllers/TaskRecoveryController.h"
 #include "EnhanceVision/controllers/UIStateController.h"
 #include "EnhanceVision/services/ImageExportService.h"
 #include "EnhanceVision/services/AutoSaveService.h"
@@ -178,6 +179,7 @@ Application::Application(QObject *parent)
     , m_fileController(std::make_unique<FileController>(this))
     , m_sessionController(std::make_unique<SessionController>(this))
     , m_processingController(std::make_unique<ProcessingController>(this))
+    , m_taskRecoveryController(std::make_unique<TaskRecoveryController>(this))
     , m_imageExportService(ImageExportService::instance())
 {
     m_fileController->setFileModel(m_fileModel.get());
@@ -185,6 +187,9 @@ Application::Application(QObject *parent)
 
 Application::~Application()
 {
+    if (m_taskRecoveryController) {
+        m_taskRecoveryController->persistSnapshotNow();
+    }
     m_sessionController->saveSessions();
     ThumbnailDatabase::destroyInstance();
     delete m_mainWidget;
@@ -221,11 +226,7 @@ void Application::initialize()
 
     setupLifecycleGuard();
 
-    if (SettingsController::instance()->checkAndHandleCrashRecovery()) {
-        QTimer::singleShot(500, this, [this]() {
-            emit crashRecoveryNeeded();
-        });
-    }
+    SettingsController::instance()->checkAndHandleCrashRecovery();
 
     SettingsController::instance()->markAppRunning();
 
@@ -236,11 +237,7 @@ void Application::initialize()
 
     m_sessionController->loadSessions();
     m_sessionController->restoreThumbnails();
-    
-    // 延迟检查中断任务，确保 UI 完全加载后再开始自动重处理
-    QTimer::singleShot(1000, this, [this]() {
-        m_sessionController->checkAndAutoRetryAllInterruptedTasks();
-    });
+    m_taskRecoveryController->initializeStartupRecovery();
 
     m_mainWidget->setSource(QUrl(QStringLiteral("qrc:/qt/qml/EnhanceVision/qml/main.qml")));
 
@@ -340,6 +337,8 @@ void Application::setupQmlContext(ThumbnailProvider* thumbnailProvider)
     m_processingController->setMessageModel(m_messageModel.get());
     m_processingController->setSessionController(m_sessionController.get());
     m_processingController->setProcessingTimeManager(m_sessionController->processingTimeManager());
+    m_taskRecoveryController->setSessionController(m_sessionController.get());
+    m_taskRecoveryController->setProcessingController(m_processingController.get());
     m_sessionController->setProcessingController(m_processingController.get());
     m_messageModel->setProcessingController(m_processingController.get());
     
@@ -359,6 +358,7 @@ void Application::setupQmlContext(ThumbnailProvider* thumbnailProvider)
     context->setContextProperty("fileController", m_fileController.get());
     context->setContextProperty("sessionController", m_sessionController.get());
     context->setContextProperty("processingController", m_processingController.get());
+    context->setContextProperty("taskRecoveryController", m_taskRecoveryController.get());
     
     // 将 ThumbnailProvider 设置为上下文属性，供 QML 访问
     context->setContextProperty("thumbnailProvider", thumbnailProvider);

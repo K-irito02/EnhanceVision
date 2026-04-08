@@ -39,7 +39,8 @@ enum class ProcessingStatus {
     Completed,    ///< 已完成
     Failed,       ///< 失败
     Cancelled,    ///< 已取消
-    Paused        ///< 已暂停
+    Paused,       ///< 已暂停
+    Recoverable   ///< 待恢复
 };
 
 /**
@@ -336,6 +337,43 @@ struct QueueTask {
         , progress(0)
         , status(ProcessingStatus::Pending)
     {}
+};
+
+enum class RecoveryRunIntent {
+    Active,   ///< 关闭前处于可运行/已激活集合中
+    Queued,   ///< 关闭前仅在队列中等待
+    Paused    ///< 关闭前由用户主动暂停
+};
+
+struct RecoverableFileState {
+    QString fileId;
+    ProcessingStatus preShutdownStatus = ProcessingStatus::Pending;
+    int orderIndex = -1;
+};
+
+struct RecoverableMessageState {
+    QString sessionId;
+    QString sessionName;
+    QString messageId;
+    ProcessingStatus preShutdownStatus = ProcessingStatus::Pending;
+    RecoveryRunIntent runIntent = RecoveryRunIntent::Queued;
+    int orderIndex = -1;
+    QList<RecoverableFileState> fileStates;
+};
+
+struct RecoverySnapshot {
+    int snapshotVersion = 1;
+    QString shutdownReason;
+    int pauseModeAtShutdown = 1;
+    QString currentProcessingMessageId;
+    QString queueBlockerMessageId;
+    qint64 capturedAtMs = 0;
+    QList<RecoverableMessageState> messages;
+
+    bool isValid() const
+    {
+        return snapshotVersion > 0 && !messages.isEmpty();
+    }
 };
 
 /**

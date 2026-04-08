@@ -14,6 +14,48 @@ Rectangle {
     signal goBack()
 
     color: Theme.colors.background
+    property var pauseModeSwitchBlockers: []
+    property bool pauseModeBlockerDialogVisible: false
+
+    function totalBlockedCount(statusKey) {
+        var total = 0
+        for (var i = 0; i < pauseModeSwitchBlockers.length; ++i) {
+            total += pauseModeSwitchBlockers[i][statusKey] || 0
+        }
+        return total
+    }
+
+    function openPauseModeBlockerDialog(blockers) {
+        pauseModeSwitchBlockers = blockers || []
+        pauseModeBlockerDialogVisible = pauseModeSwitchBlockers.length > 0
+    }
+
+    function closePauseModeBlockerDialog() {
+        pauseModeBlockerDialogVisible = false
+    }
+
+    function tryChangePauseMode(targetMode) {
+        if (SettingsController.pauseMode === targetMode) {
+            return
+        }
+
+        var blockers = typeof taskRecoveryController !== "undefined"
+            && taskRecoveryController
+            && taskRecoveryController.getPauseModeSwitchBlockers
+            ? taskRecoveryController.getPauseModeSwitchBlockers()
+            : (typeof processingController !== "undefined"
+            && processingController
+            && processingController.getPauseModeSwitchBlockers
+            ? processingController.getPauseModeSwitchBlockers()
+            : [])
+
+        if (blockers.length > 0) {
+            openPauseModeBlockerDialog(blockers)
+            return
+        }
+
+        SettingsController.pauseMode = targetMode
+    }
 
     FolderDialog {
         id: customDataPathDialog
@@ -67,6 +109,414 @@ Rectangle {
                 success = SettingsController.clearAllCache()
             }
             clearCacheToast.show(success ? qsTr("清理完成") : qsTr("清理失败"))
+        }
+    }
+
+    Item {
+        id: pauseModeBlockerOverlay
+        anchors.fill: parent
+        z: 100
+        visible: opacity > 0
+        opacity: root.pauseModeBlockerDialogVisible ? 1 : 0
+
+        Behavior on opacity {
+            NumberAnimation { duration: Theme.animation.normal; easing.type: Easing.OutCubic }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            color: Theme.isDark ? Qt.rgba(2 / 255, 8 / 255, 20 / 255, 0.78) : Qt.rgba(10 / 255, 22 / 255, 40 / 255, 0.26)
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            enabled: root.pauseModeBlockerDialogVisible
+            onClicked: root.closePauseModeBlockerDialog()
+        }
+
+        Rectangle {
+            id: pauseModeBlockerCard
+            anchors.centerIn: parent
+            width: Math.min(parent.width - 48, 760)
+            implicitHeight: blockerDialogColumn.implicitHeight + 44
+            height: Math.min(implicitHeight, parent.height - 48)
+            radius: Theme.radius.xxl
+            color: Theme.colors.card
+            border.width: 1
+            border.color: Theme.isDark ? Qt.rgba(91 / 255, 141 / 255, 239 / 255, 0.28) : Qt.rgba(0 / 255, 47 / 255, 167 / 255, 0.14)
+            scale: root.pauseModeBlockerDialogVisible ? 1 : 0.94
+            y: root.pauseModeBlockerDialogVisible ? 0 : 12
+
+            Behavior on scale {
+                NumberAnimation { duration: Theme.animation.slow; easing.type: Easing.OutCubic }
+            }
+
+            Behavior on y {
+                NumberAnimation { duration: Theme.animation.slow; easing.type: Easing.OutCubic }
+            }
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: 1
+                height: Math.min(parent.height * 0.4, 180)
+                radius: parent.radius
+                color: Theme.isDark ? Qt.rgba(91 / 255, 141 / 255, 239 / 255, 0.08) : Qt.rgba(0 / 255, 47 / 255, 167 / 255, 0.04)
+            }
+
+            ColumnLayout {
+                id: blockerDialogColumn
+                anchors.fill: parent
+                anchors.margins: 22
+                spacing: 16
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 14
+
+                    Rectangle {
+                        width: 44
+                        height: 44
+                        radius: 14
+                        color: Theme.colors.warningSubtleBg
+                        border.width: 1
+                        border.color: Qt.rgba(Theme.colors.warning.r, Theme.colors.warning.g, Theme.colors.warning.b, 0.24)
+
+                        ColoredIcon {
+                            anchors.centerIn: parent
+                            source: Theme.icon("alert-triangle")
+                            iconSize: 20
+                            color: Theme.colors.warning
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+
+                        Text {
+                            text: qsTr("暂时无法切换任务控制模式")
+                            color: Theme.colors.foreground
+                            font.pixelSize: 18
+                            font.weight: Font.DemiBold
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: root.totalBlockedCount("recoverableCount") > 0
+                                ? qsTr("存在待恢复消息卡片，需先完成恢复决策后才可切换模式。")
+                                : qsTr("以下会话标签中仍有未完成消息卡片，请在全部结束后再切换模式。")
+                            color: Theme.colors.mutedForeground
+                            font.pixelSize: 12
+                            wrapMode: Text.Wrap
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    radius: Theme.radius.lg
+                    color: Theme.isDark ? Qt.rgba(30 / 255, 86 / 255, 208 / 255, 0.12) : Qt.rgba(0 / 255, 47 / 255, 167 / 255, 0.06)
+                    border.width: 1
+                    border.color: Theme.isDark ? Qt.rgba(91 / 255, 141 / 255, 239 / 255, 0.22) : Qt.rgba(0 / 255, 47 / 255, 167 / 255, 0.12)
+                    implicitHeight: blockerBannerColumn.implicitHeight + 18
+
+                    ColumnLayout {
+                        id: blockerBannerColumn
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        spacing: 8
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: qsTr("涉及 %1 个会话标签，共 %2 张消息卡片被拦截。").arg(root.pauseModeSwitchBlockers.length).arg(root.totalBlockedCount("totalCount"))
+                            color: Theme.colors.foreground
+                            font.pixelSize: 13
+                            font.weight: Font.Medium
+                            wrapMode: Text.Wrap
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Rectangle {
+                                visible: root.totalBlockedCount("recoverableCount") > 0
+                                radius: Theme.radius.full
+                                color: Qt.rgba(Theme.colors.primary.r, Theme.colors.primary.g, Theme.colors.primary.b, 0.12)
+                                border.width: 1
+                                border.color: Qt.rgba(Theme.colors.primary.r, Theme.colors.primary.g, Theme.colors.primary.b, 0.18)
+                                implicitHeight: recoverableChipText.implicitHeight + 8
+                                implicitWidth: recoverableChipText.implicitWidth + 14
+
+                                Text {
+                                    id: recoverableChipText
+                                    anchors.centerIn: parent
+                                    text: qsTr("待恢复 %1").arg(root.totalBlockedCount("recoverableCount"))
+                                    color: Theme.colors.primary
+                                    font.pixelSize: 11
+                                    font.weight: Font.DemiBold
+                                }
+                            }
+
+                            Rectangle {
+                                visible: root.totalBlockedCount("processingCount") > 0
+                                radius: Theme.radius.full
+                                color: Theme.colors.primarySubtle
+                                implicitHeight: processingChipText.implicitHeight + 8
+                                implicitWidth: processingChipText.implicitWidth + 14
+
+                                Text {
+                                    id: processingChipText
+                                    anchors.centerIn: parent
+                                    text: qsTr("处理中 %1").arg(root.totalBlockedCount("processingCount"))
+                                    color: Theme.colors.primary
+                                    font.pixelSize: 11
+                                    font.weight: Font.DemiBold
+                                }
+                            }
+
+                            Rectangle {
+                                visible: root.totalBlockedCount("pendingCount") > 0
+                                radius: Theme.radius.full
+                                color: Theme.colors.warningSubtleBg
+                                implicitHeight: pendingChipText.implicitHeight + 8
+                                implicitWidth: pendingChipText.implicitWidth + 14
+
+                                Text {
+                                    id: pendingChipText
+                                    anchors.centerIn: parent
+                                    text: qsTr("等待处理 %1").arg(root.totalBlockedCount("pendingCount"))
+                                    color: Theme.colors.warning
+                                    font.pixelSize: 11
+                                    font.weight: Font.DemiBold
+                                }
+                            }
+
+                            Rectangle {
+                                visible: root.totalBlockedCount("pausedCount") > 0
+                                radius: Theme.radius.full
+                                color: Theme.isDark ? Qt.rgba(232 / 255, 237 / 255, 245 / 255, 0.08) : Qt.rgba(10 / 255, 22 / 255, 40 / 255, 0.06)
+                                border.width: 1
+                                border.color: Theme.isDark ? Qt.rgba(232 / 255, 237 / 255, 245 / 255, 0.12) : Qt.rgba(10 / 255, 22 / 255, 40 / 255, 0.08)
+                                implicitHeight: pausedChipText.implicitHeight + 8
+                                implicitWidth: pausedChipText.implicitWidth + 14
+
+                                Text {
+                                    id: pausedChipText
+                                    anchors.centerIn: parent
+                                    text: qsTr("暂停 %1").arg(root.totalBlockedCount("pausedCount"))
+                                    color: Theme.colors.foreground
+                                    font.pixelSize: 11
+                                    font.weight: Font.DemiBold
+                                }
+                            }
+
+                            Item { Layout.fillWidth: true }
+                        }
+                    }
+                }
+
+                ScrollView {
+                    id: pauseModeBlockerScroll
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    Layout.preferredHeight: Math.min(pauseModeBlockerListColumn.implicitHeight, 320)
+                    clip: true
+
+                    ColumnLayout {
+                        id: pauseModeBlockerListColumn
+                        width: pauseModeBlockerScroll.availableWidth
+                        spacing: 10
+
+                        Repeater {
+                            model: root.pauseModeSwitchBlockers
+
+                            Rectangle {
+                                required property var modelData
+                                Layout.fillWidth: true
+                                radius: Theme.radius.lg
+                                color: Theme.isDark ? Qt.rgba(1, 1, 1, 0.03) : Qt.rgba(1, 1, 1, 0.92)
+                                border.width: 1
+                                border.color: Theme.colors.border
+                                implicitHeight: blockerSessionColumn.implicitHeight + 18
+
+                                ColumnLayout {
+                                    id: blockerSessionColumn
+                                    anchors.fill: parent
+                                    anchors.margins: 12
+                                    spacing: 10
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 10
+
+                                        Rectangle {
+                                            width: 30
+                                            height: 30
+                                            radius: 10
+                                            color: Theme.colors.primarySubtle
+
+                                            ColoredIcon {
+                                                anchors.centerIn: parent
+                                                source: Theme.icon("folder")
+                                                iconSize: 15
+                                                color: Theme.colors.primary
+                                            }
+                                        }
+
+                                        ColumnLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 2
+
+                                            Text {
+                                                Layout.fillWidth: true
+                                                text: modelData.sessionName || qsTr("当前会话")
+                                                color: Theme.colors.foreground
+                                                font.pixelSize: 14
+                                                font.weight: Font.DemiBold
+                                                wrapMode: Text.Wrap
+                                            }
+
+                                            Text {
+                                                Layout.fillWidth: true
+                                                text: (modelData.recoverableCount || 0) > 0
+                                                    ? qsTr("%1 张消息卡片待恢复").arg(modelData.totalCount || 0)
+                                                    : qsTr("%1 张消息卡片未完成").arg(modelData.totalCount || 0)
+                                                color: Theme.colors.mutedForeground
+                                                font.pixelSize: 11
+                                                wrapMode: Text.Wrap
+                                            }
+                                        }
+                                    }
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 8
+
+                                        Rectangle {
+                                            visible: (modelData.recoverableCount || 0) > 0
+                                            radius: Theme.radius.full
+                                            color: Qt.rgba(Theme.colors.primary.r, Theme.colors.primary.g, Theme.colors.primary.b, 0.12)
+                                            border.width: 1
+                                            border.color: Qt.rgba(Theme.colors.primary.r, Theme.colors.primary.g, Theme.colors.primary.b, 0.18)
+                                            implicitHeight: blockerRecoverableText.implicitHeight + 8
+                                            implicitWidth: blockerRecoverableText.implicitWidth + 14
+
+                                            Text {
+                                                id: blockerRecoverableText
+                                                anchors.centerIn: parent
+                                                text: qsTr("待恢复 %1").arg(modelData.recoverableCount || 0)
+                                                color: Theme.colors.primary
+                                                font.pixelSize: 11
+                                                font.weight: Font.DemiBold
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            visible: (modelData.processingCount || 0) > 0
+                                            radius: Theme.radius.full
+                                            color: Theme.colors.primarySubtle
+                                            implicitHeight: blockerProcessingText.implicitHeight + 8
+                                            implicitWidth: blockerProcessingText.implicitWidth + 14
+
+                                            Text {
+                                                id: blockerProcessingText
+                                                anchors.centerIn: parent
+                                                text: qsTr("处理中 %1").arg(modelData.processingCount || 0)
+                                                color: Theme.colors.primary
+                                                font.pixelSize: 11
+                                                font.weight: Font.DemiBold
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            visible: (modelData.pendingCount || 0) > 0
+                                            radius: Theme.radius.full
+                                            color: Theme.colors.warningSubtleBg
+                                            implicitHeight: blockerPendingText.implicitHeight + 8
+                                            implicitWidth: blockerPendingText.implicitWidth + 14
+
+                                            Text {
+                                                id: blockerPendingText
+                                                anchors.centerIn: parent
+                                                text: qsTr("等待处理 %1").arg(modelData.pendingCount || 0)
+                                                color: Theme.colors.warning
+                                                font.pixelSize: 11
+                                                font.weight: Font.DemiBold
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            visible: (modelData.pausedCount || 0) > 0
+                                            radius: Theme.radius.full
+                                            color: Theme.isDark ? Qt.rgba(232 / 255, 237 / 255, 245 / 255, 0.08) : Qt.rgba(10 / 255, 22 / 255, 40 / 255, 0.06)
+                                            border.width: 1
+                                            border.color: Theme.isDark ? Qt.rgba(232 / 255, 237 / 255, 245 / 255, 0.12) : Qt.rgba(10 / 255, 22 / 255, 40 / 255, 0.08)
+                                            implicitHeight: blockerPausedText.implicitHeight + 8
+                                            implicitWidth: blockerPausedText.implicitWidth + 14
+
+                                            Text {
+                                                id: blockerPausedText
+                                                anchors.centerIn: parent
+                                                text: qsTr("暂停 %1").arg(modelData.pausedCount || 0)
+                                                color: Theme.colors.foreground
+                                                font.pixelSize: 11
+                                                font.weight: Font.DemiBold
+                                            }
+                                        }
+
+                                        Item { Layout.fillWidth: true }
+                                    }
+
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: blockerFooterText.implicitHeight + 16
+                    radius: Theme.radius.lg
+                    color: Theme.colors.warningSubtleBg
+                    border.width: 1
+                    border.color: Qt.rgba(Theme.colors.warning.r, Theme.colors.warning.g, Theme.colors.warning.b, 0.18)
+
+                    Text {
+                        id: blockerFooterText
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        text: root.totalBlockedCount("recoverableCount") > 0
+                            ? qsTr("请先在启动恢复弹窗中选择恢复关闭前状态，或全部标记为失败。")
+                            : qsTr("请先完成、删除或继续处理这些消息卡片。")
+                        color: Theme.colors.foreground
+                        font.pixelSize: 11
+                        wrapMode: Text.Wrap
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: qsTr("当前已拦截切换。")
+                        color: Theme.colors.mutedForeground
+                        font.pixelSize: 11
+                        wrapMode: Text.Wrap
+                    }
+
+                    Button {
+                        text: qsTr("我知道了")
+                        variant: "primary"
+                        iconName: "check"
+                        onClicked: root.closePauseModeBlockerDialog()
+                    }
+                }
+            }
         }
     }
 
@@ -332,72 +782,41 @@ Rectangle {
                         Rectangle { Layout.fillWidth: true; height: 1; color: Theme.colors.border }
 
                         Text { 
-                            text: qsTr("应用启动时自动恢复未完成的处理任务")
+                            text: qsTr("检测到未完成任务时，应用会统一进入启动恢复流程，并先锁定模式切换。")
                             color: Theme.colors.mutedForeground
                             font.pixelSize: 12
                             wrapMode: Text.Wrap
                             Layout.fillWidth: true
                         }
 
-                        RowLayout {
+                        Rectangle {
                             Layout.fillWidth: true
-                            spacing: 12
-                            Text { text: qsTr("全部开启"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.minimumWidth: 80 }
-                            Item { Layout.fillWidth: true }
-                            Switch {
-                                id: allSwitch
-                                checked: SettingsController.autoReprocessAllEnabled
-                                onToggled: {
-                                    SettingsController.autoReprocessAllEnabled = checked
-                                }
-                                
-                                Connections {
-                                    target: SettingsController
-                                    function onAutoReprocessAllEnabledChanged() {
-                                        allSwitch.checked = SettingsController.autoReprocessAllEnabled
-                                    }
-                                }
-                            }
-                        }
+                            radius: Theme.radius.md
+                            color: Theme.isDark ? Qt.rgba(1, 1, 1, 0.03) : Qt.rgba(255 / 255, 255 / 255, 255 / 255, 0.92)
+                            border.width: 1
+                            border.color: Theme.colors.border
+                            implicitHeight: recoveryStrategyColumn.implicitHeight + 20
 
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 12
-                            Text { text: qsTr("Shader 模式"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.minimumWidth: 80 }
-                            Item { Layout.fillWidth: true }
-                            Switch {
-                                id: shaderSwitch
-                                checked: SettingsController.autoReprocessShaderEnabled
-                                onToggled: {
-                                    SettingsController.autoReprocessShaderEnabled = checked
-                                }
-                                
-                                Connections {
-                                    target: SettingsController
-                                    function onAutoReprocessShaderEnabledChanged() {
-                                        shaderSwitch.checked = SettingsController.autoReprocessShaderEnabled
-                                    }
-                                }
-                            }
-                        }
+                            ColumnLayout {
+                                id: recoveryStrategyColumn
+                                anchors.fill: parent
+                                anchors.margins: 10
+                                spacing: 8
 
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 12
-                            Text { text: qsTr("AI 推理模式"); color: Theme.colors.foreground; font.pixelSize: 13; Layout.minimumWidth: 80 }
-                            Item { Layout.fillWidth: true }
-                            Switch {
-                                id: aiSwitch
-                                checked: SettingsController.autoReprocessAIEnabled
-                                onToggled: {
-                                    SettingsController.autoReprocessAIEnabled = checked
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: qsTr("当前策略")
+                                    color: Theme.colors.foreground
+                                    font.pixelSize: 13
+                                    font.weight: Font.DemiBold
                                 }
-                                
-                                Connections {
-                                    target: SettingsController
-                                    function onAutoReprocessAIEnabledChanged() {
-                                        aiSwitch.checked = SettingsController.autoReprocessAIEnabled
-                                    }
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: qsTr("1. 上次退出时仍未完成的消息卡片会先显示为“待恢复”。\n2. 启动后会弹出统一恢复对话框，由您选择恢复关闭前状态，或全部标记为失败。\n3. 在恢复决策完成前，以及仍存在待恢复、处理中、等待中、暂停中的消息卡片时，都不允许切换任务控制模式。")
+                                    color: Theme.colors.mutedForeground
+                                    font.pixelSize: 12
+                                    wrapMode: Text.Wrap
                                 }
                             }
                         }
@@ -412,7 +831,7 @@ Rectangle {
                                 id: tipText
                                 anchors.fill: parent
                                 anchors.margins: 8
-                                text: qsTr("关闭后，应用中途关闭时的处理任务不会自动恢复，您可以手动点击\"重新处理\"按钮进行处理")
+                                text: qsTr("应用再次启动时，会统一弹出恢复对话框，让您选择恢复关闭前状态，或全部标记为失败。")
                                 color: Theme.colors.primary
                                 font.pixelSize: 11
                                 wrapMode: Text.Wrap
@@ -494,7 +913,7 @@ Rectangle {
                                 MouseArea {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: SettingsController.pauseMode = 0
+                                    onClicked: root.tryChangePauseMode(0)
                                 }
                             }
 
@@ -537,7 +956,7 @@ Rectangle {
                                 MouseArea {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: SettingsController.pauseMode = 1
+                                    onClicked: root.tryChangePauseMode(1)
                                 }
                             }
 
@@ -580,7 +999,7 @@ Rectangle {
                                 MouseArea {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: SettingsController.pauseMode = 2
+                                    onClicked: root.tryChangePauseMode(2)
                                 }
                             }
                         }

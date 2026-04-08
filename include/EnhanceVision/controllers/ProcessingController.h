@@ -147,6 +147,10 @@ public:
     void autoRetryInterruptedFiles(const QString& messageId, const QString& sessionId);
     bool hasTasksForMessage(const QString& messageId) const;
     bool hasActiveTaskForFile(const QString& messageId, const QString& fileId) const;
+    Q_INVOKABLE bool hasProcessingOrPendingTasks() const;
+    Q_INVOKABLE QVariantList getPauseModeSwitchBlockers() const;
+    RecoverySnapshot buildRecoverySnapshot() const;
+    bool restoreFromRecoverySnapshot(const RecoverySnapshot& snapshot);
     void removeStaleTasksForFile(const QString& messageId, const QString& fileId);
     
     Q_INVOKABLE void preloadModel(const QString& modelId);

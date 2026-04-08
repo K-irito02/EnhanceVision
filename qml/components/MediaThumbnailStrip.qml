@@ -122,7 +122,7 @@ Item {
             return item.status === 2
         }
         if (!showFailedFiles) {
-            return item.status === 2 || item.status === 1 || item.status === 0
+            return item.status === 2 || item.status === 1 || item.status === 0 || item.status === 5 || item.status === 6
         }
         return true
     }
@@ -411,6 +411,7 @@ Item {
                         property bool isFailed: itemStatus === 3
                         property bool isCancelled: itemStatus === 4
                         property bool isPaused: itemStatus === 5
+                        property bool isRecoverable: itemStatus === 6
                         property bool isUnavailable: !isSuccess
                         property bool canRetry: isFailed || isCancelled
                         property int itemMediaType: mediaType
@@ -452,11 +453,13 @@ Item {
                             radius: Theme.radius.md
                             color: "transparent"
                             border.width: {
+                                if (thumbDelegate.isRecoverable && root.messageMode) return 2
                                 if (!thumbDelegate.isSuccess && root.messageMode) return 2
                                 if (thumbMouse.containsMouse) return 2
                                 return 0
                             }
                             border.color: {
+                                if (thumbDelegate.isRecoverable && root.messageMode) return Theme.colors.primary
                                 if (!thumbDelegate.isSuccess && root.messageMode) return Theme.colors.destructive
                                 if (thumbMouse.containsMouse) return Theme.colors.primary
                                 return "transparent"
@@ -584,7 +587,7 @@ Item {
                                 anchors.fill: parent
                                 radius: parent.radius
                                 color: Qt.rgba(0, 0, 0, 0.5)
-                                visible: root.messageMode && (thumbDelegate.isProcessing || thumbDelegate.isPaused)
+                                visible: root.messageMode && (thumbDelegate.isProcessing || thumbDelegate.isPaused || thumbDelegate.isRecoverable)
                                 
                                 Column {
                                     anchors.centerIn: parent
@@ -593,28 +596,28 @@ Item {
                                     ColoredIcon {
                                         id: processingIcon
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        source: thumbDelegate.isPaused ? Theme.icon("pause") : Theme.icon("loader")
+                                        source: thumbDelegate.isRecoverable ? Theme.icon("refresh-cw") : (thumbDelegate.isPaused ? Theme.icon("pause") : Theme.icon("loader"))
                                         iconSize: 20
-                                        color: thumbDelegate.isPaused ? Theme.colors.warning : Theme.colors.textOnPrimary
+                                        color: thumbDelegate.isRecoverable ? Theme.colors.primary : (thumbDelegate.isPaused ? Theme.colors.warning : Theme.colors.textOnPrimary)
                                         opacity: 0.9
-                                        rotation: thumbDelegate.isPaused ? 0 : _loaderRotation
+                                        rotation: (thumbDelegate.isPaused || thumbDelegate.isRecoverable) ? 0 : _loaderRotation
                                         property real _loaderRotation: 0
                                         RotationAnimation on _loaderRotation {
                                             from: 0; to: 360
                                             duration: 1500
                                             loops: Animation.Infinite
-                                            running: thumbDelegate.isProcessing && !thumbDelegate.isPaused
+                                            running: thumbDelegate.isProcessing && !thumbDelegate.isPaused && !thumbDelegate.isRecoverable
                                         }
                                     }
                                     
                                     Text {
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        text: thumbDelegate.isPaused ? qsTr("已暂停") : qsTr("处理中")
-                                        color: thumbDelegate.isPaused ? Theme.colors.warning : Theme.colors.textOnPrimary
+                                        text: thumbDelegate.isRecoverable ? qsTr("待恢复") : (thumbDelegate.isPaused ? qsTr("已暂停") : qsTr("处理中"))
+                                        color: thumbDelegate.isRecoverable ? Theme.colors.primary : (thumbDelegate.isPaused ? Theme.colors.warning : Theme.colors.textOnPrimary)
                                         font.pixelSize: 10
                                         font.bold: true
                                         opacity: 0.9
-                                        visible: thumbDelegate.isPaused
+                                        visible: thumbDelegate.isPaused || thumbDelegate.isRecoverable
                                     }
                                 }
                             }
@@ -855,6 +858,7 @@ Item {
                         property bool isFailed: itemStatus === 3
                         property bool isCancelled: itemStatus === 4
                         property bool isPaused: itemStatus === 5
+                        property bool isRecoverable: itemStatus === 6
                         property bool isUnavailable: !isSuccess
                         property bool canRetry: isFailed || isCancelled
                         property int itemMediaType: mediaType
@@ -896,11 +900,13 @@ Item {
                             radius: Theme.radius.md
                             color: "transparent"
                             border.width: {
+                                if (thumbDelegate.isRecoverable && root.messageMode) return 2
                                 if (!thumbDelegate.isSuccess && root.messageMode) return 2
                                 if (thumbMouse.containsMouse) return 2
                                 return 0
                             }
                             border.color: {
+                                if (thumbDelegate.isRecoverable && root.messageMode) return Theme.colors.primary
                                 if (!thumbDelegate.isSuccess && root.messageMode) return Theme.colors.destructive
                                 if (thumbMouse.containsMouse) return Theme.colors.primary
                                 return "transparent"
@@ -1028,7 +1034,7 @@ Item {
                                 anchors.fill: parent
                                 radius: parent.radius
                                 color: Qt.rgba(0, 0, 0, 0.5)
-                                visible: root.messageMode && (thumbDelegate.isProcessing || thumbDelegate.isPaused)
+                                visible: root.messageMode && (thumbDelegate.isProcessing || thumbDelegate.isPaused || thumbDelegate.isRecoverable)
                                 
                                 Column {
                                     anchors.centerIn: parent
@@ -1037,28 +1043,28 @@ Item {
                                     ColoredIcon {
                                         id: processingIcon
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        source: thumbDelegate.isPaused ? Theme.icon("pause") : Theme.icon("loader")
+                                        source: thumbDelegate.isRecoverable ? Theme.icon("refresh-cw") : (thumbDelegate.isPaused ? Theme.icon("pause") : Theme.icon("loader"))
                                         iconSize: 20
-                                        color: thumbDelegate.isPaused ? Theme.colors.warning : Theme.colors.textOnPrimary
+                                        color: thumbDelegate.isRecoverable ? Theme.colors.primary : (thumbDelegate.isPaused ? Theme.colors.warning : Theme.colors.textOnPrimary)
                                         opacity: 0.9
-                                        rotation: thumbDelegate.isPaused ? 0 : _loaderRotation
+                                        rotation: (thumbDelegate.isPaused || thumbDelegate.isRecoverable) ? 0 : _loaderRotation
                                         property real _loaderRotation: 0
                                         RotationAnimation on _loaderRotation {
                                             from: 0; to: 360
                                             duration: 1500
                                             loops: Animation.Infinite
-                                            running: thumbDelegate.isProcessing && !thumbDelegate.isPaused
+                                            running: thumbDelegate.isProcessing && !thumbDelegate.isPaused && !thumbDelegate.isRecoverable
                                         }
                                     }
                                     
                                     Text {
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        text: thumbDelegate.isPaused ? qsTr("已暂停") : qsTr("处理中")
-                                        color: thumbDelegate.isPaused ? Theme.colors.warning : Theme.colors.textOnPrimary
+                                        text: thumbDelegate.isRecoverable ? qsTr("待恢复") : (thumbDelegate.isPaused ? qsTr("已暂停") : qsTr("处理中"))
+                                        color: thumbDelegate.isRecoverable ? Theme.colors.primary : (thumbDelegate.isPaused ? Theme.colors.warning : Theme.colors.textOnPrimary)
                                         font.pixelSize: 10
                                         font.bold: true
                                         opacity: 0.9
-                                        visible: thumbDelegate.isPaused
+                                        visible: thumbDelegate.isPaused || thumbDelegate.isRecoverable
                                     }
                                 }
                             }

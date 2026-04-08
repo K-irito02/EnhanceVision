@@ -25,6 +25,7 @@ class SettingsController;
 class FileController;
 class SessionController;
 class ProcessingController;
+class TaskRecoveryController;
 class ImageExportService;
 class ThumbnailProvider;
 class LifecycleSupervisor;
@@ -63,6 +64,7 @@ private:
     std::unique_ptr<FileController> m_fileController;
     std::unique_ptr<SessionController> m_sessionController;
     std::unique_ptr<ProcessingController> m_processingController;
+    std::unique_ptr<TaskRecoveryController> m_taskRecoveryController;
     ImageExportService *m_imageExportService;
     QSharedPointer<QTranslator> m_translator;
     QSharedPointer<QTranslator> m_qtTranslator;

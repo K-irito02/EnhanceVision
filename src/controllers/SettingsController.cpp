@@ -355,37 +355,13 @@ bool SettingsController::checkAndHandleCrashRecovery()
                 << ", treating as normal exit";
         return false;
     }
-    
-    bool prevShaderEnabled = m_settings->value("system/prevAutoReprocessShader", true).toBool();
-    bool prevAIEnabled = m_settings->value("system/prevAutoReprocessAI", true).toBool();
-    
-    qInfo() << "[SettingsController] Previous auto-reprocess settings: shader=" << prevShaderEnabled 
-            << ", ai=" << prevAIEnabled;
-    
-    if (!prevShaderEnabled && !prevAIEnabled) {
-        qInfo() << "[SettingsController] Auto-reprocess was already disabled before crash, no warning needed";
-        return false;
-    }
-    
+
     qWarning() << "[SettingsController] Abnormal exit detected! lastExitClean=" << wasClean
                << ", lastExitReason=" << lastReason;
-    
+
     m_crashDetectedOnStartup = true;
-    m_autoReprocessShaderEnabled = false;
-    m_autoReprocessAIEnabled = false;
-    
-    m_settings->setValue("reprocess/shaderEnabled", false);
-    m_settings->setValue("reprocess/aiEnabled", false);
-    m_settings->setValue("system/prevAutoReprocessShader", false);
-    m_settings->setValue("system/prevAutoReprocessAI", false);
-    m_settings->sync();
-    
-    emit autoReprocessShaderEnabledChanged();
-    emit autoReprocessAIEnabledChanged();
-    emit autoReprocessAllEnabledChanged();
     emit crashDetected();
     emit crashDetectedOnStartupChanged();
-    
     return true;
 }
 
