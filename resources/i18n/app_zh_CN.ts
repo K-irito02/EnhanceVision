@@ -3285,8 +3285,8 @@
     </message>
     <message>
         <location filename="../../qml/pages/SettingsPage.qml" line="1156"/>
-        <source>暂停后可手动选择处理哪些消息</source>
-        <translation>暂停后可手动选择处理哪些消息</translation>
+        <source>默认暂停发送的消息，后续点击继续按钮手动选择处理消息的顺序</source>
+        <translation>默认暂停发送的消息，后续点击继续按钮手动选择处理消息的顺序</translation>
     </message>
     <message>
         <location filename="../../qml/pages/SettingsPage.qml" line="1187"/>
@@ -3373,8 +3373,8 @@
     </message>
     <message>
         <location filename="../../qml/pages/SettingsPage.qml" line="1852"/>
-        <source>高性能图像与视频增强工具</source>
-        <translation>高性能图像与视频增强工具</translation>
+        <source>图像处理与AI推理画质增强工具</source>
+        <translation>图像处理与AI推理画质增强工具</translation>
     </message>
     <message>
         <location filename="../../qml/pages/SettingsPage.qml" line="940"/>

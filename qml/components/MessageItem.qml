@@ -180,10 +180,15 @@ Rectangle {
     // 当前暂停模式：0=单任务暂停, 1=顺序暂停, 2=自由选择
     property int pauseMode: 0
     
+    // 消息是否已被激活（模式2自由选择使用，用户点击过"继续"）
+    property bool isActivated: false
+    
     // 是否应该显示继续按钮（模式三：全局暂停时所有待处理卡片显示继续按钮）
     readonly property bool shouldShowResumeButton: {
         if (root.isPaused) return true
         if (root.isRecoverable) return false
+        // 模式2：已激活的消息不显示继续按钮（显示暂停按钮）
+        if (pauseMode === 2 && root.isActivated) return false
         if (pauseMode === 2 && globalPauseEnabled && !root.allFilesSettled && (status === 0 || status === 1)) {
             return true
         }
@@ -195,6 +200,8 @@ Rectangle {
         if (root.isPaused) return false
         if (root.isRecoverable) return false
         if (status === 1 && !root.allFilesSettled) return true  // 处理中
+        // 模式2：已激活但等待处理的消息显示暂停按钮
+        if (pauseMode === 2 && root.isActivated && status === 0 && !root.allFilesSettled) return true
         return false
     }
     
@@ -552,7 +559,7 @@ Rectangle {
         }
         
         ColumnLayout {
-            visible: (status === 0 || status === 1 || root.isPaused || root.isRecoverable) && !root.allFilesSettled
+            visible: (status === 0 || status === 1 || root.isPaused || root.isRecoverable || (root.pauseMode === 2 && root.isActivated)) && !root.allFilesSettled
             Layout.fillWidth: true
             spacing: 4
 
@@ -564,11 +571,12 @@ Rectangle {
                 Text {
                     text: {
                         if (root.isRecoverable) return qsTr("待恢复")
-                        if (root.isPaused) return qsTr("已暂停")
-                        if (status === 0) return qsTr("等待处理...")
+                        // 模式2：已激活但等待处理的消息显示"等待处理..."
+                        if (root.isPaused && !(root.pauseMode === 2 && root.isActivated)) return qsTr("已暂停")
+                        if (status === 0 || (root.pauseMode === 2 && root.isActivated && status === 5)) return qsTr("等待处理...")
                         return qsTr("处理中")
                     }
-                    color: root.isRecoverable ? Theme.colors.primary : (root.isPaused ? Theme.colors.warning : Theme.colors.foreground)
+                    color: root.isRecoverable ? Theme.colors.primary : ((root.isPaused && !(root.pauseMode === 2 && root.isActivated)) ? Theme.colors.warning : Theme.colors.foreground)
                     font.pixelSize: 12
                     elide: Text.ElideRight
                     Layout.maximumWidth: Math.max(100, root.width * 0.28)

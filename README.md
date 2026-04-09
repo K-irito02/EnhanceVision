@@ -2,7 +2,7 @@
 
 English | [简体中文](README_CN.md)
 
-A desktop image and video enhancement tool built with **Qt 6.10.2 + QML**. Using native Qt Quick architecture with GPU Shader processing and NCNN AI inference engine, providing a balance between performance and quality.
+A desktop image processing and AI inference quality enhancement tool built with **Qt 6.10.2 + QML**. Using native Qt Quick architecture with GPU Shader processing and NCNN AI inference engine, providing a balance between performance and quality.
 
 ## Core Features
 

@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Fixed
+- 模式2（自由选择）UI状态修复：激活等待处理的消息时正确更新文件状态为 Pending，UI 显示"暂停"按钮和"等待处理..."状态
 - 消息卡片状态链路重构：状态派生统一下沉到 C++，修复处理中蓝框不呼吸与全部完成后仍残留呼吸边框的问题
 - 进度状态同步去抖策略调整：移除消息状态 300ms 时间防抖，改为重复值抑制，避免 `Processing -> Completed` 尾状态丢失
 - 消息文件统计信号扩展为 6 维（success/failed/pending/processing/paused/recoverable），修复 QML 代理复用下的状态残留
@@ -156,7 +157,7 @@
 ## [0.1.0] - 2026-03-25
 
 ### Added
-- 基于Qt 6.10.2 + QML的桌面端图像视频增强工具
+- 基于Qt 6.10.2 + QML的桌面端图像处理与AI推理画质增强工具
 - 双模式处理：Shader实时滤镜 + AI推理超分辨率
 - NCNN引擎集成，支持Real-ESRGAN等模型
 - Vulkan GPU加速推理

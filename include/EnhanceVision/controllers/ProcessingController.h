@@ -186,6 +186,13 @@ public:
     Q_INVOKABLE bool isMessagePaused(const QString& messageId) const;
     
     /**
+     * @brief 检查消息是否已被激活（模式2自由选择使用）
+     * @param messageId 消息ID
+     * @return true 如果消息已被用户点击"继续"激活
+     */
+    Q_INVOKABLE bool isMessageActivated(const QString& messageId) const;
+    
+    /**
      * @brief 检查是否处于全局暂停状态（模式三）
      * @return true 如果全局暂停已启用
      */
@@ -224,6 +231,8 @@ signals:
     void sessionTasksCancelled(const QString& sessionId);
     void messageTasksPaused(const QString& messageId);
     void messageTasksResumed(const QString& messageId);
+    void messageActivated(const QString& messageId);
+    void messageDeactivated(const QString& messageId);
     
     void requestShaderExport(
         const QString& exportId,

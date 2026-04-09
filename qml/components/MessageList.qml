@@ -128,6 +128,32 @@ Item {
             // 暂停模式相关属性
             globalPauseEnabled: typeof processingController !== "undefined" ? processingController.isGlobalPauseEnabled() : false
             pauseMode: typeof SettingsController !== "undefined" ? SettingsController.pauseMode : 1
+            isActivated: _localIsActivated
+            
+            // 本地激活状态跟踪（响应信号更新）
+            property bool _localIsActivated: typeof processingController !== "undefined" ? processingController.isMessageActivated(model.id) : false
+            
+            Connections {
+                target: typeof processingController !== "undefined" ? processingController : null
+                function onMessageActivated(messageId) {
+                    console.log("[QML DEBUG] onMessageActivated received:", messageId, "my id:", model.id, "match:", messageId === model.id)
+                    if (messageId === model.id) {
+                        msgDelegate._localIsActivated = true
+                        console.log("[QML DEBUG] _localIsActivated set to true for:", model.id)
+                    }
+                }
+                function onMessageDeactivated(messageId) {
+                    console.log("[QML DEBUG] onMessageDeactivated received:", messageId, "my id:", model.id)
+                    if (messageId === model.id) {
+                        msgDelegate._localIsActivated = false
+                        console.log("[QML DEBUG] _localIsActivated set to false for:", model.id)
+                    }
+                }
+            }
+            
+            on_LocalIsActivatedChanged: {
+                console.log("[QML DEBUG] _localIsActivated changed to:", _localIsActivated, "for message:", model.id, "pauseMode:", pauseMode)
+            }
 
             // 时间预测属性（由 C++ ProcessingTimeManager 管理）
             // 直接从模型读取，由 C++ 后端每秒更新

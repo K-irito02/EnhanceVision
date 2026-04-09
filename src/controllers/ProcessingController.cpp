@@ -2900,6 +2900,9 @@ void ProcessingController::pauseMessageTasks(const QString& messageId)
                 QTimer::singleShot(100, this, &ProcessingController::processNextTask);
             }
             
+            // 发出取消激活信号通知 QML 更新状态
+            emit messageDeactivated(messageId);
+            
             qInfo() << "[ProcessingController] Mode 2: Message paused, continue processing other activated messages"
                     << "activatedMessageIds:" << m_activatedMessageIds;
             break;
@@ -3111,9 +3114,12 @@ void ProcessingController::resumeMessageTasks(const QString& messageId)
                         
                         // 模式2：如果有其他消息正在处理，必须等待，不能直接恢复
                         if (otherMessageProcessing) {
-                            // 有其他消息正在处理，必须等待
-                            // 保持暂停状态，等待其他消息完成后再恢复
-                            // 不取消视频处理器，保持暂停状态
+                            // 有其他消息正在处理，将状态改为 Pending（等待处理）
+                            // 这样 UI 会正确显示"暂停"按钮和"等待处理..."状态
+                            task.status = ProcessingStatus::Pending;
+                            updateFileStatusForSessionMessage(sessionId, messageId, task.fileId,
+                                ProcessingStatus::Pending, QString());
+                            qInfo() << "[ProcessingController] Mode 2: Task activated to Pending (waiting for other message):" << task.taskId;
                         } else if (hasActiveVideoProcessor) {
                             // 没有其他消息正在处理，且有活动的视频处理器，恢复为 Processing
                             if (m_activeAIVideoProcessors.contains(task.taskId)) {
@@ -3141,6 +3147,10 @@ void ProcessingController::resumeMessageTasks(const QString& messageId)
                     }
                 }
             }
+            
+            // 发出激活信号通知 QML 更新状态
+            emit messageActivated(messageId);
+            qInfo() << "[ProcessingController] Mode 2: Emitted messageActivated signal for:" << messageId;
             
             qInfo() << "[ProcessingController] Mode 2: Message activated, will be processed"
                     << (otherMessageProcessing ? "after current message completes" : "now")
@@ -3176,6 +3186,11 @@ bool ProcessingController::isMessagePaused(const QString& messageId) const
 bool ProcessingController::isGlobalPauseEnabled() const
 {
     return m_globalPauseEnabled;
+}
+
+bool ProcessingController::isMessageActivated(const QString& messageId) const
+{
+    return m_activatedMessageIds.contains(messageId) || m_priorityResumeMessageIds.contains(messageId);
 }
 
 int ProcessingController::currentPauseMode() const

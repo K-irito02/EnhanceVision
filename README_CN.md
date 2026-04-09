@@ -2,7 +2,7 @@
 
 [English](README.md) | 简体中文
 
-基于 **Qt 6.10.2 + QML** 的桌面端图像与视频画质增强工具。采用原生 Qt Quick 架构，结合 GPU Shader 处理与 NCNN AI 推理引擎，提供兼顾性能与质量的画质增强方案。
+基于 **Qt 6.10.2 + QML** 的桌面端图像处理与AI推理画质增强工具。采用原生 Qt Quick 架构，结合 GPU Shader 处理与 NCNN AI 推理引擎，提供兼顾性能与质量的画质增强方案。
 
 ## 核心特性
 

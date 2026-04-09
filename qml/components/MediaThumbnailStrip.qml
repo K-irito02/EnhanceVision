@@ -464,16 +464,6 @@ Item {
                                             running: thumbDelegate.isProcessing && !thumbDelegate.isPaused && !thumbDelegate.isRecoverable
                                         }
                                     }
-                                    
-                                    Text {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        text: thumbDelegate.isRecoverable ? qsTr("待恢复") : (thumbDelegate.isPaused ? qsTr("已暂停") : qsTr("处理中"))
-                                        color: thumbDelegate.isRecoverable ? Theme.colors.primary : (thumbDelegate.isPaused ? Theme.colors.warning : Theme.colors.textOnPrimary)
-                                        font.pixelSize: 10
-                                        font.bold: true
-                                        opacity: 0.9
-                                        visible: thumbDelegate.isPaused || thumbDelegate.isRecoverable
-                                    }
                                 }
                             }
                         }
@@ -837,16 +827,6 @@ Item {
                                             loops: Animation.Infinite
                                             running: thumbDelegate.isProcessing && !thumbDelegate.isPaused && !thumbDelegate.isRecoverable
                                         }
-                                    }
-                                    
-                                    Text {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        text: thumbDelegate.isRecoverable ? qsTr("待恢复") : (thumbDelegate.isPaused ? qsTr("已暂停") : qsTr("处理中"))
-                                        color: thumbDelegate.isRecoverable ? Theme.colors.primary : (thumbDelegate.isPaused ? Theme.colors.warning : Theme.colors.textOnPrimary)
-                                        font.pixelSize: 10
-                                        font.bold: true
-                                        opacity: 0.9
-                                        visible: thumbDelegate.isPaused || thumbDelegate.isRecoverable
                                     }
                                 }
                             }

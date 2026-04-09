@@ -1153,7 +1153,7 @@ Rectangle {
                                         Layout.fillWidth: true
                                         spacing: 2
                                         Text { text: qsTr("自由选择"); color: Theme.colors.foreground; font.pixelSize: 13; font.weight: Font.Medium }
-                                        Text { text: qsTr("暂停后可手动选择处理哪些消息"); color: Theme.colors.mutedForeground; font.pixelSize: 11; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                                        Text { text: qsTr("默认暂停发送的消息，后续点击继续按钮手动选择处理消息的顺序"); color: Theme.colors.mutedForeground; font.pixelSize: 11; wrapMode: Text.Wrap; Layout.fillWidth: true }
                                     }
                                 }
 
@@ -1849,7 +1849,7 @@ Rectangle {
                             ColumnLayout {
                                 spacing: 2
                                 Text { text: qsTr("EnhanceVision v0.1.0"); color: Theme.colors.foreground; font.pixelSize: 14; font.weight: Font.DemiBold }
-                                Text { text: qsTr("高性能图像与视频增强工具"); color: Theme.colors.mutedForeground; font.pixelSize: 12 }
+                                Text { text: qsTr("图像处理与AI推理画质增强工具"); color: Theme.colors.mutedForeground; font.pixelSize: 12 }
                                 Text { text: qsTr("Built with Qt6 + NCNN"); color: Theme.colors.mutedForeground; font.pixelSize: 11; opacity: 0.7 }
                             }
                         }
