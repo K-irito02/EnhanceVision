@@ -311,11 +311,7 @@ QString ProcessingController::addTask(const Message& message)
     }
 
     // 【新增】根据模式更新消息状态
-    if (shouldPause && m_messageModel) {
-        // 模式2：新消息默认暂停状态
-        m_messageModel->updateStatus(message.id, static_cast<int>(ProcessingStatus::Paused));
-        qInfo() << "[ProcessingController] Mode 2: New message set to paused state:" << message.id;
-        
+    if (shouldPause) {
         // 只将第一个文件标记为暂停状态（与其他模式保持一致）
         bool firstFilePaused = false;
         for (auto& task : m_tasks) {
@@ -330,12 +326,12 @@ QString ProcessingController::addTask(const Message& message)
                 // 其他文件保持 Pending 状态，不更新 UI
             }
         }
-    } else if (shouldWait && m_messageModel) {
-        // 模式1：等待处理状态
-        m_messageModel->updateStatus(message.id, static_cast<int>(ProcessingStatus::Pending));
-        qInfo() << "[ProcessingController] New message set to waiting state:" << message.id;
+        qInfo() << "[ProcessingController] Mode 2: New message staged with paused runtime state:" << message.id;
+    } else if (shouldWait) {
+        qInfo() << "[ProcessingController] New message staged with pending runtime state:" << message.id;
     }
 
+    syncMessageStatus(message.id, sessionId);
     updateQueuePositions();
     emit queueSizeChanged();
 
@@ -841,21 +837,13 @@ void ProcessingController::clearCompletedTasks()
 
 void ProcessingController::processNextTask()
 {
-    qDebug() << "[ProcessingController] processNextTask() called, queueStatus:" << static_cast<int>(m_queueStatus)
-            << "currentProcessingCount:" << m_currentProcessingCount
-            << "tasksCount:" << m_tasks.size()
-            << "pausedMessageIds:" << m_pausedMessageIds
-            << "priorityResumeQueue:" << m_priorityResumeMessageIds;
-    
     if (m_queueStatus != QueueStatus::Running) {
-        qDebug() << "[ProcessingController] processNextTask() early return: queue not running";
         return;
     }
 
     validateAndRepairQueueState();
 
     if (m_currentProcessingCount >= 1) {
-        qDebug() << "[ProcessingController] processNextTask() early return: already processing";
         return;
     }
     
@@ -864,7 +852,6 @@ void ProcessingController::processNextTask()
     // ========== 模式1的阻塞检查 ==========
     if (pauseMode == 1 && !m_pausedMessageIds.isEmpty()) {
         // 顺序暂停模式：只要存在暂停消息，整体队列必须阻塞。
-        qDebug() << "[ProcessingController] Mode 1: queue blocked by paused messages:" << m_pausedMessageIds;
         return;
     }
     
@@ -872,7 +859,6 @@ void ProcessingController::processNextTask()
     if (pauseMode == 2) {
         // 模式2：如果没有已激活的消息，不处理任何任务
         if (m_activatedMessageIds.isEmpty() && m_priorityResumeMessageIds.isEmpty()) {
-            qDebug() << "[ProcessingController] Mode 2: No activated messages, queue idle";
             return;
         }
         
@@ -921,9 +907,6 @@ void ProcessingController::processNextTask()
         }
     }
     
-    // 模式0和模式2：是否需要等待当前消息完成
-    bool waitingForCurrentMessage = false;
-    
     if ((pauseMode == 0 || pauseMode == 2) && !m_priorityResumeMessageIds.isEmpty()) {
         // 如果当前消息还有待处理任务，必须先完成当前消息
         // 即使优先队列中有其他消息，也要等待当前消息完成
@@ -931,8 +914,6 @@ void ProcessingController::processNextTask()
             // 当前消息还有待处理任务，必须先完成当前消息
             qInfo() << "[ProcessingController] Mode" << pauseMode << ": Current message has pending tasks, continue processing:" 
                     << m_currentProcessingMessageId;
-            // 设置等待标志，后面的循环会只处理当前消息的任务
-            waitingForCurrentMessage = true;
             priorityMessageId = m_currentProcessingMessageId;  // 只处理当前消息的任务
         } else {
             // 当前消息已完成，或者正在处理的就是优先队列中的消息
@@ -991,9 +972,6 @@ void ProcessingController::processNextTask()
         }
     }
     
-    qDebug() << "[ProcessingController] Searching for next task, priorityMessageId:" << priorityMessageId
-            << "waitingForCurrentMessage:" << waitingForCurrentMessage;
-    
     for (auto& task : m_tasks) {
         if (task.status != ProcessingStatus::Pending) {
             continue;
@@ -1003,7 +981,6 @@ void ProcessingController::processNextTask()
         if (m_pausedMessageIds.contains(task.messageId)) {
             // 所有模式：跳过暂停消息的任务
             hasSkippedPausedTask = true;
-            qDebug() << "[ProcessingController] Skipping task (paused message):" << task.taskId;
             continue;
         }
         
@@ -1026,7 +1003,6 @@ void ProcessingController::processNextTask()
         // 模式0：如果有优先消息或正在等待当前消息完成，只处理指定消息的任务
         if (pauseMode == 0 && !priorityMessageId.isEmpty()) {
             if (task.messageId != priorityMessageId) {
-                qDebug() << "[ProcessingController] Mode 0: Skipping task (not priority/current message):" << task.taskId;
                 continue;
             }
         }
@@ -1037,12 +1013,10 @@ void ProcessingController::processNextTask()
             int availableCount = m_aiEnginePool->availableCount();
             if (msg.mode == ProcessingMode::AIInference && availableCount <= 0) {
                 hasSkippedAITask = true;
-                qDebug() << "[ProcessingController] Skipping task (no AI engine available):" << task.taskId;
                 continue;
             }
         }
-        
-        qDebug() << "[ProcessingController] Found next task:" << task.taskId;
+
         nextTask = &task;
         break;
     }
@@ -1050,7 +1024,6 @@ void ProcessingController::processNextTask()
     // 模式0和模式2：如果优先消息的任务都处理完了，从优先队列中移除
     if ((pauseMode == 0 || pauseMode == 2) && !priorityMessageId.isEmpty() && !nextTask) {
         m_priorityResumeMessageIds.removeOne(priorityMessageId);
-        qDebug() << "[ProcessingController] Mode" << pauseMode << ": Priority message completed, removed from queue:" << priorityMessageId;
         
         // 继续寻找下一个任务
         if (!m_priorityResumeMessageIds.isEmpty() || hasSkippedPausedTask) {
@@ -1505,8 +1478,6 @@ void ProcessingController::updateTaskProgress(const QString& taskId, int progres
 
 void ProcessingController::completeTask(const QString& taskId, const QString& resultPath)
 {
-    qInfo() << "[ProcessingController][completeTask] Called for task:" << taskId;
-    
     TaskLifecycle lifecycle = m_taskLifecycle.value(taskId, TaskLifecycle::Active);
     if (lifecycle == TaskLifecycle::Canceling ||
         lifecycle == TaskLifecycle::Draining ||
@@ -1518,13 +1489,9 @@ void ProcessingController::completeTask(const QString& taskId, const QString& re
     }
 
     bool taskFound = false;
-    qInfo() << "[ProcessingController][completeTask] Searching for task in m_tasks, size:" << m_tasks.size();
     for (int i = 0; i < m_tasks.size(); ++i) {
-        qInfo() << "[ProcessingController][completeTask] Checking task at index:" << i << "taskId:" << m_tasks[i].taskId << "vs target:" << taskId;
         if (m_tasks[i].taskId == taskId) {
             taskFound = true;
-            qInfo() << "[ProcessingController][completeTask] Task found at index:" << i << "status:" << static_cast<int>(m_tasks[i].status);
-            fflush(stdout);
             QString messageId = m_tasks[i].messageId;
             QString fileId = m_tasks[i].fileId;
             const QString sessionId = resolveSessionIdForMessage(messageId);
@@ -1536,24 +1503,16 @@ void ProcessingController::completeTask(const QString& taskId, const QString& re
             }
             
             const Message msg = messageForSession(sessionId, messageId);
-            qInfo() << "[ProcessingController][completeTask] Message retrieved, mediaFiles count:" << msg.mediaFiles.size();
             
             // 【修复】检查是否是 Shader 模式的视频，如果是则不设置 Completed 状态
             // 因为视频处理才刚刚开始
             bool isShaderVideo = false;
             for (const MediaFile& mf : msg.mediaFiles) {
-                qInfo() << "[ProcessingController][completeTask] Checking file:" << mf.id
-                        << "vs fileId:" << fileId
-                        << "mode:" << static_cast<int>(msg.mode)
-                        << "isVideo:" << ImageUtils::isVideoFile(mf.filePath)
-                        << "filePath:" << mf.filePath;
                 if (mf.id == fileId && msg.mode == ProcessingMode::Shader && ImageUtils::isVideoFile(mf.filePath)) {
                     isShaderVideo = true;
                     break;
                 }
             }
-            
-            qInfo() << "[ProcessingController][completeTask] isShaderVideo:" << isShaderVideo << "for task:" << taskId;
             
             if (isShaderVideo) {
                 // Shader 视频处理：保持 Processing 状态，启动视频处理器
@@ -1654,11 +1613,7 @@ void ProcessingController::completeTask(const QString& taskId, const QString& re
     
     if (!taskFound) {
         qWarning() << "[ProcessingController][completeTask] Task not found in m_tasks:" << taskId;
-        fflush(stdout);
     }
-    
-    qInfo() << "[ProcessingController][completeTask] Finished searching for task:" << taskId << "found:" << taskFound;
-    fflush(stdout);
 }
 
 void ProcessingController::onShaderExportCompleted(const QString& exportId, bool success, const QString& outputPath, const QString& error)
@@ -2367,7 +2322,7 @@ void ProcessingController::syncMessageProgress(const QString& messageId, const Q
 
 void ProcessingController::syncMessageStatus(const QString& messageId, const QString& sessionId)
 {
-    m_progressSyncHelper->syncMessageStatus(messageId, sessionId, m_tasks, m_taskContexts);
+    m_progressSyncHelper->syncMessageStatus(messageId, sessionId, m_tasks, m_taskContexts, m_pausedMessageIds);
 }
 
 int ProcessingController::resourcePressure() const
@@ -2429,9 +2384,6 @@ void ProcessingController::cancelMessageTasks(const QString& messageId)
                     if (!nextMessageId.isEmpty()) {
                         m_pausedMessageIds.insert(nextMessageId);
                         qInfo() << "[ProcessingController] Mode 1: Pause state transferred to next message:" << nextMessageId;
-                        if (m_messageModel) {
-                            m_messageModel->updateStatus(nextMessageId, static_cast<int>(ProcessingStatus::Paused));
-                        }
                         
                         // 【修复】将下一个消息的首个 Pending 文件标记为暂停
                         QString nextSessionId = resolveSessionIdForMessage(nextMessageId);
@@ -2444,6 +2396,7 @@ void ProcessingController::cancelMessageTasks(const QString& messageId)
                                 break;
                             }
                         }
+                        syncMessageStatus(nextMessageId, nextSessionId);
                     }
                 }
                 break;
@@ -2652,9 +2605,6 @@ void ProcessingController::processDeletionBatch(const QString& messageId)
                 if (!nextMessageId.isEmpty()) {
                     m_pausedMessageIds.insert(nextMessageId);
                     qInfo() << "[ProcessingController] Pause state transferred to next message:" << nextMessageId;
-                    if (m_messageModel) {
-                        m_messageModel->updateStatus(nextMessageId, static_cast<int>(ProcessingStatus::Paused));
-                    }
                     
                     // 将下一个消息的首个 Pending 文件标记为暂停
                     QString nextSessionId = resolveSessionIdForMessage(nextMessageId);
@@ -2664,9 +2614,10 @@ void ProcessingController::processDeletionBatch(const QString& messageId)
                             updateFileStatusForSessionMessage(nextSessionId, nextMessageId, task.fileId,
                                 ProcessingStatus::Paused, QString());
                             qInfo() << "[ProcessingController] First pending file of next message marked as paused:" << task.fileId;
-                            break;
+                                break;
+                            }
                         }
-                    }
+                    syncMessageStatus(nextMessageId, nextSessionId);
                     
                     // 暂停状态已传递，不启动新任务
                     return;
@@ -2963,11 +2914,8 @@ void ProcessingController::pauseMessageTasks(const QString& messageId)
         m_processingTimeManager->pauseTask(messageId);
     }
     
-    // 更新消息状态为 Paused（所有模式通用）
-    if (m_messageModel) {
-        m_messageModel->updateStatus(messageId, static_cast<int>(ProcessingStatus::Paused));
-        qInfo() << "[ProcessingController] Message status updated to Paused:" << messageId;
-    }
+    syncMessageStatus(messageId, sessionId);
+    qInfo() << "[ProcessingController] Message status refreshed after pause:" << messageId;
     
     // 发出暂停信号
     emit messageTasksPaused(messageId);
@@ -3209,18 +3157,7 @@ void ProcessingController::resumeMessageTasks(const QString& messageId)
         m_processingTimeManager->resumeTask(messageId);
     }
     
-    // 更新消息状态（所有模式通用）
-    if (m_messageModel) {
-        bool hasProcessingTask = false;
-        for (const auto& task : m_tasks) {
-            if (task.messageId == messageId && task.status == ProcessingStatus::Processing) {
-                hasProcessingTask = true;
-                break;
-            }
-        }
-        ProcessingStatus newStatus = hasProcessingTask ? ProcessingStatus::Processing : ProcessingStatus::Pending;
-        m_messageModel->updateStatus(messageId, static_cast<int>(newStatus));
-    }
+    syncMessageStatus(messageId, sessionId);
     
     emit messageTasksResumed(messageId);
     qInfo() << "[ProcessingController] Resumed" << resumedCount << "tasks for message:" << messageId
@@ -3292,18 +3229,7 @@ void ProcessingController::clearAllPauseStates()
             m_processingTimeManager->resumeTask(messageId);
         }
         
-        // 更新消息状态
-        if (m_messageModel) {
-            bool hasProcessingTask = false;
-            for (const auto& task : m_tasks) {
-                if (task.messageId == messageId && task.status == ProcessingStatus::Processing) {
-                    hasProcessingTask = true;
-                    break;
-                }
-            }
-            ProcessingStatus newStatus = hasProcessingTask ? ProcessingStatus::Processing : ProcessingStatus::Pending;
-            m_messageModel->updateStatus(messageId, static_cast<int>(newStatus));
-        }
+        syncMessageStatus(messageId, sessionId);
         
         emit messageTasksResumed(messageId);
     }
@@ -3375,10 +3301,7 @@ void ProcessingController::onResourcePressureChanged(int pressureLevel)
 
 bool ProcessingController::tryStartTask(QueueTask& task)
 {
-    qDebug() << "[ProcessingController][tryStartTask] Attempting to start task:" << task.taskId;
-    
     if (m_taskCoordinator->isOrphaned(task.taskId)) {
-        qDebug() << "[ProcessingController][tryStartTask] Task is orphaned:" << task.taskId;
         handleOrphanedTask(task.taskId);
         return false;
     }
@@ -3387,34 +3310,22 @@ bool ProcessingController::tryStartTask(QueueTask& task)
         const Message& message = m_taskMessages[task.taskId];
         if (message.mode == ProcessingMode::AIInference) {
             int available = m_aiEnginePool->availableCount();
-            qDebug() << "[ProcessingController][tryStartTask] AI engine check for task:" << task.taskId << "available:" << available;
             if (available <= 0) {
-                qDebug() << "[ProcessingController][tryStartTask] No AI engine available, task:" << task.taskId << "available:" << available;
                 return false;
             }
         }
     }
     
     TaskContext ctx = m_taskCoordinator->getTaskContext(task.taskId);
-    
-    qDebug() << "[ProcessingController][tryStartTask] Resource check for task:" << task.taskId 
-            << "estimatedMemoryMB:" << ctx.estimatedMemoryMB 
-            << "estimatedGpuMemoryMB:" << ctx.estimatedGpuMemoryMB
-            << "activeTaskCount:" << m_resourceManager->activeTaskCount()
-            << "usedMemoryMB:" << m_resourceManager->usedMemoryMB();
-    
+
     if (!m_resourceManager->canStartNewTask(ctx.estimatedMemoryMB, ctx.estimatedGpuMemoryMB)) {
-        qDebug() << "[ProcessingController][tryStartTask] Resource check failed (canStartNewTask) for task:" << task.taskId;
         return false;
     }
     
     if (!m_resourceManager->tryAcquire(task.taskId, ctx.estimatedMemoryMB, ctx.estimatedGpuMemoryMB)) {
-        qDebug() << "[ProcessingController][tryStartTask] Resource acquisition failed (tryAcquire) for task:" << task.taskId;
         return false;
     }
-    
-    qDebug() << "[ProcessingController][tryStartTask] Starting task:" << task.taskId << "messageId:" << task.messageId;
-    
+
     // 模式0和模式2：记录当前正在处理的消息ID
     int pauseMode = SettingsController::instance()->pauseMode();
     if (pauseMode == 0 || pauseMode == 2) {
@@ -3423,11 +3334,8 @@ bool ProcessingController::tryStartTask(QueueTask& task)
         // 如果当前消息不同，说明是新消息开始处理，更新跟踪
         if (m_currentProcessingMessageId.isEmpty()) {
             m_currentProcessingMessageId = task.messageId;
-            qDebug() << "[ProcessingController] Mode" << pauseMode << ": Set current processing message:" << m_currentProcessingMessageId;
         } else if (m_currentProcessingMessageId != task.messageId) {
             // 当前消息已完成，开始处理新消息
-            qDebug() << "[ProcessingController] Mode" << pauseMode << ": Switching from message:" << m_currentProcessingMessageId 
-                    << "to:" << task.messageId;
             m_currentProcessingMessageId = task.messageId;
         }
     }
@@ -3440,8 +3348,6 @@ void ProcessingController::finalizeTask(const QString& taskId, const QString& se
 {
     TaskLifecycle lifecycle = m_taskLifecycle.value(taskId, TaskLifecycle::Active);
     if (lifecycle == TaskLifecycle::Draining || lifecycle == TaskLifecycle::Cleaning || lifecycle == TaskLifecycle::Dead) {
-        qDebug() << "[ProcessingController] finalizeTask skipped (already cleaning/dead):"
-                << taskId << "lifecycle:" << static_cast<int>(lifecycle);
         return;
     }
 
@@ -3456,7 +3362,6 @@ void ProcessingController::finalizeTask(const QString& taskId, const QString& se
 
     if (!messageId.isEmpty() && !sessionId.isEmpty()) {
         syncMessageProgress(messageId, sessionId);
-        syncMessageStatus(messageId, sessionId);
         
         // 检查消息的所有文件是否都已处理完成
         bool allFilesSettled = true;
@@ -3469,6 +3374,9 @@ void ProcessingController::finalizeTask(const QString& taskId, const QString& se
                 break;
             }
             if (mf.status == ProcessingStatus::Processing) {
+                allFilesSettled = false;
+            }
+            if (mf.status == ProcessingStatus::Paused || mf.status == ProcessingStatus::Recoverable) {
                 allFilesSettled = false;
             }
         }
@@ -3522,12 +3430,12 @@ void ProcessingController::finalizeTask(const QString& taskId, const QString& se
                     }
                     
                     // 更新消息状态
-                    if (m_messageModel) {
-                        m_messageModel->updateStatus(nextMessageId, static_cast<int>(ProcessingStatus::Paused));
-                    }
+                    syncMessageStatus(nextMessageId, nextSessionId);
                 }
             }
         }
+
+        syncMessageStatus(messageId, sessionId);
     }
 
     if (m_sessionController) {

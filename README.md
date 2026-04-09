@@ -39,6 +39,7 @@ A desktop image and video enhancement tool built with **Qt 6.10.2 + QML**. Using
 - Embedded media viewer with fullscreen, drag-out, and smart docking support
 - Viewer thumbnails stay synchronized with message cards during incremental file completion and cleanup
 - Cache cleanup summaries show residual files and next-step guidance when disk removal is partially blocked
+- Message-card runtime state is unified in C++ derivation (including paused/recoverable), with declarative breathing-border animation that only runs during real processing
 
 ## Tech Stack
 

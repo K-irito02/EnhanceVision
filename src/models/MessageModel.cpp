@@ -6,6 +6,7 @@
 
 #include "EnhanceVision/models/MessageModel.h"
 #include "EnhanceVision/controllers/ProcessingController.h"
+#include "EnhanceVision/controllers/MessageStatusResolver.h"
 #include "EnhanceVision/core/TaskCoordinator.h"
 #include "EnhanceVision/providers/ThumbnailProvider.h"
 #include <QUuid>
@@ -1054,24 +1055,13 @@ bool MessageModel::removeMediaFileById(const QString &messageId, const QString &
 MessageModel::FileStats MessageModel::calculateFileStats(const Message& message) const
 {
     FileStats stats;
-    for (const MediaFile& file : message.mediaFiles) {
-        switch (file.status) {
-        case ProcessingStatus::Completed:
-            stats.success++;
-            break;
-        case ProcessingStatus::Failed:
-        case ProcessingStatus::Cancelled:
-            stats.failed++;
-            break;
-        case ProcessingStatus::Processing:
-            stats.processing++;
-            break;
-        case ProcessingStatus::Pending:
-        default:
-            stats.pending++;
-            break;
-        }
-    }
+    const MessageStatusSummary summary = summarizeMessageMediaFiles(message.mediaFiles);
+    stats.success = summary.completed;
+    stats.failed = summary.failed + summary.cancelled;
+    stats.pending = summary.pending;
+    stats.processing = summary.processing;
+    stats.paused = summary.paused;
+    stats.recoverable = summary.recoverable;
     return stats;
 }
 
@@ -1088,7 +1078,13 @@ void MessageModel::emitMessageFileStatsChanged(const QString& messageId, const M
     }
 
     m_messageFileStatsCache.insert(messageId, stats);
-    emit messageFileStatsChanged(messageId, stats.success, stats.failed, stats.pending, stats.processing);
+    emit messageFileStatsChanged(messageId,
+                                 stats.success,
+                                 stats.failed,
+                                 stats.pending,
+                                 stats.processing,
+                                 stats.paused,
+                                 stats.recoverable);
 }
 
 void MessageModel::resetMessageFileStatsCache()

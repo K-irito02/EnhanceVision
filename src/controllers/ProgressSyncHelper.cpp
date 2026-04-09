@@ -1,4 +1,5 @@
 #include "EnhanceVision/controllers/ProgressSyncHelper.h"
+#include "EnhanceVision/controllers/MessageStatusResolver.h"
 #include "EnhanceVision/controllers/SessionController.h"
 #include "EnhanceVision/controllers/SessionSyncHelper.h"
 #include "EnhanceVision/models/MessageModel.h"
@@ -244,18 +245,9 @@ void ProgressSyncHelper::syncMessageProgress(const QString& messageId, const QSt
 
 void ProgressSyncHelper::syncMessageStatus(const QString& messageId, const QString& sessionId,
                                            const QList<QueueTask>& tasks,
-                                           const QHash<QString, TaskContext>& taskContexts)
+                                           const QHash<QString, TaskContext>& taskContexts,
+                                           const QSet<QString>& pausedMessageIds)
 {
-    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-    constexpr qint64 kMessageStatusSyncDebounceMs = 300;
-
-    const qint64 lastSyncMs = m_lastMessageStatusSyncMs.value(messageId, 0);
-    if (lastSyncMs > 0 && (nowMs - lastSyncMs) < kMessageStatusSyncDebounceMs) {
-        return;
-    }
-
-    m_lastMessageStatusSyncMs[messageId] = nowMs;
-
     const QString targetSessionId = resolveSessionIdForMessage(messageId, sessionId, taskContexts);
     if (targetSessionId.isEmpty()) {
         return;
@@ -271,38 +263,18 @@ void ProgressSyncHelper::syncMessageStatus(const QString& messageId, const QStri
         return;
     }
 
-    int pendingFiles = 0;
-    int processingFiles = 0;
-    int completedFiles = 0;
-    int failedFiles = 0;
-    int cancelledFiles = 0;
+    const MessageStatusSummary summary = summarizeMessageMediaFiles(message.mediaFiles);
+    const ProcessingStatus newStatus = deriveMessageStatus(summary, pausedMessageIds.contains(messageId));
 
-    for (const auto& file : message.mediaFiles) {
-        switch (file.status) {
-        case ProcessingStatus::Pending:    pendingFiles++;    break;
-        case ProcessingStatus::Processing: processingFiles++; break;
-        case ProcessingStatus::Completed:  completedFiles++;  break;
-        case ProcessingStatus::Failed:     failedFiles++;     break;
-        case ProcessingStatus::Cancelled:  cancelledFiles++;  break;
-        }
+    const auto it = m_lastMessageSyncedStatus.constFind(messageId);
+    const bool hasLastSyncedStatus = (it != m_lastMessageSyncedStatus.constEnd());
+    const ProcessingStatus lastSyncedStatus = hasLastSyncedStatus ? it.value() : ProcessingStatus::Pending;
+    if (message.status != newStatus) {
+        updateStatusForSessionMessage(targetSessionId, messageId, newStatus);
+        m_lastMessageSyncedStatus.insert(messageId, newStatus);
+    } else if (shouldSyncMessageStatus(lastSyncedStatus, newStatus, hasLastSyncedStatus)) {
+        m_lastMessageSyncedStatus.insert(messageId, newStatus);
     }
-
-    ProcessingStatus newStatus = ProcessingStatus::Pending;
-
-    const bool allSettled = (pendingFiles == 0 && processingFiles == 0);
-    if (allSettled) {
-        if (failedFiles > 0 && completedFiles == 0) {
-            newStatus = ProcessingStatus::Failed;
-        } else if (cancelledFiles == totalFiles) {
-            newStatus = ProcessingStatus::Cancelled;
-        } else {
-            newStatus = ProcessingStatus::Completed;
-        }
-    } else if (processingFiles > 0 || completedFiles > 0 || failedFiles > 0 || cancelledFiles > 0) {
-        newStatus = ProcessingStatus::Processing;
-    }
-
-    updateStatusForSessionMessage(targetSessionId, messageId, newStatus);
 
     int queuePos = 0;
     for (const auto& task : tasks) {

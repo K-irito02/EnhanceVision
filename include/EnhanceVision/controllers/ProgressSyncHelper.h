@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QHash>
 #include <QList>
+#include <QSet>
 #include "EnhanceVision/models/DataTypes.h"
 
 namespace EnhanceVision {
@@ -48,7 +49,8 @@ public:
     
     void syncMessageStatus(const QString& messageId, const QString& sessionId,
                            const QList<QueueTask>& tasks,
-                           const QHash<QString, TaskContext>& taskContexts);
+                           const QHash<QString, TaskContext>& taskContexts,
+                           const QSet<QString>& pausedMessageIds);
 
     QString resolveSessionIdForMessage(const QString& messageId, const QString& fallbackSessionId,
                                        const QHash<QString, TaskContext>& taskContexts) const;
@@ -62,7 +64,7 @@ private:
     SessionSyncHelper* m_sessionSyncHelper = nullptr;
     
     QHash<QString, qint64> m_lastMessageProgressSyncMs;
-    QHash<QString, qint64> m_lastMessageStatusSyncMs;
+    QHash<QString, ProcessingStatus> m_lastMessageSyncedStatus;
 };
 
 } // namespace EnhanceVision

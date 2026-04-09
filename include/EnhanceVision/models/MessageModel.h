@@ -279,13 +279,15 @@ signals:
     void messageMediaFilesReloaded(const QString &messageId);
 
     /**
-     * @brief 单条消息文件统计变化（success/failed/pending/processing）
+     * @brief 单条消息文件统计变化（success/failed/pending/processing/paused/recoverable）
      */
     void messageFileStatsChanged(const QString &messageId,
                                  int successCount,
                                  int failedCount,
                                  int pendingCount,
-                                 int processingCount);
+                                 int processingCount,
+                                 int pausedCount,
+                                 int recoverableCount);
 
     /**
      * @brief 消息数量变化信号
@@ -362,12 +364,16 @@ private:
         int failed = 0;
         int pending = 0;
         int processing = 0;
+        int paused = 0;
+        int recoverable = 0;
 
         bool operator==(const FileStats& other) const {
             return success == other.success &&
                    failed == other.failed &&
                    pending == other.pending &&
-                   processing == other.processing;
+                   processing == other.processing &&
+                   paused == other.paused &&
+                   recoverable == other.recoverable;
         }
 
         bool operator!=(const FileStats& other) const {

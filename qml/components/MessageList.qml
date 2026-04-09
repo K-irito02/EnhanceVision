@@ -543,7 +543,7 @@ Item {
             }
         }
 
-        function onMessageFileStatsChanged(messageId, successCount, failedCount, pendingCount, processingCount) {
+        function onMessageFileStatsChanged(messageId, successCount, failedCount, pendingCount, processingCount, pausedCount, recoverableCount) {
             if (!messageList.contentItem) {
                 return
             }
@@ -556,8 +556,10 @@ Item {
                     child._failedFileCount = failedCount
                     child._pendingFileCount = pendingCount
                     child._processingFileCount = processingCount
+                    child._pausedFileCount = pausedCount
+                    child._recoverableFileCount = recoverableCount
                     child._fileStatsInitialized = true
-                    child._applyFileStats(successCount, failedCount, pendingCount, processingCount, child._pausedFileCount || 0, child._recoverableFileCount || 0)
+                    child._applyFileStats(successCount, failedCount, pendingCount, processingCount, pausedCount, recoverableCount)
                     break
                 }
             }

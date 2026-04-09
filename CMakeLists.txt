@@ -185,6 +185,7 @@ qt_add_executable(EnhanceVision
     src/controllers/SettingsController.cpp
     src/controllers/SessionController.cpp
     src/controllers/SessionPruneUtils.cpp
+    src/controllers/MessageStatusResolver.cpp
     src/controllers/FileController.cpp
     src/controllers/ProcessingController.cpp
     src/controllers/TaskRecoveryController.cpp
@@ -243,6 +244,7 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/controllers/SettingsController.h
     include/EnhanceVision/controllers/SessionController.h
     include/EnhanceVision/controllers/SessionPruneUtils.h
+    include/EnhanceVision/controllers/MessageStatusResolver.h
     include/EnhanceVision/controllers/FileController.h
     include/EnhanceVision/controllers/ProcessingController.h
     include/EnhanceVision/controllers/TaskRecoveryController.h
@@ -267,11 +269,28 @@ if(BUILD_TESTING)
         include/EnhanceVision/models/DataTypes.h
     )
 
+    qt_add_executable(EnhanceVisionMessageStatusResolverTest
+        tests/MessageStatusResolverTest.cpp
+        src/controllers/MessageStatusResolver.cpp
+        include/EnhanceVision/controllers/MessageStatusResolver.h
+        include/EnhanceVision/models/DataTypes.h
+    )
+
     target_include_directories(EnhanceVisionSessionPruneUtilsTest PRIVATE
         "${CMAKE_SOURCE_DIR}/include"
     )
 
+    target_include_directories(EnhanceVisionMessageStatusResolverTest PRIVATE
+        "${CMAKE_SOURCE_DIR}/include"
+    )
+
     target_link_libraries(EnhanceVisionSessionPruneUtilsTest PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Test
+    )
+
+    target_link_libraries(EnhanceVisionMessageStatusResolverTest PRIVATE
         Qt6::Core
         Qt6::Gui
         Qt6::Test
@@ -285,11 +304,24 @@ if(BUILD_TESTING)
                 "$<TARGET_FILE:Qt6::Test>"
                 "$<TARGET_FILE_DIR:EnhanceVisionSessionPruneUtilsTest>"
         )
+
+        add_custom_command(TARGET EnhanceVisionMessageStatusResolverTest POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:Qt6::Core>"
+                "$<TARGET_FILE:Qt6::Gui>"
+                "$<TARGET_FILE:Qt6::Test>"
+                "$<TARGET_FILE_DIR:EnhanceVisionMessageStatusResolverTest>"
+        )
     endif()
 
     add_test(
         NAME EnhanceVisionSessionPruneUtilsTest
         COMMAND EnhanceVisionSessionPruneUtilsTest
+    )
+
+    add_test(
+        NAME EnhanceVisionMessageStatusResolverTest
+        COMMAND EnhanceVisionMessageStatusResolverTest
     )
 endif()
 

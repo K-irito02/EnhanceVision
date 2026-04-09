@@ -27,6 +27,7 @@
 #include "EnhanceVision/core/ProgressManager.h"
 #include "EnhanceVision/controllers/SessionSyncHelper.h"
 #include "EnhanceVision/controllers/ProgressSyncHelper.h"
+#include "EnhanceVision/controllers/MessageStatusResolver.h"
 
 class QTimer;
 

@@ -49,8 +49,10 @@ Rectangle {
     property bool _hasStartedProcessing: persistedProcessingStartTime > 0 || _processingStartTime > 0
 
     // 动画控制属性
-    property bool _shouldBreathAnimate: status === 1
-    property bool _shouldWaitingAnimate: status === 0
+    readonly property bool processingBorderAnimated: status === 1 && processingFileCount > 0
+    readonly property bool waitingBarAnimated: status === 0
+    property real _processingBorderOpacity: processingBorderAnimated ? 0.32 : 0.0
+    property real _waitingBarOffset: 0
 
     // 基于时间的进度百分比（用于进度条）
     readonly property real _timeBasedProgress: {
@@ -102,27 +104,15 @@ Rectangle {
         errorTipDismissed = persistedErrorTipDismissed
     }
     
-    // 状态变化时显式控制动画
-    onStatusChanged: {
-        _updateBreathAnimation()
-        _updateWaitingAnimation()
-    }
-    
-    // 呼吸感动画控制函数
-    function _updateBreathAnimation() {
-        if (_shouldBreathAnimate) {
-            breathAnimation.start()
-        } else {
-            breathAnimation.stop()
+    onProcessingBorderAnimatedChanged: {
+        if (!processingBorderAnimated) {
+            _processingBorderOpacity = 0.0
         }
     }
-    
-    // 等待状态动画控制函数
-    function _updateWaitingAnimation() {
-        if (_shouldWaitingAnimate) {
-            waitingAnimation.start()
-        } else {
-            waitingAnimation.stop()
+
+    onWaitingBarAnimatedChanged: {
+        if (!waitingBarAnimated) {
+            _waitingBarOffset = 0
         }
     }
 
@@ -301,41 +291,47 @@ Rectangle {
     radius: Theme.radius.lg
     implicitHeight: contentLayout.implicitHeight + 24
     
-    border.width: {
-        if (selected) return 2
-        if (status === 1 || root.isRecoverable) return 1.5
-        return 1
-    }
-    border.color: {
-        if (selected) return Theme.colors.primary
-        if (status === 1) return breathColor
-        if (root.isRecoverable) return Qt.rgba(Theme.colors.primary.r, Theme.colors.primary.g, Theme.colors.primary.b, 0.45)
-        return Theme.colors.cardBorder
-    }
-    
-    property color breathColor: Theme.colors.primary
-    
-    SequentialAnimation {
-        id: breathAnimation
-        running: false
+    border.width: 1
+    border.color: Theme.colors.cardBorder
+
+    SequentialAnimation on _processingBorderOpacity {
+        running: root.processingBorderAnimated
         loops: Animation.Infinite
-        
-        ColorAnimation {
-            target: root
-            property: "breathColor"
-            from: Qt.rgba(Theme.colors.primary.r, Theme.colors.primary.g, Theme.colors.primary.b, 0.3)
-            to: Qt.rgba(Theme.colors.primary.r, Theme.colors.primary.g, Theme.colors.primary.b, 0.9)
+
+        NumberAnimation {
+            from: 0.28
+            to: 0.88
             duration: 1200
             easing.type: Easing.InOutSine
         }
-        ColorAnimation {
-            target: root
-            property: "breathColor"
-            from: Qt.rgba(Theme.colors.primary.r, Theme.colors.primary.g, Theme.colors.primary.b, 0.9)
-            to: Qt.rgba(Theme.colors.primary.r, Theme.colors.primary.g, Theme.colors.primary.b, 0.3)
+        NumberAnimation {
+            from: 0.88
+            to: 0.28
             duration: 1200
             easing.type: Easing.InOutSine
         }
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        radius: root.radius
+        color: "transparent"
+        border.width: 2
+        border.color: Theme.colors.primary
+        visible: root.selected
+        z: 1
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        radius: root.radius
+        color: "transparent"
+        border.width: (root.selected || (!root.processingBorderAnimated && !root.isRecoverable)) ? 0 : 1.5
+        border.color: root.isRecoverable
+            ? Qt.rgba(Theme.colors.primary.r, Theme.colors.primary.g, Theme.colors.primary.b, 0.45)
+            : Qt.rgba(Theme.colors.primary.r, Theme.colors.primary.g, Theme.colors.primary.b, root._processingBorderOpacity)
+        visible: !root.selected && (root.processingBorderAnimated || root.isRecoverable)
+        z: 1
     }
     
     readonly property string modeText: mode === 0 ? qsTr("Shader") : qsTr("AI")
@@ -580,7 +576,7 @@ Rectangle {
 
                 // 处理中显示文件进度
                 Text {
-                    visible: status === 1
+                    visible: root.processingBorderAnimated
                     text: qsTr("(%1/%2)").arg(root.completedCount).arg(root.totalFileCount)
                     color: Theme.colors.mutedForeground
                     font.pixelSize: 11
@@ -612,14 +608,14 @@ Rectangle {
                         }
 
                         Text {
-                            visible: (status === 1 || root.isPaused) && root.elapsedSec > 0 && root.predictedTotalSec > 0
+                            visible: ((root.processingBorderAnimated || root.isPaused) && root.elapsedSec > 0 && root.predictedTotalSec > 0)
                             text: "|"
                             color: Theme.colors.border
                             font.pixelSize: 10
                         }
 
                         Text {
-                            visible: (status === 1 || root.isPaused) && root.elapsedSec > 0
+                            visible: ((root.processingBorderAnimated || root.isPaused) && root.elapsedSec > 0)
                             text: root._formatElapsedDuration(root.elapsedSec, root.isPaused)
                             color: root.isPaused ? Theme.colors.warning : Theme.colors.primary
                             font.pixelSize: 11
@@ -679,24 +675,24 @@ Rectangle {
                     height: parent.height; radius: parent.radius
                     color: Theme.colors.primary
                     opacity: 0.5
+                    x: root._waitingBarOffset
                 }
                 
                 SequentialAnimation {
-                    id: waitingAnimation
-                    running: root._shouldWaitingAnimate
+                    running: root.waitingBarAnimated
                     loops: Animation.Infinite
                     
                     NumberAnimation {
-                        target: waitingBar
-                        property: "x"
+                        target: root
+                        property: "_waitingBarOffset"
                         from: 0
                         to: waitingBar.parent.width * 0.7
                         duration: 1500
                         easing.type: Easing.InOutQuad
                     }
                     NumberAnimation {
-                        target: waitingBar
-                        property: "x"
+                        target: root
+                        property: "_waitingBarOffset"
                         from: waitingBar.parent.width * 0.7
                         to: 0
                         duration: 1500
@@ -855,8 +851,6 @@ Rectangle {
     Component.onCompleted: {
         failedTipDismissed = persistedFailedTipDismissed
         errorTipDismissed = persistedErrorTipDismissed
-        _updateBreathAnimation()
-        _updateWaitingAnimation()
     }
     
     Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
