@@ -137,7 +137,7 @@ SettingsController::SettingsController(QObject* parent)
     , m_shaderVideoFileCount(0)
 {
     QString configPath = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
-    QString settingsFile = QDir(configPath).filePath("EnhanceVision/settings.ini");
+    QString settingsFile = QDir(configPath).filePath("settings.ini");
     m_settings = new QSettings(settingsFile, QSettings::IniFormat, this);
 
     QString picturesPath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);

@@ -13,6 +13,7 @@ This document details how to package EnhanceVision into distributable installers
 - [Advanced Features Implementation](#advanced-features-implementation)
 - [Portable ZIP](#portable-zip)
 - [Packaging Verification](#packaging-verification)
+- [NSIS Known Pitfalls](#nsis-known-pitfalls)
 - [Common Issues](#common-issues)
 
 ---
@@ -44,8 +45,8 @@ EnhanceVision-v0.1.0-windows-x64/
 
 ### Estimated Size
 
-- Installer: ~100MB (including runtime libraries)
-- Portable ZIP: ~100MB (extracted)
+- Installer: ~150MB (including runtime libraries, LZMA compressed)
+- Portable ZIP: ~180MB
 
 ---
 
@@ -185,10 +186,8 @@ installer/
 │   └── license_zh.txt       ✅ Chinese license agreement
 ├── redist/
 │   └── vc_redist.x64.exe    ✅ VC++ 2022 runtime
-├── resources/             📁 Brand images to be added
-│   ├── welcome.bmp        ⏳ Need to provide (500x314)
-│   ├── header.bmp         ⏳ Need to provide (150x57)
-│   └── app.ico            ⏳ Need to provide (256x256)
+├── resources/             📁 Brand resources
+│   └── app_icon.ico      ✅ Ready (from resources/icons/)
 └── README.md              ✅ Resource preparation guide
 ```
 
@@ -272,7 +271,7 @@ Create file `installer/setup.nsi`:
 
 ; Data directory settings
 !define DEFAULT_DATA_PATH "$APPDATA\EnhanceVision"
-!define MIN_DISK_SPACE_MB 200
+!define MIN_DISK_SPACE_MB 500
 
 ; Runtime version
 !define VC_REDIST_MIN_VERSION "14.32.31326.0"
@@ -286,19 +285,16 @@ InstallDir "$PROGRAMFILES64\${APP_NAME}"
 InstallDirRegKey HKLM "${APP_REGISTRY_KEY}" "Install_Dir"
 RequestExecutionLevel admin
 
+; Compression settings
+SetCompressor /SOLID lzma
+SetCompressorDictSize 64
+
 ; ----------------------------------------------------------------------------
 ; Interface Settings
 ; ----------------------------------------------------------------------------
 ; Icons
-!define MUI_ICON "..\resources\icons\app.ico"
-!define MUI_UNICON "..\resources\icons\app.ico"
-
-; Custom images (optional)
-!define MUI_WELCOMEFINISHPAGE_BITMAP "..\installer\resources\welcome.bmp"
-!define MUI_UNWELCOMEFINISHPAGE_BITMAP "..\installer\resources\welcome.bmp"
-!define MUI_HEADERIMAGE
-!define MUI_HEADERIMAGE_BITMAP "..\installer\resources\header.bmp"
-!define MUI_HEADERIMAGE_UNBITMAP "..\installer\resources\header.bmp"
+!define MUI_ICON "..\resources\icons\app_icon.ico"
+!define MUI_UNICON "..\resources\icons\app_icon.ico"
 
 ; Welcome page title
 !define MUI_WELCOMEPAGE_TITLE "$(WelcomeTitle)"
@@ -356,7 +352,7 @@ Page custom LanguageSelectionPage
 !insertmacro MUI_PAGE_WELCOME
 
 ; License agreement page
-!insertmacro MUI_PAGE_LICENSE "..\installer\license\license_$LANGUAGE.txt"
+!insertmacro MUI_PAGE_LICENSE "$(LicenseFile)"
 
 ; Installation directory page
 !insertmacro MUI_PAGE_DIRECTORY
@@ -386,6 +382,10 @@ Page custom DataDirectoryPage
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "SimpChinese"
 
+; Multi-language license (must be after MUI_LANGUAGE)
+LicenseLangString LicenseFile ${LANG_SIMPCHINESE} "..\installer\license\license_zh.txt"
+LicenseLangString LicenseFile ${LANG_ENGLISH} "..\installer\license\license_en.txt"
+
 ; Language string definitions
 ; English
 LangString WelcomeTitle ${LANG_ENGLISH} "Welcome to EnhanceVision Setup"
@@ -414,6 +414,7 @@ LangString SectionDesktop ${LANG_ENGLISH} "Desktop Shortcut"
 LangString SectionDesktopDesc ${LANG_ENGLISH} "Create shortcut on Desktop"
 LangString UninstallConfirm ${LANG_ENGLISH} "Are you sure you want to uninstall EnhanceVision?"
 LangString UninstallKeepData ${LANG_ENGLISH} "Do you want to keep user data?"
+LangString PrevVersionDetected ${LANG_ENGLISH} "Detected EnhanceVision $PreviousVersion$\r$\n$\r$\nOverwrite installation? (User data will be preserved)"
 
 ; Simplified Chinese
 LangString WelcomeTitle ${LANG_SIMPCHINESE} "欢迎使用 EnhanceVision 安装向导"
@@ -442,6 +443,7 @@ LangString SectionDesktop ${LANG_SIMPCHINESE} "桌面快捷方式"
 LangString SectionDesktopDesc ${LANG_SIMPCHINESE} "在桌面创建快捷方式"
 LangString UninstallConfirm ${LANG_SIMPCHINESE} "确定要卸载 EnhanceVision 吗？"
 LangString UninstallKeepData ${LANG_SIMPCHINESE} "是否保留用户数据？"
+LangString PrevVersionDetected ${LANG_SIMPCHINESE} "检测到已安装 EnhanceVision $PreviousVersion$\r$\n$\r$\n是否覆盖安装？（用户数据将被保留）"
 
 ; ----------------------------------------------------------------------------
 ; Global Variables
@@ -575,9 +577,7 @@ Function CheckPreviousVersion
     ReadRegStr $PreviousVersion HKLM "${APP_REGISTRY_KEY}" "Version"
     
     ${If} $PreviousVersion != ""
-        MessageBox MB_OKCANCEL|MB_ICONQUESTION \
-            "Detected EnhanceVision $PreviousVersion is already installed.$\r$\n$\r$\nDo you want to overwrite? (User data will be preserved)" \
-            IDOK continue
+        MessageBox MB_OKCANCEL|MB_ICONQUESTION "$(PrevVersionDetected)" IDOK continue
         Abort
         
         continue:
@@ -612,7 +612,8 @@ Function CheckVulkanSupport
     
     ; If not supported, show warning
     ${If} $VulkanSupported == 0
-        MessageBox MB_OK|MB_ICONWARNING "$(WarningVulkan)$\r$\n$\r$\nDriver download links:$\r$\nNVIDIA: https://www.nvidia.com/drivers$\r$\nAMD: https://www.amd.com/support$\r$\nIntel: https://downloadcenter.intel.com"
+        StrCpy $0 "$(WarningVulkan)"
+        MessageBox MB_ICONEXCLAMATION|MB_OK $0
     ${EndIf}
 FunctionEnd
 
@@ -635,8 +636,111 @@ Section "$(SectionMain)" SecMain
     ; Set output path
     SetOutPath $INSTDIR
     
-    ; Write files
-    File /r "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\*.*"
+    ; Write files (explicit file listing to avoid including unwanted files)
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\EnhanceVision.exe"
+
+    ; Qt DLLs
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6Core.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6Gui.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6Qml.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6Quick.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickControls2.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickControls2Impl.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickControls2Basic.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickControls2BasicStyleImpl.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickControls2Fusion.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickControls2FusionStyleImpl.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickControls2Material.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickControls2MaterialStyleImpl.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickControls2Imagine.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickControls2ImagineStyleImpl.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickControls2Universal.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickControls2UniversalStyleImpl.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickControls2WindowsStyleImpl.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickControls2FluentWinUI3StyleImpl.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickTemplates2.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickLayouts.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickShapes.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickEffects.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickDialogs2.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickDialogs2QuickImpl.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickDialogs2Utils.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QuickWidgets.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6Network.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6OpenGL.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6Multimedia.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6MultimediaQuick.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QmlModels.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QmlCore.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QmlMeta.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6QmlWorkerScript.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6LabsFolderListModel.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6LabsQmlModels.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6Widgets.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6Svg.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6Sql.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\Qt6Quick3DUtils.dll"
+
+    ; System DLLs
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\D3Dcompiler_47.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\dxcompiler.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\dxil.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\opengl32sw.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\icuuc.dll"
+
+    ; FFmpeg DLLs
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\avcodec-62.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\avformat-62.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\avutil-60.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\swscale-9.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\swresample-6.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\avdevice-62.dll"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\avfilter-11.dll"
+
+    ; License and documentation
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\LICENSE"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\THIRD_PARTY_LICENSES.md"
+    File "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\README.txt"
+
+    ; Subdirectories
+    SetOutPath $INSTDIR\models
+    File /r "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\models\*.*"
+
+    SetOutPath $INSTDIR\translations
+    File /r "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\translations\*.*"
+
+    SetOutPath $INSTDIR\qml
+    File /r "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\qml\*.*"
+
+    SetOutPath $INSTDIR\platforms
+    File /r "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\platforms\*.*"
+
+    SetOutPath $INSTDIR\styles
+    File /r "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\styles\*.*"
+
+    SetOutPath $INSTDIR\imageformats
+    File /r "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\imageformats\*.*"
+
+    SetOutPath $INSTDIR\iconengines
+    File /r "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\iconengines\*.*"
+
+    SetOutPath $INSTDIR\generic
+    File /r "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\generic\*.*"
+
+    SetOutPath $INSTDIR\networkinformation
+    File /r "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\networkinformation\*.*"
+
+    SetOutPath $INSTDIR\tls
+    File /r "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\tls\*.*"
+
+    SetOutPath $INSTDIR\sqldrivers
+    File /r "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\sqldrivers\*.*"
+
+    SetOutPath $INSTDIR\multimedia
+    File /r "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\multimedia\*.*"
+
+    SetOutPath $INSTDIR\qmltooling
+    File /r "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\qmltooling\*.*"
     
     ; Install VC++ runtime (if needed)
     ${If} $VCRuntimeInstalled == 0
@@ -941,7 +1045,7 @@ ${If} ${FileExists} "$SYSDIR\vulkan-1.dll"
     ; Vulkan supported
 ${Else}
     ; Not supported, show warning with driver download links
-    MessageBox MB_OK|MB_ICONWARNING "Vulkan support not detected..."
+    MessageBox MB_ICONEXCLAMATION|MB_OK "Vulkan support not detected..."
 ${EndIf}
 ```
 
@@ -1014,6 +1118,7 @@ param(
 
 $packageDir = "package\EnhanceVision-v$Version-windows-x64"
 $errors = @()
+$warnings = @()
 
 # Check required files
 $requiredFiles = @(
@@ -1030,13 +1135,18 @@ foreach ($file in $requiredFiles) {
 }
 
 # Check model files
-if (-not (Test-Path "$packageDir\models\RealESRGAN_x4plus.param")) {
-    $errors += "Missing AI model file"
+if (-not (Test-Path "$packageDir\models")) {
+    $errors += "Missing models directory"
+} else {
+    $modelFiles = Get-ChildItem -Path "$packageDir\models" -Recurse -Filter "*.param"
+    if ($modelFiles.Count -eq 0) {
+        $errors += "No AI model files in models directory"
+    }
 }
 
 # Check translation files
-if (-not (Test-Path "$packageDir\translations\app_zh_CN.qm")) {
-    $errors += "Missing Chinese translation file"
+if (-not (Test-Path "$packageDir\translations")) {
+    $warnings += "Missing translations directory"
 }
 
 # Check Qt DLLs
@@ -1122,14 +1232,21 @@ if ($LASTEXITCODE -ne 0) { throw "Package verification failed" }
 
 # 4. Create installer
 Write-Host "`n[4/6] Creating installer..." -ForegroundColor Yellow
-"E:\Program Files (x86)\NSIS\makensis.exe" installer\setup.nsi
+"E:\Program Files (x86)\NSIS\makensis.exe" /INPUTCHARSET UTF8 installer\setup.nsi
 if ($LASTEXITCODE -ne 0) { throw "Installer creation failed" }
 
 # 5. Create portable version
 Write-Host "`n[5/6] Creating portable version..." -ForegroundColor Yellow
 $zipFile = "package\EnhanceVision-v$Version-windows-x64-portable.zip"
 Remove-Item -Force $zipFile -ErrorAction SilentlyContinue
+
+# Copy portable launcher
+Copy-Item -Path "portable\start.bat" -Destination $packageDir
+
 Compress-Archive -Path $packageDir -DestinationPath $zipFile
+
+# Clean up temporary file
+Remove-Item "$packageDir\start.bat" -ErrorAction SilentlyContinue
 
 # 6. Calculate checksums
 Write-Host "`n[6/6] Calculating checksums..." -ForegroundColor Yellow
@@ -1165,9 +1282,7 @@ Run complete packaging:
 
 | Image | Size | Format | Purpose |
 |-------|------|--------|---------|
-| welcome.bmp | 500 x 314 | BMP 24-bit | Welcome/Finish page |
-| header.bmp | 150 x 57 | BMP 24-bit | Page header image |
-| app.ico | 256 x 256 | ICO | Application icon |
+| app_icon.ico | 256 x 256 | ICO | Application icon (from resources/icons/) |
 
 ### 2. License Agreement Files
 
@@ -1190,6 +1305,70 @@ EnhanceVision 最终用户许可协议
 
 特此免费授予任何获得本软件副本和相关文档文件（"软件"）的人不受限制地处置该软件的权利...
 ```
+
+---
+
+## NSIS Known Pitfalls
+
+### Pitfall 1: `LicenseLangString` Must Come After `MUI_LANGUAGE`
+
+`!insertmacro MUI_LANGUAGE` defines language ID constants like `${LANG_SIMPCHINESE}` and `${LANG_ENGLISH}`. Using these constants before `MUI_LANGUAGE` will cause compilation errors.
+
+```nsis
+; ✅ Correct order
+!insertmacro MUI_LANGUAGE "SimpChinese"
+!insertmacro MUI_LANGUAGE "English"
+LicenseLangString LicenseFile ${LANG_SIMPCHINESE} "license_zh.txt"
+LicenseLangString LicenseFile ${LANG_ENGLISH} "license_en.txt"
+
+; ❌ Wrong order - LANG_SIMPCHINESE undefined
+LicenseLangString LicenseFile ${LANG_SIMPCHINESE} "license_zh.txt"
+!insertmacro MUI_LANGUAGE "SimpChinese"
+```
+
+### Pitfall 2: License Page Path Cannot Use `$LANGUAGE` Variable
+
+`!insertmacro MUI_PAGE_LICENSE` path is resolved at compile time, while `$LANGUAGE` is a runtime variable. Using `license_$LANGUAGE.txt` will fail to find the file at compile time.
+
+```nsis
+; ✅ Correct - Use LicenseLangString
+LicenseLangString LicenseFile ${LANG_SIMPCHINESE} "license_zh.txt"
+LicenseLangString LicenseFile ${LANG_ENGLISH} "license_en.txt"
+!insertmacro MUI_PAGE_LICENSE "$(LicenseFile)"
+
+; ❌ Wrong - $LANGUAGE not available at compile time
+!insertmacro MUI_PAGE_LICENSE "license_$LANGUAGE.txt"
+```
+
+### Pitfall 3: `MB_ICONWARNING` Is Not a Valid NSIS Constant
+
+NSIS MessageBox does not support `MB_ICONWARNING`. Use `MB_ICONEXCLAMATION` instead.
+
+```nsis
+; ✅ Correct
+MessageBox MB_ICONEXCLAMATION|MB_OK "Warning message"
+
+; ❌ Wrong - Compilation fails
+MessageBox MB_OK|MB_ICONWARNING "Warning message"
+```
+
+### Pitfall 4: NSIS Script File Encoding
+
+If the NSIS script contains Chinese characters (e.g., LangString), it must be saved with UTF-8 BOM encoding, or the charset must be specified at compile time:
+
+```powershell
+# Method 1: Specify input charset
+makensis /INPUTCHARSET UTF8 installer\setup.nsi
+
+# Method 2: Save as UTF-8 BOM encoding (NSIS auto-detects)
+$content = Get-Content -Path "setup.nsi" -Raw -Encoding UTF8
+$utf8Bom = New-Object System.Text.UTF8Encoding($true)
+[System.IO.File]::WriteAllText("setup.nsi", $content, $utf8Bom)
+```
+
+### Pitfall 5: Avoid Using `File /r` Wildcard in Installation Section
+
+`File /r "..\package\*.*"` will include all files in the package directory, including unwanted test files, build artifacts, etc. Use explicit file listing to precisely control package contents.
 
 ---
 

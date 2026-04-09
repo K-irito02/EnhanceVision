@@ -1566,34 +1566,34 @@
     <name>EnhanceVision::SessionController</name>
     <message>
         <source>Unnamed Session %1</source>
-        <translation type="vanished">未命名会话 %1</translation>
+        <translation>未命名会话 %1</translation>
     </message>
     <message>
         <source>Cannot save session data</source>
-        <translation type="vanished">无法保存会话数据</translation>
+        <translation>无法保存会话数据</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::SessionModel</name>
     <message>
         <source>Session does not exist: %1</source>
-        <translation type="vanished">会话不存在: %1</translation>
+        <translation>会话不存在: %1</translation>
     </message>
     <message>
         <source>Session name cannot be empty</source>
-        <translation type="vanished">会话名称不能为空</translation>
+        <translation>会话名称不能为空</translation>
     </message>
     <message>
         <source>Session name cannot exceed 50 characters</source>
-        <translation type="vanished">会话名称不能超过50个字符</translation>
+        <translation>会话名称不能超过50个字符</translation>
     </message>
     <message>
         <source>Cannot move session across pinned area</source>
-        <translation type="vanished">不能跨越置顶区域移动会话</translation>
+        <translation>不能跨越置顶区域移动会话</translation>
     </message>
     <message>
         <source>Unnamed Session %1</source>
-        <translation type="vanished">未命名会话 %1</translation>
+        <translation>未命名会话 %1</translation>
     </message>
 </context>
 <context>
@@ -3081,13 +3081,13 @@
     <message>
         <location filename="../../src/controllers/SessionController.cpp" line="671"/>
         <source>Unnamed Session %1</source>
-        <translation type="unfinished">未命名会话 %1</translation>
+        <translation>未命名会话 %1</translation>
     </message>
     <message>
         <location filename="../../src/controllers/SessionController.cpp" line="726"/>
         <location filename="../../src/controllers/SessionController.cpp" line="738"/>
         <source>Cannot save session data</source>
-        <translation type="unfinished">无法保存会话数据</translation>
+        <translation>无法保存会话数据</translation>
     </message>
 </context>
 <context>
@@ -3148,27 +3148,27 @@
         <location filename="../../src/models/SessionModel.cpp" line="215"/>
         <location filename="../../src/models/SessionModel.cpp" line="382"/>
         <source>Session does not exist: %1</source>
-        <translation type="unfinished">会话不存在: %1</translation>
+        <translation>会话不存在: %1</translation>
     </message>
     <message>
         <location filename="../../src/models/SessionModel.cpp" line="162"/>
         <source>Session name cannot be empty</source>
-        <translation type="unfinished">会话名称不能为空</translation>
+        <translation>会话名称不能为空</translation>
     </message>
     <message>
         <location filename="../../src/models/SessionModel.cpp" line="167"/>
         <source>Session name cannot exceed 50 characters</source>
-        <translation type="unfinished">会话名称不能超过50个字符</translation>
+        <translation>会话名称不能超过50个字符</translation>
     </message>
     <message>
         <location filename="../../src/models/SessionModel.cpp" line="349"/>
         <source>Unnamed Session %1</source>
-        <translation type="unfinished">未命名会话 %1</translation>
+        <translation>未命名会话 %1</translation>
     </message>
     <message>
         <location filename="../../src/models/SessionModel.cpp" line="427"/>
         <source>Cannot move session across pinned area</source>
-        <translation type="unfinished">不能跨越置顶区域移动会话</translation>
+        <translation>不能跨越置顶区域移动会话</translation>
     </message>
 </context>
 <context>

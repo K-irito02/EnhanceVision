@@ -801,7 +801,7 @@ Rectangle {
                 visible: (root._hasStartedProcessing && root.allFilesSettled && displayTotalSec > 0) || root.persistedActualTotalSec > 0
                 text: root._formatTotalDuration(displayTotalSec)
                 // 使用蓝色
-                color: "#4a9eff"
+                color: "#5B8DEF"
                 font.pixelSize: 11
                 font.weight: Font.DemiBold
                 elide: Text.ElideRight

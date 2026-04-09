@@ -259,6 +259,7 @@ qt_add_executable(EnhanceVision
 # Windows 应用程序图标
 if(WIN32)
     target_sources(EnhanceVision PRIVATE resources/app.rc)
+    set_target_properties(EnhanceVision PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
 
 if(BUILD_TESTING)

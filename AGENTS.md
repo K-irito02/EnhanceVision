@@ -66,5 +66,6 @@
 - `qt-unittest-make`
 - `obs-cpp-qt-patterns`
 - `ui-ux-pro-max`
+- `packaging-workflow`
 
 当任务与技能明显匹配时，优先读取对应技能的 `SKILL.md` 再执行。

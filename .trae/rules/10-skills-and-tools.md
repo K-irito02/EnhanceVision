@@ -19,6 +19,7 @@ trigger: always_on
 
 | 技能 | 触发条件 |
 |------|----------|
+| `packaging-workflow` | 需要打包、创建安装程序、生成便携版 |
 | `qt-unittest-make` | 需要补全/生成 Qt 单元测试 |
 | `ffmpeg-toolkit` | 涉及视频/音频处理与导出 |
 | `qt-compatibility-build` | 涉及 Qt 版本兼容或迁移 |
@@ -32,6 +33,7 @@ trigger: always_on
 新功能：架构设计 → 开发实现 → 构建验证 → 文档更新
 Bug修复：问题定位 → 修复 → 回归验证 → 文档更新
 测试补全：类/模块分析 → 单测生成 → 构建验证
+打包发布：构建Release → 准备打包目录 → 验证 → NSIS安装程序 → 便携版ZIP → 校验和
 ```
 
 ## 执行原则

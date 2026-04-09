@@ -70,13 +70,13 @@ void UIStateController::destroyInstance()
 QString UIStateController::getStateFilePath() const
 {
     QString configPath = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
-    return QDir(configPath).filePath("EnhanceVision/ui_state.json");
+    return QDir(configPath).filePath("ui_state.json");
 }
 
 void UIStateController::ensureStateDirectoryExists()
 {
     QString configPath = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
-    QDir dir(configPath + "/EnhanceVision");
+    QDir dir(configPath);
     if (!dir.exists()) {
         dir.mkpath(".");
     }
