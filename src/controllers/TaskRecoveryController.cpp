@@ -681,6 +681,78 @@ void TaskRecoveryController::resolveFailAllRecoverableTasks()
     failRecoverableTasks(tr("应用关闭导致任务中断，未执行恢复"));
 }
 
+void TaskRecoveryController::syncPendingRecoveryFromSessions()
+{
+    if (!m_hasPendingRecovery || !m_sessionController) {
+        return;
+    }
+
+    RecoverySnapshot nextSnapshot = m_snapshot;
+    nextSnapshot.messages.clear();
+
+    for (const RecoverableMessageState& messageState : m_snapshot.messages) {
+        Session* session = m_sessionController->getSession(messageState.sessionId);
+        if (!session) {
+            continue;
+        }
+
+        Message currentMessage;
+        bool foundMessage = false;
+        for (const Message& candidate : session->messages) {
+            if (candidate.id == messageState.messageId) {
+                currentMessage = candidate;
+                foundMessage = true;
+                break;
+            }
+        }
+        if (!foundMessage) {
+            continue;
+        }
+
+        RecoverableMessageState nextMessageState = messageState;
+        nextMessageState.sessionName = session->name;
+        nextMessageState.fileStates.clear();
+
+        for (const RecoverableFileState& fileState : messageState.fileStates) {
+            for (const MediaFile& file : currentMessage.mediaFiles) {
+                if (file.id == fileState.fileId && isUnfinishedStatus(file.status)) {
+                    nextMessageState.fileStates.append(fileState);
+                    break;
+                }
+            }
+        }
+
+        if (!nextMessageState.fileStates.isEmpty()) {
+            nextSnapshot.messages.append(nextMessageState);
+        }
+    }
+
+    m_snapshot = nextSnapshot;
+
+    const QVariantList nextSummary = buildSummaryFromSnapshot(m_snapshot);
+    if (m_recoverySummary != nextSummary) {
+        m_recoverySummary = nextSummary;
+        emit recoverySummaryChanged();
+    }
+
+    if (m_snapshot.isValid()) {
+        saveSnapshotToDisk(m_snapshot);
+        return;
+    }
+
+    clearSnapshotFile();
+    m_snapshot = RecoverySnapshot();
+    if (!m_shutdownReason.isEmpty()) {
+        m_shutdownReason.clear();
+        emit shutdownReasonChanged();
+    }
+    if (!m_restoreAvailable) {
+        m_restoreAvailable = true;
+        emit restoreAvailableChanged();
+    }
+    setPendingRecoveryState(false);
+}
+
 void TaskRecoveryController::scheduleSnapshotSync()
 {
     if (m_hasPendingRecovery) {

@@ -531,6 +531,16 @@ Item {
 
         function onMediaFilePatched(messageId, fileId, fileStatus, resultPath) {
             _patchVisibleDelegate(messageId, fileId, fileStatus, resultPath)
+            if (root.messageViewer && root.messageViewer.isOpen &&
+                root.messageViewer.currentMessageId === messageId) {
+                var selectedId = root.messageViewer.selectedFileId || ""
+                var selectedPath = root.messageViewer.selectedFilePath || ""
+                if (fileStatus === 2 ||
+                    (selectedId !== "" && selectedId === fileId) ||
+                    (selectedPath !== "" && selectedPath === (resultPath || ""))) {
+                    root._syncViewerWindow(messageId)
+                }
+            }
         }
 
         function onMessageFileStatsChanged(messageId, successCount, failedCount, pendingCount, processingCount) {
@@ -566,17 +576,23 @@ Item {
                     break
                 }
             }
+
+            if (root.messageViewer && root.messageViewer.isOpen &&
+                root.messageViewer.currentMessageId === messageId) {
+                root._syncViewerWindow(messageId)
+            }
         }
 
         function onMediaFileRemoved(messageId, fileIndex) {
             if (root.messageViewer && root.messageViewer.isOpen && 
                 root.messageViewer.currentMessageId === messageId) {
-                root._syncViewerWindow(messageId, fileIndex)
+                root._syncViewerWindow(messageId)
             }
         }
         function onMessageRemoved(messageId) {
             if (root.messageViewer && root.messageViewer.isOpen && 
                 root.messageViewer.currentMessageId === messageId) {
+                root.messageViewer.currentMessageId = ""
                 root.messageViewer.close()
             }
         }
@@ -741,39 +757,23 @@ Item {
         }
         
         var files = []
+        var preferredFileId = ""
+        var preferredFilePath = ""
         if (_hasRealModel) {
             var allFiles = messageModel.getMediaFiles(msgId)
-            
-            for (var i = 0; i < allFiles.length; i++) {
-                var f = allFiles[i]
-                if (f.status !== 2) continue
-                
-                var filePath = f.filePath || ""
-                var resultPath = f.resultPath || ""
 
-                var processedThumbId = f.processedThumbnailId || ""
-                if (resultPath !== "" && processedThumbId === "") {
-                    processedThumbId = "processed_" + (f.id || "")
+            if (fileIndex >= 0 && fileIndex < allFiles.length) {
+                var preferredFile = allFiles[fileIndex]
+                if (preferredFile && preferredFile.status === 2) {
+                    preferredFileId = preferredFile.id || ""
+                    preferredFilePath = preferredFile.resultPath || preferredFile.filePath || ""
                 }
-
-                var resourceId = processedThumbId !== "" ? processedThumbId
-                               : (resultPath !== "" ? resultPath : filePath)
-                var thumbSource = resourceId !== "" ? ("image://thumbnail/" + resourceId) : ""
-
-                files.push({
-                    "filePath":  resultPath !== "" ? resultPath : filePath,
-                    "fileName":  f.fileName  || "",
-                    "mediaType": f.mediaType !== undefined ? f.mediaType : 0,
-                    "thumbnail": thumbSource,
-                    "resultPath": resultPath,
-                    "originalPath": filePath,
-                    "status": f.status,
-                    "processedThumbnailId": processedThumbId
-                })
             }
+            files = _buildMessageViewerFiles(msgId)
         } else {
             for (var j = 0; j < 10; j++) {
                 files.push({
+                    "id": "demo-" + (j + 1),
                     "filePath":  "demo://placeholder_" + (j+1) + ".jpg",
                     "fileName":  "media_" + (j+1) + ".jpg",
                     "mediaType": 0,
@@ -788,7 +788,6 @@ Item {
             var viewer = root.messageViewer
             viewer.messageId = msgId
             viewer.currentMessageId = msgId
-            viewer.mediaFiles = files
             
             var shaderParams = _hasRealModel ? messageModel.getShaderParams(msgId) : {}
             
@@ -809,24 +808,25 @@ Item {
             viewer.shaderVignette = shaderParams.vignette !== undefined ? shaderParams.vignette : 0.0
             viewer.shaderHighlights = shaderParams.highlights !== undefined ? shaderParams.highlights : 0.0
             viewer.shaderShadows = shaderParams.shadows !== undefined ? shaderParams.shadows : 0.0
-            
-            viewer.openAt(Math.min(fileIndex, files.length - 1))
+
+            viewer.syncMediaFiles(files, preferredFileId, preferredFilePath)
+            viewer.openAt(viewer.currentIndex >= 0 ? viewer.currentIndex : 0)
         }
     }
-    
-    function _syncViewerWindow(messageId, deletedIndex) {
-        if (!root.messageViewer) return
-        
+
+    function _buildMessageViewerFiles(messageId) {
         var files = []
+        if (!_hasRealModel) {
+            return files
+        }
+
         var allFiles = messageModel.getMediaFiles(messageId)
-        
         for (var i = 0; i < allFiles.length; i++) {
             var f = allFiles[i]
             if (f.status !== 2) continue
 
             var filePath = f.filePath || ""
             var resultPath = f.resultPath || ""
-
             var processedThumbId = f.processedThumbnailId || ""
             if (resultPath !== "" && processedThumbId === "") {
                 processedThumbId = "processed_" + (f.id || "")
@@ -837,27 +837,36 @@ Item {
             var thumbSource = resourceId !== "" ? ("image://thumbnail/" + resourceId) : ""
 
             files.push({
-                "filePath":  resultPath !== "" ? resultPath : filePath,
-                "fileName":  f.fileName  || "",
+                "id": f.id || "",
+                "filePath": resultPath !== "" ? resultPath : filePath,
+                "fileName": f.fileName || "",
                 "mediaType": f.mediaType !== undefined ? f.mediaType : 0,
                 "thumbnail": thumbSource,
                 "resultPath": resultPath,
                 "originalPath": filePath,
                 "status": f.status,
-                "processedThumbnailId": processedThumbId
+                "processedThumbnailId": processedThumbId,
+                "resolution": {
+                    "width": f.width || 0,
+                    "height": f.height || 0
+                }
             })
         }
-        
+
+        return files
+    }
+
+    function _syncViewerWindow(messageId) {
+        if (!root.messageViewer) return
+
+        var files = _buildMessageViewerFiles(messageId)
         if (files.length === 0) {
+            root.messageViewer.currentMessageId = ""
             root.messageViewer.close()
             return
         }
-        
-        root.messageViewer.mediaFiles = files
-        
-        if (root.messageViewer.currentIndex >= files.length) {
-            root.messageViewer.currentIndex = Math.max(0, files.length - 1)
-        }
+
+        root.messageViewer.syncMediaFiles(files)
     }
 
     function _handleDownload(msgId, msgStatus) {

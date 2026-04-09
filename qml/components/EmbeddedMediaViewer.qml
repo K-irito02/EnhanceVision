@@ -14,6 +14,8 @@ Item {
     
     property var mediaFiles: []
     property int currentIndex: 0
+    property string selectedFileId: ""
+    property string selectedFilePath: ""
     property bool messageMode: false
     property bool showOriginal: false
     property string messageId: ""
@@ -22,6 +24,13 @@ Item {
     onShowOriginalChanged: {
         if (isVideo && _mediaPlayer) {
             playbackController.prepareSourceResultSwitch()
+        }
+    }
+
+    onCurrentFileChanged: {
+        if (currentFile) {
+            selectedFileId = currentFile.id || ""
+            selectedFilePath = currentFile.filePath || ""
         }
     }
     
@@ -122,8 +131,102 @@ Item {
     // 默认值 1 = 不放大（浏览模式或 Shader 模式），超分模式由调用方注入。
     property int aiScaleFactor: 1
 
+    function _findFileIndexById(fileId, files) {
+        var sourceFiles = files || mediaFiles
+        if (!fileId || fileId === "") return -1
+        for (var i = 0; i < sourceFiles.length; i++) {
+            var file = sourceFiles[i]
+            if (file && file.id === fileId) {
+                return i
+            }
+        }
+        return -1
+    }
+
+    function _findFileIndexByPath(filePath, files) {
+        var sourceFiles = files || mediaFiles
+        if (!filePath || filePath === "") return -1
+        for (var i = 0; i < sourceFiles.length; i++) {
+            var file = sourceFiles[i]
+            if (file && file.filePath === filePath) {
+                return i
+            }
+        }
+        return -1
+    }
+
+    function _isAppendOnlyUpdate(nextFiles) {
+        if (!nextFiles || mediaFiles.length === 0) return false
+        if (nextFiles.length <= mediaFiles.length) return false
+        for (var i = 0; i < mediaFiles.length; i++) {
+            var oldFile = mediaFiles[i]
+            var nextFile = nextFiles[i]
+            if (!oldFile || !nextFile || oldFile.id !== nextFile.id) {
+                return false
+            }
+        }
+        return true
+    }
+
+    function _hasSameFileIds(nextFiles) {
+        if (!nextFiles || mediaFiles.length !== nextFiles.length) return false
+        for (var i = 0; i < mediaFiles.length; i++) {
+            var oldFile = mediaFiles[i]
+            var nextFile = nextFiles[i]
+            if (!oldFile || !nextFile || oldFile.id !== nextFile.id) {
+                return false
+            }
+        }
+        return true
+    }
+
+    function syncMediaFiles(files, preferredFileId, preferredFilePath) {
+        var nextFiles = files || []
+        if (nextFiles.length === 0) {
+            close()
+            return
+        }
+
+        var nextIndex = _findFileIndexById(preferredFileId || "", nextFiles)
+        if (nextIndex < 0) {
+            nextIndex = _findFileIndexByPath(preferredFilePath || "", nextFiles)
+        }
+        if (nextIndex < 0) {
+            nextIndex = _findFileIndexById(selectedFileId, nextFiles)
+        }
+        if (nextIndex < 0) {
+            nextIndex = _findFileIndexByPath(selectedFilePath, nextFiles)
+        }
+        if (nextIndex < 0 && currentIndex >= 0 && currentIndex < nextFiles.length) {
+            nextIndex = currentIndex
+        }
+        if (nextIndex < 0) {
+            nextIndex = 0
+        }
+
+        if (_isAppendOnlyUpdate(nextFiles)) {
+            var mergedFiles = mediaFiles.slice(0)
+            for (var appendIndex = mediaFiles.length; appendIndex < nextFiles.length; appendIndex++) {
+                mergedFiles.push(nextFiles[appendIndex])
+            }
+            mediaFiles = mergedFiles
+        } else if (!_hasSameFileIds(nextFiles)) {
+            mediaFiles = nextFiles
+        }
+
+        currentIndex = Math.max(0, Math.min(nextIndex, mediaFiles.length - 1))
+        if (currentFile) {
+            selectedFileId = currentFile.id || ""
+            selectedFilePath = currentFile.filePath || ""
+        }
+    }
+
     function openAt(index) {
         currentIndex = Math.max(0, Math.min(index, mediaFiles.length - 1))
+        if (currentFile) {
+            selectedFileId = currentFile.id || ""
+            selectedFilePath = currentFile.filePath || ""
+        }
         showOriginal = false
 
         // 如果窗口已最小化，则恢复窗口并移除最小化标签
@@ -201,6 +304,8 @@ Item {
         }
         mediaFiles = []
         currentIndex = -1
+        selectedFileId = ""
+        selectedFilePath = ""
         closed()
     }
     
@@ -280,8 +385,24 @@ Item {
         embeddedOverlay.forceActiveFocus()
     }
     
-    function _prevFile() { if (currentIndex > 0) currentIndex-- }
-    function _nextFile() { if (currentIndex < mediaFiles.length - 1) currentIndex++ }
+    function _prevFile() {
+        if (currentIndex > 0) {
+            currentIndex--
+            if (currentFile) {
+                selectedFileId = currentFile.id || ""
+                selectedFilePath = currentFile.filePath || ""
+            }
+        }
+    }
+    function _nextFile() {
+        if (currentIndex < mediaFiles.length - 1) {
+            currentIndex++
+            if (currentFile) {
+                selectedFileId = currentFile.id || ""
+                selectedFilePath = currentFile.filePath || ""
+            }
+        }
+    }
     function _getSource(s) { return !s ? "" : (s.startsWith("file:///") || s.startsWith("qrc:/") ? s : "file:///" + s) }
     function _formatTime(ms) { 
         if (ms === undefined || ms === null || isNaN(ms) || ms < 0) return "00:00"
@@ -1494,11 +1615,106 @@ Item {
     
     component ThumbnailBar: Rectangle {
         property var viewer
+        property var _fileKeys: []
         height: 60
         color: Theme.colors.mediaControlBg
-        
+
+        ListModel {
+            id: thumbModel
+        }
+
+        function _fileKey(file) {
+            if (!file) return ""
+            if (file.id && file.id !== "") return "id:" + file.id
+            return "path:" + (file.filePath || "")
+        }
+
+        function _normalizeFile(file) {
+            return {
+                "id": file && file.id ? file.id : "",
+                "filePath": file && file.filePath ? file.filePath : "",
+                "fileName": file && file.fileName ? file.fileName : "",
+                "mediaType": file && file.mediaType !== undefined ? file.mediaType : 0,
+                "thumbnail": file && file.thumbnail ? file.thumbnail : "",
+                "resultPath": file && file.resultPath ? file.resultPath : "",
+                "originalPath": file && file.originalPath ? file.originalPath : "",
+                "status": file && file.status !== undefined ? file.status : 0,
+                "processedThumbnailId": file && file.processedThumbnailId ? file.processedThumbnailId : ""
+            }
+        }
+
+        function _rebuildThumbModel(files, keys) {
+            thumbModel.clear()
+            for (var i = 0; i < files.length; i++) {
+                thumbModel.append({ "fileData": _normalizeFile(files[i]) })
+            }
+            _fileKeys = keys
+        }
+
+        function _syncThumbModel() {
+            if (!viewer) {
+                thumbModel.clear()
+                _fileKeys = []
+                return
+            }
+
+            var files = viewer.mediaFiles || []
+            var nextKeys = []
+            for (var i = 0; i < files.length; i++) {
+                nextKeys.push(_fileKey(files[i]))
+            }
+
+            var appendOnly = (_fileKeys.length > 0 && nextKeys.length > _fileKeys.length)
+            if (appendOnly) {
+                for (var prefixIndex = 0; prefixIndex < _fileKeys.length; prefixIndex++) {
+                    if (_fileKeys[prefixIndex] !== nextKeys[prefixIndex]) {
+                        appendOnly = false
+                        break
+                    }
+                }
+            }
+
+            if (appendOnly) {
+                for (var appendIndex = _fileKeys.length; appendIndex < files.length; appendIndex++) {
+                    thumbModel.append({ "fileData": _normalizeFile(files[appendIndex]) })
+                }
+                _fileKeys = nextKeys
+                return
+            }
+
+            if (_fileKeys.length === nextKeys.length && _fileKeys.length === thumbModel.count) {
+                var sameOrder = true
+                for (var j = 0; j < nextKeys.length; j++) {
+                    if (_fileKeys[j] !== nextKeys[j]) {
+                        sameOrder = false
+                        break
+                    }
+                }
+                if (sameOrder) {
+                    for (var u = 0; u < files.length; u++) {
+                        thumbModel.setProperty(u, "fileData", _normalizeFile(files[u]))
+                    }
+                    _fileKeys = nextKeys
+                    return
+                }
+            }
+
+            _rebuildThumbModel(files, nextKeys)
+        }
+
+        Connections {
+            target: viewer ? viewer : null
+            function onMediaFilesChanged() {
+                _syncThumbModel()
+            }
+        }
+
+        Component.onCompleted: {
+            _syncThumbModel()
+        }
+
         Rectangle { anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; height: 1; color: Theme.colors.mediaControlBorder }
-        
+
         ListView {
             id: thumbListView
             anchors.fill: parent
@@ -1506,14 +1722,15 @@ Item {
             orientation: ListView.Horizontal
             spacing: 6
             clip: true
-            model: viewer.mediaFiles.length
+            model: thumbModel
             currentIndex: viewer.currentIndex
-            
+
             delegate: Item {
                 required property int index
+                required property var fileData
                 width: 48; height: 48
                 property bool showDeleteBtn: thumbItemMouse.containsMouse || thumbDeleteMouse.containsMouse
-                
+
                 Rectangle {
                     anchors.fill: parent
                     radius: 6
@@ -1535,11 +1752,11 @@ Item {
                         id: thumbImg
                         anchors.fill: parent
                         source: {
-                            var f = viewer.mediaFiles[index]
+                            var f = fileData
                             if (!f) return ""
-                            
+
                             var result = ""
-                            
+
                             // 消息模式下，优先使用处理后的缩略图
                             if (viewer.messageMode && f.status === 2) {
                                 if (f.processedThumbnailId && f.processedThumbnailId !== "") {
@@ -1558,13 +1775,13 @@ Item {
                                     result = "image://thumbnail/" + f.filePath
                                 }
                             }
-                            
+
                             return result
                         }
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                         smooth: true
-                        cache: false
+                        cache: true
                         sourceSize: Qt.size(96, 96)
                         visible: status === Image.Ready
                         layer.enabled: true
@@ -1592,7 +1809,7 @@ Item {
                     ColoredIcon {
                         anchors.centerIn: parent
                         source: {
-                            var f = viewer.mediaFiles[index]
+                            var f = fileData
                             if (!f) return Theme.icon("image")
                             return f.mediaType === 1 ? Theme.icon("video") : Theme.icon("image")
                         }
@@ -1603,7 +1820,7 @@ Item {
                     
                     Rectangle {
                         visible: {
-                            var f = viewer.mediaFiles[index]
+                            var f = fileData
                             return f && f.mediaType === 1
                         }
                         anchors.bottom: parent.bottom
@@ -1628,7 +1845,7 @@ Item {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: viewer.currentIndex = index
                 }
-                
+
                 Rectangle {
                     id: thumbDeleteBtn
                     anchors.top: parent.top

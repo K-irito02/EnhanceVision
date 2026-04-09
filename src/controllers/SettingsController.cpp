@@ -17,6 +17,95 @@
 
 namespace EnhanceVision {
 
+namespace {
+
+QVariantMap buildCacheClearSummary(const QString& reason,
+                                   bool success,
+                                   int removedFiles = 0,
+                                   int removedMessages = 0,
+                                   int cancelledTasks = 0,
+                                   int sessionsAffected = 0,
+                                   const QString& viewerImpact = QStringLiteral("unchanged"))
+{
+    QVariantMap summary;
+    summary[QStringLiteral("reason")] = reason;
+    summary[QStringLiteral("removedFiles")] = removedFiles;
+    summary[QStringLiteral("removedMessages")] = removedMessages;
+    summary[QStringLiteral("cancelledTasks")] = cancelledTasks;
+    summary[QStringLiteral("sessionsAffected")] = sessionsAffected;
+    summary[QStringLiteral("viewerImpact")] = viewerImpact;
+    summary[QStringLiteral("success")] = success;
+    return summary;
+}
+
+int countFilesRecursively(const QString& path)
+{
+    int count = 0;
+    QDir dir(path);
+    if (!dir.exists()) {
+        return 0;
+    }
+
+    QDirIterator it(path, QDir::Files | QDir::NoSymLinks, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        it.next();
+        ++count;
+    }
+    return count;
+}
+
+qint64 calculateDirectorySizeRecursively(const QString& path)
+{
+    qint64 size = 0;
+    QDir dir(path);
+    if (!dir.exists()) {
+        return 0;
+    }
+
+    QDirIterator it(path, QDir::Files | QDir::NoSymLinks, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        it.next();
+        size += it.fileInfo().size();
+    }
+    return size;
+}
+
+void enrichDiskCleanupSummary(QVariantMap& summary, const QStringList& paths, bool diskCleanupOk)
+{
+    QVariantList residualEntries;
+    int residualFiles = 0;
+    qint64 residualBytes = 0;
+
+    for (const QString& path : paths) {
+        const int files = countFilesRecursively(path);
+        const qint64 bytes = calculateDirectorySizeRecursively(path);
+        if (files <= 0 && bytes <= 0) {
+            continue;
+        }
+
+        QVariantMap entry;
+        entry[QStringLiteral("path")] = path;
+        entry[QStringLiteral("files")] = files;
+        entry[QStringLiteral("bytes")] = bytes;
+        residualEntries.append(entry);
+
+        residualFiles += files;
+        residualBytes += bytes;
+    }
+
+    const bool hasResidualData = residualFiles > 0 || residualBytes > 0;
+    const bool baseSuccess = summary.value(QStringLiteral("success"), true).toBool();
+
+    summary[QStringLiteral("diskCleanupOk")] = diskCleanupOk;
+    summary[QStringLiteral("hasResidualData")] = hasResidualData;
+    summary[QStringLiteral("residualFiles")] = residualFiles;
+    summary[QStringLiteral("residualBytes")] = residualBytes;
+    summary[QStringLiteral("residualEntries")] = residualEntries;
+    summary[QStringLiteral("success")] = baseSuccess && !hasResidualData;
+}
+
+} // namespace
+
 SettingsController* SettingsController::s_instance = nullptr;
 
 SettingsController::SettingsController(QObject* parent)
@@ -102,7 +191,6 @@ QString SettingsController::language() const
 void SettingsController::setLanguage(const QString& language)
 {
     if (m_language != language) {
-        qInfo() << "[SettingsController] Language changed:" << m_language << "->" << language;
         m_language = language;
         emit languageChanged();
         emit settingsChanged();
@@ -183,8 +271,6 @@ void SettingsController::setAutoReprocessShaderEnabled(bool enabled)
         saveSettings();
         m_settings->setValue("system/prevAutoReprocessShader", enabled);
         m_settings->sync();
-        qInfo() << "[SettingsController] setAutoReprocessShaderEnabled:" << enabled 
-                << ", saved to prevAutoReprocessShader";
     }
 }
 
@@ -203,8 +289,6 @@ void SettingsController::setAutoReprocessAIEnabled(bool enabled)
         saveSettings();
         m_settings->setValue("system/prevAutoReprocessAI", enabled);
         m_settings->sync();
-        qInfo() << "[SettingsController] setAutoReprocessAIEnabled:" << enabled 
-                << ", saved to prevAutoReprocessAI";
     }
 }
 
@@ -287,7 +371,6 @@ void SettingsController::setPauseMode(int mode)
         emit pauseModeChanged();
         emit settingsChanged();
         saveSettings();
-        qInfo() << "[SettingsController] Pause mode changed to:" << m_pauseMode;
     }
 }
 
@@ -329,7 +412,6 @@ void SettingsController::markNormalExit(const QString& reason)
     m_settings->setValue("system/lastExitClean", true);
     m_settings->setValue("system/lastExitReason", reason);
     m_settings->sync();
-    qInfo() << "[SettingsController] Normal exit marked with reason:" << reason;
 }
 
 bool SettingsController::checkAndHandleCrashRecovery()
@@ -337,11 +419,7 @@ bool SettingsController::checkAndHandleCrashRecovery()
     bool wasClean = m_settings->value("system/lastExitClean", true).toBool();
     QString lastReason = m_settings->value("system/lastExitReason", QString()).toString();
     
-    qInfo() << "[SettingsController] Checking crash recovery: lastExitClean=" << wasClean 
-            << ", lastExitReason=" << lastReason;
-    
     if (wasClean) {
-        qInfo() << "[SettingsController] Last exit was clean, no crash recovery needed";
         return false;
     }
     
@@ -352,8 +430,6 @@ bool SettingsController::checkAndHandleCrashRecovery()
     };
     
     if (!lastReason.isEmpty() && normalReasons.contains(lastReason)) {
-        qInfo() << "[SettingsController] Exit reason recorded as normal:" << lastReason 
-                << ", treating as normal exit";
         return false;
     }
 
@@ -410,7 +486,13 @@ qint64 SettingsController::logSize() const
 
 qint64 SettingsController::totalCacheSize() const
 {
-    return m_aiImageSize + m_aiVideoSize + m_shaderImageSize + m_shaderVideoSize + m_logSize;
+    return m_aiImageSize + m_aiVideoSize + m_shaderImageSize + m_shaderVideoSize +
+           m_logSize + m_thumbnailDiskSize;
+}
+
+QVariantMap SettingsController::lastCacheClearSummary() const
+{
+    return m_lastCacheClearSummary;
 }
 
 int SettingsController::thumbnailCacheCount() const
@@ -596,15 +678,23 @@ bool SettingsController::clearAIImageData()
         thumbnailProvider->clearThumbnailsByPathPrefix(path);
     }
     
-    bool success = clearDirectory(path);
+    const bool diskSuccess = clearDirectory(path);
     
-    if (success && m_sessionController) {
-        m_sessionController->clearMediaFilesByModeAndType(1, 0);  // mode=AI, type=Image
+    if (m_sessionController) {
+        m_lastCacheClearSummary = m_sessionController->pruneMediaFilesByModeAndType(
+            static_cast<int>(ProcessingMode::AIInference),
+            static_cast<int>(MediaType::Image),
+            QStringLiteral("cache-ai-image"));
+        m_lastCacheClearSummary[QStringLiteral("viewerImpact")] = QStringLiteral("sync");
+    } else {
+        m_lastCacheClearSummary = buildCacheClearSummary(
+            QStringLiteral("cache-ai-image"), true, 0, 0, 0, 0, QStringLiteral("sync"));
     }
+    enrichDiskCleanupSummary(m_lastCacheClearSummary, {path}, diskSuccess);
     
     refreshDataSize();
-    qInfo() << "[SettingsController] Cleared AI image data:" << path << "success:" << success;
-    return success;
+    emit lastCacheClearSummaryChanged();
+    return m_lastCacheClearSummary.value(QStringLiteral("success")).toBool();
 }
 
 bool SettingsController::clearAIVideoData()
@@ -616,15 +706,23 @@ bool SettingsController::clearAIVideoData()
         thumbnailProvider->clearThumbnailsByPathPrefix(path);
     }
     
-    bool success = clearDirectory(path);
+    const bool diskSuccess = clearDirectory(path);
     
-    if (success && m_sessionController) {
-        m_sessionController->clearMediaFilesByModeAndType(1, 1);  // mode=AI, type=Video
+    if (m_sessionController) {
+        m_lastCacheClearSummary = m_sessionController->pruneMediaFilesByModeAndType(
+            static_cast<int>(ProcessingMode::AIInference),
+            static_cast<int>(MediaType::Video),
+            QStringLiteral("cache-ai-video"));
+        m_lastCacheClearSummary[QStringLiteral("viewerImpact")] = QStringLiteral("sync");
+    } else {
+        m_lastCacheClearSummary = buildCacheClearSummary(
+            QStringLiteral("cache-ai-video"), true, 0, 0, 0, 0, QStringLiteral("sync"));
     }
+    enrichDiskCleanupSummary(m_lastCacheClearSummary, {path}, diskSuccess);
     
     refreshDataSize();
-    qInfo() << "[SettingsController] Cleared AI video data:" << path << "success:" << success;
-    return success;
+    emit lastCacheClearSummaryChanged();
+    return m_lastCacheClearSummary.value(QStringLiteral("success")).toBool();
 }
 
 bool SettingsController::clearShaderImageData()
@@ -636,15 +734,23 @@ bool SettingsController::clearShaderImageData()
         thumbnailProvider->clearThumbnailsByPathPrefix(path);
     }
     
-    bool success = clearDirectory(path);
+    const bool diskSuccess = clearDirectory(path);
     
-    if (success && m_sessionController) {
-        m_sessionController->clearMediaFilesByModeAndType(0, 0);  // mode=Shader, type=Image
+    if (m_sessionController) {
+        m_lastCacheClearSummary = m_sessionController->pruneMediaFilesByModeAndType(
+            static_cast<int>(ProcessingMode::Shader),
+            static_cast<int>(MediaType::Image),
+            QStringLiteral("cache-shader-image"));
+        m_lastCacheClearSummary[QStringLiteral("viewerImpact")] = QStringLiteral("sync");
+    } else {
+        m_lastCacheClearSummary = buildCacheClearSummary(
+            QStringLiteral("cache-shader-image"), true, 0, 0, 0, 0, QStringLiteral("sync"));
     }
+    enrichDiskCleanupSummary(m_lastCacheClearSummary, {path}, diskSuccess);
     
     refreshDataSize();
-    qInfo() << "[SettingsController] Cleared Shader image data:" << path << "success:" << success;
-    return success;
+    emit lastCacheClearSummaryChanged();
+    return m_lastCacheClearSummary.value(QStringLiteral("success")).toBool();
 }
 
 bool SettingsController::clearShaderVideoData()
@@ -656,29 +762,45 @@ bool SettingsController::clearShaderVideoData()
         thumbnailProvider->clearThumbnailsByPathPrefix(path);
     }
     
-    bool success = clearDirectory(path);
+    const bool diskSuccess = clearDirectory(path);
     
-    if (success && m_sessionController) {
-        m_sessionController->clearMediaFilesByModeAndType(0, 1);  // mode=Shader, type=Video
+    if (m_sessionController) {
+        m_lastCacheClearSummary = m_sessionController->pruneMediaFilesByModeAndType(
+            static_cast<int>(ProcessingMode::Shader),
+            static_cast<int>(MediaType::Video),
+            QStringLiteral("cache-shader-video"));
+        m_lastCacheClearSummary[QStringLiteral("viewerImpact")] = QStringLiteral("sync");
+    } else {
+        m_lastCacheClearSummary = buildCacheClearSummary(
+            QStringLiteral("cache-shader-video"), true, 0, 0, 0, 0, QStringLiteral("sync"));
     }
+    enrichDiskCleanupSummary(m_lastCacheClearSummary, {path}, diskSuccess);
     
     refreshDataSize();
-    qInfo() << "[SettingsController] Cleared Shader video data:" << path << "success:" << success;
-    return success;
+    emit lastCacheClearSummaryChanged();
+    return m_lastCacheClearSummary.value(QStringLiteral("success")).toBool();
 }
 
 bool SettingsController::clearLogs()
 {
     QString path = getLogPath();
-    bool success = clearDirectory(path);
+    const bool success = clearDirectory(path);
+    m_lastCacheClearSummary = buildCacheClearSummary(
+        QStringLiteral("cache-logs"), true, 0, 0, 0, 0, QStringLiteral("unchanged"));
+    enrichDiskCleanupSummary(m_lastCacheClearSummary, {path}, success);
     refreshDataSize();
-    qInfo() << "[SettingsController] Cleared logs:" << path << "success:" << success;
-    return success;
+    emit lastCacheClearSummaryChanged();
+    return m_lastCacheClearSummary.value(QStringLiteral("success")).toBool();
 }
 
 bool SettingsController::clearAllCache()
 {
     bool success = true;
+    const QString aiImagePath = getAIImagePath();
+    const QString aiVideoPath = getAIVideoPath();
+    const QString shaderImagePath = getShaderImagePath();
+    const QString shaderVideoPath = getShaderVideoPath();
+    const QString logPath = getLogPath();
     
     ThumbnailProvider* thumbnailProvider = ThumbnailProvider::instance();
     if (thumbnailProvider) {
@@ -690,19 +812,27 @@ bool SettingsController::clearAllCache()
         db->clearAll();
     }
     
-    success &= clearDirectory(getAIImagePath());
-    success &= clearDirectory(getAIVideoPath());
-    success &= clearDirectory(getShaderImagePath());
-    success &= clearDirectory(getShaderVideoPath());
-    success &= clearDirectory(getLogPath());
+    success &= clearDirectory(aiImagePath);
+    success &= clearDirectory(aiVideoPath);
+    success &= clearDirectory(shaderImagePath);
+    success &= clearDirectory(shaderVideoPath);
+    success &= clearDirectory(logPath);
     
-    if (success && m_sessionController) {
-        m_sessionController->clearAllSessionMessages();
+    if (m_sessionController) {
+        m_lastCacheClearSummary = m_sessionController->clearAllSessionMessagesWithStats(QStringLiteral("cache-all"));
+        m_lastCacheClearSummary[QStringLiteral("viewerImpact")] = QStringLiteral("closed");
+    } else {
+        m_lastCacheClearSummary = buildCacheClearSummary(
+            QStringLiteral("cache-all"), true, 0, 0, 0, 0, QStringLiteral("closed"));
     }
+    enrichDiskCleanupSummary(
+        m_lastCacheClearSummary,
+        {aiImagePath, aiVideoPath, shaderImagePath, shaderVideoPath, logPath},
+        success);
     
     refreshDataSize();
-    qInfo() << "[SettingsController] Cleared all cache, success:" << success;
-    return success;
+    emit lastCacheClearSummaryChanged();
+    return m_lastCacheClearSummary.value(QStringLiteral("success")).toBool();
 }
 
 bool SettingsController::clearThumbnailCache()
@@ -716,11 +846,13 @@ bool SettingsController::clearThumbnailCache()
     int removed = 0;
     if (db && db->isInitialized()) {
         removed = db->clearAll();
-        qInfo() << "[SettingsController] Cleared" << removed << "thumbnail metadata entries";
     }
     
+    m_lastCacheClearSummary = buildCacheClearSummary(
+        QStringLiteral("cache-thumbnails"), true, removed, 0, 0, 0, QStringLiteral("unchanged"));
+
     refreshDataSize();
-    qInfo() << "[SettingsController] Cleared thumbnail cache successfully";
+    emit lastCacheClearSummaryChanged();
     return true;
 }
 

@@ -25,6 +25,7 @@ namespace EnhanceVision {
 
 class MessageModel;
 class ProcessingController;
+class TaskRecoveryController;
 
 class SessionController : public QObject
 {
@@ -52,6 +53,7 @@ public:
     void setMessageModel(MessageModel* model);
     
     void setProcessingController(ProcessingController* controller);
+    void setTaskRecoveryController(TaskRecoveryController* controller);
 
     /**
      * @brief 获取处理时间管理器
@@ -138,6 +140,7 @@ public:
      * 用于缓存清理时清空所有会话的消息记录
      */
     Q_INVOKABLE void clearAllSessionMessages();
+    Q_INVOKABLE QVariantMap clearAllSessionMessagesWithStats(const QString& reason = QString());
     
     /**
      * @brief 清空所有会话中指定模式的消息
@@ -158,6 +161,7 @@ public:
      *       如果删除后消息中没有剩余的媒体文件，则删除整个消息
      */
     Q_INVOKABLE void clearMediaFilesByModeAndType(int mode, int mediaType);
+    Q_INVOKABLE QVariantMap pruneMediaFilesByModeAndType(int mode, int mediaType, const QString& reason = QString());
     
     /**
      * @brief 删除所有会话（包括会话标签和消息）
@@ -187,6 +191,7 @@ private:
     SessionModel* m_sessionModel;
     MessageModel* m_messageModel;
     ProcessingController* m_processingController = nullptr;
+    TaskRecoveryController* m_taskRecoveryController = nullptr;
     ProcessingTimeManager* m_processingTimeManager = nullptr;
     bool m_batchSelectionMode;
     int m_sessionCounter;

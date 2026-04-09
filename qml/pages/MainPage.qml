@@ -65,6 +65,16 @@ Rectangle {
             // 更新当前会话ID
             root.currentSessionId = sessionController.activeSessionId
         }
+        function onAllSessionMessagesCleared() {
+            if (messageEmbeddedViewer.isOpen) {
+                messageEmbeddedViewer.currentMessageId = ""
+                messageEmbeddedViewer.close()
+            }
+            if (pendingEmbeddedViewer.isOpen) {
+                pendingEmbeddedViewer.close()
+            }
+            pendingMinimizedDock.clear()
+        }
     }
     
     // ========== 拖放区域（全页面） ==========
@@ -295,6 +305,7 @@ Rectangle {
                 }
                 
                 onClosed: {
+                    currentMessageId = ""
                     pendingMinimizedDock.removeWindow(viewerId)
                 }
             }

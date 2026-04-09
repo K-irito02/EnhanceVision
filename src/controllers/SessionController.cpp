@@ -7,6 +7,8 @@
 #include "EnhanceVision/controllers/SessionController.h"
 #include "EnhanceVision/controllers/ProcessingController.h"
 #include "EnhanceVision/controllers/SettingsController.h"
+#include "EnhanceVision/controllers/TaskRecoveryController.h"
+#include "EnhanceVision/controllers/SessionPruneUtils.h"
 #include "EnhanceVision/models/MessageModel.h"
 #include "EnhanceVision/core/TaskCoordinator.h"
 #include "EnhanceVision/core/TaskStateManager.h"
@@ -26,6 +28,34 @@
 #include <QtConcurrent>
 
 namespace EnhanceVision {
+
+namespace {
+
+struct PruneTarget {
+    QString sessionId;
+    QString messageId;
+    QString fileId;
+    MediaFile file;
+    bool isActiveSession = false;
+};
+
+int countTasksForTargets(const QList<QueueTask>& tasks, const QList<PruneTarget>& targets)
+{
+    QSet<QString> targetKeys;
+    for (const PruneTarget& target : targets) {
+        targetKeys.insert(target.messageId + QLatin1Char(':') + target.fileId);
+    }
+
+    int cancelledTaskCount = 0;
+    for (const QueueTask& task : tasks) {
+        if (targetKeys.contains(task.messageId + QLatin1Char(':') + task.fileId)) {
+            ++cancelledTaskCount;
+        }
+    }
+    return cancelledTaskCount;
+}
+
+} // namespace
 
 SessionController::SessionController(QObject* parent)
     : QObject(parent)
@@ -150,6 +180,11 @@ void SessionController::setMessageModel(MessageModel* model)
 void SessionController::setProcessingController(ProcessingController* controller)
 {
     m_processingController = controller;
+}
+
+void SessionController::setTaskRecoveryController(TaskRecoveryController* controller)
+{
+    m_taskRecoveryController = controller;
 }
 
 void SessionController::onMessageCountChanged()
@@ -293,8 +328,7 @@ void SessionController::deleteSession(const QString& sessionId)
     
     Session* session = getSession(sessionId);
     if (session) {
-        int deletedCount = deleteSessionMediaFiles(*session);
-        qInfo() << "[SessionController] Deleted" << deletedCount << "media files for session:" << sessionId;
+        deleteSessionMediaFiles(*session);
     }
     
     // 【修复】deleteSession 内部的 switchSession 会触发 activeSessionChanged 信号，
@@ -329,8 +363,7 @@ void SessionController::clearSession(const QString& sessionId)
     
     Session* session = getSession(sessionId);
     if (session) {
-        int deletedCount = deleteSessionMediaFiles(*session);
-        qInfo() << "[SessionController] Deleted" << deletedCount << "media files for session:" << sessionId;
+        deleteSessionMediaFiles(*session);
     }
     
     m_sessionModel->clearSession(sessionId);
@@ -1112,17 +1145,13 @@ QVariantMap SessionController::jsonToParameters(const QJsonObject& json) const
 
 void SessionController::restoreThumbnails()
 {
-    qInfo() << "[SessionController] Starting thumbnail restoration...";
-    
     ThumbnailProvider* thumbnailProvider = ThumbnailProvider::instance();
     if (!thumbnailProvider) {
         qWarning() << "[SessionController] ThumbnailProvider not available for thumbnail restoration";
         return;
     }
     
-    int restoredCount = 0;
     int missingCount = 0;
-    int totalCompletedFiles = 0;
     
     for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
         Session session = m_sessionModel->sessionAt(i);
@@ -1133,7 +1162,6 @@ void SessionController::restoreThumbnails()
             
             for (MediaFile& file : message.mediaFiles) {
                 if (file.status == ProcessingStatus::Completed && !file.resultPath.isEmpty()) {
-                    totalCompletedFiles++;
                     QFileInfo resultFileInfo(file.resultPath);
                     
                     if (resultFileInfo.exists()) {
@@ -1154,7 +1182,7 @@ void SessionController::restoreThumbnails()
                             QDateTime lastModified = resultFileInfo.lastModified();
                             qint64 msSinceModified = lastModified.msecsTo(QDateTime::currentDateTime());
                             if (msSinceModified < 1000) {
-                                qInfo() << "[SessionController] Video file recently modified, skipping thumbnail:" << file.resultPath;
+                                // Recently modified files may still be locked; skip thumbnail restoration for now.
                             } else {
                                 thumbnail = ImageUtils::generateVideoThumbnail(file.resultPath, QSize(512, 512));
                             }
@@ -1164,7 +1192,6 @@ void SessionController::restoreThumbnails()
                         
                         if (!thumbnail.isNull()) {
                             thumbnailProvider->setThumbnail(thumbId, thumbnail, file.resultPath);
-                            restoredCount++;
                         }
                     } else {
                         file.status = ProcessingStatus::Failed;
@@ -1209,12 +1236,7 @@ void SessionController::restoreThumbnails()
     }
 
     rebuildSessionMessageIndex();
-    
-    qInfo() << "[SessionController] Thumbnail restoration completed:"
-            << "restored:" << restoredCount
-            << "missing:" << missingCount
-            << "total:" << totalCompletedFiles;
-    
+
     if (missingCount > 0) {
         qWarning() << "[SessionController] Found" << missingCount << "missing processed files";
     }
@@ -1251,7 +1273,6 @@ void SessionController::rebuildSessionMessageIndex()
 
 void SessionController::checkAndAutoRetryAllInterruptedTasks()
 {
-    qInfo() << "[SessionController] Startup auto-retry is disabled; recovery is handled by TaskRecoveryController";
 }
 
 void SessionController::saveSessionsImmediately()
@@ -1330,215 +1351,235 @@ QString SessionController::findTaskIdForFile(const QString& messageId, const QSt
 
 void SessionController::clearAllSessionMessages()
 {
-    qInfo() << "[SessionController] Clearing all session messages";
-    
+    clearAllSessionMessagesWithStats(QStringLiteral("clear-all"));
+}
+
+QVariantMap SessionController::clearAllSessionMessagesWithStats(const QString& reason)
+{
+    QVariantMap summary;
+    int removedMessageCount = 0;
+    int removedFileCount = 0;
+
+    QList<QueueTask> tasksSnapshot;
+    if (m_processingController) {
+        tasksSnapshot = m_processingController->getAllTasks();
+    }
+
+    for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
+        const Session session = m_sessionModel->sessionAt(i);
+        removedMessageCount += session.messages.size();
+        for (const Message& message : session.messages) {
+            removedFileCount += message.mediaFiles.size();
+        }
+    }
+
     if (m_processingController) {
         for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
-            Session session = m_sessionModel->sessionAt(i);
+            const Session session = m_sessionModel->sessionAt(i);
             m_processingController->cancelSessionTasks(session.id);
         }
     }
-    
+
     for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
-        Session session = m_sessionModel->sessionAt(i);
+        const Session session = m_sessionModel->sessionAt(i);
         m_sessionModel->clearSession(session.id);
     }
-    
+
     if (m_messageModel) {
         m_messageModel->clear();
     }
-    
+
     rebuildSessionMessageIndex();
-    saveSessions();
-    
+    saveSessionsImmediately();
+
+    if (m_taskRecoveryController) {
+        m_taskRecoveryController->syncPendingRecoveryFromSessions();
+        m_taskRecoveryController->persistSnapshotNow();
+    }
+
     emit allSessionMessagesCleared();
-    
-    qInfo() << "[SessionController] All session messages cleared";
+
+    summary[QStringLiteral("reason")] = reason;
+    summary[QStringLiteral("removedFiles")] = removedFileCount;
+    summary[QStringLiteral("removedMessages")] = removedMessageCount;
+    summary[QStringLiteral("cancelledTasks")] = tasksSnapshot.size();
+    summary[QStringLiteral("sessionsAffected")] = m_sessionModel->rowCount();
+    summary[QStringLiteral("success")] = true;
+
+    return summary;
 }
 
 void SessionController::clearAllSessionMessagesByMode(int mode)
 {
-    qInfo() << "[SessionController] Clearing session messages by mode:" << mode;
-    
-    ProcessingMode targetMode = static_cast<ProcessingMode>(mode);
-    
-    QList<Session>& sessions = m_sessionModel->sessionsRef();
-    bool hasChanges = false;
-    
-    for (int sessionIdx = 0; sessionIdx < sessions.size(); ++sessionIdx) {
-        Session& session = sessions[sessionIdx];
-        QList<Message> remainingMessages;
-        
-        for (const Message& msg : session.messages) {
-            if (msg.mode != targetMode) {
-                remainingMessages.append(msg);
-            } else {
-                hasChanges = true;
-            }
-        }
-        
-        if (remainingMessages.size() != session.messages.size()) {
-            session.messages = remainingMessages;
-            session.modifiedAt = QDateTime::currentDateTime();
-        }
-    }
-    
-    if (hasChanges) {
-        rebuildSessionMessageIndex();
-        
-        if (m_messageModel) {
-            QString currentId = m_sessionModel->activeSessionId();
-            if (!currentId.isEmpty()) {
-                Session* currentSession = getSession(currentId);
-                if (currentSession) {
-                    m_messageModel->setMessages(currentSession->messages);
-                }
-            }
-        }
-        
-        saveSessions();
-    }
-    
-    qInfo() << "[SessionController] Session messages cleared by mode:" << mode;
+    pruneMediaFilesByModeAndType(mode, static_cast<int>(MediaType::Image), QStringLiteral("clear-mode"));
+    pruneMediaFilesByModeAndType(mode, static_cast<int>(MediaType::Video), QStringLiteral("clear-mode"));
 }
 
 void SessionController::clearAllShaderVideoMessages()
 {
-    qInfo() << "[SessionController] Clearing Shader video messages";
-    
-    QList<Session>& sessions = m_sessionModel->sessionsRef();
-    bool hasChanges = false;
-    
-    for (int sessionIdx = 0; sessionIdx < sessions.size(); ++sessionIdx) {
-        Session& session = sessions[sessionIdx];
-        QList<Message> remainingMessages;
-        
-        for (const Message& msg : session.messages) {
-            bool isShaderVideo = false;
-            
-            if (msg.mode == ProcessingMode::Shader) {
-                for (const MediaFile& file : msg.mediaFiles) {
-                    if (file.type == MediaType::Video) {
-                        isShaderVideo = true;
-                        break;
-                    }
-                }
-            }
-            
-            if (!isShaderVideo) {
-                remainingMessages.append(msg);
-            } else {
-                hasChanges = true;
-            }
-        }
-        
-        if (remainingMessages.size() != session.messages.size()) {
-            session.messages = remainingMessages;
-            session.modifiedAt = QDateTime::currentDateTime();
-        }
-    }
-    
-    if (hasChanges) {
-        rebuildSessionMessageIndex();
-        
-        if (m_messageModel) {
-            QString currentId = m_sessionModel->activeSessionId();
-            if (!currentId.isEmpty()) {
-                Session* currentSession = getSession(currentId);
-                if (currentSession) {
-                    m_messageModel->setMessages(currentSession->messages);
-                }
-            }
-        }
-        
-        saveSessions();
-    }
-    
-    qInfo() << "[SessionController] Shader video messages cleared";
+    pruneMediaFilesByModeAndType(static_cast<int>(ProcessingMode::Shader),
+                                 static_cast<int>(MediaType::Video),
+                                 QStringLiteral("clear-shader-video"));
 }
 
 void SessionController::clearMediaFilesByModeAndType(int mode, int mediaType)
 {
-    ProcessingMode targetMode = static_cast<ProcessingMode>(mode);
-    MediaType targetMediaType = static_cast<MediaType>(mediaType);
-    
-    qInfo() << "[SessionController] Clearing media files by mode:" << mode 
-            << "and mediaType:" << mediaType;
-    
+    pruneMediaFilesByModeAndType(mode, mediaType, QStringLiteral("legacy-clear"));
+}
+
+QVariantMap SessionController::pruneMediaFilesByModeAndType(int mode, int mediaType, const QString& reason)
+{
+    const ProcessingMode targetMode = static_cast<ProcessingMode>(mode);
+    const MediaType targetMediaType = static_cast<MediaType>(mediaType);
+
+    QList<PruneTarget> targets;
+    QHash<QString, int> targetedCountByMessage;
+    QHash<QString, int> totalFileCountByMessage;
+    const QString activeId = m_sessionModel->activeSessionId();
+
     QList<Session>& sessions = m_sessionModel->sessionsRef();
-    bool hasChanges = false;
-    int removedFilesCount = 0;
-    int removedMessagesCount = 0;
-    
-    for (int sessionIdx = 0; sessionIdx < sessions.size(); ++sessionIdx) {
-        Session& session = sessions[sessionIdx];
-        QList<Message> remainingMessages;
-        
-        for (Message& msg : session.messages) {
-            if (msg.mode != targetMode) {
-                remainingMessages.append(msg);
+    for (Session& session : sessions) {
+        for (const Message& message : session.messages) {
+            if (message.mode != targetMode) {
                 continue;
             }
-            
-            QList<MediaFile> remainingFiles;
-            for (const MediaFile& file : msg.mediaFiles) {
+
+            const QString messageKey = session.id + QLatin1Char(':') + message.id;
+            totalFileCountByMessage[messageKey] = message.mediaFiles.size();
+
+            for (const MediaFile& file : message.mediaFiles) {
                 if (file.type != targetMediaType) {
-                    remainingFiles.append(file);
-                } else {
-                    ++removedFilesCount;
-                    hasChanges = true;
+                    continue;
                 }
-            }
-            
-            if (remainingFiles.isEmpty()) {
-                ++removedMessagesCount;
-                hasChanges = true;
-            } else if (remainingFiles.size() != msg.mediaFiles.size()) {
-                msg.mediaFiles = remainingFiles;
-                remainingMessages.append(msg);
-                hasChanges = true;
-            } else {
-                remainingMessages.append(msg);
+
+                PruneTarget target;
+                target.sessionId = session.id;
+                target.messageId = message.id;
+                target.fileId = file.id;
+                target.file = file;
+                target.isActiveSession = (session.id == activeId);
+                targets.append(target);
+                targetedCountByMessage[messageKey] += 1;
             }
         }
-        
-        if (remainingMessages.size() != session.messages.size()) {
-            session.messages = remainingMessages;
+    }
+
+    QVariantMap summary;
+    summary[QStringLiteral("reason")] = reason;
+    summary[QStringLiteral("removedFiles")] = targets.size();
+    summary[QStringLiteral("removedMessages")] = 0;
+    summary[QStringLiteral("cancelledTasks")] = 0;
+    summary[QStringLiteral("sessionsAffected")] = 0;
+    summary[QStringLiteral("success")] = true;
+
+    if (targets.isEmpty()) {
+        return summary;
+    }
+
+    int removedMessagesCount = 0;
+    QSet<QString> affectedSessionIds;
+    for (auto it = targetedCountByMessage.constBegin(); it != targetedCountByMessage.constEnd(); ++it) {
+        if (it.value() >= totalFileCountByMessage.value(it.key())) {
+            ++removedMessagesCount;
+        }
+        affectedSessionIds.insert(it.key().section(QLatin1Char(':'), 0, 0));
+    }
+    summary[QStringLiteral("removedMessages")] = removedMessagesCount;
+    summary[QStringLiteral("sessionsAffected")] = affectedSessionIds.size();
+
+    QList<QueueTask> taskSnapshot;
+    if (m_processingController) {
+        taskSnapshot = m_processingController->getAllTasks();
+        summary[QStringLiteral("cancelledTasks")] = countTasksForTargets(taskSnapshot, targets);
+    }
+
+    QHash<QString, QSet<QString>> nonActiveFilesByMessageKey;
+
+    for (const PruneTarget& target : targets) {
+        if (target.isActiveSession && m_messageModel) {
+            m_messageModel->removeMediaFileById(target.messageId, target.fileId);
+            continue;
+        }
+
+        if (m_processingController) {
+            m_processingController->cancelMessageFileTasks(target.messageId, target.fileId);
+        }
+
+        ThumbnailProvider* thumbnailProvider = ThumbnailProvider::instance();
+        if (!target.file.resultPath.isEmpty()) {
+            QFile resultFile(target.file.resultPath);
+            if (resultFile.exists()) {
+                resultFile.remove();
+            }
+            if (thumbnailProvider) {
+                thumbnailProvider->removeThumbnail(QStringLiteral("processed_") + target.fileId);
+            }
+        }
+        if (thumbnailProvider && !target.file.filePath.isEmpty()) {
+            thumbnailProvider->removeThumbnail(target.file.filePath);
+        }
+        nonActiveFilesByMessageKey[target.sessionId + QLatin1Char(':') + target.messageId].insert(target.fileId);
+    }
+
+    for (Session& session : sessions) {
+        if (session.id == activeId) {
+            continue;
+        }
+
+        bool sessionModified = false;
+        for (int messageIndex = session.messages.size() - 1; messageIndex >= 0; --messageIndex) {
+            Message& message = session.messages[messageIndex];
+            const QString messageKey = session.id + QLatin1Char(':') + message.id;
+            if (!nonActiveFilesByMessageKey.contains(messageKey)) {
+                continue;
+            }
+
+            const MessagePruneResult pruneResult = pruneMediaFilesFromMessage(
+                message,
+                nonActiveFilesByMessageKey.value(messageKey));
+            if (pruneResult.removedFiles == 0) {
+                continue;
+            }
+
+            sessionModified = true;
+            if (pruneResult.removedMessage) {
+                session.messages.removeAt(messageIndex);
+                continue;
+            }
+
+            session.messages[messageIndex] = message;
+        }
+
+        if (sessionModified) {
             session.modifiedAt = QDateTime::currentDateTime();
         }
     }
-    
-    if (hasChanges) {
-        rebuildSessionMessageIndex();
-        
-        if (m_messageModel) {
-            QString currentId = m_sessionModel->activeSessionId();
-            if (!currentId.isEmpty()) {
-                Session* currentSession = getSession(currentId);
-                if (currentSession) {
-                    m_messageModel->setMessages(currentSession->messages);
-                }
-            }
-        }
-        
-        // 通知 SessionModel 更新所有会话的显示（消息数量等）
-        for (int i = 0; i < sessions.size(); ++i) {
-            m_sessionModel->notifySessionDataChanged(sessions[i].id);
-        }
-        
-        saveSessionsImmediately();
-        emit allSessionMessagesCleared();
+
+    if (activeId == m_activeSessionId && m_messageModel) {
+        syncCurrentMessagesToSession();
     }
-    
-    qInfo() << "[SessionController] Cleared media files by mode and type - "
-            << "removed files:" << removedFilesCount 
-            << ", removed messages:" << removedMessagesCount;
+
+    rebuildSessionMessageIndex();
+
+    for (const QString& sessionId : affectedSessionIds) {
+        m_sessionModel->notifySessionDataChanged(sessionId);
+    }
+
+    if (!activeId.isEmpty()) {
+        reloadActiveSessionMessages();
+    }
+
+    if (m_taskRecoveryController) {
+        m_taskRecoveryController->syncPendingRecoveryFromSessions();
+    }
+
+    saveSessionsImmediately();
+
+    return summary;
 }
 
 void SessionController::deleteAllSessions()
 {
-    qInfo() << "[SessionController] Deleting all sessions";
-    
     if (m_processingController) {
         for (int i = 0; i < m_sessionModel->rowCount(); ++i) {
             Session session = m_sessionModel->sessionAt(i);
@@ -1574,8 +1615,6 @@ void SessionController::deleteAllSessions()
     emit allSessionsDeleted();
     emit sessionCountChanged();
     emit activeSessionChanged();
-    
-    qInfo() << "[SessionController] All sessions deleted";
 }
 
 int SessionController::deleteSessionMediaFiles(const Session& session)
@@ -1593,7 +1632,6 @@ int SessionController::deleteSessionMediaFiles(const Session& session)
                 if (resultFile.exists()) {
                     if (resultFile.remove()) {
                         ++deletedCount;
-                        qInfo() << "[SessionController] Deleted result file:" << file.resultPath;
                     } else {
                         qWarning() << "[SessionController] Failed to delete result file:" << file.resultPath;
                     }
@@ -1612,9 +1650,7 @@ int SessionController::deleteSessionMediaFiles(const Session& session)
             }
         }
     }
-    
-    qInfo() << "[SessionController] Cleaned up" << deletedCount << "result files and associated thumbnail caches";
-    
+
     return deletedCount;
 }
 

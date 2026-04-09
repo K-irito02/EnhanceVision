@@ -51,7 +51,10 @@ find_package(Qt6 REQUIRED COMPONENTS
     LinguistTools
     QuickEffects
     Sql
+    Test
 )
+
+include(CTest)
 
 # Qt Policy 设置（必须在 find_package(Qt6) 之后）
 # QTP0001: 设置 QML 模块资源前缀
@@ -181,6 +184,7 @@ qt_add_executable(EnhanceVision
     src/utils/ProgressValidator.cpp
     src/controllers/SettingsController.cpp
     src/controllers/SessionController.cpp
+    src/controllers/SessionPruneUtils.cpp
     src/controllers/FileController.cpp
     src/controllers/ProcessingController.cpp
     src/controllers/TaskRecoveryController.cpp
@@ -238,6 +242,7 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/utils/ProgressValidator.h
     include/EnhanceVision/controllers/SettingsController.h
     include/EnhanceVision/controllers/SessionController.h
+    include/EnhanceVision/controllers/SessionPruneUtils.h
     include/EnhanceVision/controllers/FileController.h
     include/EnhanceVision/controllers/ProcessingController.h
     include/EnhanceVision/controllers/TaskRecoveryController.h
@@ -252,6 +257,40 @@ qt_add_executable(EnhanceVision
 # Windows 应用程序图标
 if(WIN32)
     target_sources(EnhanceVision PRIVATE resources/app.rc)
+endif()
+
+if(BUILD_TESTING)
+    qt_add_executable(EnhanceVisionSessionPruneUtilsTest
+        tests/SessionPruneUtilsTest.cpp
+        src/controllers/SessionPruneUtils.cpp
+        include/EnhanceVision/controllers/SessionPruneUtils.h
+        include/EnhanceVision/models/DataTypes.h
+    )
+
+    target_include_directories(EnhanceVisionSessionPruneUtilsTest PRIVATE
+        "${CMAKE_SOURCE_DIR}/include"
+    )
+
+    target_link_libraries(EnhanceVisionSessionPruneUtilsTest PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Test
+    )
+
+    if(WIN32)
+        add_custom_command(TARGET EnhanceVisionSessionPruneUtilsTest POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:Qt6::Core>"
+                "$<TARGET_FILE:Qt6::Gui>"
+                "$<TARGET_FILE:Qt6::Test>"
+                "$<TARGET_FILE_DIR:EnhanceVisionSessionPruneUtilsTest>"
+        )
+    endif()
+
+    add_test(
+        NAME EnhanceVisionSessionPruneUtilsTest
+        COMMAND EnhanceVisionSessionPruneUtilsTest
+    )
 endif()
 
 # ========== 预编译头优化 ==========

@@ -14,32 +14,32 @@
         <translation>Please select a model category</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIModelPanel.qml" line="264"/>
+        <location filename="../../qml/components/AIModelPanel.qml" line="265"/>
         <source>性能预估 (1920×1080)</source>
         <translation>Performance Estimate (1920×1080)</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIModelPanel.qml" line="267"/>
+        <location filename="../../qml/components/AIModelPanel.qml" line="268"/>
         <source>GPU 图片:</source>
         <translation>GPU Image:</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIModelPanel.qml" line="272"/>
+        <location filename="../../qml/components/AIModelPanel.qml" line="273"/>
         <source>GPU 视频 (10秒):</source>
         <translation>GPU Video (10s):</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIModelPanel.qml" line="277"/>
+        <location filename="../../qml/components/AIModelPanel.qml" line="278"/>
         <source>CPU 图片:</source>
         <translation>CPU Image:</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIModelPanel.qml" line="282"/>
+        <location filename="../../qml/components/AIModelPanel.qml" line="283"/>
         <source>CPU 视频 (10秒):</source>
         <translation>CPU Video (10s):</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIModelPanel.qml" line="287"/>
+        <location filename="../../qml/components/AIModelPanel.qml" line="288"/>
         <source>实际耗时与文件尺寸、分辨率、帧数等因素有关</source>
         <translation>Actual time varies with file size, resolution, frame count, and other factors</translation>
     </message>
@@ -92,90 +92,90 @@
         <translation>CPU Inference Mode</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="378"/>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="525"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="385"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="539"/>
         <source>说明</source>
         <translation>Description</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="378"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="385"/>
         <source>使用处理器进行 AI 计算</source>
         <translation>Uses the processor for AI computation</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="379"/>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="526"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="386"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="540"/>
         <source>优点</source>
         <translation>Pros</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="379"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="386"/>
         <source>兼容所有硬件，稳定，内存占用可控</source>
         <translation>Compatible with all hardware, stable, controllable memory usage</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="380"/>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="527"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="387"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="541"/>
         <source>缺点</source>
         <translation>Cons</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="380"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="387"/>
         <source>处理速度较慢，大图和视频耗时较长</source>
         <translation>Slower processing, longer time for large images and videos</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="520"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="527"/>
         <source>GPU 推理模式</source>
         <translation>GPU Inference Mode</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="525"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="539"/>
         <source>使用显卡进行 AI 加速</source>
         <translation>Uses the graphics card for AI acceleration</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="526"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="540"/>
         <source>处理速度快，适合大图和视频处理</source>
         <translation>High processing speed, ideal for large images and video workflows</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="527"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="541"/>
         <source>显存占用高，部分设备不兼容</source>
         <translation>Higher VRAM usage, not compatible with some devices</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="598"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="612"/>
         <source>手动</source>
         <translation>Manual</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="627"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="641"/>
         <source>自动模式：根据图像分辨率与显存自动选择最优分块大小，推理时静默应用。</source>
         <translation>Auto Mode: Automatically select optimal tile size based on image resolution and VRAM, applied silently during inference.</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="628"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="642"/>
         <source>手动模式：较小分块占用更少显存，但处理更慢。</source>
         <translation>Manual Mode: Smaller tiles use less VRAM but process slower.</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="652"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="666"/>
         <source>重置</source>
         <translation>Reset</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="760"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="774"/>
         <source>开启</source>
         <translation>On</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="760"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="774"/>
         <source>关闭</source>
         <translation>Off</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="456"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="463"/>
         <source>不可用</source>
         <translation>Unavailable</translation>
     </message>
@@ -200,7 +200,7 @@
         <translation>Stable, slower processing</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="448"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="455"/>
         <source>GPU 推理</source>
         <translation>GPU Inference</translation>
     </message>
@@ -210,33 +210,33 @@
         <translation>CPU Inference</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="578"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="592"/>
         <source>分块大小</source>
         <translation>Tile Size</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="583"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="597"/>
         <source>自动推荐</source>
         <translation>Auto Recommended</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="584"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="598"/>
         <source>自动（整图推理）</source>
         <translation>Auto (Full Image Inference)</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="589"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="603"/>
         <source>不分块</source>
         <translation>No Tiling</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="598"/>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="693"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="612"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="707"/>
         <source>自动</source>
         <translation>Auto</translation>
     </message>
     <message>
-        <location filename="../../qml/components/AIParamsPanel.qml" line="643"/>
+        <location filename="../../qml/components/AIParamsPanel.qml" line="657"/>
         <source>模型参数</source>
         <translation>Model Parameters</translation>
     </message>
@@ -351,108 +351,108 @@
 <context>
     <name>EmbeddedMediaViewer</name>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="360"/>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="428"/>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="598"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="481"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="549"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="719"/>
         <source>媒体查看器</source>
         <translation>Media Viewer</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="371"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="492"/>
         <source>释放鼠标吸附到消息区域</source>
         <translation>Release to snap to message area</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="371"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="492"/>
         <source>释放鼠标以独立窗口打开</source>
         <translation>Release to open in separate window</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="439"/>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="657"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="560"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="778"/>
         <source>成果</source>
         <translation>Result</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="439"/>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="657"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="560"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="778"/>
         <source>源件</source>
         <translation>Source</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="447"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="568"/>
         <source>独立窗口</source>
         <translation>Separate Window</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="448"/>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="667"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="569"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="788"/>
         <source>最小化</source>
         <translation>Minimize</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="449"/>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="692"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="570"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="813"/>
         <source>关闭</source>
         <translation>Close</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="666"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="787"/>
         <source>嵌入</source>
         <translation>Embed</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="672"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="793"/>
         <source>退出全屏</source>
         <translation>Exit Fullscreen</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="672"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="793"/>
         <source>全屏</source>
         <translation>Fullscreen</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="732"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="853"/>
         <source>松开鼠标吸附到消息区域</source>
         <translation>Release to snap to message area</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1227"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1348"/>
         <source>无媒体文件</source>
         <translation>No media file</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1274"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1395"/>
         <source>-10s</source>
         <translation>-10s</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1275"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1396"/>
         <source>播放/暂停</source>
         <translation>Play/Pause</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1276"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1397"/>
         <source>+10s</source>
         <translation>+10s</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1469"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1590"/>
         <source>静音</source>
         <translation>Mute</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1387"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1508"/>
         <source>开/切自动播放</source>
         <translation>Auto Play on Open/Switch</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1422"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1543"/>
         <source>源/结自动播放</source>
         <translation>Auto Play on Source/Result</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1457"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1578"/>
         <source>源/结恢复进度</source>
         <translation>Restore Position on Source/Result</translation>
     </message>
@@ -1038,66 +1038,66 @@
 <context>
     <name>EnhanceVision::MessageModel</name>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="664"/>
+        <location filename="../../src/models/MessageModel.cpp" line="696"/>
         <source>Pending</source>
         <translation>Pending</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="255"/>
-        <location filename="../../src/models/MessageModel.cpp" line="274"/>
-        <location filename="../../src/models/MessageModel.cpp" line="289"/>
-        <location filename="../../src/models/MessageModel.cpp" line="358"/>
+        <location filename="../../src/models/MessageModel.cpp" line="261"/>
+        <location filename="../../src/models/MessageModel.cpp" line="280"/>
+        <location filename="../../src/models/MessageModel.cpp" line="295"/>
+        <location filename="../../src/models/MessageModel.cpp" line="388"/>
         <source>Message does not exist: %1</source>
         <translation>Message does not exist: %1</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="666"/>
+        <location filename="../../src/models/MessageModel.cpp" line="698"/>
         <source>Processing</source>
         <translation>Processing</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="668"/>
+        <location filename="../../src/models/MessageModel.cpp" line="700"/>
         <source>Completed</source>
         <translation>Completed</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="670"/>
+        <location filename="../../src/models/MessageModel.cpp" line="702"/>
         <source>Failed</source>
         <translation>Failed</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="672"/>
+        <location filename="../../src/models/MessageModel.cpp" line="704"/>
         <source>Cancelled</source>
         <translation>Cancelled</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="674"/>
+        <location filename="../../src/models/MessageModel.cpp" line="706"/>
         <source>Paused</source>
         <translation>Paused</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="676"/>
+        <location filename="../../src/models/MessageModel.cpp" line="708"/>
         <source>Recoverable</source>
         <translation>Recoverable</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="710"/>
+        <location filename="../../src/models/MessageModel.cpp" line="742"/>
         <source>AI Inference</source>
         <translation>AI Inference</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="712"/>
+        <location filename="../../src/models/MessageModel.cpp" line="744"/>
         <source>Browse</source>
         <translation>Browse</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="678"/>
-        <location filename="../../src/models/MessageModel.cpp" line="714"/>
+        <location filename="../../src/models/MessageModel.cpp" line="710"/>
+        <location filename="../../src/models/MessageModel.cpp" line="746"/>
         <source>Unknown</source>
         <translation>Unknown</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="708"/>
+        <location filename="../../src/models/MessageModel.cpp" line="740"/>
         <source>Shader Filter</source>
         <translation>Shader Filter</translation>
     </message>
@@ -1393,13 +1393,13 @@
 <context>
     <name>EnhanceVision::SessionController</name>
     <message>
-        <location filename="../../src/controllers/SessionController.cpp" line="630"/>
+        <location filename="../../src/controllers/SessionController.cpp" line="673"/>
         <source>Unnamed Session %1</source>
         <translation>Unnamed Session %1</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/SessionController.cpp" line="685"/>
-        <location filename="../../src/controllers/SessionController.cpp" line="697"/>
+        <location filename="../../src/controllers/SessionController.cpp" line="728"/>
+        <location filename="../../src/controllers/SessionController.cpp" line="740"/>
         <source>Cannot save session data</source>
         <translation>Cannot save session data</translation>
     </message>
@@ -1816,73 +1816,73 @@
 <context>
     <name>MainPage</name>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="107"/>
+        <location filename="../../qml/pages/MainPage.qml" line="117"/>
         <source>释放以添加文件</source>
         <translation>Release to add files</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="146"/>
+        <location filename="../../qml/pages/MainPage.qml" line="156"/>
         <source>开始新的处理任务</source>
         <translation>Start new processing task</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="155"/>
+        <location filename="../../qml/pages/MainPage.qml" line="165"/>
         <source>添加文件并选择处理模式来开始</source>
         <translation>Add files and select processing mode to start</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="182"/>
-        <location filename="../../qml/pages/MainPage.qml" line="561"/>
+        <location filename="../../qml/pages/MainPage.qml" line="192"/>
+        <location filename="../../qml/pages/MainPage.qml" line="572"/>
         <source>添加文件</source>
         <translation>Add Files</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="201"/>
+        <location filename="../../qml/pages/MainPage.qml" line="211"/>
         <source>Ctrl+O 添加文件，Ctrl+N 新会话，支持拖放文件</source>
         <translation>Ctrl+O Add Files, Ctrl+N New Session, Drag &amp; Drop Supported</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="423"/>
+        <location filename="../../qml/pages/MainPage.qml" line="434"/>
         <source>Shader</source>
         <translation>Shader</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="444"/>
+        <location filename="../../qml/pages/MainPage.qml" line="455"/>
         <source>切换到 Shader 模式</source>
         <translation>Switch to Shader mode</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="498"/>
+        <location filename="../../qml/pages/MainPage.qml" line="509"/>
         <source>AI推理</source>
         <translation>AI Inference</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="520"/>
+        <location filename="../../qml/pages/MainPage.qml" line="531"/>
         <source>切换到 AI 推理模式</source>
         <translation>Switch to AI inference mode</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="624"/>
+        <location filename="../../qml/pages/MainPage.qml" line="635"/>
         <source>选择媒体文件</source>
         <translation>Select Media Files</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="627"/>
+        <location filename="../../qml/pages/MainPage.qml" line="638"/>
         <source>所有支持的文件 (*.jpg *.jpeg *.png *.bmp *.webp *.tiff *.tif *.mp4 *.avi *.mkv *.mov *.flv)</source>
         <translation>All Supported Files (*.jpg *.jpeg *.png *.bmp *.webp *.tiff *.tif *.mp4 *.avi *.mkv *.mov *.flv)</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="628"/>
+        <location filename="../../qml/pages/MainPage.qml" line="639"/>
         <source>图片文件 (*.jpg *.jpeg *.png *.bmp *.webp *.tiff *.tif)</source>
         <translation>Image Files (*.jpg *.jpeg *.png *.bmp *.webp *.tiff *.tif)</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="629"/>
+        <location filename="../../qml/pages/MainPage.qml" line="640"/>
         <source>视频文件 (*.mp4 *.avi *.mkv *.mov *.flv)</source>
         <translation>Video Files (*.mp4 *.avi *.mkv *.mov *.flv)</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/MainPage.qml" line="630"/>
+        <location filename="../../qml/pages/MainPage.qml" line="641"/>
         <source>所有文件 (*.*)</source>
         <translation>All Files (*.*)</translation>
     </message>
@@ -2027,153 +2027,153 @@
 <context>
     <name>MessageItem</name>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="447"/>
+        <location filename="../../qml/components/MessageItem.qml" line="461"/>
         <source>删除此消息</source>
         <translation>Delete this message</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="447"/>
+        <location filename="../../qml/components/MessageItem.qml" line="461"/>
         <source>删除待处理任务</source>
         <translation>Delete pending tasks</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="557"/>
+        <location filename="../../qml/components/MessageItem.qml" line="572"/>
         <source>等待处理...</source>
         <translation>Waiting...</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="696"/>
+        <location filename="../../qml/components/MessageItem.qml" line="711"/>
         <source>队列 #%1</source>
         <translation>Queue #%1</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="769"/>
+        <location filename="../../qml/components/MessageItem.qml" line="784"/>
         <source>%1 个文件</source>
         <translation>%1 files</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="424"/>
+        <location filename="../../qml/components/MessageItem.qml" line="438"/>
         <source>重新处理失败文件</source>
         <translation>Retry failed files</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="131"/>
+        <location filename="../../qml/components/MessageItem.qml" line="137"/>
         <source>预估: %1</source>
         <translation>Est: %1</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="141"/>
+        <location filename="../../qml/components/MessageItem.qml" line="147"/>
         <source>总耗时: %1</source>
         <translation>Total time: %1</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="149"/>
+        <location filename="../../qml/components/MessageItem.qml" line="155"/>
         <source>应用关闭导致任务中断，未执行恢复</source>
         <translation>App shutdown interrupted tasks, and recovery was not performed.</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="152"/>
+        <location filename="../../qml/components/MessageItem.qml" line="158"/>
         <source>恢复快照不可用，未完成任务已标记为失败</source>
         <translation>Recovery snapshot unavailable. Unfinished tasks have been marked as failed.</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="327"/>
+        <location filename="../../qml/components/MessageItem.qml" line="341"/>
         <source>Shader</source>
         <translation>Shader</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="327"/>
+        <location filename="../../qml/components/MessageItem.qml" line="341"/>
         <source>AI</source>
         <translation>AI</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="416"/>
+        <location filename="../../qml/components/MessageItem.qml" line="430"/>
         <source>保存成功文件</source>
         <translation>Save successful files</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="433"/>
+        <location filename="../../qml/components/MessageItem.qml" line="447"/>
         <source>继续处理</source>
         <translation>Resume Processing</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="433"/>
+        <location filename="../../qml/components/MessageItem.qml" line="447"/>
         <source>暂停处理</source>
         <translation>Pause Processing</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="516"/>
+        <location filename="../../qml/components/MessageItem.qml" line="530"/>
         <source>部分文件处理失败，可点击&quot;重新处理&quot;按钮或右键选择&quot;重新处理&quot;</source>
         <translation>Some files failed. Click &quot;Retry&quot; or right-click to select &quot;Retry&quot;</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="529"/>
-        <location filename="../../qml/components/MessageItem.qml" line="825"/>
+        <location filename="../../qml/components/MessageItem.qml" line="543"/>
+        <location filename="../../qml/components/MessageItem.qml" line="840"/>
         <source>关闭提示</source>
         <translation>Dismiss</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="555"/>
+        <location filename="../../qml/components/MessageItem.qml" line="570"/>
         <source>待恢复</source>
         <translation>Recoverable</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="556"/>
+        <location filename="../../qml/components/MessageItem.qml" line="571"/>
         <source>已暂停</source>
         <translation>Paused</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="558"/>
+        <location filename="../../qml/components/MessageItem.qml" line="573"/>
         <source>处理中</source>
         <translation>Processing</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="569"/>
+        <location filename="../../qml/components/MessageItem.qml" line="584"/>
         <source>(%1/%2)</source>
         <translation>(%1/%2)</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="135"/>
+        <location filename="../../qml/components/MessageItem.qml" line="141"/>
         <source>暂停于: </source>
         <translation>Paused at: </translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="135"/>
+        <location filename="../../qml/components/MessageItem.qml" line="141"/>
         <source>已耗时: </source>
         <translation>Elapsed: </translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="125"/>
+        <location filename="../../qml/components/MessageItem.qml" line="131"/>
         <source>%1h%2m</source>
         <translation>%1h%2m</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="126"/>
+        <location filename="../../qml/components/MessageItem.qml" line="132"/>
         <source>%1m%2s</source>
         <translation>%1m%2s</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="127"/>
+        <location filename="../../qml/components/MessageItem.qml" line="133"/>
         <source>%1s</source>
         <translation>%1s</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="622"/>
+        <location filename="../../qml/components/MessageItem.qml" line="637"/>
         <source>上次退出时未完成，等待恢复决策</source>
         <translation>Unfinished on last exit, waiting for recovery decision</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="729"/>
+        <location filename="../../qml/components/MessageItem.qml" line="744"/>
         <source>成功：%1个文件</source>
         <translation>Success: %1 files</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="757"/>
+        <location filename="../../qml/components/MessageItem.qml" line="772"/>
         <source>失败：%1个文件</source>
         <translation>Failed: %1 files</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageItem.qml" line="140"/>
+        <location filename="../../qml/components/MessageItem.qml" line="146"/>
         <source>总耗时: &lt;1s</source>
         <translation>Total time: &lt;1s</translation>
     </message>
@@ -2181,12 +2181,12 @@
 <context>
     <name>MessageList</name>
     <message>
-        <location filename="../../qml/components/MessageList.qml" line="441"/>
+        <location filename="../../qml/components/MessageList.qml" line="443"/>
         <source>开始新的处理任务</source>
         <translation>Start new processing task</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MessageList.qml" line="449"/>
+        <location filename="../../qml/components/MessageList.qml" line="451"/>
         <source>添加文件并选择处理模式来开始</source>
         <translation>Add files and select processing mode to start</translation>
     </message>
@@ -2472,68 +2472,68 @@
 <context>
     <name>SettingsPage</name>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="535"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="696"/>
         <source>返回</source>
         <translation>Back</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="540"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="701"/>
         <source>设置</source>
         <translation>Settings</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="581"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="742"/>
         <source>外观</source>
         <translation>Appearance</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="590"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="751"/>
         <source>主题</source>
         <translation>Theme</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="606"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="767"/>
         <source>暗色</source>
         <translation>Dark</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="623"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="784"/>
         <source>亮色</source>
         <translation>Light</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="635"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="796"/>
         <source>语言</source>
         <translation>Language</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="638"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="799"/>
         <source>简体中文</source>
         <translation>Simplified Chinese</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="691"/>
-        <location filename="../../qml/pages/SettingsPage.qml" line="734"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="852"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="895"/>
         <source>浏览...</source>
         <translation>Browse...</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="752"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="913"/>
         <source>自动保存结果</source>
         <translation>Auto Save Results</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="785"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="946"/>
         <source>检测到未完成任务时，应用会统一进入启动恢复流程，并先锁定模式切换。</source>
         <translation>When unfinished tasks are detected, the app enters startup recovery flow and locks mode switching first.</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="808"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="969"/>
         <source>当前策略</source>
         <translation>Current Strategy</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="816"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="977"/>
         <source>1. 上次退出时仍未完成的消息卡片会先显示为“待恢复”。
 2. 启动后会弹出统一恢复对话框，由您选择恢复关闭前状态，或全部标记为失败。
 3. 在恢复决策完成前，以及仍存在待恢复、处理中、等待中、暂停中的消息卡片时，都不允许切换任务控制模式。</source>
@@ -2542,263 +2542,335 @@
 3. Before recovery decision is completed, and while any cards are recoverable/processing/pending/paused, task control mode switching is not allowed.</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="834"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="995"/>
         <source>应用再次启动时，会统一弹出恢复对话框，让您选择恢复关闭前状态，或全部标记为失败。</source>
         <translation>On next startup, a unified recovery dialog lets you restore previous state or mark all as failed.</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="860"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1021"/>
         <source>任务控制</source>
         <translation>Task Control</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="866"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1027"/>
         <source>设置暂停处理任务时的行为模式</source>
         <translation>Configure behavior when pausing processing tasks</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="908"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1069"/>
         <source>单任务暂停</source>
         <translation>Single-task Pause</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="909"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1070"/>
         <source>暂停后继续处理其他消息</source>
         <translation>Continue processing other messages after pause</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="951"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1112"/>
         <source>顺序暂停</source>
         <translation>Sequential Pause</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="952"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1113"/>
         <source>暂停后阻塞整个队列（默认）</source>
         <translation>Pause blocks the entire queue (default)</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="994"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1155"/>
         <source>自由选择</source>
         <translation>Free Choice</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="995"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1156"/>
         <source>暂停后可手动选择处理哪些消息</source>
         <translation>After pausing, you can manually choose which messages to process</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1026"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1187"/>
         <source>音频</source>
         <translation>Audio</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1035"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1196"/>
         <source>默认音量</source>
         <translation>Default Volume</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1074"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1235"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1708"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1724"/>
         <source>视频</source>
         <translation>Video</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1325"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1567"/>
         <source>AI推理 - 图像</source>
         <translation>AI Inference - Images</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1326"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1568"/>
         <source>AI 超分辨率增强处理后的图像文件</source>
         <translation>AI super-resolution enhanced image files</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1334"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1576"/>
         <source>AI推理 - 视频</source>
         <translation>AI Inference - Videos</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1335"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1577"/>
         <source>AI 超分辨率增强处理后的视频文件</source>
         <translation>AI super-resolution enhanced video files</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1343"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1585"/>
         <source>Shader - 图像</source>
         <translation>Shader - Images</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1352"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1594"/>
         <source>Shader - 视频</source>
         <translation>Shader - Videos</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1452"/>
-        <source>确定要清理【%1】吗？
-
-清理详情：
-• 文件数量：%2 个图像文件
-• 占用空间：%3
-• 存储位置：%4
-
-此操作将：
-• 删除磁盘上的 AI 处理图像结果
-• 从消息卡片中移除对应的图像文件
-• 如果消息中还有视频文件，消息将保留
-
-清理后需要重新进行 AI 推理才能恢复结果。</source>
-        <translation>Are you sure you want to clean [%1]?
-
-Cleanup details:
-- Files: %2 image files
-- Space used: %3
-- Storage path: %4
-
-This operation will:
-- Delete AI-processed image results on disk
-- Remove corresponding image files from message cards
-- Keep the message if it still contains video files
-
-You need to run AI inference again after cleanup to recover results.</translation>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1740"/>
+        <source>确认清理 - %1</source>
+        <translation>Confirm Cleanup - %1</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1458"/>
-        <source>确定要清理【%1】吗？
-
-清理详情：
-• 文件数量：%2 个视频文件
-• 占用空间：%3
-• 存储位置：%4
-
-此操作将：
-• 删除磁盘上的 AI 处理视频结果
-• 从消息卡片中移除对应的视频文件
-• 如果消息中还有图像文件，消息将保留
-
-清理后需要重新进行 AI 推理才能恢复结果。</source>
-        <translation>Are you sure you want to clean [%1]?
-
-Cleanup details:
-- Files: %2 video files
-- Space used: %3
-- Storage path: %4
-
-This operation will:
-- Delete AI-processed video results on disk
-- Remove corresponding video files from message cards
-- Keep the message if it still contains image files
-
-You need to run AI inference again after cleanup to recover results.</translation>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1797"/>
+        <source>确认清理全部数据</source>
+        <translation>Confirm Clear All Data</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1378"/>
+        <source>缓存管理</source>
+        <translation>Cache Management</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="67"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1612"/>
+        <source>缩略图缓存</source>
+        <translation>Thumbnail Cache</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1613"/>
+        <source>多媒体文件预览缩略图的磁盘缓存</source>
+        <translation>Disk cache for media file preview thumbnails</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1824"/>
+        <source>关于</source>
+        <translation>About</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1851"/>
+        <source>EnhanceVision v0.1.0</source>
+        <translation>EnhanceVision v0.1.0</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1852"/>
+        <source>高性能图像与视频增强工具</source>
+        <translation>High-performance Image and Video Enhancement Tool</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="940"/>
+        <source>处理恢复</source>
+        <translation>Processing Recovery</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="224"/>
+        <source>选择应用数据目录</source>
+        <translation>Choose App Data Directory</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="234"/>
+        <source>选择默认保存路径</source>
+        <translation>Choose Default Save Path</translation>
     </message>
     <message>
         <location filename="../../qml/pages/SettingsPage.qml" line="1464"/>
+        <source>刷新失败</source>
+        <translation>Failed to refresh</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="360"/>
+        <source>暂时无法切换任务控制模式</source>
+        <translation>Task control mode cannot be switched right now</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="45"/>
+        <source>已关闭</source>
+        <translation>Closed</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="48"/>
+        <source>自动切换或关闭</source>
+        <translation>Auto-switch or close</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="50"/>
+        <source>未关闭</source>
+        <translation>Not closed</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="55"/>
+        <source>AI 推理图像</source>
+        <translation>AI Inference Images</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="58"/>
+        <source>AI 推理视频</source>
+        <translation>AI Inference Videos</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="61"/>
+        <source>Shader 图像</source>
+        <translation>Shader Images</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="64"/>
+        <source>Shader 视频</source>
+        <translation>Shader Videos</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="73"/>
+        <source>全部缓存</source>
+        <translation>All Cache</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="75"/>
+        <source>缓存</source>
+        <translation>Cache</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="84"/>
+        <source>%1 | 移除文件 %2 个 | 移除消息 %3 张 | 取消任务 %4 个 | 影响会话 %5 个 | 查看器：%6</source>
+        <translation>%1 | Removed files: %2 | Removed messages: %3 | Cancelled tasks: %4 | Affected sessions: %5 | Viewer: %6</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="114"/>
+        <source>最近一次清理存在残留数据</source>
+        <translation>The latest cleanup left residual data</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="117"/>
+        <source>最近一次清理未完成，请重试</source>
+        <translation>The latest cleanup did not complete. Please retry.</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="119"/>
+        <source>最近一次清理已完成</source>
+        <translation>The latest cleanup completed</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="134"/>
+        <source>• %1（%2 个文件，%3）</source>
+        <translation>• %1 (%2 files, %3)</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="140"/>
+        <source>• 其余 %1 项请在日志中查看</source>
+        <translation>• Check logs for the remaining %1 items</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="148"/>
+        <source>仍有 %1 个文件（%2）未被删除，常见原因是文件被占用或权限不足。
+建议：
+1. 关闭正在播放/预览相关文件的窗口后重试清理
+2. 关闭占用该路径的外部程序（播放器、资源管理器、杀毒软件）
+3. 检查目录写权限后再次清理</source>
+        <translation>%1 files (%2) are still not deleted. Common causes are file locks or insufficient permissions.
+Suggestions:
+1. Close any window currently playing/previewing related files, then retry cleanup
+2. Close external programs occupying the path (player, file manager, antivirus)
+3. Check write permissions of the directory, then clean again</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="153"/>
+        <source>未检测到残留文件，但会话数据同步未完成。请重试清理；若仍出现，请重启应用后再次执行。</source>
+        <translation>No residual files were detected, but session data sync did not complete. Please retry cleanup; if it persists, restart the app and run it again.</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="159"/>
         <source>确定要清理【%1】吗？
 
 清理详情：
-• 文件数量：%2 个图像文件
-• 占用空间：%3
-• 存储位置：%4
+• 命中数量：%2 个%3文件
+• 占用空间：%4
+• 存储位置：%5
 
 此操作将：
-• 删除磁盘上的 Shader 处理图像结果
-• 从消息卡片中移除对应的图像文件
-• 如果消息中还有视频文件，消息将保留
+• 删除磁盘上的 %6处理结果文件
+• 取消并移除命中的等待中、处理中、暂停中、待恢复文件
+• 将消息卡片和放大查看器缩略图实时同步
+• 若当前正在查看被清理文件，会自动切换到剩余文件或关闭查看器
+• 不会删除用户原始文件
 
-清理后需要重新进行 Shader 处理才能恢复结果。</source>
+清理后如需恢复结果，需要重新执行对应处理。</source>
         <translation>Are you sure you want to clean [%1]?
 
 Cleanup details:
-- Files: %2 image files
-- Space used: %3
-- Storage path: %4
+• Matched items: %2 %3 file(s)
+• Space used: %4
+• Storage path: %5
 
 This operation will:
-- Delete Shader-processed image results on disk
-- Remove corresponding image files from message cards
-- Keep the message if it still contains video files
+• Delete %6 processed result files on disk
+• Cancel and remove matched pending/processing/paused/recoverable files
+• Real-time sync between message cards and viewer thumbnails
+• If the currently viewed file is cleaned, auto-switch to remaining file or close viewer
+• Not delete user original files
 
-You need to run Shader processing again after cleanup to recover results.</translation>
+To recover results after cleanup, re-run the corresponding processing.</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1470"/>
-        <source>确定要清理【%1】吗？
-
-清理详情：
-• 文件数量：%2 个视频文件
-• 占用空间：%3
-• 存储位置：%4
-
-此操作将：
-• 删除磁盘上的 Shader 处理视频结果
-• 从消息卡片中移除对应的视频文件
-• 如果消息中还有图像文件，消息将保留
-
-清理后需要重新进行 Shader 处理才能恢复结果。</source>
-        <translation>Are you sure you want to clean [%1]?
-
-Cleanup details:
-- Files: %2 video files
-- Space used: %3
-- Storage path: %4
-
-This operation will:
-- Delete Shader-processed video results on disk
-- Remove corresponding video files from message cards
-- Keep the message if it still contains image files
-
-You need to run Shader processing again after cleanup to recover results.</translation>
-    </message>
-    <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1477"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="169"/>
         <source>确定要清理【%1】吗？
 
 清理详情：
 • 占用空间：%2
 
-此操作将删除运行日志和崩溃日志文件。</source>
+此操作将：
+• 删除运行日志和崩溃日志文件
+• 不会影响消息卡片、任务状态或放大查看器</source>
         <translation>Are you sure you want to clean [%1]?
 
 Cleanup details:
-- Space used: %2
+• Space used: %2
 
-This operation will delete runtime logs and crash logs.</translation>
+This operation will:
+• Delete runtime logs and crash logs
+• Not affect message cards, task status, or viewer</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1481"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="175"/>
         <source>确定要清理【%1】吗？
 
 清理详情：
-• 缩略图文件数量：%2 个
-• 占用磁盘空间：%3
+• 缩略图缓存：%2 个
+• 占用空间：%3
 • 存储位置：%4
 
 此操作将：
-• 删除所有已缓存的缩略图文件
-• 清空缩略图元数据记录
-• 下次查看文件时会自动重新生成缩略图</source>
+• 清空缩略图磁盘缓存和元数据记录
+• 不会删除消息卡片、不取消任务、不关闭查看器
+• 后续打开文件时会自动重新生成缩略图</source>
         <translation>Are you sure you want to clean [%1]?
 
 Cleanup details:
-- Thumbnail files: %2
-- Disk space used: %3
-- Storage path: %4
+• Thumbnail cache: %2
+• Space used: %3
+• Storage path: %4
 
 This operation will:
-- Delete all cached thumbnail files
-- Clear thumbnail metadata records
-- Regenerate thumbnails automatically when files are viewed next time</translation>
+• Clear thumbnail disk cache and metadata records
+• Not remove message cards, cancel tasks, or close viewer
+• Regenerate thumbnails automatically when files are opened later</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1490"/>
-        <source>确认清理 - %1</source>
-        <translation>Confirm Cleanup - %1</translation>
-    </message>
-    <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1546"/>
-        <source>确认清理全部数据</source>
-        <translation>Confirm Clear All Data</translation>
-    </message>
-    <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1547"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="183"/>
         <source>确定要清理所有可清理数据吗？
 
 清理详情：
@@ -2809,296 +2881,240 @@ This operation will:
 • 日志文件：%9
 • 缩略图缓存：%10 个文件（%11）
 
-总计：%12 个文件，共 %13
+总计：%12 个条目，共 %13
 
 此操作将：
 • 删除所有 AI/Shader 处理结果文件
-• 删除日志文件
-• 清除缩略图磁盘缓存和元数据
-• 清空所有会话中的消息记录
-
-清理后需要重新处理才能恢复结果。</source>
+• 取消并移除所有等待中、处理中、暂停中、待恢复消息卡片
+• 删除日志文件与缩略图缓存
+• 清空所有会话中的消息记录，但保留会话标签
+• 关闭消息查看器、待处理查看器及最小化停靠项
+• 不会删除用户原始文件</source>
         <translation>Are you sure you want to clear all cleanable data?
 
 Cleanup details:
-- AI inference images: %1 files (%2)
-- AI inference videos: %3 files (%4)
-- Shader images: %5 files (%6)
-- Shader videos: %7 files (%8)
-- Log files: %9
-- Thumbnail cache: %10 files (%11)
+• AI inference images: %1 files (%2)
+• AI inference videos: %3 files (%4)
+• Shader images: %5 files (%6)
+• Shader videos: %7 files (%8)
+• Log files: %9
+• Thumbnail cache: %10 files (%11)
 
-Total: %12 files, %13 in size
+Total: %12 items, %13
 
 This operation will:
-- Delete all AI/Shader result files
-- Delete log files
-- Clear thumbnail disk cache and metadata
-- Clear message records in all sessions
-
-You need to process files again after cleanup to recover results.</translation>
+• Delete all AI/Shader processed result files
+• Cancel and remove all pending/processing/paused/recoverable message cards
+• Delete log files and thumbnail cache
+• Clear message records in all sessions while keeping session tabs
+• Close message viewer, pending viewer, and minimized dock items
+• Not delete user original files</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1649"/>
-        <source>缓存已清除</source>
-        <translation>Cache cleared</translation>
-    </message>
-    <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1217"/>
-        <source>缓存管理</source>
-        <translation>Cache Management</translation>
-    </message>
-    <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1370"/>
-        <source>缩略图缓存</source>
-        <translation>Thumbnail Cache</translation>
-    </message>
-    <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1371"/>
-        <source>多媒体文件预览缩略图的磁盘缓存</source>
-        <translation>Disk cache for media file preview thumbnails</translation>
-    </message>
-    <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1586"/>
-        <source>关于</source>
-        <translation>About</translation>
-    </message>
-    <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1613"/>
-        <source>EnhanceVision v0.1.0</source>
-        <translation>EnhanceVision v0.1.0</translation>
-    </message>
-    <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1614"/>
-        <source>高性能图像与视频增强工具</source>
-        <translation>High-performance Image and Video Enhancement Tool</translation>
-    </message>
-    <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="779"/>
-        <source>处理恢复</source>
-        <translation>Processing Recovery</translation>
-    </message>
-    <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="62"/>
-        <source>选择应用数据目录</source>
-        <translation>Choose App Data Directory</translation>
-    </message>
-    <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="72"/>
-        <source>选择默认保存路径</source>
-        <translation>Choose Default Save Path</translation>
-    </message>
-    <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="111"/>
-        <source>清理完成</source>
-        <translation>Cleared</translation>
-    </message>
-    <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="111"/>
-        <source>清理失败</source>
-        <translation>Failed to clear</translation>
-    </message>
-    <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1574"/>
-        <source>已清理</source>
-        <translation>Cleared</translation>
-    </message>
-    <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1305"/>
-        <source>刷新失败</source>
-        <translation>Failed to refresh</translation>
-    </message>
-    <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="199"/>
-        <source>暂时无法切换任务控制模式</source>
-        <translation>Task control mode cannot be switched right now</translation>
-    </message>
-    <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="208"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="369"/>
         <source>存在待恢复消息卡片，需先完成恢复决策后才可切换模式。</source>
         <translation>There are recoverable message cards. Complete recovery decision before switching modes.</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="209"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="370"/>
         <source>以下会话标签中仍有未完成消息卡片，请在全部结束后再切换模式。</source>
         <translation>The following session tabs still have unfinished message cards. Finish them all before switching modes.</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="233"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="394"/>
         <source>涉及 %1 个会话标签，共 %2 张消息卡片被拦截。</source>
         <translation>%1 session tabs involved, %2 message cards blocked.</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="256"/>
-        <location filename="../../qml/pages/SettingsPage.qml" line="410"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="417"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="571"/>
         <source>待恢复 %1</source>
         <translation>Recoverable %1</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="273"/>
-        <location filename="../../qml/pages/SettingsPage.qml" line="427"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="434"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="588"/>
         <source>处理中 %1</source>
         <translation>Processing %1</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="290"/>
-        <location filename="../../qml/pages/SettingsPage.qml" line="444"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="451"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="605"/>
         <source>等待处理 %1</source>
         <translation>Pending %1</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="309"/>
-        <location filename="../../qml/pages/SettingsPage.qml" line="463"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="470"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="624"/>
         <source>暂停 %1</source>
         <translation>Paused %1</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="375"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="536"/>
         <source>当前会话</source>
         <translation>Current Session</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="385"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="546"/>
         <source>%1 张消息卡片待恢复</source>
         <translation>%1 message cards pending recovery</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="386"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="547"/>
         <source>%1 张消息卡片未完成</source>
         <translation>%1 message cards unfinished</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="492"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="653"/>
         <source>请先在启动恢复弹窗中选择恢复关闭前状态，或全部标记为失败。</source>
         <translation>Please choose to restore previous state or mark all as failed in the startup recovery dialog first.</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="493"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="654"/>
         <source>请先完成、删除或继续处理这些消息卡片。</source>
         <translation>Please complete, delete, or continue processing these message cards first.</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="506"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="667"/>
         <source>当前已拦截切换。</source>
         <translation>Switching is currently blocked.</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="513"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="674"/>
         <source>我知道了</source>
         <translation>Got it</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="667"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="828"/>
         <source>数据存储</source>
         <translation>Data Storage</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="676"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="837"/>
         <source>应用数据目录</source>
         <translation>App Data Directory</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="698"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="859"/>
         <source>重置</source>
         <translation>Reset</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="707"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="868"/>
         <source>存储 AI/Shader 处理结果等应用数据</source>
         <translation>Stores app data such as AI/Shader processing results</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="719"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="880"/>
         <source>默认导出路径</source>
         <translation>Default Export Path</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="742"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="903"/>
         <source>导出处理结果时的默认保存位置</source>
         <translation>Default save location for exported results</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1248"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1409"/>
         <source>可清理: %1</source>
         <translation>Clearable: %1</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1258"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1419"/>
         <source>刷新</source>
         <translation>Refresh</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1296"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1464"/>
         <source>已刷新</source>
         <translation>Refreshed</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1344"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1586"/>
         <source>Shader 滤镜处理后的图像文件</source>
         <translation>Shader filtered images</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1353"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1595"/>
         <source>Shader 滤镜处理后的视频文件</source>
         <translation>Shader filtered videos</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1361"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="70"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1603"/>
         <source>日志文件</source>
         <translation>Log Files</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1362"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1604"/>
         <source>运行日志和崩溃日志</source>
         <translation>Runtime and crash logs</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1444"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1686"/>
         <source>清理</source>
         <translation>Clear</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1525"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1699"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1707"/>
+        <source>AI 推理</source>
+        <translation>AI Inference</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1700"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1716"/>
+        <source>图像</source>
+        <translation>Image</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1715"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1723"/>
+        <source>Shader</source>
+        <translation>Shader</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1775"/>
         <source>清理后，数据不可恢复，谨慎清理。</source>
         <translation>After clearing, data cannot be recovered. Please use clearing with caution.</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1533"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1784"/>
         <source>清理全部</source>
         <translation>Clear All</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1615"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1853"/>
         <source>Built with Qt6 + NCNN</source>
         <translation>Built with Qt6 + NCNN</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1085"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1246"/>
         <source>开/切自动播放</source>
         <translation>Auto Play on Open/Switch</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1124"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1285"/>
         <source>源/结自动播放</source>
         <translation>Auto Play on Source/Result</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1163"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1324"/>
         <source>源/结恢复进度</source>
         <translation>Restore Position on Source/Result</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1087"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1248"/>
         <source>点击视频进行放大查看（嵌入式和独立式）和点击左右导航按钮切换到视频时自动开始播放</source>
         <translation>Auto-play when opening video (embedded/separate) or switching via navigation buttons</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1126"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1287"/>
         <source>放大查看（嵌入式和独立式）切换源件/结果时自动播放</source>
         <translation>Auto-play when switching between source and result</translation>
     </message>
     <message>
-        <location filename="../../qml/pages/SettingsPage.qml" line="1165"/>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1326"/>
         <source>放大查看（嵌入式和独立式）切换源件/结果时恢复播放进度</source>
         <translation>Restore playback position when switching between source and result</translation>
     </message>

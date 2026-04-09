@@ -7,6 +7,11 @@
 
 ## [Unreleased]
 
+### Fixed
+- 消息查看器缩略图栏改为增量同步，避免文件连续完成时整栏闪烁，并修复首次打开时默认跳到首个文件的问题
+- 缓存清理结果改为可解释摘要，明确显示残留文件、占用空间、路径和后续处理建议
+- 设置页新增缓存清理相关文案的中英翻译，并移除不必要的成功调试输出
+
 ### Added
 - **Progress Prediction Optimization** - Complete overhaul of time prediction system for improved accuracy
   - Unified prediction source through TaskTimeEstimator with dynamic correction based on actual progress

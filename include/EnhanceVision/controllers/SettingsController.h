@@ -10,6 +10,7 @@
 #include <QObject>
 #include <QSettings>
 #include <QString>
+#include <QVariantMap>
 
 namespace EnhanceVision {
 
@@ -53,6 +54,7 @@ class SettingsController : public QObject
     Q_PROPERTY(int aiVideoFileCount READ aiVideoFileCount NOTIFY dataSizeChanged)
     Q_PROPERTY(int shaderImageFileCount READ shaderImageFileCount NOTIFY dataSizeChanged)
     Q_PROPERTY(int shaderVideoFileCount READ shaderVideoFileCount NOTIFY dataSizeChanged)
+    Q_PROPERTY(QVariantMap lastCacheClearSummary READ lastCacheClearSummary NOTIFY lastCacheClearSummaryChanged)
 
 public:
     static SettingsController* instance();
@@ -123,6 +125,7 @@ public:
     int aiVideoFileCount() const;
     int shaderImageFileCount() const;
     int shaderVideoFileCount() const;
+    QVariantMap lastCacheClearSummary() const;
 
     Q_INVOKABLE QString effectiveDataPath() const;
 
@@ -172,6 +175,7 @@ signals:
     void pauseModeChanged();
     void customDataPathChanged();
     void dataSizeChanged();
+    void lastCacheClearSummaryChanged();
 
 private:
     explicit SettingsController(QObject* parent = nullptr);
@@ -218,6 +222,7 @@ private:
     
     qint64 m_thumbnailCacheSize = 0;
     qint64 m_thumbnailDiskSize = 0;
+    QVariantMap m_lastCacheClearSummary;
 
     SessionController* m_sessionController = nullptr;
 };

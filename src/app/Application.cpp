@@ -368,6 +368,7 @@ void Application::setupQmlContext(ThumbnailProvider* thumbnailProvider)
     m_taskRecoveryController->setSessionController(m_sessionController.get());
     m_taskRecoveryController->setProcessingController(m_processingController.get());
     m_sessionController->setProcessingController(m_processingController.get());
+    m_sessionController->setTaskRecoveryController(m_taskRecoveryController.get());
     m_messageModel->setProcessingController(m_processingController.get());
     
     // 设置 SessionController 引用到 SettingsController（用于缓存清理）

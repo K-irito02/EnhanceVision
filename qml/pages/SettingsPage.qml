@@ -34,6 +34,168 @@ Rectangle {
         pauseModeBlockerDialogVisible = false
     }
 
+    function hasCacheClearSummary() {
+        return SettingsController.lastCacheClearSummary
+            && SettingsController.lastCacheClearSummary.reason !== undefined
+            && SettingsController.lastCacheClearSummary.reason !== ""
+    }
+
+    function cacheViewerImpactText(viewerImpact) {
+        if (viewerImpact === "closed") {
+            return qsTr("已关闭")
+        }
+        if (viewerImpact === "sync") {
+            return qsTr("自动切换或关闭")
+        }
+        return qsTr("未关闭")
+    }
+
+    function cacheReasonText(reason) {
+        if (reason === "cache-ai-image") {
+            return qsTr("AI 推理图像")
+        }
+        if (reason === "cache-ai-video") {
+            return qsTr("AI 推理视频")
+        }
+        if (reason === "cache-shader-image") {
+            return qsTr("Shader 图像")
+        }
+        if (reason === "cache-shader-video") {
+            return qsTr("Shader 视频")
+        }
+        if (reason === "cache-thumbnails") {
+            return qsTr("缩略图缓存")
+        }
+        if (reason === "cache-logs") {
+            return qsTr("日志文件")
+        }
+        if (reason === "cache-all") {
+            return qsTr("全部缓存")
+        }
+        return qsTr("缓存")
+    }
+
+    function formatCacheClearSummary() {
+        if (!hasCacheClearSummary()) {
+            return ""
+        }
+
+        var summary = SettingsController.lastCacheClearSummary
+        return qsTr("%1 | 移除文件 %2 个 | 移除消息 %3 张 | 取消任务 %4 个 | 影响会话 %5 个 | 查看器：%6")
+            .arg(cacheReasonText(summary.reason || ""))
+            .arg(summary.removedFiles || 0)
+            .arg(summary.removedMessages || 0)
+            .arg(summary.cancelledTasks || 0)
+            .arg(summary.sessionsAffected || 0)
+            .arg(cacheViewerImpactText(summary.viewerImpact || "unchanged"))
+    }
+
+    function hasResidualCacheData() {
+        if (!hasCacheClearSummary()) {
+            return false
+        }
+        var summary = SettingsController.lastCacheClearSummary
+        return summary.hasResidualData || false
+    }
+
+    function isCacheClearSuccessful() {
+        if (!hasCacheClearSummary()) {
+            return true
+        }
+        return SettingsController.lastCacheClearSummary.success || false
+    }
+
+    function cacheClearStatusTitle() {
+        if (!hasCacheClearSummary()) {
+            return ""
+        }
+
+        if (hasResidualCacheData()) {
+            return qsTr("最近一次清理存在残留数据")
+        }
+        if (!isCacheClearSuccessful()) {
+            return qsTr("最近一次清理未完成，请重试")
+        }
+        return qsTr("最近一次清理已完成")
+    }
+
+    function formatResidualEntryList() {
+        if (!hasResidualCacheData()) {
+            return ""
+        }
+
+        var summary = SettingsController.lastCacheClearSummary
+        var entries = summary.residualEntries || []
+        var lines = []
+        var maxLines = Math.min(entries.length, 3)
+        for (var i = 0; i < maxLines; i++) {
+            var entry = entries[i]
+            if (!entry) continue
+            lines.push(qsTr("• %1（%2 个文件，%3）")
+                .arg(entry.path || "")
+                .arg(entry.files || 0)
+                .arg(SettingsController.formatSize(entry.bytes || 0)))
+        }
+        if (entries.length > maxLines) {
+            lines.push(qsTr("• 其余 %1 项请在日志中查看").arg(entries.length - maxLines))
+        }
+        return lines.join("\n")
+    }
+
+    function cacheClearGuidanceText() {
+        var summary = SettingsController.lastCacheClearSummary
+        if (hasResidualCacheData()) {
+            return qsTr("仍有 %1 个文件（%2）未被删除，常见原因是文件被占用或权限不足。\n建议：\n1. 关闭正在播放/预览相关文件的窗口后重试清理\n2. 关闭占用该路径的外部程序（播放器、资源管理器、杀毒软件）\n3. 检查目录写权限后再次清理")
+                .arg(summary.residualFiles || 0)
+                .arg(SettingsController.formatSize(summary.residualBytes || 0))
+        }
+        if (!isCacheClearSuccessful()) {
+            return qsTr("未检测到残留文件，但会话数据同步未完成。请重试清理；若仍出现，请重启应用后再次执行。")
+        }
+        return ""
+    }
+
+    function buildProcessingCacheClearMessage(title, fileCount, sizeText, path, pipelineLabel, mediaLabel) {
+        return qsTr("确定要清理【%1】吗？\n\n清理详情：\n• 命中数量：%2 个%3文件\n• 占用空间：%4\n• 存储位置：%5\n\n此操作将：\n• 删除磁盘上的 %6处理结果文件\n• 取消并移除命中的等待中、处理中、暂停中、待恢复文件\n• 将消息卡片和放大查看器缩略图实时同步\n• 若当前正在查看被清理文件，会自动切换到剩余文件或关闭查看器\n• 不会删除用户原始文件\n\n清理后如需恢复结果，需要重新执行对应处理。")
+            .arg(title)
+            .arg(fileCount)
+            .arg(mediaLabel)
+            .arg(sizeText)
+            .arg(path)
+            .arg(pipelineLabel)
+    }
+
+    function buildLogClearMessage(title, sizeText) {
+        return qsTr("确定要清理【%1】吗？\n\n清理详情：\n• 占用空间：%2\n\n此操作将：\n• 删除运行日志和崩溃日志文件\n• 不会影响消息卡片、任务状态或放大查看器")
+            .arg(title)
+            .arg(sizeText)
+    }
+
+    function buildThumbnailClearMessage(title, fileCount, sizeText, path) {
+        return qsTr("确定要清理【%1】吗？\n\n清理详情：\n• 缩略图缓存：%2 个\n• 占用空间：%3\n• 存储位置：%4\n\n此操作将：\n• 清空缩略图磁盘缓存和元数据记录\n• 不会删除消息卡片、不取消任务、不关闭查看器\n• 后续打开文件时会自动重新生成缩略图")
+            .arg(title)
+            .arg(fileCount)
+            .arg(sizeText)
+            .arg(path)
+    }
+
+    function buildClearAllMessage(totalFiles) {
+        return qsTr("确定要清理所有可清理数据吗？\n\n清理详情：\n• AI推理图像：%1 个文件（%2）\n• AI推理视频：%3 个文件（%4）\n• Shader图像：%5 个文件（%6）\n• Shader视频：%7 个文件（%8）\n• 日志文件：%9\n• 缩略图缓存：%10 个文件（%11）\n\n总计：%12 个条目，共 %13\n\n此操作将：\n• 删除所有 AI/Shader 处理结果文件\n• 取消并移除所有等待中、处理中、暂停中、待恢复消息卡片\n• 删除日志文件与缩略图缓存\n• 清空所有会话中的消息记录，但保留会话标签\n• 关闭消息查看器、待处理查看器及最小化停靠项\n• 不会删除用户原始文件")
+            .arg(SettingsController.aiImageFileCount)
+            .arg(SettingsController.formatSize(SettingsController.aiImageSize))
+            .arg(SettingsController.aiVideoFileCount)
+            .arg(SettingsController.formatSize(SettingsController.aiVideoSize))
+            .arg(SettingsController.shaderImageFileCount)
+            .arg(SettingsController.formatSize(SettingsController.shaderImageSize))
+            .arg(SettingsController.shaderVideoFileCount)
+            .arg(SettingsController.formatSize(SettingsController.shaderVideoSize))
+            .arg(SettingsController.formatSize(SettingsController.logSize))
+            .arg(SettingsController.thumbnailCacheCount)
+            .arg(SettingsController.formatSize(SettingsController.thumbnailDiskSize))
+            .arg(totalFiles)
+            .arg(SettingsController.formatSize(SettingsController.totalCacheSize))
+    }
+
     function tryChangePauseMode(targetMode) {
         if (SettingsController.pauseMode === targetMode) {
             return
@@ -107,7 +269,6 @@ Rectangle {
                 success = SettingsController.clearThumbnailCache()
             } else if (clearType === "all") {
                 success = SettingsController.clearAllCache()
-                clearAllToast.show(success)
             }
         }
     }
@@ -1325,6 +1486,76 @@ Rectangle {
                             Item { Layout.fillWidth: true }
                         }
 
+                        Rectangle {
+                            Layout.fillWidth: true
+                            visible: root.hasCacheClearSummary()
+                            radius: Theme.radius.md
+                            color: root.isCacheClearSuccessful()
+                                ? Theme.colors.successSubtle
+                                : Theme.colors.destructiveSubtle
+                            border.width: 1
+                            border.color: root.isCacheClearSuccessful()
+                                ? Qt.rgba(Theme.colors.success.r, Theme.colors.success.g, Theme.colors.success.b, 0.24)
+                                : Qt.rgba(Theme.colors.destructive.r, Theme.colors.destructive.g, Theme.colors.destructive.b, 0.24)
+                            implicitHeight: cacheSummaryColumn.implicitHeight + 18
+
+                            ColumnLayout {
+                                id: cacheSummaryColumn
+                                anchors.fill: parent
+                                anchors.margins: 12
+                                spacing: 6
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    ColoredIcon {
+                                        iconSize: 15
+                                        source: root.isCacheClearSuccessful()
+                                            ? Theme.icon("check-circle")
+                                            : Theme.icon("x-circle")
+                                        color: root.isCacheClearSuccessful()
+                                            ? Theme.colors.success
+                                            : Theme.colors.destructive
+                                    }
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: root.cacheClearStatusTitle()
+                                        color: Theme.colors.foreground
+                                        font.pixelSize: 12
+                                        font.weight: Font.DemiBold
+                                    }
+                                }
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: root.formatCacheClearSummary()
+                                    color: Theme.colors.mutedForeground
+                                    font.pixelSize: 11
+                                    wrapMode: Text.Wrap
+                                }
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    visible: root.hasResidualCacheData()
+                                    text: root.formatResidualEntryList()
+                                    color: Theme.colors.destructive
+                                    font.pixelSize: 11
+                                    wrapMode: Text.Wrap
+                                }
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    visible: root.hasResidualCacheData() || !root.isCacheClearSuccessful()
+                                    text: root.cacheClearGuidanceText()
+                                    color: Theme.colors.mutedForeground
+                                    font.pixelSize: 11
+                                    wrapMode: Text.Wrap
+                                }
+                            }
+                        }
+
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 6
@@ -1460,40 +1691,48 @@ Rectangle {
                                             onClicked: {
                                                 var detailMsg = ""
                                                 if (modelData.type === "aiImage") {
-                                                    detailMsg = qsTr("确定要清理【%1】吗？\n\n清理详情：\n• 文件数量：%2 个图像文件\n• 占用空间：%3\n• 存储位置：%4\n\n此操作将：\n• 删除磁盘上的 AI 处理图像结果\n• 从消息卡片中移除对应的图像文件\n• 如果消息中还有视频文件，消息将保留\n\n清理后需要重新进行 AI 推理才能恢复结果。")
-                                                        .arg(modelData.title)
-                                                        .arg(modelData.fileCount)
-                                                        .arg(SettingsController.formatSize(modelData.size))
-                                                        .arg(SettingsController.getAIImagePath())
+                                                    detailMsg = root.buildProcessingCacheClearMessage(
+                                                        modelData.title,
+                                                        modelData.fileCount,
+                                                        SettingsController.formatSize(modelData.size),
+                                                        SettingsController.getAIImagePath(),
+                                                        qsTr("AI 推理"),
+                                                        qsTr("图像"))
                                                 } else if (modelData.type === "aiVideo") {
-                                                    detailMsg = qsTr("确定要清理【%1】吗？\n\n清理详情：\n• 文件数量：%2 个视频文件\n• 占用空间：%3\n• 存储位置：%4\n\n此操作将：\n• 删除磁盘上的 AI 处理视频结果\n• 从消息卡片中移除对应的视频文件\n• 如果消息中还有图像文件，消息将保留\n\n清理后需要重新进行 AI 推理才能恢复结果。")
-                                                        .arg(modelData.title)
-                                                        .arg(modelData.fileCount)
-                                                        .arg(SettingsController.formatSize(modelData.size))
-                                                        .arg(SettingsController.getAIVideoPath())
+                                                    detailMsg = root.buildProcessingCacheClearMessage(
+                                                        modelData.title,
+                                                        modelData.fileCount,
+                                                        SettingsController.formatSize(modelData.size),
+                                                        SettingsController.getAIVideoPath(),
+                                                        qsTr("AI 推理"),
+                                                        qsTr("视频"))
                                                 } else if (modelData.type === "shaderImage") {
-                                                    detailMsg = qsTr("确定要清理【%1】吗？\n\n清理详情：\n• 文件数量：%2 个图像文件\n• 占用空间：%3\n• 存储位置：%4\n\n此操作将：\n• 删除磁盘上的 Shader 处理图像结果\n• 从消息卡片中移除对应的图像文件\n• 如果消息中还有视频文件，消息将保留\n\n清理后需要重新进行 Shader 处理才能恢复结果。")
-                                                        .arg(modelData.title)
-                                                        .arg(modelData.fileCount)
-                                                        .arg(SettingsController.formatSize(modelData.size))
-                                                        .arg(SettingsController.getShaderImagePath())
+                                                    detailMsg = root.buildProcessingCacheClearMessage(
+                                                        modelData.title,
+                                                        modelData.fileCount,
+                                                        SettingsController.formatSize(modelData.size),
+                                                        SettingsController.getShaderImagePath(),
+                                                        qsTr("Shader"),
+                                                        qsTr("图像"))
                                                 } else if (modelData.type === "shaderVideo") {
-                                                    detailMsg = qsTr("确定要清理【%1】吗？\n\n清理详情：\n• 文件数量：%2 个视频文件\n• 占用空间：%3\n• 存储位置：%4\n\n此操作将：\n• 删除磁盘上的 Shader 处理视频结果\n• 从消息卡片中移除对应的视频文件\n• 如果消息中还有图像文件，消息将保留\n\n清理后需要重新进行 Shader 处理才能恢复结果。")
-                                                        .arg(modelData.title)
-                                                        .arg(modelData.fileCount)
-                                                        .arg(SettingsController.formatSize(modelData.size))
-                                                        .arg(SettingsController.getShaderVideoPath())
+                                                    detailMsg = root.buildProcessingCacheClearMessage(
+                                                        modelData.title,
+                                                        modelData.fileCount,
+                                                        SettingsController.formatSize(modelData.size),
+                                                        SettingsController.getShaderVideoPath(),
+                                                        qsTr("Shader"),
+                                                        qsTr("视频"))
                                                 } else {
                                                     if (modelData.type === "logs") {
-                                                        detailMsg = qsTr("确定要清理【%1】吗？\n\n清理详情：\n• 占用空间：%2\n\n此操作将删除运行日志和崩溃日志文件。")
-                                                            .arg(modelData.title)
-                                                            .arg(SettingsController.formatSize(modelData.size))
+                                                        detailMsg = root.buildLogClearMessage(
+                                                            modelData.title,
+                                                            SettingsController.formatSize(modelData.size))
                                                     } else if (modelData.type === "thumbnails") {
-                                                        detailMsg = qsTr("确定要清理【%1】吗？\n\n清理详情：\n• 缩略图文件数量：%2 个\n• 占用磁盘空间：%3\n• 存储位置：%4\n\n此操作将：\n• 删除所有已缓存的缩略图文件\n• 清空缩略图元数据记录\n• 下次查看文件时会自动重新生成缩略图")
-                                                            .arg(modelData.title)
-                                                            .arg(modelData.fileCount)
-                                                            .arg(SettingsController.formatSize(modelData.size))
-                                                            .arg(SettingsController.getThumbnailCachePath())
+                                                        detailMsg = root.buildThumbnailClearMessage(
+                                                            modelData.title,
+                                                            modelData.fileCount,
+                                                            SettingsController.formatSize(modelData.size),
+                                                            SettingsController.getThumbnailCachePath())
                                                     }
                                                 }
                                                 confirmClearDialog.showClearDialog(
@@ -1540,60 +1779,8 @@ Rectangle {
                                     verticalAlignment: Text.AlignVCenter
                                 }
 
-                                Rectangle {
-                                    id: clearAllToast
-                                    implicitWidth: clearAllToastRow.implicitWidth + 12
-                                    implicitHeight: 24
-                                    radius: Theme.radius.sm
-                                    color: clearAllToast.isSuccess ? Theme.colors.successSubtle : Theme.colors.destructiveSubtle
-                                    opacity: 0
-                                    visible: opacity > 0
-
-                                    property bool isSuccess: true
-
-                                    function show(success) {
-                                        isSuccess = success
-                                        opacity = 1
-                                        clearAllToastTimer.restart()
-                                    }
-
-                                    Row {
-                                        id: clearAllToastRow
-                                        anchors.centerIn: parent
-                                        spacing: 4
-
-                                        ColoredIcon {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            iconSize: 12
-                                            source: clearAllToast.isSuccess ? Theme.icon("check") : Theme.icon("x")
-                                            color: clearAllToast.isSuccess ? Theme.colors.success : Theme.colors.destructive
-                                        }
-
-                                        Text {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: clearAllToast.isSuccess ? qsTr("已清理") : qsTr("清理失败")
-                                            color: clearAllToast.isSuccess ? Theme.colors.success : Theme.colors.destructive
-                                            font.pixelSize: 11
-                                            font.weight: Font.Medium
-                                        }
-                                    }
-
-                                    Timer {
-                                        id: clearAllToastTimer
-                                        interval: 2000
-                                        onTriggered: clearAllToast.opacity = 0
-                                    }
-
-                                    Behavior on opacity {
-                                        NumberAnimation { duration: 150 }
-                                    }
-
-                                    Behavior on color {
-                                        ColorAnimation { duration: 150 }
-                                    }
-                                }
-
                                 Button {
+                                    id: clearAllButton
                                     text: qsTr("清理全部")
                                     variant: "destructive"
                                     size: "sm"
@@ -1608,20 +1795,7 @@ Rectangle {
                                         confirmClearDialog.showClearDialog(
                                             "all",
                                             qsTr("确认清理全部数据"),
-                                            qsTr("确定要清理所有可清理数据吗？\n\n清理详情：\n• AI推理图像：%1 个文件（%2）\n• AI推理视频：%3 个文件（%4）\n• Shader图像：%5 个文件（%6）\n• Shader视频：%7 个文件（%8）\n• 日志文件：%9\n• 缩略图缓存：%10 个文件（%11）\n\n总计：%12 个文件，共 %13\n\n此操作将：\n• 删除所有 AI/Shader 处理结果文件\n• 删除日志文件\n• 清除缩略图磁盘缓存和元数据\n• 清空所有会话中的消息记录\n\n清理后需要重新处理才能恢复结果。")
-                                                .arg(SettingsController.aiImageFileCount)
-                                                .arg(SettingsController.formatSize(SettingsController.aiImageSize))
-                                                .arg(SettingsController.aiVideoFileCount)
-                                                .arg(SettingsController.formatSize(SettingsController.aiVideoSize))
-                                                .arg(SettingsController.shaderImageFileCount)
-                                                .arg(SettingsController.formatSize(SettingsController.shaderImageSize))
-                                                .arg(SettingsController.shaderVideoFileCount)
-                                                .arg(SettingsController.formatSize(SettingsController.shaderVideoSize))
-                                                .arg(SettingsController.formatSize(SettingsController.logSize))
-                                                .arg(SettingsController.thumbnailCacheCount)
-                                                .arg(SettingsController.formatSize(SettingsController.thumbnailDiskSize))
-                                                .arg(totalFiles)
-                                                .arg(SettingsController.formatSize(SettingsController.totalCacheSize))
+                                            root.buildClearAllMessage(totalFiles)
                                         )
                                     }
                                 }

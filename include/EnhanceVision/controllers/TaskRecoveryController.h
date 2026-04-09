@@ -41,6 +41,7 @@ public:
     Q_INVOKABLE QVariantList getPauseModeSwitchBlockers() const;
     Q_INVOKABLE void resolveRestorePreviousState();
     Q_INVOKABLE void resolveFailAllRecoverableTasks();
+    Q_INVOKABLE void syncPendingRecoveryFromSessions();
     Q_INVOKABLE void scheduleSnapshotSync();
 
 signals:
