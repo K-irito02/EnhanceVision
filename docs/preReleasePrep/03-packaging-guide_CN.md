@@ -7,8 +7,10 @@
 ## 📋 目录
 
 - [打包概述](#打包概述)
+- [打包工具对比](#打包工具对比)
 - [准备工作](#准备工作)
 - [NSIS 安装程序](#nsis-安装程序)
+- [高级功能实现](#高级功能实现)
 - [便携版 ZIP](#便携版-zip)
 - [打包验证](#打包验证)
 - [常见问题](#常见问题)
@@ -21,7 +23,7 @@
 
 | 类型 | 格式 | 用途 |
 |------|------|------|
-| 安装程序 | `.exe` (NSIS) | 标准安装，支持卸载、开始菜单 |
+| 安装程序 | `.exe` (NSIS) | 标准安装，支持卸载、开始菜单、多语言 |
 | 便携版 | `.zip` | 绿色版，解压即用 |
 
 ### 打包内容
@@ -42,8 +44,105 @@ EnhanceVision-v0.1.0-windows-x64/
 
 ### 预计大小
 
-- 安装程序: ~80MB
+- 安装程序: ~100MB（含运行库）
 - 便携版 ZIP: ~100MB（解压后）
+
+---
+
+## 打包工具对比
+
+### 免费打包工具一览
+
+| 工具 | 许可证 | 学习曲线 | 多语言支持 | 自定义程度 | 推荐指数 |
+|------|--------|----------|------------|------------|----------|
+| **NSIS** | zlib/libpng | 中等 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| Inno Setup | BSD | 简单 | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+| WiX Toolset | MS-PL | 困难 | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
+| Qt IFW | GPL/LGPL | 中等 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+
+### 详细对比
+
+#### 1. NSIS (Nullsoft Scriptable Install System) ⭐ 推荐
+
+**优点：**
+- 完全免费开源（zlib/libpng 许可证）
+- 脚本灵活，可实现任意复杂逻辑
+- 原生支持多语言界面（40+ 语言）
+- 压缩率高（支持 LZMA、zlib 等）
+- 社区活跃，插件丰富
+- 生成的安装程序体积小
+- 支持静默安装（企业部署友好）
+
+**缺点：**
+- 需要学习特定脚本语法
+- 默认界面较朴素（需自定义美化）
+- 调试相对困难
+
+**适用场景：** 需要高度自定义、多语言支持的开源/商业项目
+
+**官方网站：** https://nsis.sourceforge.io/
+
+#### 2. Inno Setup
+
+**优点：**
+- 完全免费开源（BSD 许可证）
+- 向导式脚本生成，上手简单
+- Pascal 脚本语法易学
+- 默认界面美观现代
+- 文档完善，示例丰富
+
+**缺点：**
+- 自定义程度略低于 NSIS
+- 多语言支持稍弱
+- 部分高级功能需要插件
+
+**适用场景：** 快速开发、中小型项目
+
+**官方网站：** https://jrsoftware.org/isinfo.php
+
+#### 3. WiX Toolset
+
+**优点：**
+- 微软官方工具，生成标准 MSI
+- 适合企业环境部署
+- 支持 Windows Installer 全部功能
+- 与 Visual Studio 集成良好
+
+**缺点：**
+- 学习曲线陡峭
+- XML 配置复杂繁琐
+- 不适合快速开发
+
+**适用场景：** 企业级部署、需要 MSI 格式的项目
+
+**官方网站：** https://wixtoolset.org/
+
+#### 4. Qt Installer Framework
+
+**优点：**
+- 与 Qt 应用集成度高
+- 界面现代美观
+- 支持在线安装、增量更新
+- 跨平台支持
+
+**缺点：**
+- 需要 Qt 环境
+- 学习成本较高
+- 配置相对复杂
+
+**适用场景：** Qt 应用、需要在线安装功能
+
+**官方网站：** https://doc.qt.io/qtinstallerframework/
+
+### 为什么选择 NSIS？
+
+对于 EnhanceVision 项目，推荐使用 **NSIS**，原因如下：
+
+1. **多语言支持完善**：原生支持中英文界面切换，符合项目国际化需求
+2. **灵活的脚本能力**：可实现运行库检测、Vulkan 检测、用户数据保护等高级功能
+3. **开源友好**：zlib 许可证与 MIT 许可证兼容
+4. **社区资源丰富**：大量插件和示例可供参考
+5. **体积小巧**：生成的安装程序压缩率高
 
 ---
 
@@ -67,7 +166,32 @@ makensis /version
 # 应输出: NSIS Version 3.x
 ```
 
-### 2. 构建 Release 版本
+### 2. 准备运行库
+
+下载并准备以下运行库安装程序：
+
+| 运行库 | 下载地址 | 用途 |
+|--------|----------|------|
+| VC++ 2022 Redistributable (x64) | https://aka.ms/vs/17/release/vc_redist.x64.exe | MSVC 运行时 |
+| DirectX End-User Runtime | https://www.microsoft.com/download/details.aspx?id=35 | DirectX 组件 |
+
+创建目录结构：
+```
+installer/
+├── resources/
+│   ├── welcome.bmp          # 欢迎页面图片 (500x314)
+│   ├── header.bmp           # 页面头部图片 (150x57)
+│   └── app.ico              # 应用图标
+├── redist/
+│   ├── vc_redist.x64.exe    # VC++ 运行库
+│   └── dxwebsetup.exe       # DirectX 安装程序（可选）
+├── license/
+│   ├── license_zh.txt       # 中文许可协议
+│   └── license_en.txt       # 英文许可协议
+└── setup.nsi                # NSIS 主脚本
+```
+
+### 3. 构建 Release 版本
 
 参考 [02-build-guide.md](02-build-guide.md) 完成 Release 构建。
 
@@ -76,7 +200,7 @@ cmake --preset windows-msvc-2022-release
 cmake --build build/msvc2022/Release --config Release -j 8
 ```
 
-### 3. 准备打包目录
+### 4. 准备打包目录
 
 ```powershell
 # 创建打包目录
@@ -113,56 +237,399 @@ EnhanceVision v$version
 
 ## NSIS 安装程序
 
-### 1. 创建 NSIS 脚本
+### 完整 NSIS 脚本
 
 创建文件 `installer/setup.nsi`:
 
 ```nsis
+; ============================================================================
 ; EnhanceVision 安装程序脚本
 ; 使用 NSIS 3.x 编译
+; ============================================================================
 
-!include "MUI2.nsh"
-!include "FileFunc.nsh"
+; ----------------------------------------------------------------------------
+; 包含文件
+; ----------------------------------------------------------------------------
+!include "MUI2.nsh"           ; Modern UI 2
+!include "FileFunc.nsh"       ; 文件操作函数
+!include "LogicLib.nsh"       ; 逻辑判断
+!include "WinVer.nsh"         ; Windows 版本检测
+!include "x64.nsh"            ; 64位系统支持
+!include "WordFunc.nsh"       ; 字符串处理
+!include "nsDialogs.nsh"      ; 自定义对话框
 
+; ----------------------------------------------------------------------------
 ; 应用程序信息
+; ----------------------------------------------------------------------------
 !define APP_NAME "EnhanceVision"
 !define APP_VERSION "0.1.0"
 !define APP_PUBLISHER "EnhanceVision Contributors"
 !define APP_URL "https://github.com/K-irito02/EnhanceVision"
-!define APP_GUID "EnhanceVision-0.1.0"
+!define APP_GUID "EnhanceVision-${APP_VERSION}"
+!define APP_REGISTRY_KEY "Software\${APP_NAME}"
+!define APP_UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
 
+; 数据目录相关
+!define DEFAULT_DATA_PATH "$APPDATA\EnhanceVision"
+!define MIN_DISK_SPACE_MB 200
+
+; 运行库版本
+!define VC_REDIST_MIN_VERSION "14.32.31326.0"
+
+; ----------------------------------------------------------------------------
 ; 安装程序信息
+; ----------------------------------------------------------------------------
 Name "${APP_NAME} ${APP_VERSION}"
 OutFile "..\package\EnhanceVision-v${APP_VERSION}-windows-x64-installer.exe"
 InstallDir "$PROGRAMFILES64\${APP_NAME}"
-InstallDirRegKey HKLM "Software\${APP_NAME}" "Install_Dir"
+InstallDirRegKey HKLM "${APP_REGISTRY_KEY}" "Install_Dir"
 RequestExecutionLevel admin
 
+; ----------------------------------------------------------------------------
 ; 界面设置
+; ----------------------------------------------------------------------------
+; 图标
 !define MUI_ICON "..\resources\icons\app.ico"
 !define MUI_UNICON "..\resources\icons\app.ico"
-!define MUI_WELCOMEFINISHPAGE_BITMAP "..\installer\welcome.bmp"
-!define MUI_UNWELCOMEFINISHPAGE_BITMAP "..\installer\welcome.bmp"
 
-; 页面
+; 自定义图片（可选）
+!define MUI_WELCOMEFINISHPAGE_BITMAP "..\installer\resources\welcome.bmp"
+!define MUI_UNWELCOMEFINISHPAGE_BITMAP "..\installer\resources\welcome.bmp"
+!define MUI_HEADERIMAGE
+!define MUI_HEADERIMAGE_BITMAP "..\installer\resources\header.bmp"
+!define MUI_HEADERIMAGE_UNBITMAP "..\installer\resources\header.bmp"
+
+; 欢迎页面标题
+!define MUI_WELCOMEPAGE_TITLE "$(WelcomeTitle)"
+!define MUI_WELCOMEPAGE_TEXT "$(WelcomeText)"
+
+; 完成页面
+!define MUI_FINISHPAGE_RUN "$INSTDIR\EnhanceVision.exe"
+!define MUI_FINISHPAGE_RUN_TEXT "$(FinishRunText)"
+!define MUI_FINISHPAGE_SHOWREADME "$INSTDIR\README.txt"
+!define MUI_FINISHPAGE_SHOWREADME_TEXT "$(FinishReadmeText)"
+!define MUI_FINISHPAGE_LINK "$(FinishLinkText)"
+!define MUI_FINISHPAGE_LINK_LOCATION "${APP_URL}"
+
+; ----------------------------------------------------------------------------
+; 语言选择页面（安装前）
+; ----------------------------------------------------------------------------
+Function .onInit
+    ; 初始化语言选择
+    !insertmacro MUI_LANGDLL_DISPLAY
+    
+    ; 检测系统语言作为默认值
+    System::Call 'kernel32::GetUserDefaultUILanguage() i .r0'
+    ${If} $0 = 2052
+        StrCpy $LANGUAGE 2052  ; 简体中文
+    ${Else}
+        StrCpy $LANGUAGE 1033  ; 英文
+    ${EndIf}
+    
+    ; 检测是否为 64 位系统
+    ${IfNot} ${RunningX64}
+        MessageBox MB_OK|MB_ICONSTOP "$(ErrorNot64Bit)"
+        Abort
+    ${EndIf}
+    
+    ; 检测磁盘空间
+    Call CheckDiskSpace
+    
+    ; 检测旧版本
+    Call CheckPreviousVersion
+    
+    ; 检测运行库
+    Call CheckVCRuntime
+    
+    ; 检测 Vulkan 支持
+    Call CheckVulkanSupport
+FunctionEnd
+
+; ----------------------------------------------------------------------------
+; 页面定义
+; ----------------------------------------------------------------------------
+; 语言选择页面（自定义）
+Page custom LanguageSelectionPage
+
+; 欢迎页面
 !insertmacro MUI_PAGE_WELCOME
-!insertmacro MUI_PAGE_LICENSE "..\LICENSE"
+
+; 许可协议页面
+!insertmacro MUI_PAGE_LICENSE "..\installer\license\license_$LANGUAGE.txt"
+
+; 安装目录选择页面
 !insertmacro MUI_PAGE_DIRECTORY
+
+; 数据目录选择页面（自定义）
+Page custom DataDirectoryPage
+
+; 安装选项页面
+!insertmacro MUI_PAGE_COMPONENTS
+
+; 安装进度页面
 !insertmacro MUI_PAGE_INSTFILES
+
+; 完成页面
 !insertmacro MUI_PAGE_FINISH
 
+; 卸载页面
 !insertmacro MUI_UNPAGE_WELCOME
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_UNPAGE_FINISH
 
-; 语言
+; ----------------------------------------------------------------------------
+; 多语言支持
+; ----------------------------------------------------------------------------
+; 安装程序语言
 !insertmacro MUI_LANGUAGE "SimpChinese"
 !insertmacro MUI_LANGUAGE "English"
 
+; 语言字符串定义
+; 简体中文
+LangString WelcomeTitle ${LANG_SIMPCHINESE} "欢迎使用 EnhanceVision 安装向导"
+LangString WelcomeText ${LANG_SIMPCHINESE} "本向导将引导您完成 EnhanceVision 的安装过程。$\r$\n$\r$\nEnhanceVision 是一款基于 Qt 6 + QML 的桌面端图像与视频画质增强工具，支持 Shader 模式和 AI 模式。$\r$\n$\r$\n建议您在继续之前关闭所有其他应用程序。"
+LangString FinishRunText ${LANG_SIMPCHINESE} "运行 EnhanceVision"
+LangString FinishReadmeText ${LANG_SIMPCHINESE} "查看 README 文件"
+LangString FinishLinkText ${LANG_SIMPCHINESE} "访问项目主页"
+LangString ErrorNot64Bit ${LANG_SIMPCHINESE} "此程序需要 64 位 Windows 系统。"
+LangString ErrorDiskSpace ${LANG_SIMPCHINESE} "磁盘空间不足！至少需要 ${MIN_DISK_SPACE_MB} MB 可用空间。"
+LangString ErrorVCRuntime ${LANG_SIMPCHINESE} "未检测到 Visual C++ 运行库，将自动安装。"
+LangString WarningVulkan ${LANG_SIMPCHINESE} "未检测到 Vulkan 支持。AI 增强功能将使用 CPU 模式，性能可能较慢。$\r$\n$\r$\n建议更新显卡驱动以获得最佳体验。"
+LangString LangSelectTitle ${LANG_SIMPCHINESE} "语言选择 / Language Selection"
+LangString LangSelectText ${LANG_SIMPCHINESE} "请选择安装程序语言："
+LangString LangSelectCN ${LANG_SIMPCHINESE} "简体中文"
+LangString LangSelectEN ${LANG_SIMPCHINESE} "English"
+LangString DataDirTitle ${LANG_SIMPCHINESE} "数据存储位置"
+LangString DataDirText ${LANG_SIMPCHINESE} "请选择数据存储目录（用于保存 AI 模型缓存、处理结果等）："
+LangString DataDirDefault ${LANG_SIMPCHINESE} "使用默认位置（推荐）"
+LangString DataDirCustom ${LANG_SIMPCHINESE} "自定义位置："
+LangString DataDirBrowse ${LANG_SIMPCHINESE} "浏览..."
+LangString SectionMain ${LANG_SIMPCHINESE} "主程序（必需）"
+LangString SectionMainDesc ${LANG_SIMPCHINESE} "安装 EnhanceVision 主程序和核心组件"
+LangString SectionShortcuts ${LANG_SIMPCHINESE} "开始菜单快捷方式"
+LangString SectionShortcutsDesc ${LANG_SIMPCHINESE} "在开始菜单创建程序组"
+LangString SectionDesktop ${LANG_SIMPCHINESE} "桌面快捷方式"
+LangString SectionDesktopDesc ${LANG_SIMPCHINESE} "在桌面创建快捷方式"
+LangString UninstallConfirm ${LANG_SIMPCHINESE} "确定要卸载 EnhanceVision 吗？"
+LangString UninstallKeepData ${LANG_SIMPCHINESE} "是否保留用户数据？"
+
+; 英文
+LangString WelcomeTitle ${LANG_ENGLISH} "Welcome to EnhanceVision Setup"
+LangString WelcomeText ${LANG_ENGLISH} "This wizard will guide you through the installation of EnhanceVision.$\r$\n$\r$\nEnhanceVision is a desktop image and video enhancement tool built with Qt 6 + QML, supporting both Shader and AI modes.$\r$\n$\r$\nIt is recommended that you close all other applications before continuing."
+LangString FinishRunText ${LANG_ENGLISH} "Run EnhanceVision"
+LangString FinishReadmeText ${LANG_ENGLISH} "View README file"
+LangString FinishLinkText ${LANG_ENGLISH} "Visit project homepage"
+LangString ErrorNot64Bit ${LANG_ENGLISH} "This program requires a 64-bit Windows system."
+LangString ErrorDiskSpace ${LANG_ENGLISH} "Insufficient disk space! At least ${MIN_DISK_SPACE_MB} MB is required."
+LangString ErrorVCRuntime ${LANG_ENGLISH} "Visual C++ runtime not detected. It will be installed automatically."
+LangString WarningVulkan ${LANG_ENGLISH} "Vulkan support not detected. AI enhancement will use CPU mode, which may be slower.$\r$\n$\r$\nIt is recommended to update your graphics driver for the best experience."
+LangString LangSelectTitle ${LANG_ENGLISH} "Language Selection"
+LangString LangSelectText ${LANG_ENGLISH} "Please select the installer language:"
+LangString LangSelectCN ${LANG_ENGLISH} "简体中文"
+LangString LangSelectEN ${LANG_ENGLISH} "English"
+LangString DataDirTitle ${LANG_ENGLISH} "Data Storage Location"
+LangString DataDirText ${LANG_ENGLISH} "Select the data storage directory (for AI model cache, processing results, etc.):"
+LangString DataDirDefault ${LANG_ENGLISH} "Use default location (Recommended)"
+LangString DataDirCustom ${LANG_ENGLISH} "Custom location:"
+LangString DataDirBrowse ${LANG_ENGLISH} "Browse..."
+LangString SectionMain ${LANG_ENGLISH} "Main Program (Required)"
+LangString SectionMainDesc ${LANG_ENGLISH} "Install EnhanceVision main program and core components"
+LangString SectionShortcuts ${LANG_ENGLISH} "Start Menu Shortcuts"
+LangString SectionShortcutsDesc ${LANG_ENGLISH} "Create program group in Start Menu"
+LangString SectionDesktop ${LANG_ENGLISH} "Desktop Shortcut"
+LangString SectionDesktopDesc ${LANG_ENGLISH} "Create shortcut on Desktop"
+LangString UninstallConfirm ${LANG_ENGLISH} "Are you sure you want to uninstall EnhanceVision?"
+LangString UninstallKeepData ${LANG_ENGLISH} "Do you want to keep user data?"
+
+; ----------------------------------------------------------------------------
+; 全局变量
+; ----------------------------------------------------------------------------
+Var DataDirPath
+Var UseDefaultDataDir
+Var PreviousVersion
+Var VulkanSupported
+Var VCRuntimeInstalled
+
+; ----------------------------------------------------------------------------
+; 语言选择页面
+; ----------------------------------------------------------------------------
+Function LanguageSelectionPage
+    !insertmacro MUI_HEADER_TEXT "$(LangSelectTitle)" "$(LangSelectText)"
+    
+    nsDialogs::Create 1018
+    Pop $0
+    
+    ${If} $0 == error
+        Abort
+    ${EndIf}
+    
+    ; 中文选项
+    ${NSD_CreateRadioButton} 20 20 100% 12u "$(LangSelectCN)"
+    Pop $1
+    ${NSD_AddStyle} $1 ${WS_GROUP}
+    ${NSD_OnClick} $1 OnSelectChinese
+    
+    ; 英文选项
+    ${NSD_CreateRadioButton} 20 40 100% 12u "$(LangSelectEN)"
+    Pop $2
+    ${NSD_OnClick} $2 OnSelectEnglish
+    
+    ; 根据系统语言默认选择
+    ${If} $LANGUAGE == 2052
+        ${NSD_Check} $1
+    ${Else}
+        ${NSD_Check} $2
+    ${EndIf}
+    
+    nsDialogs::Show
+FunctionEnd
+
+Function OnSelectChinese
+    StrCpy $LANGUAGE 2052
+FunctionEnd
+
+Function OnSelectEnglish
+    StrCpy $LANGUAGE 1033
+FunctionEnd
+
+; ----------------------------------------------------------------------------
+; 数据目录选择页面
+; ----------------------------------------------------------------------------
+Function DataDirectoryPage
+    !insertmacro MUI_HEADER_TEXT "$(DataDirTitle)" "$(DataDirText)"
+    
+    nsDialogs::Create 1018
+    Pop $0
+    
+    ${If} $0 == error
+        Abort
+    ${EndIf}
+    
+    ; 默认位置选项
+    ${NSD_CreateRadioButton} 20 20 100% 12u "$(DataDirDefault)"
+    Pop $1
+    ${NSD_AddStyle} $1 ${WS_GROUP}
+    ${NSD_OnClick} $1 OnSelectDefaultDataDir
+    ${NSD_Check} $1
+    
+    ; 默认路径显示
+    ${NSD_CreateLabel} 40 40 100% 12u "${DEFAULT_DATA_PATH}"
+    Pop $2
+    
+    ; 自定义位置选项
+    ${NSD_CreateRadioButton} 20 70 100% 12u "$(DataDirCustom)"
+    Pop $3
+    ${NSD_OnClick} $3 OnSelectCustomDataDir
+    
+    ; 自定义路径输入
+    ${NSD_CreateDirRequest} 40 90 280 12u "${DEFAULT_DATA_PATH}"
+    Pop $4
+    
+    ; 浏览按钮
+    ${NSD_CreateBrowseButton} 330 90 50 12u "$(DataDirBrowse)"
+    Pop $5
+    ${NSD_OnClick} $5 OnBrowseDataDir
+    
+    ; 初始化
+    StrCpy $UseDefaultDataDir 1
+    StrCpy $DataDirPath "${DEFAULT_DATA_PATH}"
+    
+    nsDialogs::Show
+FunctionEnd
+
+Function OnSelectDefaultDataDir
+    StrCpy $UseDefaultDataDir 1
+    StrCpy $DataDirPath "${DEFAULT_DATA_PATH}"
+FunctionEnd
+
+Function OnSelectCustomDataDir
+    StrCpy $UseDefaultDataDir 0
+FunctionEnd
+
+Function OnBrowseDataDir
+    nsDialogs::SelectFolderDialog "" ""
+    Pop $0
+    ${If} $0 != error
+        ${NSD_SetText} $4 "$0\EnhanceVision"
+        StrCpy $DataDirPath "$0\EnhanceVision"
+    ${EndIf}
+FunctionEnd
+
+; ----------------------------------------------------------------------------
+; 系统检测函数
+; ----------------------------------------------------------------------------
+
+; 检测磁盘空间
+Function CheckDiskSpace
+    ${DriveSpace} "C:" "/D=F /S=M" $0
+    ${If} $0 < ${MIN_DISK_SPACE_MB}
+        MessageBox MB_OK|MB_ICONSTOP "$(ErrorDiskSpace)"
+        Abort
+    ${EndIf}
+FunctionEnd
+
+; 检测旧版本
+Function CheckPreviousVersion
+    ReadRegStr $PreviousVersion HKLM "${APP_REGISTRY_KEY}" "Version"
+    
+    ${If} $PreviousVersion != ""
+        MessageBox MB_OKCANCEL|MB_ICONQUESTION \
+            "检测到已安装 EnhanceVision $PreviousVersion$\r$\n$\r$\n是否覆盖安装？（用户数据将被保留）" \
+            IDOK continue
+        Abort
+        
+        continue:
+        ; 保留用户数据，不删除配置文件
+    ${EndIf}
+FunctionEnd
+
+; 检测 VC++ 运行库
+Function CheckVCRuntime
+    StrCpy $VCRuntimeInstalled 0
+    
+    ; 检测 VC++ 2022 x64
+    ReadRegDword $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Installed"
+    ${If} $0 == 1
+        StrCpy $VCRuntimeInstalled 1
+    ${EndIf}
+    
+    ; 如果未安装，提示并准备安装
+    ${If} $VCRuntimeInstalled == 0
+        MessageBox MB_OK|MB_ICONINFORMATION "$(ErrorVCRuntime)"
+    ${EndIf}
+FunctionEnd
+
+; 检测 Vulkan 支持
+Function CheckVulkanSupport
+    StrCpy $VulkanSupported 0
+    
+    ; 检测 Vulkan 驱动
+    ${If} ${FileExists} "$SYSDIR\vulkan-1.dll"
+        StrCpy $VulkanSupported 1
+    ${EndIf}
+    
+    ; 如果不支持，显示警告
+    ${If} $VulkanSupported == 0
+        MessageBox MB_OK|MB_ICONWARNING "$(WarningVulkan)$\r$\n$\r$\n驱动下载链接：$\r$\nNVIDIA: https://www.nvidia.com/drivers$\r$\nAMD: https://www.amd.com/support$\r$\nIntel: https://downloadcenter.intel.com"
+    ${EndIf}
+FunctionEnd
+
+; ----------------------------------------------------------------------------
 ; 安装区段
-Section "EnhanceVision (required)" SecMain
+; ----------------------------------------------------------------------------
+
+; 主程序（必需）
+Section "$(SectionMain)" SecMain
     SectionIn RO
+    
+    ; 如果存在旧版本，先备份配置
+    ${If} $PreviousVersion != ""
+        ; 备份用户配置
+        IfFileExists "$APPDATA\EnhanceVision\settings.ini" 0 +3
+        CreateDirectory "$TEMP\EnhanceVision_backup"
+        CopyFiles "$APPDATA\EnhanceVision\settings.ini" "$TEMP\EnhanceVision_backup\"
+    ${EndIf}
     
     ; 设置输出路径
     SetOutPath $INSTDIR
@@ -170,38 +637,92 @@ Section "EnhanceVision (required)" SecMain
     ; 写入文件
     File /r "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\*.*"
     
+    ; 安装 VC++ 运行库（如果需要）
+    ${If} $VCRuntimeInstalled == 0
+        SetOutPath "$TEMP\vc_redist"
+        File "..\installer\redist\vc_redist.x64.exe"
+        ExecWait '"$TEMP\vc_redist\vc_redist.x64.exe" /quiet /norestart' $0
+        RMDir /r "$TEMP\vc_redist"
+    ${EndIf}
+    
+    ; 创建数据目录
+    ${If} $UseDefaultDataDir == 0
+        ; 使用自定义数据目录
+        CreateDirectory "$DataDirPath"
+        
+        ; 写入配置文件
+        SetShellVarContext current
+        CreateDirectory "$APPDATA\EnhanceVision"
+        WriteINIStr "$APPDATA\EnhanceVision\settings.ini" "General" "customDataPath" "$DataDirPath"
+    ${EndIf}
+    
+    ; 写入语言设置
+    ${If} $LANGUAGE == 2052
+        WriteINIStr "$APPDATA\EnhanceVision\settings.ini" "General" "language" "zh_CN"
+    ${Else}
+        WriteINIStr "$APPDATA\EnhanceVision\settings.ini" "General" "language" "en_US"
+    ${EndIf}
+    
+    ; 恢复用户配置（如果是覆盖安装）
+    ${If} $PreviousVersion != ""
+        IfFileExists "$TEMP\EnhanceVision_backup\settings.ini" 0 +3
+        CopyFiles "$TEMP\EnhanceVision_backup\settings.ini" "$APPDATA\EnhanceVision\"
+        RMDir /r "$TEMP\EnhanceVision_backup"
+    ${EndIf}
+    
     ; 创建卸载程序
     WriteUninstaller "$INSTDIR\Uninstall.exe"
     
     ; 写入注册表
-    WriteRegStr HKLM "Software\${APP_NAME}" "Install_Dir" "$INSTDIR"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayName" "${APP_NAME}"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayVersion" "${APP_VERSION}"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "Publisher" "${APP_PUBLISHER}"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "URLInfoAbout" "${APP_URL}"
+    WriteRegStr HKLM "${APP_REGISTRY_KEY}" "Install_Dir" "$INSTDIR"
+    WriteRegStr HKLM "${APP_REGISTRY_KEY}" "Version" "${APP_VERSION}"
+    WriteRegStr HKLM "${APP_REGISTRY_KEY}" "DataDir" "$DataDirPath"
+    
+    WriteRegStr HKLM "${APP_UNINSTALL_KEY}" "DisplayName" "${APP_NAME}"
+    WriteRegStr HKLM "${APP_UNINSTALL_KEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
+    WriteRegStr HKLM "${APP_UNINSTALL_KEY}" "DisplayVersion" "${APP_VERSION}"
+    WriteRegStr HKLM "${APP_UNINSTALL_KEY}" "Publisher" "${APP_PUBLISHER}"
+    WriteRegStr HKLM "${APP_UNINSTALL_KEY}" "URLInfoAbout" "${APP_URL}"
+    WriteRegStr HKLM "${APP_UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\EnhanceVision.exe"
     
     ; 计算安装大小
     ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
     IntFmt $0 "0x%08X" $0
-    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "EstimatedSize" "$0"
+    WriteRegDWORD HKLM "${APP_UNINSTALL_KEY}" "EstimatedSize" "$0"
 SectionEnd
 
 ; 开始菜单快捷方式
-Section "Start Menu Shortcuts" SecShortcuts
+Section "$(SectionShortcuts)" SecShortcuts
     CreateDirectory "$SMPROGRAMS\${APP_NAME}"
     CreateShortcut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\EnhanceVision.exe"
     CreateShortcut "$SMPROGRAMS\${APP_NAME}\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
 SectionEnd
 
-; 桌面快捷方式（可选）
-Section "Desktop Shortcut" SecDesktop
+; 桌面快捷方式
+Section "$(SectionDesktop)" SecDesktop
     CreateShortcut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\EnhanceVision.exe"
 SectionEnd
 
+; 区段描述
+!insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
+    !insertmacro MUI_DESCRIPTION_TEXT ${SecMain} "$(SectionMainDesc)"
+    !insertmacro MUI_DESCRIPTION_TEXT ${SecShortcuts} "$(SectionShortcutsDesc)"
+    !insertmacro MUI_DESCRIPTION_TEXT ${SecDesktop} "$(SectionDesktopDesc)"
+!insertmacro MUI_FUNCTION_DESCRIPTION_END
+
+; ----------------------------------------------------------------------------
 ; 卸载区段
+; ----------------------------------------------------------------------------
 Section "Uninstall"
-    ; 删除文件
+    ; 询问是否保留用户数据
+    MessageBox MB_YESNO|MB_ICONQUESTION "$(UninstallKeepData)" IDYES keepdata
+    
+    ; 删除用户数据
+    RMDir /r "$APPDATA\EnhanceVision"
+    
+    keepdata:
+    
+    ; 删除安装文件
     RMDir /r "$INSTDIR"
     
     ; 删除快捷方式
@@ -210,36 +731,226 @@ Section "Uninstall"
     Delete "$DESKTOP\${APP_NAME}.lnk"
     
     ; 删除注册表
-    DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
-    DeleteRegKey HKLM "Software\${APP_NAME}"
+    DeleteRegKey HKLM "${APP_UNINSTALL_KEY}"
+    DeleteRegKey HKLM "${APP_REGISTRY_KEY}"
 SectionEnd
+
+; ----------------------------------------------------------------------------
+; 卸载初始化
+; ----------------------------------------------------------------------------
+Function un.onInit
+    MessageBox MB_OKCANCEL|MB_ICONQUESTION "$(UninstallConfirm)" IDOK +2
+    Abort
+FunctionEnd
 ```
 
-### 2. 编译安装程序
+---
 
-```powershell
-# 创建 installer 目录
-New-Item -ItemType Directory -Force -Path installer
+## 高级功能实现
 
-# 编译 NSIS 脚本
-makensis installer\setup.nsi
+### 1. 语言选择机制
 
-# 输出文件
-# package\EnhanceVision-v0.1.0-windows-x64-installer.exe
+#### 工作流程
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     安装程序启动                             │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              检测系统语言（GetUserDefaultUILanguage）        │
+│              中文系统 → 默认选中中文                         │
+│              其他系统 → 默认选中英文                         │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              显示语言选择对话框                              │
+│              用户可手动切换语言                              │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              后续安装界面使用选定语言                        │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              安装完成时写入配置文件                          │
+│              %APPDATA%\EnhanceVision\settings.ini           │
+│              [General]                                       │
+│              language=zh_CN 或 en_US                         │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              应用启动时读取配置                              │
+│              SettingsController::loadSettings()              │
+│              Theme.setLanguage(lang)                         │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### 3. 测试安装程序
+#### 配置文件格式
 
-```powershell
-# 运行安装程序
-.\package\EnhanceVision-v0.1.0-windows-x64-installer.exe
+应用配置文件位于 `%APPDATA%\EnhanceVision\settings.ini`：
 
-# 验证安装
-Test-Path "C:\Program Files\EnhanceVision\EnhanceVision.exe"
-
-# 测试卸载
-# 控制面板 -> 程序和功能 -> EnhanceVision -> 卸载
+```ini
+[General]
+language=zh_CN
+customDataPath=D:\MyData\EnhanceVision
+theme=dark
 ```
+
+### 2. 数据目录选择机制
+
+#### 工作流程
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              安装过程中显示数据目录选择页面                  │
+└─────────────────────────────────────────────────────────────┘
+                              │
+              ┌───────────────┴───────────────┐
+              ▼                               ▼
+┌─────────────────────────┐     ┌─────────────────────────────┐
+│    使用默认位置          │     │    自定义位置               │
+│    %APPDATA%\           │     │    用户选择目录             │
+│    EnhanceVision        │     │                             │
+└─────────────────────────┘     └─────────────────────────────┘
+              │                               │
+              └───────────────┬───────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              创建数据目录（如果不存在）                      │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              写入配置文件                                    │
+│              如果是自定义路径，写入 customDataPath           │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              应用启动时读取                                  │
+│              SettingsController::effectiveDataPath()         │
+│              返回实际使用的数据路径                          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### 数据目录结构
+
+```
+EnhanceVision/
+├── ai_image/              # AI 图像处理缓存
+├── ai_video/              # AI 视频处理缓存
+├── shader_image/          # Shader 图像处理缓存
+├── shader_video/          # Shader 视频处理缓存
+├── logs/                  # 日志文件
+└── thumbnails/            # 缩略图缓存
+```
+
+### 3. 用户数据保护机制
+
+#### 覆盖安装流程
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              检测到旧版本安装                                │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              提示用户：是否覆盖安装？                        │
+│              （用户数据将被保留）                            │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              备份用户配置文件                                │
+│              %APPDATA%\EnhanceVision\settings.ini           │
+│              → %TEMP%\EnhanceVision_backup\                 │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              安装新版本文件                                  │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              恢复用户配置文件                                │
+│              合并新设置（如语言、数据目录）                  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### 卸载时数据保护
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              用户执行卸载                                    │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              询问：是否保留用户数据？                        │
+└─────────────────────────────────────────────────────────────┘
+              │                               │
+              ▼                               ▼
+┌─────────────────────────┐     ┌─────────────────────────────┐
+│    保留数据              │     │    删除数据                 │
+│    保留 settings.ini     │     │    删除 %APPDATA%\          │
+│    保留缓存文件          │     │    EnhanceVision\           │
+└─────────────────────────┘     └─────────────────────────────┘
+```
+
+### 4. 运行库检测与安装
+
+#### 检测逻辑
+
+```nsis
+; 检测 VC++ 2022 x64 运行库
+ReadRegDword $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Installed"
+${If} $0 == 1
+    ; 已安装
+${Else}
+    ; 未安装，自动安装
+    ExecWait '"vc_redist.x64.exe" /quiet /norestart'
+${EndIf}
+```
+
+#### 内嵌运行库
+
+将运行库安装程序放入 `installer/redist/` 目录：
+
+```
+installer/redist/
+├── vc_redist.x64.exe      # VC++ 2022 Redistributable (x64)
+└── dxwebsetup.exe         # DirectX Web Setup（可选）
+```
+
+### 5. Vulkan 支持检测
+
+#### 检测逻辑
+
+```nsis
+; 检测 Vulkan 驱动
+${If} ${FileExists} "$SYSDIR\vulkan-1.dll"
+    ; Vulkan 支持
+${Else}
+    ; 不支持，显示警告和驱动下载链接
+    MessageBox MB_OK|MB_ICONWARNING "未检测到 Vulkan 支持..."
+${EndIf}
+```
+
+#### 驱动下载链接
+
+| GPU 厂商 | 下载链接 |
+|----------|----------|
+| NVIDIA | https://www.nvidia.com/drivers |
+| AMD | https://www.amd.com/support |
+| Intel | https://downloadcenter.intel.com |
 
 ---
 
@@ -259,7 +970,22 @@ Compress-Archive -Path $sourceDir -DestinationPath $zipFile -Force
 # 7z a -tzip $zipFile $sourceDir
 ```
 
-### 2. 验证便携版
+### 2. 便携版启动器脚本
+
+创建 `portable\start.bat`：
+
+```batch
+@echo off
+REM EnhanceVision 便携版启动器
+
+REM 设置数据目录为当前目录下的 data 文件夹
+set APPDATA=%~dp0data
+
+REM 启动程序
+start "" "%~dp0EnhanceVision.exe"
+```
+
+### 3. 验证便携版
 
 ```powershell
 # 解压测试
@@ -355,13 +1081,13 @@ Write-Host "=== EnhanceVision 打包脚本 ===" -ForegroundColor Cyan
 Write-Host "版本: $Version" -ForegroundColor Cyan
 
 # 1. 构建 Release 版本
-Write-Host "`n[1/5] 构建 Release 版本..." -ForegroundColor Yellow
+Write-Host "`n[1/6] 构建 Release 版本..." -ForegroundColor Yellow
 cmake --preset windows-msvc-2022-release
 cmake --build build/msvc2022/Release --config Release -j 8
 if ($LASTEXITCODE -ne 0) { throw "构建失败" }
 
 # 2. 准备打包目录
-Write-Host "`n[2/5] 准备打包目录..." -ForegroundColor Yellow
+Write-Host "`n[2/6] 准备打包目录..." -ForegroundColor Yellow
 $packageDir = "package\EnhanceVision-v$Version-windows-x64"
 Remove-Item -Recurse -Force $packageDir -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
@@ -389,20 +1115,25 @@ EnhanceVision v$Version
 "@ | Out-File -FilePath "$packageDir\README.txt" -Encoding UTF8
 
 # 3. 验证打包
-Write-Host "`n[3/5] 验证打包..." -ForegroundColor Yellow
+Write-Host "`n[3/6] 验证打包..." -ForegroundColor Yellow
 .\scripts\verify-package.ps1 -Version $Version
 if ($LASTEXITCODE -ne 0) { throw "打包验证失败" }
 
 # 4. 创建安装程序
-Write-Host "`n[4/5] 创建安装程序..." -ForegroundColor Yellow
+Write-Host "`n[4/6] 创建安装程序..." -ForegroundColor Yellow
 makensis installer\setup.nsi
 if ($LASTEXITCODE -ne 0) { throw "创建安装程序失败" }
 
 # 5. 创建便携版
-Write-Host "`n[5/5] 创建便携版..." -ForegroundColor Yellow
+Write-Host "`n[5/6] 创建便携版..." -ForegroundColor Yellow
 $zipFile = "package\EnhanceVision-v$Version-windows-x64-portable.zip"
 Remove-Item -Force $zipFile -ErrorAction SilentlyContinue
 Compress-Archive -Path $packageDir -DestinationPath $zipFile
+
+# 6. 计算校验和
+Write-Host "`n[6/6] 计算校验和..." -ForegroundColor Yellow
+$installerHash = Get-FileHash "package\EnhanceVision-v$Version-windows-x64-installer.exe" -Algorithm SHA256
+$portableHash = Get-FileHash $zipFile -Algorithm SHA256
 
 Write-Host "`n=== 打包完成 ===" -ForegroundColor Green
 Write-Host "安装程序: package\EnhanceVision-v$Version-windows-x64-installer.exe"
@@ -414,11 +1145,49 @@ $portableSize = (Get-Item $zipFile).Length / 1MB
 Write-Host "`n文件大小:"
 Write-Host "  安装程序: $([math]::Round($installerSize, 2)) MB"
 Write-Host "  便携版: $([math]::Round($portableSize, 2)) MB"
+
+Write-Host "`nSHA256 校验和:"
+Write-Host "  安装程序: $($installerHash.Hash)"
+Write-Host "  便携版: $($portableHash.Hash)"
 ```
 
 运行完整打包：
 ```powershell
 .\scripts\build-package.ps1 -Version "0.1.0"
+```
+
+---
+
+## 安装程序资源准备
+
+### 1. 品牌图片规格
+
+| 图片 | 尺寸 | 格式 | 用途 |
+|------|------|------|------|
+| welcome.bmp | 500 x 314 | BMP 24-bit | 欢迎/完成页面 |
+| header.bmp | 150 x 57 | BMP 24-bit | 页面头部图片 |
+| app.ico | 256 x 256 | ICO | 应用图标 |
+
+### 2. 许可协议文件
+
+创建 `installer/license/license_zh.txt`：
+
+```
+EnhanceVision 最终用户许可协议
+
+版权所有 (c) 2025 EnhanceVision Contributors
+
+特此免费授予任何获得本软件副本和相关文档文件（"软件"）的人不受限制地处置该软件的权利...
+```
+
+创建 `installer/license/license_en.txt`：
+
+```
+EnhanceVision End User License Agreement
+
+Copyright (c) 2025 EnhanceVision Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy...
 ```
 
 ---
@@ -448,6 +1217,20 @@ Write-Host "  便携版: $([math]::Round($portableSize, 2)) MB"
 ### Q4: 卸载后残留文件
 
 **解决**: 检查 NSIS 脚本中的卸载区段，确保删除所有文件。
+
+### Q5: 语言设置不生效
+
+**解决**: 
+- 检查配置文件是否正确写入
+- 检查应用是否正确读取配置
+- 确认翻译文件存在
+
+### Q6: 自定义数据目录不生效
+
+**解决**:
+- 检查配置文件中 `customDataPath` 是否正确
+- 确认目录权限
+- 检查 `effectiveDataPath()` 返回值
 
 ---
 

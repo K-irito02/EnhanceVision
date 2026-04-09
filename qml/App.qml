@@ -214,7 +214,8 @@ FocusScope {
                 clip: true
 
                 onCollapseToggleRequested: {
-                    root.controlPanelCollapsed = !root.controlPanelCollapsed
+                    // 直接同步 UIStateController 的状态值，避免双重取反导致首次点击无效
+                    root.controlPanelCollapsed = UIStateController.controlPanelCollapsed
                 }
 
                 Behavior on Layout.preferredWidth {

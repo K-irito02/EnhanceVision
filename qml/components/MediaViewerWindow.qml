@@ -354,45 +354,20 @@ Window {
                     font.pixelSize: 12
                 }
 
-                Rectangle {
-                    id: compareButton
-                    visible: root.messageMode && root.currentFile && root.currentFile.resultPath && root.currentFile.originalPath && root.currentFile.resultPath !== root.currentFile.originalPath
-                    width: compareRow.implicitWidth + 16
-                    height: 28
-                    radius: 6
-                    color: showOriginal ? Theme.colors.primary : Theme.colors.card
-                    border.width: showOriginal ? 0 : 1
-                    border.color: Theme.colors.border
-
-                    Row {
-                        id: compareRow
-                        anchors.centerIn: parent
-                        spacing: 6
-
-                        ColoredIcon {
-                            anchors.verticalCenter: parent.verticalCenter
-                            source: Theme.icon("eye")
-                            iconSize: 14
-                            color: Theme.colors.foreground
-                        }
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: showOriginal ? qsTr("查看成果") : qsTr("查看源件")
-                            color: Theme.colors.foreground
-                            font.pixelSize: 12
-                        }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: showOriginal = !showOriginal
-                    }
-                }
-
                 Row {
                     id: titleBarButtonsRow
                     spacing: 2
+
+                    IconButton {
+                        id: compareButton
+                        visible: root.messageMode && root.currentFile && root.currentFile.resultPath && root.currentFile.originalPath && root.currentFile.resultPath !== root.currentFile.originalPath
+                        iconName: showOriginal ? "view-result" : "view-source"
+                        iconSize: 16
+                        btnSize: 32
+                        tooltip: showOriginal ? qsTr("点击查看成果") : qsTr("点击查看源件")
+                        iconColor: showOriginal ? Theme.colors.primary : Theme.colors.icon
+                        onClicked: showOriginal = !showOriginal
+                    }
 
                     IconButton {
                         iconName: root.visibility === Window.FullScreen ? "minimize-2" : "maximize"

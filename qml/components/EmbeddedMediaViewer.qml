@@ -549,22 +549,19 @@ Item {
                 Text { text: root.currentFile ? root.currentFile.fileName : qsTr("媒体查看器"); color: Theme.colors.foreground; font.pixelSize: 14; font.weight: Font.Medium; elide: Text.ElideMiddle; Layout.fillWidth: true; Layout.alignment: Qt.AlignVCenter }
                 Text { text: root.mediaFiles.length > 0 ? (root.currentIndex+1) + "/" + root.mediaFiles.length : ""; color: Theme.colors.mutedForeground; font.pixelSize: 12; Layout.alignment: Qt.AlignVCenter }
                 
-                Rectangle {
-                    id: compareButton
-                    visible: root._hasShaderOrOriginal
-                    width: cmpRow.implicitWidth + 16; height: 28; radius: 6
-                    color: root.showOriginal ? Theme.colors.primary : Theme.colors.muted
-                    Layout.alignment: Qt.AlignVCenter
-                    Row { id: cmpRow; anchors.centerIn: parent; spacing: 6
-                        ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("eye"); iconSize: 14; color: root.showOriginal ? "#FFF" : Theme.colors.foreground }
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: root.showOriginal ? qsTr("成果") : qsTr("源件"); color: root.showOriginal ? "#FFF" : Theme.colors.foreground; font.pixelSize: 12 }
-                    }
-                    MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.showOriginal = !root.showOriginal; z: 20 }
-                }
-                
                 Row {
                     id: btnRow; spacing: 2
                     Layout.alignment: Qt.AlignVCenter
+                    IconButton {
+                        id: compareButton
+                        visible: root._hasShaderOrOriginal
+                        iconName: root.showOriginal ? "view-result" : "view-source"
+                        iconSize: 16
+                        btnSize: 32
+                        tooltip: root.showOriginal ? qsTr("点击查看成果") : qsTr("点击查看源件")
+                        iconColor: root.showOriginal ? Theme.colors.primary : Theme.colors.icon
+                        onClicked: root.showOriginal = !root.showOriginal
+                    }
                     IconButton { iconName: "external-link"; iconSize: 16; btnSize: 32; tooltip: qsTr("独立窗口"); onClicked: root.switchToDetached() }
                     IconButton { iconName: "minus"; iconSize: 16; btnSize: 32; tooltip: qsTr("最小化"); onClicked: root.minimize() }
                     IconButton { iconName: "x"; iconSize: 16; btnSize: 32; danger: true; tooltip: qsTr("关闭"); onClicked: root.close() }
@@ -575,7 +572,7 @@ Item {
             MouseArea {
                 id: titleDragArea
                 anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom
-                anchors.rightMargin: btnRow.width + (compareButton.visible ? compareButton.width + 20 : 8)
+                anchors.rightMargin: btnRow.width + 8
                 
                 property real startX: 0
                 property real startY: 0
@@ -767,23 +764,20 @@ Item {
                     Text { text: root.currentFile ? root.currentFile.fileName : ""; color: Theme.colors.foreground; font.pixelSize: 14; font.weight: Font.Medium; elide: Text.ElideMiddle; Layout.fillWidth: true; Layout.alignment: Qt.AlignVCenter }
                     Text { text: root.mediaFiles.length > 0 ? (root.currentIndex+1) + "/" + root.mediaFiles.length : ""; color: Theme.colors.mutedForeground; font.pixelSize: 12; Layout.alignment: Qt.AlignVCenter }
                     
-                    Rectangle {
-                        id: detCompareButton
-                        visible: root._hasShaderOrOriginal
-                        width: cmpRow2.implicitWidth + 16; height: 28; radius: 6
-                        color: root.showOriginal ? Theme.colors.primary : Theme.colors.muted
-                        Layout.alignment: Qt.AlignVCenter
-                        Row { id: cmpRow2; anchors.centerIn: parent; spacing: 6
-                            ColoredIcon { anchors.verticalCenter: parent.verticalCenter; source: Theme.icon("eye"); iconSize: 14; color: root.showOriginal ? "#FFF" : Theme.colors.foreground }
-                            Text { anchors.verticalCenter: parent.verticalCenter; text: root.showOriginal ? qsTr("成果") : qsTr("源件"); color: root.showOriginal ? "#FFF" : Theme.colors.foreground; font.pixelSize: 12 }
-                        }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.showOriginal = !root.showOriginal; z: 20 }
-                    }
-                    
                     Row {
                         id: detBtnRow
                         spacing: 2
                         Layout.alignment: Qt.AlignVCenter
+                        IconButton {
+                            id: detCompareButton
+                            visible: root._hasShaderOrOriginal
+                            iconName: root.showOriginal ? "view-result" : "view-source"
+                            iconSize: 16
+                            btnSize: 32
+                            tooltip: root.showOriginal ? qsTr("点击查看成果") : qsTr("点击查看源件")
+                            iconColor: root.showOriginal ? Theme.colors.primary : Theme.colors.icon
+                            onClicked: root.showOriginal = !root.showOriginal
+                        }
                         IconButton { iconName: "minimize-2"; iconSize: 16; btnSize: 32; tooltip: qsTr("嵌入"); onClicked: root.switchToEmbedded() }
                         IconButton { iconName: "minus"; iconSize: 16; btnSize: 32; tooltip: qsTr("最小化"); onClicked: root.minimize() }
                         IconButton { 

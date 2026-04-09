@@ -2,6 +2,292 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="en_US">
 <context>
+    <name>AIEngine</name>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="154"/>
+        <source>Inference in progress, cannot switch model</source>
+        <translation type="unfinished">Inference in progress, cannot switch model</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="159"/>
+        <source>ModelRegistry not initialized</source>
+        <translation type="unfinished">ModelRegistry not initialized</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="164"/>
+        <source>Model not registered: %1</source>
+        <translation type="unfinished">Model not registered: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="179"/>
+        <source>Model file unavailable: %1</source>
+        <translation type="unfinished">Model file unavailable: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="218"/>
+        <source>Vulkan instance not created, GPU unavailable</source>
+        <translation type="unfinished">Vulkan instance not created, GPU unavailable</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="242"/>
+        <source>Failed to load model parameters: %1</source>
+        <translation type="unfinished">Failed to load model parameters: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="253"/>
+        <source>Failed to load model weights: %1</source>
+        <translation type="unfinished">Failed to load model weights: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="279"/>
+        <source>Model loading failed: %1</source>
+        <translation type="unfinished">Model loading failed: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="314"/>
+        <source>No model loaded</source>
+        <translation type="unfinished">No model loaded</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="320"/>
+        <source>Input image is empty or data invalid</source>
+        <translation type="unfinished">Input image is empty or data invalid</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="325"/>
+        <source>Invalid input image size: %1x%2</source>
+        <translation type="unfinished">Invalid input image size: %1x%2</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="438"/>
+        <location filename="../../src/core/AIEngine.cpp" line="439"/>
+        <source>Inference task already in progress</source>
+        <translation type="unfinished">Inference task already in progress</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="466"/>
+        <location filename="../../src/core/AIEngine.cpp" line="690"/>
+        <source>Cannot read image: %1</source>
+        <translation type="unfinished">Cannot read image: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="475"/>
+        <source>Invalid image format: %1</source>
+        <translation type="unfinished">Invalid image format: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="498"/>
+        <source>Inference cancelled</source>
+        <translation type="unfinished">Inference cancelled</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="504"/>
+        <source>Inference failed, please check model compatibility and input image</source>
+        <translation type="unfinished">Inference failed, please check model compatibility and input image</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="512"/>
+        <source>Cannot save result: %1</source>
+        <translation type="unfinished">Cannot save result: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="627"/>
+        <source>Invalid repair input</source>
+        <translation type="unfinished">Invalid repair input</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="680"/>
+        <location filename="../../src/core/AIEngine.cpp" line="681"/>
+        <source>Task already in progress</source>
+        <translation type="unfinished">Task already in progress</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="697"/>
+        <source>Repair failed</source>
+        <translation type="unfinished">Repair failed</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="698"/>
+        <source>Save failed: %1</source>
+        <translation type="unfinished">Save failed: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="771"/>
+        <source>Inference in progress, cannot switch backend</source>
+        <translation type="unfinished">Inference in progress, cannot switch backend</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="860"/>
+        <source>Vulkan support not enabled at compile time</source>
+        <translation type="unfinished">Vulkan support not enabled at compile time</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="878"/>
+        <source>Failed to create Vulkan instance</source>
+        <translation type="unfinished">Failed to create Vulkan instance</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="884"/>
+        <source>No Vulkan-capable GPU device found</source>
+        <translation type="unfinished">No Vulkan-capable GPU device found</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="918"/>
+        <source>GPU initialization failed: %1</source>
+        <translation type="unfinished">GPU initialization failed: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="923"/>
+        <source>GPU initialization failed: unknown exception</source>
+        <translation type="unfinished">GPU initialization failed: unknown exception</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="928"/>
+        <source>Application not compiled with Vulkan support</source>
+        <translation type="unfinished">Application not compiled with Vulkan support</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="1200"/>
+        <source>Model sync incomplete, cannot start inference</source>
+        <translation type="unfinished">Model sync incomplete, cannot start inference</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="1205"/>
+        <source>GPU not ready, cannot start inference</source>
+        <translation type="unfinished">GPU not ready, cannot start inference</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="1210"/>
+        <location filename="../../src/core/AIEngine.cpp" line="1263"/>
+        <source>Vulkan instance not created</source>
+        <translation type="unfinished">Vulkan instance not created</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="1251"/>
+        <source>Inference input failed, model input node mismatch</source>
+        <translation type="unfinished">Inference input failed, model input node mismatch</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="1285"/>
+        <source>Inference output failed, model output node mismatch (ret=%1)</source>
+        <translation type="unfinished">Inference output failed, model output node mismatch (ret=%1)</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="1573"/>
+        <source>Consecutive tile processing failures</source>
+        <translation type="unfinished">Consecutive tile processing failures</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="1676"/>
+        <source>Inference not fully completed (%1/%2 tiles successful)</source>
+        <translation type="unfinished">Inference not fully completed (%1/%2 tiles successful)</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="1711"/>
+        <source>TTA processing: %1/%2</source>
+        <translation type="unfinished">TTA processing: %1/%2</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/AIEngine.cpp" line="1740"/>
+        <source>Merging TTA results...</source>
+        <translation type="unfinished">Merging TTA results...</translation>
+    </message>
+</context>
+<context>
+    <name>AIInferenceWorker</name>
+    <message>
+        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="170"/>
+        <source>Preparing...</source>
+        <translation type="unfinished">Preparing...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="237"/>
+        <source>加载图像...</source>
+        <translation type="unfinished">Loading image...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="241"/>
+        <source>无法读取图像: %1</source>
+        <translation type="unfinished">Cannot read image: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="253"/>
+        <source>Loading model...</source>
+        <translation type="unfinished">Loading model...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="276"/>
+        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="285"/>
+        <source>AI推理中...</source>
+        <translation type="unfinished">AI inferring...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="304"/>
+        <source>AI推理失败，请检查模型兼容性</source>
+        <translation type="unfinished">AI inference failed, please check model compatibility</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="318"/>
+        <source>Saving result...</source>
+        <translation type="unfinished">Saving result...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="325"/>
+        <source>Cannot save result: %1</source>
+        <translation type="unfinished">Cannot save result: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="332"/>
+        <source>完成</source>
+        <translation type="unfinished">Completed</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="352"/>
+        <source>加载模型...</source>
+        <translation type="unfinished">Loading model...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="388"/>
+        <source>处理视频中...</source>
+        <translation type="unfinished">Processing video...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="399"/>
+        <source>Processing video...</source>
+        <translation type="unfinished">Processing video...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="429"/>
+        <source>Video processing failed</source>
+        <translation type="unfinished">Video processing failed</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="434"/>
+        <source>Completed</source>
+        <translation type="unfinished">Completed</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="447"/>
+        <source>AI引擎未初始化</source>
+        <translation type="unfinished">AI engine not initialized</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="452"/>
+        <source>Model registry not initialized</source>
+        <translation type="unfinished">Model registry not initialized</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="465"/>
+        <source>模型加载失败: %1</source>
+        <translation type="unfinished">Model loading failed: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="488"/>
+        <source>Cancelled</source>
+        <translation type="unfinished">Cancelled</translation>
+    </message>
+</context>
+<context>
     <name>AIModelPanel</name>
     <message>
         <location filename="../../qml/components/AIModelPanel.qml" line="40"/>
@@ -242,66 +528,151 @@
     </message>
 </context>
 <context>
+    <name>AIVideoProcessor</name>
+    <message>
+        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="88"/>
+        <source>Video processing task already in progress</source>
+        <translation type="unfinished">Video processing task already in progress</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="235"/>
+        <source>AI engine not initialized</source>
+        <translation type="unfinished">AI engine not initialized</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="243"/>
+        <source>AI model not loaded</source>
+        <translation type="unfinished">AI model not loaded</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="266"/>
+        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="399"/>
+        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="416"/>
+        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="454"/>
+        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="628"/>
+        <source>Video processing cancelled</source>
+        <translation type="unfinished">Video processing cancelled</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="287"/>
+        <source>Video incompatible, cannot process</source>
+        <translation type="unfinished">Video incompatible, cannot process</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="303"/>
+        <source>Decoder initialization failed</source>
+        <translation type="unfinished">Decoder initialization failed</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="315"/>
+        <source>Invalid video size: %1x%2</source>
+        <translation type="unfinished">Invalid video size: %1x%2</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="321"/>
+        <source>Invalid output size: %1x%2</source>
+        <translation type="unfinished">Invalid output size: %1x%2</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="655"/>
+        <source>AI inference failed repeatedly. The model may be incompatible or GPU memory insufficient</source>
+        <translation type="unfinished">AI inference failed repeatedly. The model may be incompatible or GPU memory insufficient</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="731"/>
+        <source>Failed to allocate encoder frame buffer</source>
+        <translation type="unfinished">Failed to allocate encoder frame buffer</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="856"/>
+        <source>Video processing completed but output file is invalid</source>
+        <translation type="unfinished">Video processing completed but output file is invalid</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="860"/>
+        <source>Video processing failed: no frames successfully processed</source>
+        <translation type="unfinished">Video processing failed: no frames successfully processed</translation>
+    </message>
+</context>
+<context>
     <name>App</name>
     <message>
-        <location filename="../../qml/App.qml" line="322"/>
+        <location filename="../../qml/App.qml" line="323"/>
         <source>上次退出时仍有未完成任务</source>
         <translation>There Were Unfinished Tasks on Last Exit</translation>
     </message>
     <message>
-        <location filename="../../qml/App.qml" line="337"/>
+        <location filename="../../qml/App.qml" line="338"/>
         <source>检测到应用异常退出。您可以恢复关闭前的任务状态，或直接将这些未完成任务标记为失败。</source>
         <translation>An abnormal app exit was detected. You can restore previous task states or mark them all as failed.</translation>
     </message>
     <message>
-        <location filename="../../qml/App.qml" line="338"/>
+        <location filename="../../qml/App.qml" line="339"/>
         <source>检测到上次关闭前仍有未完成任务。您可以恢复关闭前的任务状态，或直接将这些未完成任务标记为失败。</source>
         <translation>Unfinished tasks were detected before last shutdown. You can restore previous task states or mark them all as failed.</translation>
     </message>
     <message>
-        <location filename="../../qml/App.qml" line="364"/>
+        <location filename="../../qml/App.qml" line="365"/>
         <source>涉及 %1 个会话标签，共 %2 张消息卡片待恢复。</source>
         <translation>%1 session tabs involved, %2 message cards pending recovery.</translation>
     </message>
     <message>
-        <location filename="../../qml/App.qml" line="437"/>
+        <location filename="../../qml/App.qml" line="438"/>
         <source>当前会话</source>
         <translation>Current Session</translation>
     </message>
     <message>
-        <location filename="../../qml/App.qml" line="446"/>
+        <location filename="../../qml/App.qml" line="447"/>
         <source>%1 张消息卡片待恢复</source>
         <translation>%1 message cards pending recovery</translation>
     </message>
     <message>
-        <location filename="../../qml/App.qml" line="468"/>
+        <location filename="../../qml/App.qml" line="469"/>
         <source>关闭前处理中 %1</source>
         <translation>Processing before close: %1</translation>
     </message>
     <message>
-        <location filename="../../qml/App.qml" line="485"/>
+        <location filename="../../qml/App.qml" line="486"/>
         <source>关闭前等待 %1</source>
         <translation>Pending before close: %1</translation>
     </message>
     <message>
-        <location filename="../../qml/App.qml" line="504"/>
+        <location filename="../../qml/App.qml" line="505"/>
         <source>关闭前暂停 %1</source>
         <translation>Paused before close: %1</translation>
     </message>
     <message>
-        <location filename="../../qml/App.qml" line="534"/>
+        <location filename="../../qml/App.qml" line="535"/>
         <source>恢复快照不可用，当前只能将这些未完成任务统一标记为失败。</source>
         <translation>Recovery snapshot unavailable. These unfinished tasks can only be marked as failed.</translation>
     </message>
     <message>
-        <location filename="../../qml/App.qml" line="547"/>
+        <location filename="../../qml/App.qml" line="548"/>
         <source>全部标记为失败</source>
         <translation>Mark All as Failed</translation>
     </message>
     <message>
-        <location filename="../../qml/App.qml" line="560"/>
+        <location filename="../../qml/App.qml" line="561"/>
         <source>恢复关闭前状态</source>
         <translation>Restore Previous State</translation>
+    </message>
+</context>
+<context>
+    <name>AutoSaveService</name>
+    <message>
+        <location filename="../../src/services/AutoSaveService.cpp" line="68"/>
+        <source>源文件不存在</source>
+        <translation type="unfinished">Source file does not exist</translation>
+    </message>
+    <message>
+        <location filename="../../src/services/AutoSaveService.cpp" line="90"/>
+        <source>无法创建目标目录: %1</source>
+        <translation type="unfinished">Cannot create target directory: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/services/AutoSaveService.cpp" line="97"/>
+        <source>File copy failed</source>
+        <translation type="unfinished">File copy failed</translation>
     </message>
 </context>
 <context>
@@ -353,7 +724,7 @@
     <message>
         <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="481"/>
         <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="549"/>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="719"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="716"/>
         <source>媒体查看器</source>
         <translation>Media Viewer</translation>
     </message>
@@ -368,91 +739,99 @@
         <translation>Release to open in separate window</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="560"/>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="778"/>
         <source>成果</source>
-        <translation>Result</translation>
+        <translation type="vanished">Result</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="560"/>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="778"/>
         <source>源件</source>
-        <translation>Source</translation>
+        <translation type="vanished">Source</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="568"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="565"/>
         <source>独立窗口</source>
         <translation>Separate Window</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="569"/>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="788"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="566"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="782"/>
         <source>最小化</source>
         <translation>Minimize</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="570"/>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="813"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="567"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="807"/>
         <source>关闭</source>
         <translation>Close</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="787"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="781"/>
         <source>嵌入</source>
         <translation>Embed</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="793"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="787"/>
         <source>退出全屏</source>
         <translation>Exit Fullscreen</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="793"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="787"/>
         <source>全屏</source>
         <translation>Fullscreen</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="853"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="847"/>
         <source>松开鼠标吸附到消息区域</source>
         <translation>Release to snap to message area</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1348"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1342"/>
         <source>无媒体文件</source>
         <translation>No media file</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1395"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1389"/>
         <source>-10s</source>
         <translation>-10s</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1396"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1390"/>
         <source>播放/暂停</source>
         <translation>Play/Pause</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1397"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1391"/>
         <source>+10s</source>
         <translation>+10s</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1590"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1584"/>
         <source>静音</source>
         <translation>Mute</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1508"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1502"/>
         <source>开/切自动播放</source>
         <translation>Auto Play on Open/Switch</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1543"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="561"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="777"/>
+        <source>点击查看成果</source>
+        <translation>Click to view result</translation>
+    </message>
+    <message>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="561"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="777"/>
+        <source>点击查看源件</source>
+        <translation>Click to view source</translation>
+    </message>
+    <message>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1537"/>
         <source>源/结自动播放</source>
         <translation>Auto Play on Source/Result</translation>
     </message>
     <message>
-        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1578"/>
+        <location filename="../../qml/components/EmbeddedMediaViewer.qml" line="1572"/>
         <source>源/结恢复进度</source>
         <translation>Restore Position on Source/Result</translation>
     </message>
@@ -460,1314 +839,1054 @@
 <context>
     <name>EnhanceVision::AIEngine</name>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="154"/>
         <source>Inference in progress, cannot switch model</source>
-        <translation>Inference in progress, cannot switch model</translation>
+        <translation type="vanished">Inference in progress, cannot switch model</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="159"/>
         <source>ModelRegistry not initialized</source>
-        <translation>ModelRegistry not initialized</translation>
+        <translation type="vanished">ModelRegistry not initialized</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="164"/>
         <source>Model not registered: %1</source>
-        <translation>Model not registered: %1</translation>
+        <translation type="vanished">Model not registered: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="179"/>
         <source>Model file unavailable: %1</source>
-        <translation>Model file unavailable: %1</translation>
+        <translation type="vanished">Model file unavailable: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="218"/>
         <source>Vulkan instance not created, GPU unavailable</source>
-        <translation>Vulkan instance not created, GPU unavailable</translation>
+        <translation type="vanished">Vulkan instance not created, GPU unavailable</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="242"/>
         <source>Failed to load model parameters: %1</source>
-        <translation>Failed to load model parameters: %1</translation>
+        <translation type="vanished">Failed to load model parameters: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="253"/>
         <source>Failed to load model weights: %1</source>
-        <translation>Failed to load model weights: %1</translation>
+        <translation type="vanished">Failed to load model weights: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="279"/>
         <source>Model loading failed: %1</source>
-        <translation>Model loading failed: %1</translation>
+        <translation type="vanished">Model loading failed: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="314"/>
         <source>No model loaded</source>
-        <translation>No model loaded</translation>
+        <translation type="vanished">No model loaded</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="320"/>
         <source>Input image is empty or data invalid</source>
-        <translation>Input image is empty or data invalid</translation>
+        <translation type="vanished">Input image is empty or data invalid</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="325"/>
         <source>Invalid input image size: %1x%2</source>
-        <translation>Invalid input image size: %1x%2</translation>
+        <translation type="vanished">Invalid input image size: %1x%2</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="438"/>
-        <location filename="../../src/core/AIEngine.cpp" line="439"/>
         <source>Inference task already in progress</source>
-        <translation>Inference task already in progress</translation>
+        <translation type="vanished">Inference task already in progress</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="466"/>
-        <location filename="../../src/core/AIEngine.cpp" line="690"/>
         <source>Cannot read image: %1</source>
-        <translation>Cannot read image: %1</translation>
+        <translation type="vanished">Cannot read image: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="475"/>
         <source>Invalid image format: %1</source>
-        <translation>Invalid image format: %1</translation>
+        <translation type="vanished">Invalid image format: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="498"/>
         <source>Inference cancelled</source>
-        <translation>Inference cancelled</translation>
+        <translation type="vanished">Inference cancelled</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="504"/>
         <source>Inference failed, please check model compatibility and input image</source>
-        <translation>Inference failed, please check model compatibility and input image</translation>
+        <translation type="vanished">Inference failed, please check model compatibility and input image</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="512"/>
         <source>Cannot save result: %1</source>
-        <translation>Cannot save result: %1</translation>
+        <translation type="vanished">Cannot save result: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="627"/>
         <source>Invalid repair input</source>
-        <translation>Invalid repair input</translation>
+        <translation type="vanished">Invalid repair input</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="680"/>
-        <location filename="../../src/core/AIEngine.cpp" line="681"/>
         <source>Task already in progress</source>
-        <translation>Task already in progress</translation>
+        <translation type="vanished">Task already in progress</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="697"/>
         <source>Repair failed</source>
-        <translation>Repair failed</translation>
+        <translation type="vanished">Repair failed</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="698"/>
         <source>Save failed: %1</source>
-        <translation>Save failed: %1</translation>
+        <translation type="vanished">Save failed: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="771"/>
         <source>Inference in progress, cannot switch backend</source>
-        <translation>Inference in progress, cannot switch backend</translation>
+        <translation type="vanished">Inference in progress, cannot switch backend</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="860"/>
         <source>Vulkan support not enabled at compile time</source>
-        <translation>Vulkan support not enabled at compile time</translation>
+        <translation type="vanished">Vulkan support not enabled at compile time</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="878"/>
         <source>Failed to create Vulkan instance</source>
-        <translation>Failed to create Vulkan instance</translation>
+        <translation type="vanished">Failed to create Vulkan instance</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="884"/>
         <source>No Vulkan-capable GPU device found</source>
-        <translation>No Vulkan-capable GPU device found</translation>
+        <translation type="vanished">No Vulkan-capable GPU device found</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="918"/>
         <source>GPU initialization failed: %1</source>
-        <translation>GPU initialization failed: %1</translation>
+        <translation type="vanished">GPU initialization failed: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="923"/>
         <source>GPU initialization failed: unknown exception</source>
-        <translation>GPU initialization failed: unknown exception</translation>
+        <translation type="vanished">GPU initialization failed: unknown exception</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="928"/>
         <source>Application not compiled with Vulkan support</source>
-        <translation>Application not compiled with Vulkan support</translation>
+        <translation type="vanished">Application not compiled with Vulkan support</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="1200"/>
         <source>Model sync incomplete, cannot start inference</source>
-        <translation>Model sync incomplete, cannot start inference</translation>
+        <translation type="vanished">Model sync incomplete, cannot start inference</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="1205"/>
         <source>GPU not ready, cannot start inference</source>
-        <translation>GPU not ready, cannot start inference</translation>
+        <translation type="vanished">GPU not ready, cannot start inference</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="1210"/>
-        <location filename="../../src/core/AIEngine.cpp" line="1263"/>
         <source>Vulkan instance not created</source>
-        <translation>Vulkan instance not created</translation>
+        <translation type="vanished">Vulkan instance not created</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="1251"/>
         <source>Inference input failed, model input node mismatch</source>
-        <translation>Inference input failed, model input node mismatch</translation>
+        <translation type="vanished">Inference input failed, model input node mismatch</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="1285"/>
         <source>Inference output failed, model output node mismatch (ret=%1)</source>
-        <translation>Inference output failed, model output node mismatch (ret=%1)</translation>
+        <translation type="vanished">Inference output failed, model output node mismatch (ret=%1)</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="1573"/>
         <source>Consecutive tile processing failures</source>
-        <translation>Consecutive tile processing failures</translation>
+        <translation type="vanished">Consecutive tile processing failures</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="1676"/>
         <source>Inference not fully completed (%1/%2 tiles successful)</source>
-        <translation>Inference not fully completed (%1/%2 tiles successful)</translation>
+        <translation type="vanished">Inference not fully completed (%1/%2 tiles successful)</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="1711"/>
         <source>TTA processing: %1/%2</source>
-        <translation>TTA processing: %1/%2</translation>
+        <translation type="vanished">TTA processing: %1/%2</translation>
     </message>
     <message>
-        <location filename="../../src/core/AIEngine.cpp" line="1740"/>
         <source>Merging TTA results...</source>
-        <translation>Merging TTA results...</translation>
+        <translation type="vanished">Merging TTA results...</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::AIInferenceWorker</name>
     <message>
-        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="237"/>
         <source>加载图像...</source>
-        <translation>Loading image...</translation>
+        <translation type="vanished">Loading image...</translation>
     </message>
     <message>
-        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="241"/>
         <source>无法读取图像: %1</source>
-        <translation>Cannot read image: %1</translation>
+        <translation type="vanished">Cannot read image: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="253"/>
         <source>Loading model...</source>
-        <translation>Loading model...</translation>
+        <translation type="vanished">Loading model...</translation>
     </message>
     <message>
-        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="318"/>
         <source>Saving result...</source>
-        <translation>Saving result...</translation>
+        <translation type="vanished">Saving result...</translation>
     </message>
     <message>
-        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="325"/>
         <source>Cannot save result: %1</source>
-        <translation>Cannot save result: %1</translation>
+        <translation type="vanished">Cannot save result: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="352"/>
         <source>加载模型...</source>
-        <translation>Loading model...</translation>
+        <translation type="vanished">Loading model...</translation>
     </message>
     <message>
-        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="399"/>
         <source>Processing video...</source>
-        <translation>Processing video...</translation>
+        <translation type="vanished">Processing video...</translation>
     </message>
     <message>
-        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="429"/>
         <source>Video processing failed</source>
-        <translation>Video processing failed</translation>
+        <translation type="vanished">Video processing failed</translation>
     </message>
     <message>
-        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="434"/>
         <source>Completed</source>
-        <translation>Completed</translation>
+        <translation type="vanished">Completed</translation>
     </message>
     <message>
-        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="452"/>
         <source>Model registry not initialized</source>
-        <translation>Model registry not initialized</translation>
+        <translation type="vanished">Model registry not initialized</translation>
     </message>
     <message>
-        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="488"/>
         <source>Cancelled</source>
-        <translation>Cancelled</translation>
+        <translation type="vanished">Cancelled</translation>
     </message>
     <message>
-        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="276"/>
-        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="285"/>
         <source>AI推理中...</source>
-        <translation>AI inferring...</translation>
+        <translation type="vanished">AI inferring...</translation>
     </message>
     <message>
-        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="170"/>
         <source>Preparing...</source>
-        <translation>Preparing...</translation>
+        <translation type="vanished">Preparing...</translation>
     </message>
     <message>
-        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="304"/>
         <source>AI推理失败，请检查模型兼容性</source>
-        <translation>AI inference failed, please check model compatibility</translation>
+        <translation type="vanished">AI inference failed, please check model compatibility</translation>
     </message>
     <message>
-        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="332"/>
         <source>完成</source>
-        <translation>Completed</translation>
+        <translation type="vanished">Completed</translation>
     </message>
     <message>
-        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="388"/>
         <source>处理视频中...</source>
-        <translation>Processing video...</translation>
+        <translation type="vanished">Processing video...</translation>
     </message>
     <message>
-        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="447"/>
         <source>AI引擎未初始化</source>
-        <translation>AI engine not initialized</translation>
+        <translation type="vanished">AI engine not initialized</translation>
     </message>
     <message>
-        <location filename="../../src/core/ai/AIInferenceWorker.cpp" line="465"/>
         <source>模型加载失败: %1</source>
-        <translation>Model loading failed: %1</translation>
+        <translation type="vanished">Model loading failed: %1</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::AIVideoProcessor</name>
     <message>
-        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="88"/>
         <source>Video processing task already in progress</source>
-        <translation>Video processing task already in progress</translation>
+        <translation type="vanished">Video processing task already in progress</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="235"/>
         <source>AI engine not initialized</source>
-        <translation>AI engine not initialized</translation>
+        <translation type="vanished">AI engine not initialized</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="243"/>
         <source>AI model not loaded</source>
-        <translation>AI model not loaded</translation>
+        <translation type="vanished">AI model not loaded</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="266"/>
-        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="399"/>
-        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="416"/>
-        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="454"/>
-        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="628"/>
         <source>Video processing cancelled</source>
-        <translation>Video processing cancelled</translation>
+        <translation type="vanished">Video processing cancelled</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="287"/>
         <source>Video incompatible, cannot process</source>
-        <translation>Video incompatible, cannot process</translation>
+        <translation type="vanished">Video incompatible, cannot process</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="303"/>
         <source>Decoder initialization failed</source>
-        <translation>Decoder initialization failed</translation>
+        <translation type="vanished">Decoder initialization failed</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="315"/>
         <source>Invalid video size: %1x%2</source>
-        <translation>Invalid video size: %1x%2</translation>
+        <translation type="vanished">Invalid video size: %1x%2</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="321"/>
         <source>Invalid output size: %1x%2</source>
-        <translation>Invalid output size: %1x%2</translation>
+        <translation type="vanished">Invalid output size: %1x%2</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="655"/>
         <source>AI inference failed repeatedly. The model may be incompatible or GPU memory insufficient</source>
-        <translation>AI inference failed repeatedly. The model may be incompatible or GPU memory insufficient</translation>
+        <translation type="vanished">AI inference failed repeatedly. The model may be incompatible or GPU memory insufficient</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="731"/>
         <source>Failed to allocate encoder frame buffer</source>
-        <translation>Failed to allocate encoder frame buffer</translation>
+        <translation type="vanished">Failed to allocate encoder frame buffer</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="856"/>
         <source>Video processing completed but output file is invalid</source>
-        <translation>Video processing completed but output file is invalid</translation>
+        <translation type="vanished">Video processing completed but output file is invalid</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/AIVideoProcessor.cpp" line="860"/>
         <source>Video processing failed: no frames successfully processed</source>
-        <translation>Video processing failed: no frames successfully processed</translation>
+        <translation type="vanished">Video processing failed: no frames successfully processed</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::AutoSaveService</name>
     <message>
-        <location filename="../../src/services/AutoSaveService.cpp" line="68"/>
         <source>源文件不存在</source>
-        <translation>Source file does not exist</translation>
+        <translation type="vanished">Source file does not exist</translation>
     </message>
     <message>
-        <location filename="../../src/services/AutoSaveService.cpp" line="90"/>
         <source>无法创建目标目录: %1</source>
-        <translation>Cannot create target directory: %1</translation>
+        <translation type="vanished">Cannot create target directory: %1</translation>
     </message>
     <message>
-        <location filename="../../src/services/AutoSaveService.cpp" line="97"/>
         <source>File copy failed</source>
-        <translation>File copy failed</translation>
+        <translation type="vanished">File copy failed</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::FileController</name>
     <message>
-        <location filename="../../src/controllers/FileController.cpp" line="93"/>
         <source>不支持的文件格式: %1</source>
-        <translation>Unsupported file format: %1</translation>
+        <translation type="vanished">Unsupported file format: %1</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/FileController.cpp" line="191"/>
         <source>图片文件</source>
-        <translation>Image Files</translation>
+        <translation type="vanished">Image Files</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/FileController.cpp" line="199"/>
         <source>视频文件</source>
-        <translation>Video Files</translation>
+        <translation type="vanished">Video Files</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/FileController.cpp" line="207"/>
         <source>所有支持的文件</source>
-        <translation>All Supported Files</translation>
+        <translation type="vanished">All Supported Files</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/FileController.cpp" line="211"/>
         <source>所有文件 (*.*)</source>
-        <translation>All Files (*.*)</translation>
+        <translation type="vanished">All Files (*.*)</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/FileController.cpp" line="225"/>
         <source>保存文件失败: %1</source>
-        <translation>Failed to save file: %1</translation>
+        <translation type="vanished">Failed to save file: %1</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::FileModel</name>
     <message>
-        <location filename="../../src/models/FileModel.cpp" line="142"/>
         <source>文件不存在: %1</source>
-        <translation>File not found: %1</translation>
+        <translation type="vanished">File not found: %1</translation>
     </message>
     <message>
-        <location filename="../../src/models/FileModel.cpp" line="147"/>
         <source>不支持的文件格式: %1</source>
-        <translation>Unsupported file format: %1</translation>
+        <translation type="vanished">Unsupported file format: %1</translation>
     </message>
     <message>
-        <location filename="../../src/models/FileModel.cpp" line="152"/>
         <source>File size exceeds limit (max 2GB): %1</source>
-        <translation>File size exceeds limit (max 2GB): %1</translation>
+        <translation type="vanished">File size exceeds limit (max 2GB): %1</translation>
     </message>
     <message>
-        <location filename="../../src/models/FileModel.cpp" line="267"/>
         <source>%1 B</source>
-        <translation>%1 B</translation>
+        <translation type="vanished">%1 B</translation>
     </message>
     <message>
-        <location filename="../../src/models/FileModel.cpp" line="269"/>
         <source>%1 KB</source>
-        <translation>%1 KB</translation>
+        <translation type="vanished">%1 KB</translation>
     </message>
     <message>
-        <location filename="../../src/models/FileModel.cpp" line="271"/>
         <source>%1 MB</source>
-        <translation>%1 MB</translation>
+        <translation type="vanished">%1 MB</translation>
     </message>
     <message>
-        <location filename="../../src/models/FileModel.cpp" line="273"/>
         <source>%1 GB</source>
-        <translation>%1 GB</translation>
+        <translation type="vanished">%1 GB</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::ImageProcessor</name>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="135"/>
         <source>Idle</source>
-        <translation>Idle</translation>
+        <translation type="vanished">Idle</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="136"/>
         <source>Loading Image</source>
-        <translation>Loading Image</translation>
+        <translation type="vanished">Loading Image</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="137"/>
         <source>Preprocessing</source>
-        <translation>Preprocessing</translation>
+        <translation type="vanished">Preprocessing</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="138"/>
         <source>Color Adjustment</source>
-        <translation>Color Adjustment</translation>
+        <translation type="vanished">Color Adjustment</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="139"/>
         <source>Applying Effects</source>
-        <translation>Applying Effects</translation>
+        <translation type="vanished">Applying Effects</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="140"/>
         <source>Postprocessing</source>
-        <translation>Postprocessing</translation>
+        <translation type="vanished">Postprocessing</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="141"/>
         <source>Saving Result</source>
-        <translation>Saving Result</translation>
+        <translation type="vanished">Saving Result</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="142"/>
         <source>Completed</source>
-        <translation>Completed</translation>
+        <translation type="vanished">Completed</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="544"/>
-        <location filename="../../src/core/ImageProcessor.cpp" line="546"/>
         <source>Processing task already in progress</source>
-        <translation>Processing task already in progress</translation>
+        <translation type="vanished">Processing task already in progress</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="556"/>
         <source>Processing Image</source>
-        <translation>Processing Image</translation>
+        <translation type="vanished">Processing Image</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="566"/>
-        <location filename="../../src/core/ImageProcessor.cpp" line="579"/>
-        <location filename="../../src/core/ImageProcessor.cpp" line="594"/>
-        <location filename="../../src/core/ImageProcessor.cpp" line="712"/>
-        <location filename="../../src/core/ImageProcessor.cpp" line="746"/>
-        <location filename="../../src/core/ImageProcessor.cpp" line="782"/>
-        <location filename="../../src/core/ImageProcessor.cpp" line="784"/>
         <source>Processing cancelled</source>
-        <translation>Processing cancelled</translation>
+        <translation type="vanished">Processing cancelled</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="570"/>
-        <location filename="../../src/core/ImageProcessor.cpp" line="571"/>
         <source>Reading image...</source>
-        <translation>Reading image...</translation>
+        <translation type="vanished">Reading image...</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="575"/>
         <source>Cannot read image file</source>
-        <translation>Cannot read image file</translation>
+        <translation type="vanished">Cannot read image file</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="582"/>
-        <location filename="../../src/core/ImageProcessor.cpp" line="583"/>
         <source>Image loaded</source>
-        <translation>Image loaded</translation>
+        <translation type="vanished">Image loaded</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="704"/>
         <source>Color adjustment</source>
-        <translation>Color adjustment</translation>
+        <translation type="vanished">Color adjustment</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="706"/>
-        <location filename="../../src/core/ImageProcessor.cpp" line="707"/>
         <source>Applying color adjustment...</source>
-        <translation>Applying color adjustment...</translation>
+        <translation type="vanished">Applying color adjustment...</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="724"/>
-        <location filename="../../src/core/ImageProcessor.cpp" line="725"/>
         <source>Applying blur effect...</source>
-        <translation>Applying blur effect...</translation>
+        <translation type="vanished">Applying blur effect...</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="731"/>
-        <location filename="../../src/core/ImageProcessor.cpp" line="732"/>
         <source>Applying denoise effect...</source>
-        <translation>Applying denoise effect...</translation>
+        <translation type="vanished">Applying denoise effect...</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="738"/>
-        <location filename="../../src/core/ImageProcessor.cpp" line="739"/>
         <source>Applying sharpen effect...</source>
-        <translation>Applying sharpen effect...</translation>
+        <translation type="vanished">Applying sharpen effect...</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="750"/>
-        <location filename="../../src/core/ImageProcessor.cpp" line="751"/>
         <source>Saving result...</source>
-        <translation>Saving result...</translation>
+        <translation type="vanished">Saving result...</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="754"/>
         <source>Cannot save image file</source>
-        <translation>Cannot save image file</translation>
+        <translation type="vanished">Cannot save image file</translation>
     </message>
     <message>
-        <location filename="../../src/core/ImageProcessor.cpp" line="766"/>
-        <location filename="../../src/core/ImageProcessor.cpp" line="767"/>
         <source>Processing complete</source>
-        <translation>Processing complete</translation>
+        <translation type="vanished">Processing complete</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::MainWindow</name>
     <message>
-        <location filename="../../src/app/MainWindow.cpp" line="14"/>
         <source>EnhanceVision - 图像处理与增强工具</source>
-        <translation>EnhanceVision - Image Processing and Enhancement Tool</translation>
+        <translation type="vanished">EnhanceVision - Image Processing and Enhancement Tool</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::MessageModel</name>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="696"/>
         <source>Pending</source>
-        <translation>Pending</translation>
+        <translation type="vanished">Pending</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="261"/>
-        <location filename="../../src/models/MessageModel.cpp" line="280"/>
-        <location filename="../../src/models/MessageModel.cpp" line="295"/>
-        <location filename="../../src/models/MessageModel.cpp" line="388"/>
         <source>Message does not exist: %1</source>
-        <translation>Message does not exist: %1</translation>
+        <translation type="vanished">Message does not exist: %1</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="698"/>
         <source>Processing</source>
-        <translation>Processing</translation>
+        <translation type="vanished">Processing</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="700"/>
         <source>Completed</source>
-        <translation>Completed</translation>
+        <translation type="vanished">Completed</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="702"/>
         <source>Failed</source>
-        <translation>Failed</translation>
+        <translation type="vanished">Failed</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="704"/>
         <source>Cancelled</source>
-        <translation>Cancelled</translation>
+        <translation type="vanished">Cancelled</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="706"/>
         <source>Paused</source>
-        <translation>Paused</translation>
+        <translation type="vanished">Paused</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="708"/>
         <source>Recoverable</source>
-        <translation>Recoverable</translation>
+        <translation type="vanished">Recoverable</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="742"/>
         <source>AI Inference</source>
-        <translation>AI Inference</translation>
+        <translation type="vanished">AI Inference</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="744"/>
         <source>Browse</source>
-        <translation>Browse</translation>
+        <translation type="vanished">Browse</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="710"/>
-        <location filename="../../src/models/MessageModel.cpp" line="746"/>
         <source>Unknown</source>
-        <translation>Unknown</translation>
+        <translation type="vanished">Unknown</translation>
     </message>
     <message>
-        <location filename="../../src/models/MessageModel.cpp" line="740"/>
         <source>Shader Filter</source>
-        <translation>Shader Filter</translation>
+        <translation type="vanished">Shader Filter</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::ModelRegistry</name>
     <message>
-        <location filename="../../src/core/ModelRegistry.cpp" line="47"/>
         <source>Cannot load model configuration file: %1</source>
-        <translation>Cannot load model configuration file: %1</translation>
+        <translation type="vanished">Cannot load model configuration file: %1</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::NCNNCPUBackend</name>
     <message>
-        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="95"/>
         <source>Model file unavailable: %1</source>
-        <translation>Model file unavailable: %1</translation>
+        <translation type="vanished">Model file unavailable: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="109"/>
         <source>Failed to load model parameters: %1</source>
-        <translation>Failed to load model parameters: %1</translation>
+        <translation type="vanished">Failed to load model parameters: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="116"/>
         <source>Failed to load model weights: %1</source>
-        <translation>Failed to load model weights: %1</translation>
+        <translation type="vanished">Failed to load model weights: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="163"/>
         <source>Backend not initialized</source>
-        <translation>Backend not initialized</translation>
+        <translation type="vanished">Backend not initialized</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="168"/>
         <source>No model loaded</source>
-        <translation>No model loaded</translation>
+        <translation type="vanished">No model loaded</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="173"/>
         <source>Invalid input image</source>
-        <translation>Invalid input image</translation>
+        <translation type="vanished">Invalid input image</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="240"/>
         <source>Image preprocessing failed</source>
-        <translation>Image preprocessing failed</translation>
+        <translation type="vanished">Image preprocessing failed</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="245"/>
-        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="259"/>
-        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="310"/>
-        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="381"/>
         <source>Cancelled</source>
-        <translation>Cancelled</translation>
+        <translation type="vanished">Cancelled</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="254"/>
         <source>Inference failed</source>
-        <translation>Inference failed</translation>
+        <translation type="vanished">Inference failed</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="361"/>
         <source>Tile processing incomplete (%1/%2)</source>
-        <translation>Tile processing incomplete (%1/%2)</translation>
+        <translation type="vanished">Tile processing incomplete (%1/%2)</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="398"/>
         <source>TTA processing failed</source>
-        <translation>TTA processing failed</translation>
+        <translation type="vanished">TTA processing failed</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="444"/>
         <source>Inference input failed, model input node mismatch</source>
-        <translation>Inference input failed, model input node mismatch</translation>
+        <translation type="vanished">Inference input failed, model input node mismatch</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="461"/>
         <source>Inference output failed, model output node mismatch</source>
-        <translation>Inference output failed, model output node mismatch</translation>
+        <translation type="vanished">Inference output failed, model output node mismatch</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::NCNNVulkanBackend</name>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="157"/>
         <source>Failed to create Vulkan instance, error code: %1</source>
-        <translation>Failed to create Vulkan instance, error code: %1</translation>
+        <translation type="vanished">Failed to create Vulkan instance, error code: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="165"/>
         <source>No Vulkan-capable GPU device found</source>
-        <translation>No Vulkan-capable GPU device found</translation>
+        <translation type="vanished">No Vulkan-capable GPU device found</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="187"/>
         <source>GPU initialization failed: %1</source>
-        <translation>GPU initialization failed: %1</translation>
+        <translation type="vanished">GPU initialization failed: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="192"/>
         <source>GPU initialization failed: unknown exception</source>
-        <translation>GPU initialization failed: unknown exception</translation>
+        <translation type="vanished">GPU initialization failed: unknown exception</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="197"/>
         <source>Application not compiled with Vulkan support</source>
-        <translation>Application not compiled with Vulkan support</translation>
+        <translation type="vanished">Application not compiled with Vulkan support</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="236"/>
         <source>Model file unavailable: %1</source>
-        <translation>Model file unavailable: %1</translation>
+        <translation type="vanished">Model file unavailable: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="257"/>
         <source>Failed to load model parameters: %1</source>
-        <translation>Failed to load model parameters: %1</translation>
+        <translation type="vanished">Failed to load model parameters: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="264"/>
         <source>Failed to load model weights: %1</source>
-        <translation>Failed to load model weights: %1</translation>
+        <translation type="vanished">Failed to load model weights: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="311"/>
         <source>Backend not initialized</source>
-        <translation>Backend not initialized</translation>
+        <translation type="vanished">Backend not initialized</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="316"/>
         <source>No model loaded</source>
-        <translation>No model loaded</translation>
+        <translation type="vanished">No model loaded</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="321"/>
         <source>Invalid input image</source>
-        <translation>Invalid input image</translation>
+        <translation type="vanished">Invalid input image</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="370"/>
         <source>GPU memory insufficient, please switch to CPU mode or reduce tile size</source>
-        <translation>GPU memory insufficient, please switch to CPU mode or reduce tile size</translation>
+        <translation type="vanished">GPU memory insufficient, please switch to CPU mode or reduce tile size</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="372"/>
         <source>GPU memory insufficient, recommend switching to CPU mode</source>
-        <translation>GPU memory insufficient, recommend switching to CPU mode</translation>
+        <translation type="vanished">GPU memory insufficient, recommend switching to CPU mode</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="378"/>
         <source>GPU inference error: %1</source>
-        <translation>GPU inference error: %1</translation>
+        <translation type="vanished">GPU inference error: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="380"/>
         <source>GPU inference failed: %1</source>
-        <translation>GPU inference failed: %1</translation>
+        <translation type="vanished">GPU inference failed: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="386"/>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="388"/>
         <source>GPU inference unknown error</source>
-        <translation>GPU inference unknown error</translation>
+        <translation type="vanished">GPU inference unknown error</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="419"/>
         <source>Image preprocessing failed</source>
-        <translation>Image preprocessing failed</translation>
+        <translation type="vanished">Image preprocessing failed</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="424"/>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="438"/>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="489"/>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="563"/>
         <source>Cancelled</source>
-        <translation>Cancelled</translation>
+        <translation type="vanished">Cancelled</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="433"/>
         <source>Inference failed</source>
-        <translation>Inference failed</translation>
+        <translation type="vanished">Inference failed</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="543"/>
         <source>Tile processing incomplete (%1/%2)</source>
-        <translation>Tile processing incomplete (%1/%2)</translation>
+        <translation type="vanished">Tile processing incomplete (%1/%2)</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="580"/>
         <source>TTA processing failed</source>
-        <translation>TTA processing failed</translation>
+        <translation type="vanished">TTA processing failed</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="626"/>
         <source>Inference input failed, model input node mismatch</source>
-        <translation>Inference input failed, model input node mismatch</translation>
+        <translation type="vanished">Inference input failed, model input node mismatch</translation>
     </message>
     <message>
-        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="643"/>
         <source>Inference output failed, model output node mismatch</source>
-        <translation>Inference output failed, model output node mismatch</translation>
+        <translation type="vanished">Inference output failed, model output node mismatch</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::ProcessingController</name>
     <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="1323"/>
         <source>No AI model specified</source>
-        <translation>No AI model specified</translation>
+        <translation type="vanished">No AI model specified</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="463"/>
         <source>当前会话</source>
-        <translation>Current Session</translation>
+        <translation type="vanished">Current Session</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="464"/>
         <source>未命名会话</source>
-        <translation>Unnamed Session</translation>
+        <translation type="vanished">Unnamed Session</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="1252"/>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="1340"/>
         <source>Media file not found</source>
-        <translation>Media file not found</translation>
+        <translation type="vanished">Media file not found</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="1350"/>
         <source>Cannot create AI output directory: %1</source>
-        <translation>Cannot create AI output directory: %1</translation>
+        <translation type="vanished">Cannot create AI output directory: %1</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="1420"/>
         <source>Model loading failed: %1</source>
-        <translation>Model loading failed: %1</translation>
+        <translation type="vanished">Model loading failed: %1</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="1617"/>
         <source>AI inference result invalid or output file missing</source>
-        <translation>AI inference result invalid or output file missing</translation>
+        <translation type="vanished">AI inference result invalid or output file missing</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="1647"/>
         <source>Media file to update not found</source>
-        <translation>Media file to update not found</translation>
+        <translation type="vanished">Media file to update not found</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="1808"/>
         <source>Video output file is invalid</source>
-        <translation>Video output file is invalid</translation>
+        <translation type="vanished">Video output file is invalid</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="1843"/>
         <source>Video shader processing failed</source>
-        <translation>Video shader processing failed</translation>
+        <translation type="vanished">Video shader processing failed</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="3843"/>
         <source>AI inference result invalid or no output file generated</source>
-        <translation>AI inference result invalid or no output file generated</translation>
+        <translation type="vanished">AI inference result invalid or no output file generated</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/ProcessingController.cpp" line="3888"/>
         <source>Invalid inference parameters</source>
-        <translation>Invalid inference parameters</translation>
+        <translation type="vanished">Invalid inference parameters</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::ProcessingEngine</name>
     <message>
-        <location filename="../../src/core/ProcessingEngine.cpp" line="241"/>
         <source>Media file not found</source>
-        <translation>Media file not found</translation>
+        <translation type="vanished">Media file not found</translation>
     </message>
     <message>
-        <location filename="../../src/core/ProcessingEngine.cpp" line="256"/>
         <source>未指定AI模型</source>
-        <translation>No AI model specified</translation>
+        <translation type="vanished">No AI model specified</translation>
     </message>
     <message>
-        <location filename="../../src/core/ProcessingEngine.cpp" line="262"/>
         <source>Model loading failed: %1</source>
-        <translation>Model loading failed: %1</translation>
+        <translation type="vanished">Model loading failed: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/ProcessingEngine.cpp" line="353"/>
         <source>AI inferring...</source>
-        <translation>AI inferring...</translation>
+        <translation type="vanished">AI inferring...</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::SessionController</name>
     <message>
-        <location filename="../../src/controllers/SessionController.cpp" line="673"/>
         <source>Unnamed Session %1</source>
-        <translation>Unnamed Session %1</translation>
+        <translation type="vanished">Unnamed Session %1</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/SessionController.cpp" line="728"/>
-        <location filename="../../src/controllers/SessionController.cpp" line="740"/>
         <source>Cannot save session data</source>
-        <translation>Cannot save session data</translation>
+        <translation type="vanished">Cannot save session data</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::SessionModel</name>
     <message>
-        <location filename="../../src/models/SessionModel.cpp" line="131"/>
-        <location filename="../../src/models/SessionModel.cpp" line="157"/>
-        <location filename="../../src/models/SessionModel.cpp" line="185"/>
-        <location filename="../../src/models/SessionModel.cpp" line="215"/>
-        <location filename="../../src/models/SessionModel.cpp" line="382"/>
         <source>Session does not exist: %1</source>
-        <translation>Session does not exist: %1</translation>
+        <translation type="vanished">Session does not exist: %1</translation>
     </message>
     <message>
-        <location filename="../../src/models/SessionModel.cpp" line="162"/>
         <source>Session name cannot be empty</source>
-        <translation>Session name cannot be empty</translation>
+        <translation type="vanished">Session name cannot be empty</translation>
     </message>
     <message>
-        <location filename="../../src/models/SessionModel.cpp" line="167"/>
         <source>Session name cannot exceed 50 characters</source>
-        <translation>Session name cannot exceed 50 characters</translation>
+        <translation type="vanished">Session name cannot exceed 50 characters</translation>
     </message>
     <message>
-        <location filename="../../src/models/SessionModel.cpp" line="427"/>
         <source>Cannot move session across pinned area</source>
-        <translation>Cannot move session across pinned area</translation>
+        <translation type="vanished">Cannot move session across pinned area</translation>
     </message>
     <message>
-        <location filename="../../src/models/SessionModel.cpp" line="349"/>
         <source>Unnamed Session %1</source>
-        <translation>Unnamed Session %1</translation>
+        <translation type="vanished">Unnamed Session %1</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::TaskRecoveryController</name>
     <message>
-        <location filename="../../src/controllers/TaskRecoveryController.cpp" line="401"/>
         <source>未命名会话</source>
-        <translation>Unnamed Session</translation>
+        <translation type="vanished">Unnamed Session</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/TaskRecoveryController.cpp" line="655"/>
         <source>恢复快照不可用，未完成任务已标记为失败</source>
-        <translation>Recovery snapshot unavailable. Unfinished tasks have been marked as failed.</translation>
+        <translation type="vanished">Recovery snapshot unavailable. Unfinished tasks have been marked as failed.</translation>
     </message>
     <message>
-        <location filename="../../src/controllers/TaskRecoveryController.cpp" line="681"/>
         <source>应用关闭导致任务中断，未执行恢复</source>
-        <translation>App shutdown interrupted tasks, and recovery was not performed.</translation>
+        <translation type="vanished">App shutdown interrupted tasks, and recovery was not performed.</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::VideoCompatibilityAnalyzer</name>
     <message>
-        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="83"/>
         <source>无法打开视频文件: %1</source>
-        <translation>Cannot open video file: %1</translation>
+        <translation type="vanished">Cannot open video file: %1</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="90"/>
         <source>无法获取视频流信息</source>
-        <translation>Cannot get video stream info</translation>
+        <translation type="vanished">Cannot get video stream info</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="108"/>
         <source>未找到视频流</source>
-        <translation>Video stream not found</translation>
+        <translation type="vanished">Video stream not found</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="344"/>
         <source>视频尺寸完全兼容，无需调整</source>
-        <translation>Video size is fully compatible, no adjustment needed</translation>
+        <translation type="vanished">Video size is fully compatible, no adjustment needed</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="347"/>
         <source>Abnormal aspect ratio, needs padding</source>
-        <translation>Abnormal aspect ratio, needs padding</translation>
+        <translation type="vanished">Abnormal aspect ratio, needs padding</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="351"/>
         <source>Video size exceeds safe range, needs downscaling</source>
-        <translation>Video size exceeds safe range, needs downscaling</translation>
+        <translation type="vanished">Video size exceeds safe range, needs downscaling</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="369"/>
         <source>Video codec requires transcoding</source>
-        <translation>Video codec requires transcoding</translation>
+        <translation type="vanished">Video codec requires transcoding</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="373"/>
         <source>Pixel format conversion required</source>
-        <translation>Pixel format conversion required</translation>
+        <translation type="vanished">Pixel format conversion required</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="391"/>
         <source>HDR video detected, applying tone mapping</source>
-        <translation>HDR video detected, applying tone mapping</translation>
+        <translation type="vanished">HDR video detected, applying tone mapping</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="395"/>
         <source>%1-bit video detected, converting to 8-bit</source>
-        <translation>%1-bit video detected, converting to 8-bit</translation>
+        <translation type="vanished">%1-bit video detected, converting to 8-bit</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="355"/>
         <source>视频尺寸较大，将使用分块处理</source>
-        <translation>Video size is large, tile processing will be used</translation>
+        <translation type="vanished">Video size is large, tile processing will be used</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="359"/>
         <source>视频尺寸不兼容，无法处理</source>
-        <translation>Video size is incompatible and cannot be processed</translation>
+        <translation type="vanished">Video size is incompatible and cannot be processed</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="366"/>
         <source>视频格式完全支持</source>
-        <translation>Video format is fully supported</translation>
+        <translation type="vanished">Video format is fully supported</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="377"/>
         <source>HDR视频需要色调映射</source>
-        <translation>HDR video requires tone mapping</translation>
+        <translation type="vanished">HDR video requires tone mapping</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="381"/>
         <source>视频格式部分支持，可能丢失信息</source>
-        <translation>Video format is partially supported; information may be lost</translation>
+        <translation type="vanished">Video format is partially supported; information may be lost</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="385"/>
         <source>视频格式不支持</source>
-        <translation>Video format is not supported</translation>
+        <translation type="vanished">Video format is not supported</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::VideoProcessor</name>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="117"/>
-        <location filename="../../src/core/VideoProcessor.cpp" line="119"/>
         <source>Processing task already in progress</source>
-        <translation>Processing task already in progress</translation>
+        <translation type="vanished">Processing task already in progress</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="129"/>
         <source>Processing Video</source>
-        <translation>Processing Video</translation>
+        <translation type="vanished">Processing Video</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="231"/>
-        <location filename="../../src/core/VideoProcessor.cpp" line="264"/>
-        <location filename="../../src/core/VideoProcessor.cpp" line="298"/>
-        <location filename="../../src/core/VideoProcessor.cpp" line="395"/>
-        <location filename="../../src/core/VideoProcessor.cpp" line="461"/>
-        <location filename="../../src/core/VideoProcessor.cpp" line="472"/>
-        <location filename="../../src/core/VideoProcessor.cpp" line="485"/>
-        <location filename="../../src/core/VideoProcessor.cpp" line="495"/>
-        <location filename="../../src/core/VideoProcessor.cpp" line="585"/>
-        <location filename="../../src/core/VideoProcessor.cpp" line="604"/>
-        <location filename="../../src/core/VideoProcessor.cpp" line="645"/>
-        <location filename="../../src/core/VideoProcessor.cpp" line="647"/>
         <source>Processing Cancelled</source>
-        <translation>Processing Cancelled</translation>
+        <translation type="vanished">Processing Cancelled</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="235"/>
         <source>Analyzing video file...</source>
-        <translation>Analyzing video file...</translation>
+        <translation type="vanished">Analyzing video file...</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="238"/>
         <source>Cannot open input video file</source>
-        <translation>Cannot open input video file</translation>
+        <translation type="vanished">Cannot open input video file</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="242"/>
         <source>Cannot get video stream info</source>
-        <translation>Cannot get video stream info</translation>
+        <translation type="vanished">Cannot get video stream info</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="255"/>
         <source>No video stream found</source>
-        <translation>No video stream found</translation>
+        <translation type="vanished">No video stream found</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="261"/>
         <source>File analysis complete</source>
-        <translation>File analysis complete</translation>
+        <translation type="vanished">File analysis complete</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="268"/>
         <source>Initializing decoder...</source>
-        <translation>Initializing decoder...</translation>
+        <translation type="vanished">Initializing decoder...</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="272"/>
         <source>No suitable video decoder found</source>
-        <translation>No suitable video decoder found</translation>
+        <translation type="vanished">No suitable video decoder found</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="277"/>
         <source>Cannot allocate decoder context</source>
-        <translation>Cannot allocate decoder context</translation>
+        <translation type="vanished">Cannot allocate decoder context</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="281"/>
         <source>Cannot copy decoder parameters</source>
-        <translation>Cannot copy decoder parameters</translation>
+        <translation type="vanished">Cannot copy decoder parameters</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="287"/>
         <source>Cannot open video decoder</source>
-        <translation>Cannot open video decoder</translation>
+        <translation type="vanished">Cannot open video decoder</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="295"/>
         <source>Decoder initialization complete</source>
-        <translation>Decoder initialization complete</translation>
+        <translation type="vanished">Decoder initialization complete</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="302"/>
         <source>Initializing encoder...</source>
-        <translation>Initializing encoder...</translation>
+        <translation type="vanished">Initializing encoder...</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="306"/>
         <source>Cannot create output format context</source>
-        <translation>Cannot create output format context</translation>
+        <translation type="vanished">Cannot create output format context</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="311"/>
         <source>Cannot create output video stream</source>
-        <translation>Cannot create output video stream</translation>
+        <translation type="vanished">Cannot create output video stream</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="320"/>
         <source>No suitable video encoder found</source>
-        <translation>No suitable video encoder found</translation>
+        <translation type="vanished">No suitable video encoder found</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="325"/>
         <source>Cannot allocate encoder context</source>
-        <translation>Cannot allocate encoder context</translation>
+        <translation type="vanished">Cannot allocate encoder context</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="357"/>
         <source>Cannot open video encoder</source>
-        <translation>Cannot open video encoder</translation>
+        <translation type="vanished">Cannot open video encoder</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="362"/>
         <source>Cannot copy encoder parameters to output stream</source>
-        <translation>Cannot copy encoder parameters to output stream</translation>
+        <translation type="vanished">Cannot copy encoder parameters to output stream</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="383"/>
         <source>Cannot open output file</source>
-        <translation>Cannot open output file</translation>
+        <translation type="vanished">Cannot open output file</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="388"/>
         <source>Cannot write file header</source>
-        <translation>Cannot write file header</translation>
+        <translation type="vanished">Cannot write file header</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="392"/>
         <source>Encoder initialization complete</source>
-        <translation>Encoder initialization complete</translation>
+        <translation type="vanished">Encoder initialization complete</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="404"/>
         <source>Cannot create RGB conversion context</source>
-        <translation>Cannot create RGB conversion context</translation>
+        <translation type="vanished">Cannot create RGB conversion context</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="413"/>
         <source>Cannot create YUV conversion context</source>
-        <translation>Cannot create YUV conversion context</translation>
+        <translation type="vanished">Cannot create YUV conversion context</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="422"/>
         <source>Cannot allocate frame buffer</source>
-        <translation>Cannot allocate frame buffer</translation>
+        <translation type="vanished">Cannot allocate frame buffer</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="429"/>
         <source>Cannot allocate RGB frame buffer</source>
-        <translation>Cannot allocate RGB frame buffer</translation>
+        <translation type="vanished">Cannot allocate RGB frame buffer</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="436"/>
         <source>Cannot allocate output frame buffer</source>
-        <translation>Cannot allocate output frame buffer</translation>
+        <translation type="vanished">Cannot allocate output frame buffer</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="451"/>
         <source>Starting video frame processing...</source>
-        <translation>Starting video frame processing...</translation>
+        <translation type="vanished">Starting video frame processing...</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="554"/>
         <source>Processing frame %1/%2...</source>
-        <translation>Processing frame %1/%2...</translation>
+        <translation type="vanished">Processing frame %1/%2...</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="589"/>
         <source>Finalizing encoding...</source>
-        <translation>Finalizing encoding...</translation>
+        <translation type="vanished">Finalizing encoding...</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="608"/>
         <source>Writing file...</source>
-        <translation>Writing file...</translation>
+        <translation type="vanished">Writing file...</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="611"/>
         <source>Cannot write file trailer</source>
-        <translation>Cannot write file trailer</translation>
+        <translation type="vanished">Cannot write file trailer</translation>
     </message>
     <message>
-        <location filename="../../src/core/VideoProcessor.cpp" line="623"/>
         <source>Processing complete</source>
-        <translation>Processing complete</translation>
+        <translation type="vanished">Processing complete</translation>
     </message>
 </context>
 <context>
     <name>EnhanceVision::VideoSizeAdapter</name>
     <message>
-        <location filename="../../src/core/video/VideoSizeAdapter.cpp" line="77"/>
         <source>视频尺寸无效</source>
-        <translation>Invalid video size</translation>
+        <translation type="vanished">Invalid video size</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoSizeAdapter.cpp" line="84"/>
         <source>视频尺寸过小，低于模型最低要求</source>
-        <translation>Video size is too small, below model minimum requirements</translation>
+        <translation type="vanished">Video size is too small, below model minimum requirements</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoSizeAdapter.cpp" line="97"/>
         <source>视频尺寸超出最大限制，需要缩小处理</source>
-        <translation>Video size exceeds the maximum limit and must be scaled down</translation>
+        <translation type="vanished">Video size exceeds the maximum limit and must be scaled down</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoSizeAdapter.cpp" line="104"/>
         <source>Abnormal aspect ratio, needs padding</source>
-        <translation>Abnormal aspect ratio, needs padding</translation>
+        <translation type="vanished">Abnormal aspect ratio, needs padding</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoSizeAdapter.cpp" line="124"/>
         <source>Video size needs padding to match model requirements</source>
-        <translation>Video size needs padding to match model requirements</translation>
+        <translation type="vanished">Video size needs padding to match model requirements</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoSizeAdapter.cpp" line="135"/>
         <source>Large video size, will use tile processing</source>
-        <translation>Large video size, will use tile processing</translation>
+        <translation type="vanished">Large video size, will use tile processing</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoSizeAdapter.cpp" line="143"/>
         <source>Video size exceeds safe range, needs downscaling</source>
-        <translation>Video size exceeds safe range, needs downscaling</translation>
+        <translation type="vanished">Video size exceeds safe range, needs downscaling</translation>
     </message>
     <message>
-        <location filename="../../src/core/video/VideoSizeAdapter.cpp" line="156"/>
         <source>Video size fully compatible, no adjustment needed</source>
-        <translation>Video size fully compatible, no adjustment needed</translation>
+        <translation type="vanished">Video size fully compatible, no adjustment needed</translation>
+    </message>
+</context>
+<context>
+    <name>FileController</name>
+    <message>
+        <location filename="../../src/controllers/FileController.cpp" line="93"/>
+        <source>不支持的文件格式: %1</source>
+        <translation type="unfinished">Unsupported file format: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/FileController.cpp" line="191"/>
+        <source>图片文件</source>
+        <translation type="unfinished">Image Files</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/FileController.cpp" line="199"/>
+        <source>视频文件</source>
+        <translation type="unfinished">Video Files</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/FileController.cpp" line="207"/>
+        <source>所有支持的文件</source>
+        <translation type="unfinished">All Supported Files</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/FileController.cpp" line="211"/>
+        <source>所有文件 (*.*)</source>
+        <translation type="unfinished">All Files (*.*)</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/FileController.cpp" line="225"/>
+        <source>保存文件失败: %1</source>
+        <translation type="unfinished">Failed to save file: %1</translation>
     </message>
 </context>
 <context>
@@ -1811,6 +1930,172 @@
         <location filename="../../qml/components/FileList.qml" line="270"/>
         <source>拖拽文件到此处或点击添加</source>
         <translation>Drag files here or click to add</translation>
+    </message>
+</context>
+<context>
+    <name>FileModel</name>
+    <message>
+        <location filename="../../src/models/FileModel.cpp" line="142"/>
+        <source>文件不存在: %1</source>
+        <translation type="unfinished">File not found: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/FileModel.cpp" line="147"/>
+        <source>不支持的文件格式: %1</source>
+        <translation type="unfinished">Unsupported file format: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/FileModel.cpp" line="152"/>
+        <source>File size exceeds limit (max 2GB): %1</source>
+        <translation type="unfinished">File size exceeds limit (max 2GB): %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/FileModel.cpp" line="267"/>
+        <source>%1 B</source>
+        <translation type="unfinished">%1 B</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/FileModel.cpp" line="269"/>
+        <source>%1 KB</source>
+        <translation type="unfinished">%1 KB</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/FileModel.cpp" line="271"/>
+        <source>%1 MB</source>
+        <translation type="unfinished">%1 MB</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/FileModel.cpp" line="273"/>
+        <source>%1 GB</source>
+        <translation type="unfinished">%1 GB</translation>
+    </message>
+</context>
+<context>
+    <name>ImageProcessor</name>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="135"/>
+        <source>Idle</source>
+        <translation type="unfinished">Idle</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="136"/>
+        <source>Loading Image</source>
+        <translation type="unfinished">Loading Image</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="137"/>
+        <source>Preprocessing</source>
+        <translation type="unfinished">Preprocessing</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="138"/>
+        <source>Color Adjustment</source>
+        <translation type="unfinished">Color Adjustment</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="139"/>
+        <source>Applying Effects</source>
+        <translation type="unfinished">Applying Effects</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="140"/>
+        <source>Postprocessing</source>
+        <translation type="unfinished">Postprocessing</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="141"/>
+        <source>Saving Result</source>
+        <translation type="unfinished">Saving Result</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="142"/>
+        <source>Completed</source>
+        <translation type="unfinished">Completed</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="544"/>
+        <location filename="../../src/core/ImageProcessor.cpp" line="546"/>
+        <source>Processing task already in progress</source>
+        <translation type="unfinished">Processing task already in progress</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="556"/>
+        <source>Processing Image</source>
+        <translation type="unfinished">Processing Image</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="566"/>
+        <location filename="../../src/core/ImageProcessor.cpp" line="579"/>
+        <location filename="../../src/core/ImageProcessor.cpp" line="594"/>
+        <location filename="../../src/core/ImageProcessor.cpp" line="712"/>
+        <location filename="../../src/core/ImageProcessor.cpp" line="746"/>
+        <location filename="../../src/core/ImageProcessor.cpp" line="782"/>
+        <location filename="../../src/core/ImageProcessor.cpp" line="784"/>
+        <source>Processing cancelled</source>
+        <translation type="unfinished">Processing cancelled</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="570"/>
+        <location filename="../../src/core/ImageProcessor.cpp" line="571"/>
+        <source>Reading image...</source>
+        <translation type="unfinished">Reading image...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="575"/>
+        <source>Cannot read image file</source>
+        <translation type="unfinished">Cannot read image file</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="582"/>
+        <location filename="../../src/core/ImageProcessor.cpp" line="583"/>
+        <source>Image loaded</source>
+        <translation type="unfinished">Image loaded</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="704"/>
+        <source>Color adjustment</source>
+        <translation type="unfinished">Color adjustment</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="706"/>
+        <location filename="../../src/core/ImageProcessor.cpp" line="707"/>
+        <source>Applying color adjustment...</source>
+        <translation type="unfinished">Applying color adjustment...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="724"/>
+        <location filename="../../src/core/ImageProcessor.cpp" line="725"/>
+        <source>Applying blur effect...</source>
+        <translation type="unfinished">Applying blur effect...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="731"/>
+        <location filename="../../src/core/ImageProcessor.cpp" line="732"/>
+        <source>Applying denoise effect...</source>
+        <translation type="unfinished">Applying denoise effect...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="738"/>
+        <location filename="../../src/core/ImageProcessor.cpp" line="739"/>
+        <source>Applying sharpen effect...</source>
+        <translation type="unfinished">Applying sharpen effect...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="750"/>
+        <location filename="../../src/core/ImageProcessor.cpp" line="751"/>
+        <source>Saving result...</source>
+        <translation type="unfinished">Saving result...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="754"/>
+        <source>Cannot save image file</source>
+        <translation type="unfinished">Cannot save image file</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ImageProcessor.cpp" line="766"/>
+        <location filename="../../src/core/ImageProcessor.cpp" line="767"/>
+        <source>Processing complete</source>
+        <translation type="unfinished">Processing complete</translation>
     </message>
 </context>
 <context>
@@ -1885,6 +2170,14 @@
         <location filename="../../qml/pages/MainPage.qml" line="641"/>
         <source>所有文件 (*.*)</source>
         <translation>All Files (*.*)</translation>
+    </message>
+</context>
+<context>
+    <name>MainWindow</name>
+    <message>
+        <location filename="../../src/app/MainWindow.cpp" line="14"/>
+        <source>EnhanceVision - 图像处理与增强工具</source>
+        <translation type="unfinished">EnhanceVision - Image Processing and Enhancement Tool</translation>
     </message>
 </context>
 <context>
@@ -1964,62 +2257,70 @@
         <translation>Media Viewer</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MediaViewerWindow.qml" line="380"/>
         <source>查看成果</source>
-        <translation>View Result</translation>
+        <translation type="vanished">View Result</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MediaViewerWindow.qml" line="380"/>
         <source>查看源件</source>
-        <translation>View Source</translation>
+        <translation type="vanished">View Source</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MediaViewerWindow.qml" line="401"/>
+        <location filename="../../qml/components/MediaViewerWindow.qml" line="367"/>
+        <source>点击查看成果</source>
+        <translation>Click to view result</translation>
+    </message>
+    <message>
+        <location filename="../../qml/components/MediaViewerWindow.qml" line="367"/>
+        <source>点击查看源件</source>
+        <translation>Click to view source</translation>
+    </message>
+    <message>
+        <location filename="../../qml/components/MediaViewerWindow.qml" line="376"/>
         <source>退出全屏</source>
         <translation>Exit Fullscreen</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MediaViewerWindow.qml" line="401"/>
+        <location filename="../../qml/components/MediaViewerWindow.qml" line="376"/>
         <source>全屏</source>
         <translation>Fullscreen</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MediaViewerWindow.qml" line="409"/>
+        <location filename="../../qml/components/MediaViewerWindow.qml" line="384"/>
         <source>关闭</source>
         <translation>Close</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MediaViewerWindow.qml" line="861"/>
+        <location filename="../../qml/components/MediaViewerWindow.qml" line="836"/>
         <source>无媒体文件</source>
         <translation>No media file</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MediaViewerWindow.qml" line="1086"/>
+        <location filename="../../qml/components/MediaViewerWindow.qml" line="1061"/>
         <source>快退 10 秒</source>
         <translation>Rewind 10s</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MediaViewerWindow.qml" line="1120"/>
+        <location filename="../../qml/components/MediaViewerWindow.qml" line="1095"/>
         <source>快进 10 秒</source>
         <translation>Forward 10s</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MediaViewerWindow.qml" line="1238"/>
+        <location filename="../../qml/components/MediaViewerWindow.qml" line="1213"/>
         <source>开/切自动播放</source>
         <translation>Auto Play on Open/Switch</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MediaViewerWindow.qml" line="1273"/>
+        <location filename="../../qml/components/MediaViewerWindow.qml" line="1248"/>
         <source>源/结自动播放</source>
         <translation>Auto Play on Source/Result</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MediaViewerWindow.qml" line="1308"/>
+        <location filename="../../qml/components/MediaViewerWindow.qml" line="1283"/>
         <source>源/结恢复进度</source>
         <translation>Restore Position on Source/Result</translation>
     </message>
     <message>
-        <location filename="../../qml/components/MediaViewerWindow.qml" line="1325"/>
+        <location filename="../../qml/components/MediaViewerWindow.qml" line="1300"/>
         <source>静音</source>
         <translation>Mute</translation>
     </message>
@@ -2192,6 +2493,73 @@
     </message>
 </context>
 <context>
+    <name>MessageModel</name>
+    <message>
+        <location filename="../../src/models/MessageModel.cpp" line="261"/>
+        <location filename="../../src/models/MessageModel.cpp" line="280"/>
+        <location filename="../../src/models/MessageModel.cpp" line="295"/>
+        <location filename="../../src/models/MessageModel.cpp" line="388"/>
+        <source>Message does not exist: %1</source>
+        <translation type="unfinished">Message does not exist: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/MessageModel.cpp" line="696"/>
+        <source>Pending</source>
+        <translation type="unfinished">Pending</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/MessageModel.cpp" line="698"/>
+        <source>Processing</source>
+        <translation type="unfinished">Processing</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/MessageModel.cpp" line="700"/>
+        <source>Completed</source>
+        <translation type="unfinished">Completed</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/MessageModel.cpp" line="702"/>
+        <source>Failed</source>
+        <translation type="unfinished">Failed</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/MessageModel.cpp" line="704"/>
+        <source>Cancelled</source>
+        <translation type="unfinished">Cancelled</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/MessageModel.cpp" line="706"/>
+        <source>Paused</source>
+        <translation type="unfinished">Paused</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/MessageModel.cpp" line="708"/>
+        <source>Recoverable</source>
+        <translation type="unfinished">Recoverable</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/MessageModel.cpp" line="710"/>
+        <location filename="../../src/models/MessageModel.cpp" line="746"/>
+        <source>Unknown</source>
+        <translation type="unfinished">Unknown</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/MessageModel.cpp" line="740"/>
+        <source>Shader Filter</source>
+        <translation type="unfinished">Shader Filter</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/MessageModel.cpp" line="742"/>
+        <source>AI Inference</source>
+        <translation type="unfinished">AI Inference</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/MessageModel.cpp" line="744"/>
+        <source>Browse</source>
+        <translation type="unfinished">Browse</translation>
+    </message>
+</context>
+<context>
     <name>MinimizedWindowDock</name>
     <message>
         <location filename="../../qml/components/MinimizedWindowDock.qml" line="50"/>
@@ -2212,6 +2580,207 @@
         <location filename="../../qml/components/MinimizedWindowDock.qml" line="217"/>
         <source>全部恢复</source>
         <translation>Restore All</translation>
+    </message>
+</context>
+<context>
+    <name>ModelRegistry</name>
+    <message>
+        <location filename="../../src/core/ModelRegistry.cpp" line="47"/>
+        <source>Cannot load model configuration file: %1</source>
+        <translation type="unfinished">Cannot load model configuration file: %1</translation>
+    </message>
+</context>
+<context>
+    <name>NCNNCPUBackend</name>
+    <message>
+        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="95"/>
+        <source>Model file unavailable: %1</source>
+        <translation type="unfinished">Model file unavailable: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="109"/>
+        <source>Failed to load model parameters: %1</source>
+        <translation type="unfinished">Failed to load model parameters: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="116"/>
+        <source>Failed to load model weights: %1</source>
+        <translation type="unfinished">Failed to load model weights: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="163"/>
+        <source>Backend not initialized</source>
+        <translation type="unfinished">Backend not initialized</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="168"/>
+        <source>No model loaded</source>
+        <translation type="unfinished">No model loaded</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="173"/>
+        <source>Invalid input image</source>
+        <translation type="unfinished">Invalid input image</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="240"/>
+        <source>Image preprocessing failed</source>
+        <translation type="unfinished">Image preprocessing failed</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="245"/>
+        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="259"/>
+        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="310"/>
+        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="381"/>
+        <source>Cancelled</source>
+        <translation type="unfinished">Cancelled</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="254"/>
+        <source>Inference failed</source>
+        <translation type="unfinished">Inference failed</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="361"/>
+        <source>Tile processing incomplete (%1/%2)</source>
+        <translation type="unfinished">Tile processing incomplete (%1/%2)</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="398"/>
+        <source>TTA processing failed</source>
+        <translation type="unfinished">TTA processing failed</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="444"/>
+        <source>Inference input failed, model input node mismatch</source>
+        <translation type="unfinished">Inference input failed, model input node mismatch</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNCPUBackend.cpp" line="461"/>
+        <source>Inference output failed, model output node mismatch</source>
+        <translation type="unfinished">Inference output failed, model output node mismatch</translation>
+    </message>
+</context>
+<context>
+    <name>NCNNVulkanBackend</name>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="157"/>
+        <source>Failed to create Vulkan instance, error code: %1</source>
+        <translation type="unfinished">Failed to create Vulkan instance, error code: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="165"/>
+        <source>No Vulkan-capable GPU device found</source>
+        <translation type="unfinished">No Vulkan-capable GPU device found</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="187"/>
+        <source>GPU initialization failed: %1</source>
+        <translation type="unfinished">GPU initialization failed: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="192"/>
+        <source>GPU initialization failed: unknown exception</source>
+        <translation type="unfinished">GPU initialization failed: unknown exception</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="197"/>
+        <source>Application not compiled with Vulkan support</source>
+        <translation type="unfinished">Application not compiled with Vulkan support</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="236"/>
+        <source>Model file unavailable: %1</source>
+        <translation type="unfinished">Model file unavailable: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="257"/>
+        <source>Failed to load model parameters: %1</source>
+        <translation type="unfinished">Failed to load model parameters: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="264"/>
+        <source>Failed to load model weights: %1</source>
+        <translation type="unfinished">Failed to load model weights: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="311"/>
+        <source>Backend not initialized</source>
+        <translation type="unfinished">Backend not initialized</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="316"/>
+        <source>No model loaded</source>
+        <translation type="unfinished">No model loaded</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="321"/>
+        <source>Invalid input image</source>
+        <translation type="unfinished">Invalid input image</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="370"/>
+        <source>GPU memory insufficient, please switch to CPU mode or reduce tile size</source>
+        <translation type="unfinished">GPU memory insufficient, please switch to CPU mode or reduce tile size</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="372"/>
+        <source>GPU memory insufficient, recommend switching to CPU mode</source>
+        <translation type="unfinished">GPU memory insufficient, recommend switching to CPU mode</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="378"/>
+        <source>GPU inference error: %1</source>
+        <translation type="unfinished">GPU inference error: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="380"/>
+        <source>GPU inference failed: %1</source>
+        <translation type="unfinished">GPU inference failed: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="386"/>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="388"/>
+        <source>GPU inference unknown error</source>
+        <translation type="unfinished">GPU inference unknown error</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="419"/>
+        <source>Image preprocessing failed</source>
+        <translation type="unfinished">Image preprocessing failed</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="424"/>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="438"/>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="489"/>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="563"/>
+        <source>Cancelled</source>
+        <translation type="unfinished">Cancelled</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="433"/>
+        <source>Inference failed</source>
+        <translation type="unfinished">Inference failed</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="543"/>
+        <source>Tile processing incomplete (%1/%2)</source>
+        <translation type="unfinished">Tile processing incomplete (%1/%2)</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="580"/>
+        <source>TTA processing failed</source>
+        <translation type="unfinished">TTA processing failed</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="626"/>
+        <source>Inference input failed, model input node mismatch</source>
+        <translation type="unfinished">Inference input failed, model input node mismatch</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/inference/NCNNVulkanBackend.cpp" line="643"/>
+        <source>Inference output failed, model output node mismatch</source>
+        <translation type="unfinished">Inference output failed, model output node mismatch</translation>
     </message>
 </context>
 <context>
@@ -2330,6 +2899,93 @@
     </message>
 </context>
 <context>
+    <name>ProcessingController</name>
+    <message>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="463"/>
+        <source>当前会话</source>
+        <translation type="unfinished">Current Session</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="464"/>
+        <source>未命名会话</source>
+        <translation type="unfinished">Unnamed Session</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="1252"/>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="1340"/>
+        <source>Media file not found</source>
+        <translation type="unfinished">Media file not found</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="1323"/>
+        <source>No AI model specified</source>
+        <translation type="unfinished">No AI model specified</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="1350"/>
+        <source>Cannot create AI output directory: %1</source>
+        <translation type="unfinished">Cannot create AI output directory: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="1420"/>
+        <source>Model loading failed: %1</source>
+        <translation type="unfinished">Model loading failed: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="1617"/>
+        <source>AI inference result invalid or output file missing</source>
+        <translation type="unfinished">AI inference result invalid or output file missing</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="1647"/>
+        <source>Media file to update not found</source>
+        <translation type="unfinished">Media file to update not found</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="1808"/>
+        <source>Video output file is invalid</source>
+        <translation type="unfinished">Video output file is invalid</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="1843"/>
+        <source>Video shader processing failed</source>
+        <translation type="unfinished">Video shader processing failed</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="3843"/>
+        <source>AI inference result invalid or no output file generated</source>
+        <translation type="unfinished">AI inference result invalid or no output file generated</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/ProcessingController.cpp" line="3888"/>
+        <source>Invalid inference parameters</source>
+        <translation type="unfinished">Invalid inference parameters</translation>
+    </message>
+</context>
+<context>
+    <name>ProcessingEngine</name>
+    <message>
+        <location filename="../../src/core/ProcessingEngine.cpp" line="241"/>
+        <source>Media file not found</source>
+        <translation type="unfinished">Media file not found</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ProcessingEngine.cpp" line="256"/>
+        <source>未指定AI模型</source>
+        <translation type="unfinished">No AI model specified</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ProcessingEngine.cpp" line="262"/>
+        <source>Model loading failed: %1</source>
+        <translation type="unfinished">Model loading failed: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/ProcessingEngine.cpp" line="353"/>
+        <source>AI inferring...</source>
+        <translation type="unfinished">AI inferring...</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <location filename="../../src/core/video/VideoResourceGuard.cpp" line="123"/>
@@ -2421,6 +3077,20 @@
     </message>
 </context>
 <context>
+    <name>SessionController</name>
+    <message>
+        <location filename="../../src/controllers/SessionController.cpp" line="671"/>
+        <source>Unnamed Session %1</source>
+        <translation type="unfinished">Unnamed Session %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/SessionController.cpp" line="726"/>
+        <location filename="../../src/controllers/SessionController.cpp" line="738"/>
+        <source>Cannot save session data</source>
+        <translation type="unfinished">Cannot save session data</translation>
+    </message>
+</context>
+<context>
     <name>SessionList</name>
     <message>
         <location filename="../../qml/components/SessionList.qml" line="410"/>
@@ -2467,6 +3137,38 @@
         <location filename="../../qml/components/SessionList.qml" line="787"/>
         <source>点击 + 创建新会话</source>
         <translation>Click + to create new session</translation>
+    </message>
+</context>
+<context>
+    <name>SessionModel</name>
+    <message>
+        <location filename="../../src/models/SessionModel.cpp" line="131"/>
+        <location filename="../../src/models/SessionModel.cpp" line="157"/>
+        <location filename="../../src/models/SessionModel.cpp" line="185"/>
+        <location filename="../../src/models/SessionModel.cpp" line="215"/>
+        <location filename="../../src/models/SessionModel.cpp" line="382"/>
+        <source>Session does not exist: %1</source>
+        <translation type="unfinished">Session does not exist: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/SessionModel.cpp" line="162"/>
+        <source>Session name cannot be empty</source>
+        <translation type="unfinished">Session name cannot be empty</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/SessionModel.cpp" line="167"/>
+        <source>Session name cannot exceed 50 characters</source>
+        <translation type="unfinished">Session name cannot exceed 50 characters</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/SessionModel.cpp" line="349"/>
+        <source>Unnamed Session %1</source>
+        <translation type="unfinished">Unnamed Session %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/models/SessionModel.cpp" line="427"/>
+        <source>Cannot move session across pinned area</source>
+        <translation type="unfinished">Cannot move session across pinned area</translation>
     </message>
 </context>
 <context>
@@ -3807,6 +4509,24 @@ This operation will:
     </message>
 </context>
 <context>
+    <name>TaskRecoveryController</name>
+    <message>
+        <location filename="../../src/controllers/TaskRecoveryController.cpp" line="401"/>
+        <source>未命名会话</source>
+        <translation type="unfinished">Unnamed Session</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/TaskRecoveryController.cpp" line="655"/>
+        <source>恢复快照不可用，未完成任务已标记为失败</source>
+        <translation type="unfinished">Recovery snapshot unavailable. Unfinished tasks have been marked as failed.</translation>
+    </message>
+    <message>
+        <location filename="../../src/controllers/TaskRecoveryController.cpp" line="681"/>
+        <source>应用关闭导致任务中断，未执行恢复</source>
+        <translation type="unfinished">App shutdown interrupted tasks, and recovery was not performed.</translation>
+    </message>
+</context>
+<context>
     <name>TitleBar</name>
     <message>
         <location filename="../../qml/components/TitleBar.qml" line="132"/>
@@ -3887,6 +4607,322 @@ This operation will:
         <location filename="../../qml/components/TitleBar.qml" line="253"/>
         <source>关闭</source>
         <translation>Close</translation>
+    </message>
+</context>
+<context>
+    <name>VideoCompatibilityAnalyzer</name>
+    <message>
+        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="83"/>
+        <source>无法打开视频文件: %1</source>
+        <translation type="unfinished">Cannot open video file: %1</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="90"/>
+        <source>无法获取视频流信息</source>
+        <translation type="unfinished">Cannot get video stream info</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="108"/>
+        <source>未找到视频流</source>
+        <translation type="unfinished">Video stream not found</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="344"/>
+        <source>视频尺寸完全兼容，无需调整</source>
+        <translation type="unfinished">Video size is fully compatible, no adjustment needed</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="347"/>
+        <source>Abnormal aspect ratio, needs padding</source>
+        <translation type="unfinished">Abnormal aspect ratio, needs padding</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="351"/>
+        <source>Video size exceeds safe range, needs downscaling</source>
+        <translation type="unfinished">Video size exceeds safe range, needs downscaling</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="355"/>
+        <source>视频尺寸较大，将使用分块处理</source>
+        <translation type="unfinished">Video size is large, tile processing will be used</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="359"/>
+        <source>视频尺寸不兼容，无法处理</source>
+        <translation type="unfinished">Video size is incompatible and cannot be processed</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="366"/>
+        <source>视频格式完全支持</source>
+        <translation type="unfinished">Video format is fully supported</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="369"/>
+        <source>Video codec requires transcoding</source>
+        <translation type="unfinished">Video codec requires transcoding</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="373"/>
+        <source>Pixel format conversion required</source>
+        <translation type="unfinished">Pixel format conversion required</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="377"/>
+        <source>HDR视频需要色调映射</source>
+        <translation type="unfinished">HDR video requires tone mapping</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="381"/>
+        <source>视频格式部分支持，可能丢失信息</source>
+        <translation type="unfinished">Video format is partially supported; information may be lost</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="385"/>
+        <source>视频格式不支持</source>
+        <translation type="unfinished">Video format is not supported</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="391"/>
+        <source>HDR video detected, applying tone mapping</source>
+        <translation type="unfinished">HDR video detected, applying tone mapping</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoCompatibilityAnalyzer.cpp" line="395"/>
+        <source>%1-bit video detected, converting to 8-bit</source>
+        <translation type="unfinished">%1-bit video detected, converting to 8-bit</translation>
+    </message>
+</context>
+<context>
+    <name>VideoProcessor</name>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="117"/>
+        <location filename="../../src/core/VideoProcessor.cpp" line="119"/>
+        <source>Processing task already in progress</source>
+        <translation type="unfinished">Processing task already in progress</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="129"/>
+        <source>Processing Video</source>
+        <translation type="unfinished">Processing Video</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="231"/>
+        <location filename="../../src/core/VideoProcessor.cpp" line="264"/>
+        <location filename="../../src/core/VideoProcessor.cpp" line="298"/>
+        <location filename="../../src/core/VideoProcessor.cpp" line="395"/>
+        <location filename="../../src/core/VideoProcessor.cpp" line="461"/>
+        <location filename="../../src/core/VideoProcessor.cpp" line="472"/>
+        <location filename="../../src/core/VideoProcessor.cpp" line="485"/>
+        <location filename="../../src/core/VideoProcessor.cpp" line="495"/>
+        <location filename="../../src/core/VideoProcessor.cpp" line="585"/>
+        <location filename="../../src/core/VideoProcessor.cpp" line="604"/>
+        <location filename="../../src/core/VideoProcessor.cpp" line="645"/>
+        <location filename="../../src/core/VideoProcessor.cpp" line="647"/>
+        <source>Processing Cancelled</source>
+        <translation type="unfinished">Processing Cancelled</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="235"/>
+        <source>Analyzing video file...</source>
+        <translation type="unfinished">Analyzing video file...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="238"/>
+        <source>Cannot open input video file</source>
+        <translation type="unfinished">Cannot open input video file</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="242"/>
+        <source>Cannot get video stream info</source>
+        <translation type="unfinished">Cannot get video stream info</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="255"/>
+        <source>No video stream found</source>
+        <translation type="unfinished">No video stream found</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="261"/>
+        <source>File analysis complete</source>
+        <translation type="unfinished">File analysis complete</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="268"/>
+        <source>Initializing decoder...</source>
+        <translation type="unfinished">Initializing decoder...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="272"/>
+        <source>No suitable video decoder found</source>
+        <translation type="unfinished">No suitable video decoder found</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="277"/>
+        <source>Cannot allocate decoder context</source>
+        <translation type="unfinished">Cannot allocate decoder context</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="281"/>
+        <source>Cannot copy decoder parameters</source>
+        <translation type="unfinished">Cannot copy decoder parameters</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="287"/>
+        <source>Cannot open video decoder</source>
+        <translation type="unfinished">Cannot open video decoder</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="295"/>
+        <source>Decoder initialization complete</source>
+        <translation type="unfinished">Decoder initialization complete</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="302"/>
+        <source>Initializing encoder...</source>
+        <translation type="unfinished">Initializing encoder...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="306"/>
+        <source>Cannot create output format context</source>
+        <translation type="unfinished">Cannot create output format context</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="311"/>
+        <source>Cannot create output video stream</source>
+        <translation type="unfinished">Cannot create output video stream</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="320"/>
+        <source>No suitable video encoder found</source>
+        <translation type="unfinished">No suitable video encoder found</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="325"/>
+        <source>Cannot allocate encoder context</source>
+        <translation type="unfinished">Cannot allocate encoder context</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="357"/>
+        <source>Cannot open video encoder</source>
+        <translation type="unfinished">Cannot open video encoder</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="362"/>
+        <source>Cannot copy encoder parameters to output stream</source>
+        <translation type="unfinished">Cannot copy encoder parameters to output stream</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="383"/>
+        <source>Cannot open output file</source>
+        <translation type="unfinished">Cannot open output file</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="388"/>
+        <source>Cannot write file header</source>
+        <translation type="unfinished">Cannot write file header</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="392"/>
+        <source>Encoder initialization complete</source>
+        <translation type="unfinished">Encoder initialization complete</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="404"/>
+        <source>Cannot create RGB conversion context</source>
+        <translation type="unfinished">Cannot create RGB conversion context</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="413"/>
+        <source>Cannot create YUV conversion context</source>
+        <translation type="unfinished">Cannot create YUV conversion context</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="422"/>
+        <source>Cannot allocate frame buffer</source>
+        <translation type="unfinished">Cannot allocate frame buffer</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="429"/>
+        <source>Cannot allocate RGB frame buffer</source>
+        <translation type="unfinished">Cannot allocate RGB frame buffer</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="436"/>
+        <source>Cannot allocate output frame buffer</source>
+        <translation type="unfinished">Cannot allocate output frame buffer</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="451"/>
+        <source>Starting video frame processing...</source>
+        <translation type="unfinished">Starting video frame processing...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="554"/>
+        <source>Processing frame %1/%2...</source>
+        <translation type="unfinished">Processing frame %1/%2...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="589"/>
+        <source>Finalizing encoding...</source>
+        <translation type="unfinished">Finalizing encoding...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="608"/>
+        <source>Writing file...</source>
+        <translation type="unfinished">Writing file...</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="611"/>
+        <source>Cannot write file trailer</source>
+        <translation type="unfinished">Cannot write file trailer</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/VideoProcessor.cpp" line="623"/>
+        <source>Processing complete</source>
+        <translation type="unfinished">Processing complete</translation>
+    </message>
+</context>
+<context>
+    <name>VideoSizeAdapter</name>
+    <message>
+        <location filename="../../src/core/video/VideoSizeAdapter.cpp" line="77"/>
+        <source>视频尺寸无效</source>
+        <translation type="unfinished">Invalid video size</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoSizeAdapter.cpp" line="84"/>
+        <source>视频尺寸过小，低于模型最低要求</source>
+        <translation type="unfinished">Video size is too small, below model minimum requirements</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoSizeAdapter.cpp" line="97"/>
+        <source>视频尺寸超出最大限制，需要缩小处理</source>
+        <translation type="unfinished">Video size exceeds the maximum limit and must be scaled down</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoSizeAdapter.cpp" line="104"/>
+        <source>Abnormal aspect ratio, needs padding</source>
+        <translation type="unfinished">Abnormal aspect ratio, needs padding</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoSizeAdapter.cpp" line="124"/>
+        <source>Video size needs padding to match model requirements</source>
+        <translation type="unfinished">Video size needs padding to match model requirements</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoSizeAdapter.cpp" line="135"/>
+        <source>Large video size, will use tile processing</source>
+        <translation type="unfinished">Large video size, will use tile processing</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoSizeAdapter.cpp" line="143"/>
+        <source>Video size exceeds safe range, needs downscaling</source>
+        <translation type="unfinished">Video size exceeds safe range, needs downscaling</translation>
+    </message>
+    <message>
+        <location filename="../../src/core/video/VideoSizeAdapter.cpp" line="156"/>
+        <source>Video size fully compatible, no adjustment needed</source>
+        <translation type="unfinished">Video size fully compatible, no adjustment needed</translation>
     </message>
 </context>
 </TS>

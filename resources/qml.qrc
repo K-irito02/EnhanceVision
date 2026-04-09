@@ -151,6 +151,8 @@
         <file>icons/film.svg</file>
         <file>icons/file-text.svg</file>
         <file>icons/database.svg</file>
+        <file>icons/view-source.svg</file>
+        <file>icons/view-result.svg</file>
         
         <!-- 应用程序图标 -->
         <file>icons/app_icon.png</file>
