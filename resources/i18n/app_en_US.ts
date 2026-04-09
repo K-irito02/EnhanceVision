@@ -2899,6 +2899,16 @@ You need to process files again after cleanup to recover results.</translation>
         <translation>Failed to clear</translation>
     </message>
     <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1574"/>
+        <source>已清理</source>
+        <translation>Cleared</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1305"/>
+        <source>刷新失败</source>
+        <translation>Failed to refresh</translation>
+    </message>
+    <message>
         <location filename="../../qml/pages/SettingsPage.qml" line="199"/>
         <source>暂时无法切换任务控制模式</source>
         <translation>Task control mode cannot be switched right now</translation>

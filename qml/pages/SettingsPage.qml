@@ -107,8 +107,8 @@ Rectangle {
                 success = SettingsController.clearThumbnailCache()
             } else if (clearType === "all") {
                 success = SettingsController.clearAllCache()
+                clearAllToast.show(success)
             }
-            clearCacheToast.show(success ? qsTr("清理完成") : qsTr("清理失败"))
         }
     }
 
@@ -1260,8 +1260,12 @@ Rectangle {
                                 size: "sm"
                                 iconName: "refresh-cw"
                                 onClicked: {
-                                    SettingsController.refreshDataSize()
-                                    refreshToast.show()
+                                    try {
+                                        SettingsController.refreshDataSize()
+                                        refreshToast.show(true)
+                                    } catch (e) {
+                                        refreshToast.show(false)
+                                    }
                                 }
                             }
 
@@ -1270,11 +1274,14 @@ Rectangle {
                                 implicitWidth: refreshToastRow.implicitWidth + 12
                                 implicitHeight: 24
                                 radius: Theme.radius.sm
-                                color: Theme.colors.successSubtle
+                                color: refreshToast.isSuccess ? Theme.colors.successSubtle : Theme.colors.destructiveSubtle
                                 opacity: 0
                                 visible: opacity > 0
 
-                                function show() {
+                                property bool isSuccess: true
+
+                                function show(success) {
+                                    isSuccess = success
                                     opacity = 1
                                     refreshToastTimer.restart()
                                 }
@@ -1287,14 +1294,14 @@ Rectangle {
                                     ColoredIcon {
                                         anchors.verticalCenter: parent.verticalCenter
                                         iconSize: 12
-                                        source: Theme.icon("check")
-                                        color: Theme.colors.success
+                                        source: refreshToast.isSuccess ? Theme.icon("check") : Theme.icon("x")
+                                        color: refreshToast.isSuccess ? Theme.colors.success : Theme.colors.destructive
                                     }
 
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: qsTr("已刷新")
-                                        color: Theme.colors.success
+                                        text: refreshToast.isSuccess ? qsTr("已刷新") : qsTr("刷新失败")
+                                        color: refreshToast.isSuccess ? Theme.colors.success : Theme.colors.destructive
                                         font.pixelSize: 11
                                         font.weight: Font.Medium
                                     }
@@ -1308,6 +1315,10 @@ Rectangle {
 
                                 Behavior on opacity {
                                     NumberAnimation { duration: 150 }
+                                }
+
+                                Behavior on color {
+                                    ColorAnimation { duration: 150 }
                                 }
                             }
 
@@ -1529,6 +1540,59 @@ Rectangle {
                                     verticalAlignment: Text.AlignVCenter
                                 }
 
+                                Rectangle {
+                                    id: clearAllToast
+                                    implicitWidth: clearAllToastRow.implicitWidth + 12
+                                    implicitHeight: 24
+                                    radius: Theme.radius.sm
+                                    color: clearAllToast.isSuccess ? Theme.colors.successSubtle : Theme.colors.destructiveSubtle
+                                    opacity: 0
+                                    visible: opacity > 0
+
+                                    property bool isSuccess: true
+
+                                    function show(success) {
+                                        isSuccess = success
+                                        opacity = 1
+                                        clearAllToastTimer.restart()
+                                    }
+
+                                    Row {
+                                        id: clearAllToastRow
+                                        anchors.centerIn: parent
+                                        spacing: 4
+
+                                        ColoredIcon {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            iconSize: 12
+                                            source: clearAllToast.isSuccess ? Theme.icon("check") : Theme.icon("x")
+                                            color: clearAllToast.isSuccess ? Theme.colors.success : Theme.colors.destructive
+                                        }
+
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: clearAllToast.isSuccess ? qsTr("已清理") : qsTr("清理失败")
+                                            color: clearAllToast.isSuccess ? Theme.colors.success : Theme.colors.destructive
+                                            font.pixelSize: 11
+                                            font.weight: Font.Medium
+                                        }
+                                    }
+
+                                    Timer {
+                                        id: clearAllToastTimer
+                                        interval: 2000
+                                        onTriggered: clearAllToast.opacity = 0
+                                    }
+
+                                    Behavior on opacity {
+                                        NumberAnimation { duration: 150 }
+                                    }
+
+                                    Behavior on color {
+                                        ColorAnimation { duration: 150 }
+                                    }
+                                }
+
                                 Button {
                                     text: qsTr("清理全部")
                                     variant: "destructive"
@@ -1621,46 +1685,7 @@ Rectangle {
         }
     }
 
-    Rectangle {
-        id: clearCacheToast
-        anchors.bottom: parent.bottom
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottomMargin: 24
-        width: toastText.implicitWidth + 32
-        height: 36
-        radius: Theme.radius.md
-        color: Theme.colors.card
-        border.width: 1
-        border.color: Theme.colors.cardBorder
-        opacity: 0
-        visible: opacity > 0
 
-        property alias message: toastText.text
-
-        function show(msg) {
-            message = msg
-            opacity = 1
-            toastTimer.restart()
-        }
-
-        Text {
-            id: toastText
-            anchors.centerIn: parent
-            text: qsTr("缓存已清除")
-            color: Theme.colors.foreground
-            font.pixelSize: 13
-        }
-
-        Timer {
-            id: toastTimer
-            interval: 2000
-            onTriggered: clearCacheToast.opacity = 0
-        }
-
-        Behavior on opacity {
-            NumberAnimation { duration: 200 }
-        }
-    }
 
     Behavior on color { ColorAnimation { duration: Theme.animation.normal } }
 }

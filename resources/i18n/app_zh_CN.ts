@@ -2899,6 +2899,16 @@
         <translation>清理失败</translation>
     </message>
     <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1574"/>
+        <source>已清理</source>
+        <translation>已清理</translation>
+    </message>
+    <message>
+        <location filename="../../qml/pages/SettingsPage.qml" line="1305"/>
+        <source>刷新失败</source>
+        <translation>刷新失败</translation>
+    </message>
+    <message>
         <location filename="../../qml/pages/SettingsPage.qml" line="199"/>
         <source>暂时无法切换任务控制模式</source>
         <translation>暂时无法切换任务控制模式</translation>
