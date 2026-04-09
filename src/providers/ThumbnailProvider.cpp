@@ -4,8 +4,6 @@
 #include <QUrl>
 #include <QFileInfo>
 #include <QDir>
-#include <QPainter>
-#include <QPen>
 #include <QDateTime>
 #include <QImageReader>
 
@@ -149,8 +147,8 @@ qint64 ThumbnailProvider::memoryCacheSize() const
 QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize)
 {
     const QString cacheKey = normalizeKey(id);
+    const QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(256, 256);
 
-    // 1. 检查 LRU 内存缓存
     {
         QMutexLocker locker(&m_mutex);
         if (m_thumbnails.contains(cacheKey)) {
@@ -170,22 +168,17 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
             return entry.image;
         }
 
-        // 2. 检查失败记录（带冷却期逻辑）
         if (m_failedKeys.contains(cacheKey)) {
             if (isFailCooledDown(cacheKey)) {
-                qInfo() << "[ThumbnailProvider] Fail cooldown passed for:" << cacheKey << "- retrying";
                 m_failedKeys.remove(cacheKey);
-                if (m_persistenceEnabled && m_db) {
-                    m_db->updateStatus(cacheKey, static_cast<int>(ThumbStatus::Pending));
-                }
             } else {
-                QImage placeholder = generatePlaceholderImage(requestedSize);
-                if (size) *size = placeholder.size();
-                return placeholder;
+                if (size) {
+                    *size = targetSize;
+                }
+                return QImage();
             }
         }
 
-        // 3. 持久化模式：检查数据库和磁盘
         if (m_persistenceEnabled && m_db) {
             ThumbnailMeta meta = m_db->getMetadata(cacheKey);
             if (meta.isValid() && !meta.diskPath.isEmpty()) {
@@ -208,46 +201,45 @@ QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSi
                                << "-" << meta.diskPath;
                     m_db->updateStatus(cacheKey, static_cast<int>(ThumbStatus::Stale));
                 }
-            } else if (meta.isFailed()) {
+            } else if (!meta.cacheKey.isEmpty() && meta.isFailed()) {
                 FailedEntry fe;
                 fe.failedAt = meta.lastAccessed > 0 ? meta.lastAccessed : QDateTime::currentSecsSinceEpoch();
                 fe.retryCount = meta.failCount;
                 m_failedKeys[cacheKey] = fe;
 
-                QImage placeholder = generatePlaceholderImage(requestedSize);
-                if (size) *size = placeholder.size();
-                return placeholder;
+                if (!isFailCooledDown(cacheKey)) {
+                    if (size) {
+                        *size = targetSize;
+                    }
+                    return QImage();
+                }
+
+                m_failedKeys.remove(cacheKey);
             }
         }
 
-        // 已在生成中，返回占位图
         if (m_pendingRequests.contains(cacheKey)) {
-            QImage placeholder = generatePlaceholderImage(requestedSize);
-            if (size) *size = placeholder.size();
-            return placeholder;
+            if (size) {
+                *size = targetSize;
+            }
+            return QImage();
         }
     }
 
-    // 4. 确定实际文件路径并触发异步生成
-    const QSize targetSize = requestedSize.isValid() ? requestedSize : QSize(256, 256);
     QString filePath;
-
-    if (cacheKey.startsWith(QStringLiteral("processed_"))) {
+    {
         QMutexLocker locker(&m_mutex);
-        if (m_idToPath.contains(cacheKey)) {
-            filePath = m_idToPath.value(cacheKey);
-        }
-    } else {
-        filePath = normalizeFilePath(cacheKey);
+        filePath = resolveFilePathLocked(cacheKey);
     }
 
     if (!filePath.isEmpty()) {
         generateThumbnailAsync(filePath, cacheKey, targetSize);
     }
 
-    QImage placeholder = generatePlaceholderImage(requestedSize);
-    if (size) *size = placeholder.size();
-    return placeholder;
+    if (size) {
+        *size = targetSize;
+    }
+    return QImage();
 }
 
 void ThumbnailProvider::setThumbnail(const QString &id, const QImage &thumbnail, const QString &filePath)
@@ -272,6 +264,7 @@ void ThumbnailProvider::setThumbnail(const QString &id, const QImage &thumbnail,
     saveThumbnailToDisk(key, thumbnail);
     evictLRU();
 
+    emitThumbnailStateChanged(key, ThumbnailState::Ready);
     emit thumbnailReady(key);
 }
 
@@ -315,6 +308,8 @@ void ThumbnailProvider::generateThumbnailAsync(const QString &filePath, const QS
         }
     }
 
+    emitThumbnailStateChanged(key, ThumbnailState::Pending);
+
     ThumbnailGenerator* generator = new ThumbnailGenerator(filePath, key, size);
     connect(generator, &ThumbnailGenerator::thumbnailReady,
             this, &ThumbnailProvider::onThumbnailReady);
@@ -328,10 +323,15 @@ void ThumbnailProvider::removeThumbnail(const QString &id)
     m_thumbnails.remove(key);
     m_lruOrder.removeAll(key);
     m_failedKeys.remove(key);
+    m_pendingRequests.remove(key);
+    m_idToPath.remove(key);
 
     if (m_persistenceEnabled && m_db) {
         m_db->removeMetadata(key);
     }
+
+    locker.unlock();
+    emitThumbnailStateChanged(key, ThumbnailState::Missing);
 }
 
 void ThumbnailProvider::clearAll()
@@ -340,6 +340,8 @@ void ThumbnailProvider::clearAll()
     m_thumbnails.clear();
     m_lruOrder.clear();
     m_failedKeys.clear();
+    m_pendingRequests.clear();
+    m_idToPath.clear();
 }
 
 void ThumbnailProvider::clearThumbnailsByPathPrefix(const QString &pathPrefix)
@@ -399,6 +401,7 @@ ThumbnailProvider* ThumbnailProvider::instance()
 void ThumbnailProvider::onThumbnailReady(const QString &id, const QImage &thumbnail)
 {
     const QString key = normalizeKey(id);
+    ThumbnailState nextState = ThumbnailState::Failed;
 
     {
         QMutexLocker locker(&m_mutex);
@@ -416,6 +419,7 @@ void ThumbnailProvider::onThumbnailReady(const QString &id, const QImage &thumbn
 
             saveThumbnailToDisk(key, thumbnail);
             evictLRU();
+            nextState = ThumbnailState::Ready;
         } else {
             qWarning() << "[ThumbnailProvider] Thumbnail generation failed for:" << key;
 
@@ -434,6 +438,7 @@ void ThumbnailProvider::onThumbnailReady(const QString &id, const QImage &thumbn
         }
     }
 
+    emitThumbnailStateChanged(key, nextState);
     emit thumbnailReady(key);
 }
 
@@ -458,57 +463,41 @@ void ThumbnailProvider::invalidateThumbnail(const QString &id)
 
     if (!filePath.isEmpty()) {
         generateThumbnailAsync(filePath, key, QSize(256, 256));
+    } else {
+        emitThumbnailStateChanged(key, ThumbnailState::Missing);
     }
 }
 
 bool ThumbnailProvider::hasThumbnail(const QString &id) const
 {
+    return thumbnailState(id) == static_cast<int>(ThumbnailState::Ready);
+}
+
+int ThumbnailProvider::thumbnailState(const QString &id) const
+{
     const QString key = normalizeKey(id);
     QMutexLocker locker(const_cast<QMutex*>(&m_mutex));
-    return m_thumbnails.contains(key);
+    return static_cast<int>(thumbnailStateLocked(key));
 }
 
-QImage ThumbnailProvider::loadPlaceholderFromResource()
+void ThumbnailProvider::ensureThumbnail(const QString &id, int width, int height)
 {
-    QImage placeholder;
-    
-    placeholder.load(":/icons/placeholder.png");
-    
-    if (placeholder.isNull()) {
-        qWarning() << "[ThumbnailProvider] Failed to load placeholder from resource, using generated one";
-    }
-    
-    return placeholder;
-}
+    const QString key = normalizeKey(id);
+    QString filePath;
+    QSize requestedSize = QSize(qMax(1, width), qMax(1, height));
 
-QImage ThumbnailProvider::generatePlaceholderImage(const QSize& size)
-{
-    QSize placeholderSize = size.isValid() ? size : QSize(256, 256);
-    
-    QImage customPlaceholder = loadPlaceholderFromResource();
-    
-    if (!customPlaceholder.isNull()) {
-        if (customPlaceholder.size() != placeholderSize) {
-            return customPlaceholder.scaled(placeholderSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+    {
+        QMutexLocker locker(&m_mutex);
+        ThumbnailState state = thumbnailStateLocked(key);
+        if (state == ThumbnailState::Ready || state == ThumbnailState::Pending || key.isEmpty()) {
+            return;
         }
-        return customPlaceholder;
+        filePath = resolveFilePathLocked(key);
     }
-    
-    QImage placeholder(placeholderSize, QImage::Format_ARGB32);
-    placeholder.fill(Qt::transparent);
-    
-    QPainter painter(&placeholder);
-    painter.setRenderHint(QPainter::Antialiasing);
-    
-    QColor bgColor(128, 128, 128, 60);
-    painter.fillRect(placeholder.rect(), bgColor);
-    
-    QPen pen(QColor(128, 128, 128, 120));
-    pen.setWidth(1);
-    painter.setPen(pen);
-    painter.drawRect(placeholder.rect().adjusted(0, 0, -1, -1));
-    
-    return placeholder;
+
+    if (!filePath.isEmpty()) {
+        generateThumbnailAsync(filePath, key, requestedSize);
+    }
 }
 
 void ThumbnailProvider::touchLRU(const QString& key)
@@ -598,6 +587,80 @@ bool ThumbnailProvider::isFailCooledDown(const QString& cacheKey) const
     const FailedEntry& fe = m_failedKeys[cacheKey];
     qint64 elapsed = QDateTime::currentSecsSinceEpoch() - fe.failedAt;
     return elapsed >= kFailCooldownSec;
+}
+
+ThumbnailProvider::ThumbnailState ThumbnailProvider::thumbnailStateLocked(const QString& cacheKey) const
+{
+    if (cacheKey.isEmpty()) {
+        return ThumbnailState::Missing;
+    }
+
+    auto memIt = m_thumbnails.constFind(cacheKey);
+    if (memIt != m_thumbnails.constEnd() && !memIt.value().image.isNull()) {
+        return ThumbnailState::Ready;
+    }
+
+    if (m_pendingRequests.contains(cacheKey)) {
+        return ThumbnailState::Pending;
+    }
+
+    auto failedIt = m_failedKeys.constFind(cacheKey);
+    if (failedIt != m_failedKeys.constEnd()) {
+        return isFailCooledDown(cacheKey) ? ThumbnailState::Missing : ThumbnailState::Failed;
+    }
+
+    if (!m_persistenceEnabled || !m_db) {
+        return ThumbnailState::Missing;
+    }
+
+    ThumbnailMeta meta = m_db->getMetadata(cacheKey);
+    if (meta.cacheKey.isEmpty()) {
+        return ThumbnailState::Missing;
+    }
+
+    if (meta.isValid()) {
+        const QString diskPath = !meta.diskPath.isEmpty() ? meta.diskPath : m_db->diskPathForKey(cacheKey);
+        if (!diskPath.isEmpty() && QFileInfo::exists(diskPath)) {
+            return ThumbnailState::Ready;
+        }
+        return ThumbnailState::Missing;
+    }
+
+    if (meta.status == static_cast<int>(ThumbStatus::Pending)) {
+        return ThumbnailState::Pending;
+    }
+
+    if (meta.isFailed()) {
+        const qint64 failedAt = meta.lastAccessed > 0 ? meta.lastAccessed : meta.generatedAt;
+        const qint64 elapsed = failedAt > 0 ? (QDateTime::currentSecsSinceEpoch() - failedAt) : (kFailCooldownSec + 1);
+        return elapsed >= kFailCooldownSec ? ThumbnailState::Missing : ThumbnailState::Failed;
+    }
+
+    return ThumbnailState::Missing;
+}
+
+QString ThumbnailProvider::resolveFilePathLocked(const QString& cacheKey) const
+{
+    if (cacheKey.isEmpty()) {
+        return QString();
+    }
+
+    QString filePath = m_idToPath.value(cacheKey);
+    if (filePath.isEmpty() && m_persistenceEnabled && m_db) {
+        ThumbnailMeta meta = m_db->getMetadata(cacheKey);
+        filePath = meta.filePath;
+    }
+
+    if (filePath.isEmpty() && !cacheKey.startsWith(QStringLiteral("processed_"))) {
+        filePath = cacheKey;
+    }
+
+    return normalizeFilePath(filePath);
+}
+
+void ThumbnailProvider::emitThumbnailStateChanged(const QString& cacheKey, ThumbnailState state)
+{
+    emit thumbnailStateChanged(cacheKey, static_cast<int>(state));
 }
 
 } // namespace EnhanceVision

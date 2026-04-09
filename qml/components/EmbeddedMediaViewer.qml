@@ -64,6 +64,23 @@ Item {
     // 预加载路径：始终准备好原图和结果图，用于无闪烁切换
     readonly property string _resultSource: currentFile ? (currentFile.resultPath && currentFile.resultPath !== "" ? currentFile.resultPath : currentFile.filePath) : ""
     readonly property string _originalSource: currentFile ? (currentFile.originalPath && currentFile.originalPath !== "" ? currentFile.originalPath : currentFile.filePath) : ""
+
+    function _normalizeThumbnailKey(source) {
+        if (!source || source === "") return ""
+        if (source.startsWith("file:///")) return source.substring(8)
+        return source
+    }
+
+    function _baseThumbnailKey(file) {
+        if (!file) return ""
+        return _normalizeThumbnailKey(file.originalPath || file.filePath || "")
+    }
+
+    function _preferredThumbnailKey(file) {
+        if (!file) return ""
+        if (file.processedThumbnailId && file.processedThumbnailId !== "") return file.processedThumbnailId
+        return _normalizeThumbnailKey(file.resultPath || "")
+    }
     
     signal fileRemoved(string messageId, int fileIndex)
     signal minimizeRequested(string viewerId, string title, string thumbnail)
@@ -168,18 +185,6 @@ Item {
         return true
     }
 
-    function _hasSameFileIds(nextFiles) {
-        if (!nextFiles || mediaFiles.length !== nextFiles.length) return false
-        for (var i = 0; i < mediaFiles.length; i++) {
-            var oldFile = mediaFiles[i]
-            var nextFile = nextFiles[i]
-            if (!oldFile || !nextFile || oldFile.id !== nextFile.id) {
-                return false
-            }
-        }
-        return true
-    }
-
     function syncMediaFiles(files, preferredFileId, preferredFilePath) {
         var nextFiles = files || []
         if (nextFiles.length === 0) {
@@ -210,7 +215,7 @@ Item {
                 mergedFiles.push(nextFiles[appendIndex])
             }
             mediaFiles = mergedFiles
-        } else if (!_hasSameFileIds(nextFiles)) {
+        } else {
             mediaFiles = nextFiles
         }
 
@@ -1048,40 +1053,24 @@ Item {
             // 仅在预览模式应用视频Shader；消息模式下展示导出结果/原图，不再二次套用
             property bool _applyVideoShader: viewer.shaderEnabled && !viewer.showOriginal && !viewer.messageMode
             
-            Image {
+            ThumbnailStatusImage {
                 id: videoPreviewFrame
                 anchors.fill: parent
-                fillMode: Image.PreserveAspectFit
-                asynchronous: true
-                smooth: true
-                mipmap: true
                 visible: viewer.isVideo && videoPlayer && videoPlayer.playbackState === MediaPlayer.StoppedState
                 opacity: visible ? 1.0 : 0.0
                 z: 1
-                
-                source: {
-                    if (!viewer.isVideo || !viewer.currentSource || viewer.currentSource === "") return ""
-                    
-                    // 消息模式下，优先使用处理后的缩略图
-                    if (viewer.messageMode && viewer.currentFile && viewer.currentFile.status === 2) {
-                        if (viewer.currentFile.processedThumbnailId && viewer.currentFile.processedThumbnailId !== "") {
-                            return "image://thumbnail/" + viewer.currentFile.processedThumbnailId
-                        }
-                    }
-                    
-                    var src = viewer.currentSource
-                    if (src.startsWith("file:///")) src = src.substring(8)
-                    return "image://thumbnail/" + src
-                }
-                
-                ColoredIcon {
-                    anchors.centerIn: parent
-                    source: Theme.icon("video")
-                    iconSize: 64
-                    color: Theme.colors.mutedForeground
-                    visible: parent.status === Image.Error || parent.status === Image.Null
-                }
-                
+                baseThumbnailId: viewer._baseThumbnailKey(viewer.currentFile)
+                preferredThumbnailId: viewer._preferredThumbnailKey(viewer.currentFile)
+                preferPreferredThumbnail: viewer.messageMode
+                                          && viewer.currentFile
+                                          && viewer.currentFile.status === 2
+                                          && preferredThumbnailId !== ""
+                mediaType: 1
+                requestedSourceSize: Qt.size(Math.max(256, Math.round(width)), Math.max(256, Math.round(height)))
+                fillMode: Image.PreserveAspectFit
+                backgroundColor: "transparent"
+                showFailureBorder: true
+
                 Behavior on opacity { NumberAnimation { duration: 200 } }
             }
             
@@ -1741,75 +1730,21 @@ Item {
                     radius: 6
                     color: Theme.isDark ? Qt.rgba(1, 1, 1, 0.05) : Qt.rgba(0, 0, 0, 0.03)
                     clip: true
-                    
-                    Image {
-                        id: thumbImg
+
+                    ThumbnailStatusImage {
                         anchors.fill: parent
-                        source: {
-                            var f = fileData
-                            if (!f) return ""
-
-                            var result = ""
-
-                            // 消息模式下，优先使用处理后的缩略图
-                            if (viewer.messageMode && f.status === 2) {
-                                if (f.processedThumbnailId && f.processedThumbnailId !== "") {
-                                    result = "image://thumbnail/" + f.processedThumbnailId
-                                } else if (f.resultPath && f.resultPath !== "") {
-                                    result = "image://thumbnail/" + f.resultPath
-                                } else if (f.thumbnail && f.thumbnail !== "") {
-                                    result = f.thumbnail
-                                } else if (f.filePath) {
-                                    result = "image://thumbnail/" + f.filePath
-                                }
-                            } else {
-                                if (f.thumbnail && f.thumbnail !== "") {
-                                    result = f.thumbnail
-                                } else if (f.filePath) {
-                                    result = "image://thumbnail/" + f.filePath
-                                }
-                            }
-
-                            return result
-                        }
+                        baseThumbnailId: viewer._baseThumbnailKey(fileData)
+                        preferredThumbnailId: viewer._preferredThumbnailKey(fileData)
+                        preferPreferredThumbnail: viewer.messageMode
+                                                  && fileData
+                                                  && fileData.status === 2
+                                                  && preferredThumbnailId !== ""
+                        mediaType: fileData ? fileData.mediaType : 0
+                        requestedSourceSize: Qt.size(96, 96)
                         fillMode: Image.PreserveAspectCrop
-                        asynchronous: true
-                        smooth: true
-                        cache: true
-                        sourceSize: Qt.size(96, 96)
-                        visible: status === Image.Ready
-                        layer.enabled: true
-                        layer.effect: MultiEffect {
-                            maskEnabled: true
-                            maskThresholdMin: 0.5
-                            maskSpreadAtMin: 1.0
-                            maskSource: thumbMask
-                        }
-                    }
-                    
-                    Item {
-                        id: thumbMask
-                        visible: false
-                        layer.enabled: true
-                        width: thumbRect.width
-                        height: thumbRect.height
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: 6
-                            color: "white"
-                        }
-                    }
-                    
-                    ColoredIcon {
-                        anchors.centerIn: parent
-                        source: {
-                            var f = fileData
-                            if (!f) return Theme.icon("image")
-                            return f.mediaType === 1 ? Theme.icon("video") : Theme.icon("image")
-                        }
-                        iconSize: 16
-                        color: Theme.colors.mutedForeground
-                        visible: thumbImg.status !== Image.Ready
+                        cornerRadius: 6
+                        backgroundColor: thumbRect.color
+                        showFailureBorder: true
                     }
                     
                     Rectangle {

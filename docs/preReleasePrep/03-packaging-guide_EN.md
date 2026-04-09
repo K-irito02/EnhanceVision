@@ -150,7 +150,9 @@ For the EnhanceVision project, we recommend **NSIS** for the following reasons:
 
 ### 1. Install NSIS
 
-Download and install [NSIS (Nullsoft Scriptable Install System)](https://nsis.sourceforge.io/):
+**Completed** - NSIS 3.11 is installed at `E:\Program Files (x86)\NSIS`
+
+Installation method:
 
 ```powershell
 # Install using Chocolatey (recommended)
@@ -162,33 +164,32 @@ choco install nsis -y
 
 Verify installation:
 ```powershell
-makensis /version
-# Should output: NSIS Version 3.x
+"E:\Program Files (x86)\NSIS\makensis.exe" /version
+# Should output: v3.11
 ```
 
 ### 2. Prepare Runtime Libraries
 
-Download and prepare the following runtime installers:
+**Completed** - Runtime libraries downloaded, directory structure created
 
-| Runtime | Download URL | Purpose |
-|---------|--------------|---------|
-| VC++ 2022 Redistributable (x64) | https://aka.ms/vs/17/release/vc_redist.x64.exe | MSVC runtime |
-| DirectX End-User Runtime | https://www.microsoft.com/download/details.aspx?id=35 | DirectX components |
+| Runtime | Download URL | Purpose | Status |
+|---------|--------------|---------|--------|
+| VC++ 2022 Redistributable (x64) | https://aka.ms/vs/17/release/vc_redist.x64.exe | MSVC runtime | ✅ Downloaded (24.5 MB) |
+| DirectX End-User Runtime | https://www.microsoft.com/download/details.aspx?id=35 | DirectX components | ⏳ Optional |
 
-Create directory structure:
+Current directory structure:
 ```
 installer/
-├── resources/
-│   ├── welcome.bmp          # Welcome page image (500x314)
-│   ├── header.bmp           # Header image (150x57)
-│   └── app.ico              # Application icon
-├── redist/
-│   ├── vc_redist.x64.exe    # VC++ runtime
-│   └── dxwebsetup.exe       # DirectX installer (optional)
 ├── license/
-│   ├── license_zh.txt       # Chinese license agreement
-│   └── license_en.txt       # English license agreement
-└── setup.nsi                # NSIS main script
+│   ├── license_en.txt       ✅ English license agreement
+│   └── license_zh.txt       ✅ Chinese license agreement
+├── redist/
+│   └── vc_redist.x64.exe    ✅ VC++ 2022 runtime
+├── resources/             📁 Brand images to be added
+│   ├── welcome.bmp        ⏳ Need to provide (500x314)
+│   ├── header.bmp         ⏳ Need to provide (150x57)
+│   └── app.ico            ⏳ Need to provide (256x256)
+└── README.md              ✅ Resource preparation guide
 ```
 
 ### 3. Build Release Version
@@ -1121,7 +1122,7 @@ if ($LASTEXITCODE -ne 0) { throw "Package verification failed" }
 
 # 4. Create installer
 Write-Host "`n[4/6] Creating installer..." -ForegroundColor Yellow
-makensis installer\setup.nsi
+"E:\Program Files (x86)\NSIS\makensis.exe" installer\setup.nsi
 if ($LASTEXITCODE -ne 0) { throw "Installer creation failed" }
 
 # 5. Create portable version

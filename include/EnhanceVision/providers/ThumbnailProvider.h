@@ -6,6 +6,7 @@
 #include <QHash>
 #include <QSet>
 #include <QList>
+#include <QMap>
 #include <QMutex>
 #include <QThreadPool>
 #include <QRunnable>
@@ -42,6 +43,14 @@ class ThumbnailProvider : public QQuickImageProvider
     Q_OBJECT
 
 public:
+    enum class ThumbnailState : int {
+        Missing = 0,
+        Pending = 1,
+        Ready = 2,
+        Failed = 3
+    };
+    Q_ENUM(ThumbnailState)
+
     ThumbnailProvider();
     ~ThumbnailProvider() override;
 
@@ -59,6 +68,8 @@ public:
 
     Q_INVOKABLE void invalidateThumbnail(const QString &id);
     Q_INVOKABLE bool hasThumbnail(const QString &id) const;
+    Q_INVOKABLE int thumbnailState(const QString &id) const;
+    Q_INVOKABLE void ensureThumbnail(const QString &id, int width = 256, int height = 256);
 
     Q_INVOKABLE void initializePersistence();
     int memoryCacheCount() const;
@@ -68,6 +79,7 @@ public:
 
 signals:
     void thumbnailReady(const QString &id);
+    void thumbnailStateChanged(const QString &id, int state);
     void requestGeneration(const QString& path);
 
 private slots:
@@ -95,15 +107,15 @@ private:
     static constexpr int kFailCooldownSec = 300;
     static constexpr int kPersistenceLoadLimit = 80;
 
-    QImage generatePlaceholderImage(const QSize& size);
-    QImage loadPlaceholderFromResource();
-
     void touchLRU(const QString& key);
     void evictLRU();
     bool saveThumbnailToDisk(const QString& cacheKey, const QImage& image);
     QImage loadThumbnailFromDisk(const QString& cacheKey);
     bool isFailCooledDown(const QString& cacheKey) const;
     void promoteToMRU(const QString& key);
+    ThumbnailState thumbnailStateLocked(const QString& cacheKey) const;
+    QString resolveFilePathLocked(const QString& cacheKey) const;
+    void emitThumbnailStateChanged(const QString& cacheKey, ThumbnailState state);
 };
 
 } // namespace EnhanceVision

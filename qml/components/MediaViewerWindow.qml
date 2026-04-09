@@ -90,6 +90,13 @@ Window {
     readonly property string _originalSource: currentFile ? (currentFile.originalPath && currentFile.originalPath !== "" ? currentFile.originalPath : (currentFile.filePath || "")) : ""
     readonly property bool _hasDistinctResult: currentFile && currentFile.resultPath && currentFile.originalPath && currentFile.resultPath !== currentFile.originalPath
     function _getSource(s) { return !s ? "" : (s.startsWith("file:///") || s.startsWith("qrc:/") ? s : "file:///" + s) }
+    function _normalizeThumbnailKey(source) { return !source ? "" : (source.startsWith("file:///") ? source.substring(8) : source) }
+    function _baseThumbnailKey(file) { return !file ? "" : _normalizeThumbnailKey(file.originalPath || file.filePath || "") }
+    function _preferredThumbnailKey(file) {
+        if (!file) return ""
+        if (file.processedThumbnailId && file.processedThumbnailId !== "") return file.processedThumbnailId
+        return _normalizeThumbnailKey(file.resultPath || "")
+    }
 
     property real _savedX: 0
     property real _savedY: 0
@@ -536,55 +543,24 @@ Window {
                 // 是否应用视频Shader效果（消息模式下也需要应用）
                 property bool _applyVideoShader: shaderEnabled && !showOriginal
 
-                Image {
+                ThumbnailStatusImage {
                     id: videoPreviewFrame
                     anchors.fill: parent
-                    fillMode: Image.PreserveAspectFit
-                    asynchronous: true
-                    smooth: true
-                    mipmap: true
                     visible: isVideo && mediaPlayer && mediaPlayer.playbackState === MediaPlayer.StoppedState
                     opacity: visible ? 1.0 : 0.0
                     z: 1
-                    
-                    source: {
-                        if (!isVideo || !currentSource || currentSource === "") return ""
-                        
-                        // 消息模式下，优先使用处理后的缩略图
-                        if (messageMode && currentFile && currentFile.status === 2) {
-                            if (currentFile.processedThumbnailId && currentFile.processedThumbnailId !== "") {
-                                return "image://thumbnail/" + currentFile.processedThumbnailId
-                            }
-                        }
-                        
-                        var src = currentSource
-                        if (src.startsWith("file:///")) {
-                            src = src.substring(8)
-                        }
-                        return "image://thumbnail/" + src
-                    }
-                    
-                    Rectangle {
-                        anchors.fill: parent
-                        color: Theme.colors.card
-                        visible: parent.status === Image.Loading
-                        
-                        BusyIndicator {
-                            anchors.centerIn: parent
-                            running: parent.visible
-                            implicitWidth: 48
-                            implicitHeight: 48
-                        }
-                    }
-                    
-                    ColoredIcon {
-                        anchors.centerIn: parent
-                        source: Theme.icon("video")
-                        iconSize: 64
-                        color: Theme.colors.mutedForeground
-                        visible: parent.status === Image.Error || parent.status === Image.Null
-                    }
-                    
+                    baseThumbnailId: root._baseThumbnailKey(root.currentFile)
+                    preferredThumbnailId: root._preferredThumbnailKey(root.currentFile)
+                    preferPreferredThumbnail: root.messageMode
+                                              && root.currentFile
+                                              && root.currentFile.status === 2
+                                              && preferredThumbnailId !== ""
+                    mediaType: 1
+                    requestedSourceSize: Qt.size(Math.max(256, Math.round(width)), Math.max(256, Math.round(height)))
+                    fillMode: Image.PreserveAspectFit
+                    backgroundColor: "transparent"
+                    showFailureBorder: true
+
                     Behavior on opacity { NumberAnimation { duration: 200 } }
                 }
 
@@ -1397,67 +1373,20 @@ Window {
                         color: Theme.isDark ? Qt.rgba(1, 1, 1, 0.05) : Qt.rgba(0, 0, 0, 0.03)
                         clip: true
 
-                        Image {
-                            id: bottomThumbImage
+                        ThumbnailStatusImage {
                             anchors.fill: parent
-                            source: {
-                                var f = root.mediaFiles[index]
-                                if (!f) return ""
-                                
-                                if (root.messageMode && f.status === 2) {
-                                    if (f.processedThumbnailId && f.processedThumbnailId !== "") {
-                                        return "image://thumbnail/" + f.processedThumbnailId
-                                    }
-                                    if (f.resultPath && f.resultPath !== "") {
-                                        return "image://thumbnail/" + f.resultPath
-                                    }
-                                }
-                                
-                                if (f.thumbnail && f.thumbnail !== "") return f.thumbnail
-                                if (f.filePath) return "image://thumbnail/" + f.filePath
-                                return ""
-                            }
+                            baseThumbnailId: root._baseThumbnailKey(root.mediaFiles[index])
+                            preferredThumbnailId: root._preferredThumbnailKey(root.mediaFiles[index])
+                            preferPreferredThumbnail: root.messageMode
+                                                      && root.mediaFiles[index]
+                                                      && root.mediaFiles[index].status === 2
+                                                      && preferredThumbnailId !== ""
+                            mediaType: root.mediaFiles[index] ? root.mediaFiles[index].mediaType : 0
+                            requestedSourceSize: Qt.size(96, 96)
                             fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                            smooth: true
-                            sourceSize: Qt.size(96, 96)
-                            visible: status === Image.Ready
-                            layer.enabled: true
-                            layer.samples: 4
-                            layer.effect: MultiEffect {
-                                maskEnabled: true
-                                maskThresholdMin: 0.5
-                                maskSpreadAtMin: 1.0
-                                maskSource: bottomThumbMask
-                            }
-                        }
-
-                        Item {
-                            id: bottomThumbMask
-                            visible: false
-                            layer.enabled: true
-                            layer.samples: 4
-                            width: bottomThumbRect.width
-                            height: bottomThumbRect.height
-
-                            Rectangle {
-                                anchors.fill: parent
-                                radius: 6
-                                color: "white"
-                                antialiasing: true
-                            }
-                        }
-
-                        ColoredIcon {
-                            anchors.centerIn: parent
-                            source: {
-                                var f = root.mediaFiles[index]
-                                if (!f) return Theme.icon("image")
-                                return f.mediaType === 1 ? Theme.icon("video") : Theme.icon("image")
-                            }
-                            iconSize: 16
-                            color: Theme.colors.mutedForeground
-                            visible: bottomThumbImage.status !== Image.Ready
+                            cornerRadius: 6
+                            backgroundColor: bottomThumbRect.color
+                            showFailureBorder: true
                         }
 
                         Rectangle {

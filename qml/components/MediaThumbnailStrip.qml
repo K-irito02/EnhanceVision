@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
 import "../styles"
 import "../controls"
 
@@ -109,14 +108,6 @@ Item {
         }
     }
 
-    Connections {
-        target: typeof thumbnailProvider !== 'undefined' ? thumbnailProvider : null
-        enabled: typeof thumbnailProvider !== 'undefined'
-        function onThumbnailReady(id) {
-            root._bumpThumbVersion(id)
-        }
-    }
-
     function _shouldIncludeItem(item) {
         if (onlyCompleted) {
             return item.status === 2
@@ -161,8 +152,7 @@ Item {
             "thumbnail": item.thumbnail || "",
             "status": item.status !== undefined ? item.status : 0,
             "resultPath": item.resultPath || "",
-            "processedThumbnailId": item.processedThumbnailId || "",
-            "thumbVersion": 1
+            "processedThumbnailId": item.processedThumbnailId || ""
         }
     }
 
@@ -174,60 +164,6 @@ Item {
         _updateItemProperty(filteredIdx, "status", item.status !== undefined ? item.status : 0)
         _updateItemProperty(filteredIdx, "resultPath", item.resultPath || "")
         _updateItemProperty(filteredIdx, "processedThumbnailId", item.processedThumbnailId || "")
-        // 注意：不重置 thumbVersion，保留已有的版本号
-    }
-
-    // 计算某个 filteredModel 行当前应使用的裸缓存键（与 C++ thumbnailReady 信号 id 对齐）
-    // 规则：已完成→processedThumbnailId 或 resultPath；其他→原始 filePath
-    function _cacheKeyForRow(rowData) {
-        if (!rowData) return ""
-        var isSuccess = (rowData.status === 2)
-        if (root.messageMode && isSuccess) {
-            if (rowData.processedThumbnailId && rowData.processedThumbnailId !== "")
-                return rowData.processedThumbnailId
-            if (rowData.resultPath && rowData.resultPath !== "")
-                return rowData.resultPath
-        }
-        return rowData.filePath || ""
-    }
-
-    // thumbnailReady 信号 → 找到所有匹配行 → 仅递增那几行的 thumbVersion
-    function _bumpThumbVersion(readyId) {
-        if (!readyId || readyId === "") return
-        for (var i = 0; i < filteredModel.count; i++) {
-            var row = filteredModel.get(i)
-            var rid = _cacheKeyForRow(row)
-            if (rid === readyId) {
-                filteredModel.setProperty(i, "thumbVersion", (row.thumbVersion || 0) + 1)
-            }
-        }
-    }
-
-    // 唯一的缩略图 URL 构建入口 — 不依赖 thumbnail 字段，直接从原始路径计算
-    function _thumbnailSourceForItem(itemData, isSuccess) {
-        if (!itemData) return ""
-
-        var resourceId = ""
-
-        // 已完成的文件：优先使用处理后的缩略图 ID
-        if (root.messageMode && isSuccess) {
-            if (itemData.processedThumbnailId && itemData.processedThumbnailId !== "") {
-                resourceId = itemData.processedThumbnailId
-            } else if (itemData.resultPath && itemData.resultPath !== "") {
-                resourceId = itemData.resultPath
-            }
-        }
-
-        // 回退：使用原始文件路径
-        if (resourceId === "") {
-            resourceId = itemData.filePath || ""
-        }
-
-        if (resourceId === "") return ""
-
-        // 用行内版本号驱动刷新：仅该行的 thumbVersion 变化时，source 绑定重新求值
-        var version = itemData.thumbVersion || 0
-        return "image://thumbnail/" + resourceId + "?v=" + version
     }
 
     function _getSourceItems() {
@@ -332,14 +268,6 @@ Item {
             }
         }
         
-        _refreshAllThumbnails()
-    }
-
-    function _refreshAllThumbnails() {
-        for (var i = 0; i < filteredModel.count; i++) {
-            var row = filteredModel.get(i)
-            filteredModel.setProperty(i, "thumbVersion", (row.thumbVersion || 0) + 1)
-        }
     }
 
     Loader {
@@ -387,7 +315,6 @@ Item {
                         required property int status
                         required property string resultPath
                         required property string processedThumbnailId
-                        required property int thumbVersion
                         required property int origIndex
 
                         // 兼容旧代码中对 itemData 的访问
@@ -399,7 +326,6 @@ Item {
                             status: status,
                             resultPath: resultPath,
                             processedThumbnailId: processedThumbnailId,
-                            thumbVersion: thumbVersion,
                             origIndex: origIndex
                         })
 
@@ -417,7 +343,7 @@ Item {
                         property int itemMediaType: mediaType
                         property bool _deleteInProgress: false
                         property real _deleteOpacity: 1.0
-                        property real _imageOpacity: thumbImage.status === Image.Ready ? 1.0 : 0.0
+                        property real _imageOpacity: 1.0
                         // 【修复】判断是否是第一个待处理文件（用于暂停状态传递时显示暂停图标）
                         property bool isFirstPending: {
                             if (!isPending) return false
@@ -478,93 +404,22 @@ Item {
                             color: Theme.colors.surface
                             opacity: thumbDelegate._deleteOpacity
 
-                            Image {
-                                id: thumbImage
+                            ThumbnailStatusImage {
                                 anchors.fill: parent
-                                source: root._thumbnailSourceForItem(thumbDelegate.itemData, thumbDelegate.isSuccess)
+                                baseThumbnailId: thumbDelegate.filePath || ""
+                                preferredThumbnailId: thumbDelegate.processedThumbnailId !== ""
+                                                      ? thumbDelegate.processedThumbnailId
+                                                      : (thumbDelegate.resultPath || "")
+                                preferPreferredThumbnail: root.messageMode
+                                                          && thumbDelegate.isSuccess
+                                                          && preferredThumbnailId !== ""
+                                mediaType: thumbDelegate.itemMediaType
+                                requestedSourceSize: Qt.size(root.thumbSize * 2, root.thumbSize * 2)
                                 fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                                smooth: true
-                                sourceSize: Qt.size(root.thumbSize * 2, root.thumbSize * 2)
-                                visible: status === Image.Ready
+                                cornerRadius: Theme.radius.md
+                                backgroundColor: Theme.colors.surface
+                                showFailureBorder: true
                                 opacity: thumbDelegate._imageOpacity
-                                layer.enabled: true
-                                layer.samples: 4
-                                layer.effect: MultiEffect {
-                                    maskEnabled: true
-                                    maskThresholdMin: 0.5
-                                    maskSpreadAtMin: 1.0
-                                    maskSource: thumbMask
-                                }
-
-                                property int _retryCount: 0
-                                onStatusChanged: {
-                                    if (status === Image.Ready) {
-                                        _retryCount = 0
-                                        thumbRetryTimer.stop()
-                                    } else if ((status === Image.Error || status === Image.Null) && _retryCount < 15 && source !== "") {
-                                        thumbRetryTimer.interval = 600 * Math.min(_retryCount + 1, 8)
-                                        thumbRetryTimer.start()
-                                    }
-                                }
-
-                                Component.onCompleted: {
-                                    // 延迟检查：如果缩略图已在缓存中但当前显示占位图，触发刷新
-                                    thumbInitTimer.start()
-                                }
-
-                                Timer {
-                                    id: thumbInitTimer
-                                    interval: 100
-                                    repeat: false
-                                    onTriggered: {
-                                        if (thumbImage.status !== Image.Ready && thumbImage.source !== "") {
-                                            var idx = thumbDelegate.index
-                                            if (idx >= 0 && idx < filteredModel.count) {
-                                                var row = filteredModel.get(idx)
-                                                filteredModel.setProperty(idx, "thumbVersion", (row.thumbVersion || 0) + 1)
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Timer {
-                                    id: thumbRetryTimer
-                                    repeat: false
-                                    onTriggered: {
-                                        if (thumbImage._retryCount < 15) {
-                                            thumbImage._retryCount++
-                                            var idx = thumbDelegate.index
-                                            if (idx >= 0 && idx < filteredModel.count) {
-                                                var row = filteredModel.get(idx)
-                                                filteredModel.setProperty(idx, "thumbVersion", (row.thumbVersion || 0) + 1)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            Item {
-                                id: thumbMask
-                                visible: false
-                                layer.enabled: true
-                                width: thumbRect.width
-                                height: thumbRect.height
-
-                                Rectangle {
-                                    anchors.fill: parent
-                                    radius: Theme.radius.md
-                                    color: "white"
-                                    antialiasing: true
-                                }
-                            }
-
-                            ColoredIcon {
-                                anchors.centerIn: parent
-                                source: thumbDelegate.itemMediaType === 1 ? Theme.icon("video") : Theme.icon("image")
-                                iconSize: 24
-                                color: Theme.colors.mutedForeground
-                                visible: thumbImage.status !== Image.Ready
                             }
 
                             Rectangle {
@@ -834,7 +689,6 @@ Item {
                         required property int status
                         required property string resultPath
                         required property string processedThumbnailId
-                        required property int thumbVersion
                         required property int origIndex
 
                         // 兼容旧代码中对 itemData 的访问
@@ -846,7 +700,6 @@ Item {
                             status: status,
                             resultPath: resultPath,
                             processedThumbnailId: processedThumbnailId,
-                            thumbVersion: thumbVersion,
                             origIndex: origIndex
                         })
 
@@ -864,7 +717,7 @@ Item {
                         property int itemMediaType: mediaType
                         property bool _deleteInProgress: false
                         property real _deleteOpacity: 1.0
-                        property real _imageOpacity: thumbImage.status === Image.Ready ? 1.0 : 0.0
+                        property real _imageOpacity: 1.0
                         // 【修复】判断是否是第一个待处理文件（用于暂停状态传递时显示暂停图标）
                         property bool isFirstPending: {
                             if (!isPending) return false
@@ -925,93 +778,22 @@ Item {
                             color: Theme.colors.surface
                             opacity: thumbDelegate._deleteOpacity
 
-                            Image {
-                                id: thumbImage
+                            ThumbnailStatusImage {
                                 anchors.fill: parent
-                                source: root._thumbnailSourceForItem(thumbDelegate.itemData, thumbDelegate.isSuccess)
+                                baseThumbnailId: thumbDelegate.filePath || ""
+                                preferredThumbnailId: thumbDelegate.processedThumbnailId !== ""
+                                                      ? thumbDelegate.processedThumbnailId
+                                                      : (thumbDelegate.resultPath || "")
+                                preferPreferredThumbnail: root.messageMode
+                                                          && thumbDelegate.isSuccess
+                                                          && preferredThumbnailId !== ""
+                                mediaType: thumbDelegate.itemMediaType
+                                requestedSourceSize: Qt.size(root.thumbSize * 2, root.thumbSize * 2)
                                 fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                                smooth: true
-                                sourceSize: Qt.size(root.thumbSize * 2, root.thumbSize * 2)
-                                visible: status === Image.Ready
+                                cornerRadius: Theme.radius.md
+                                backgroundColor: Theme.colors.surface
+                                showFailureBorder: true
                                 opacity: thumbDelegate._imageOpacity
-                                layer.enabled: true
-                                layer.samples: 4
-                                layer.effect: MultiEffect {
-                                    maskEnabled: true
-                                    maskThresholdMin: 0.5
-                                    maskSpreadAtMin: 1.0
-                                    maskSource: thumbMask
-                                }
-
-                                property int _retryCount: 0
-                                onStatusChanged: {
-                                    if (status === Image.Ready) {
-                                        _retryCount = 0
-                                        thumbRetryTimer.stop()
-                                    } else if ((status === Image.Error || status === Image.Null) && _retryCount < 15 && source !== "") {
-                                        thumbRetryTimer.interval = 600 * Math.min(_retryCount + 1, 8)
-                                        thumbRetryTimer.start()
-                                    }
-                                }
-
-                                Component.onCompleted: {
-                                    // 延迟检查：如果缩略图已在缓存中但当前显示占位图，触发刷新
-                                    thumbInitTimer.start()
-                                }
-
-                                Timer {
-                                    id: thumbInitTimer
-                                    interval: 100
-                                    repeat: false
-                                    onTriggered: {
-                                        if (thumbImage.status !== Image.Ready && thumbImage.source !== "") {
-                                            var idx = thumbDelegate.index
-                                            if (idx >= 0 && idx < filteredModel.count) {
-                                                var row = filteredModel.get(idx)
-                                                filteredModel.setProperty(idx, "thumbVersion", (row.thumbVersion || 0) + 1)
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Timer {
-                                    id: thumbRetryTimer
-                                    repeat: false
-                                    onTriggered: {
-                                        if (thumbImage._retryCount < 15) {
-                                            thumbImage._retryCount++
-                                            var idx = thumbDelegate.index
-                                            if (idx >= 0 && idx < filteredModel.count) {
-                                                var row = filteredModel.get(idx)
-                                                filteredModel.setProperty(idx, "thumbVersion", (row.thumbVersion || 0) + 1)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            Item {
-                                id: thumbMask
-                                visible: false
-                                layer.enabled: true
-                                width: thumbRect.width
-                                height: thumbRect.height
-
-                                Rectangle {
-                                    anchors.fill: parent
-                                    radius: Theme.radius.md
-                                    color: "white"
-                                    antialiasing: true
-                                }
-                            }
-
-                            ColoredIcon {
-                                anchors.centerIn: parent
-                                source: thumbDelegate.itemMediaType === 1 ? Theme.icon("video") : Theme.icon("image")
-                                iconSize: 24
-                                color: Theme.colors.mutedForeground
-                                visible: thumbImage.status !== Image.Ready
                             }
 
                             Rectangle {

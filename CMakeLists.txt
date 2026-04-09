@@ -336,6 +336,7 @@ qt_add_qml_module(EnhanceVision
         qml/components/ControlPanel.qml
         qml/components/MediaViewer.qml
         qml/components/MediaThumbnailStrip.qml
+        qml/components/ThumbnailStatusImage.qml
         qml/components/MediaViewerWindow.qml
         qml/components/EmbeddedMediaViewer.qml
         qml/components/MinimizedWindowDock.qml

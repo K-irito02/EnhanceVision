@@ -150,7 +150,9 @@ EnhanceVision-v0.1.0-windows-x64/
 
 ### 1. 安装 NSIS
 
-下载并安装 [NSIS (Nullsoft Scriptable Install System)](https://nsis.sourceforge.io/):
+**已完成** - NSIS 3.11 已安装在 `E:\Program Files (x86)\NSIS`
+
+安装方法：
 
 ```powershell
 # 使用 Chocolatey 安装（推荐）
@@ -162,33 +164,32 @@ choco install nsis -y
 
 验证安装：
 ```powershell
-makensis /version
-# 应输出: NSIS Version 3.x
+"E:\Program Files (x86)\NSIS\makensis.exe" /version
+# 应输出: v3.11
 ```
 
 ### 2. 准备运行库
 
-下载并准备以下运行库安装程序：
+**已完成** - 运行库已下载，目录结构已创建
 
-| 运行库 | 下载地址 | 用途 |
-|--------|----------|------|
-| VC++ 2022 Redistributable (x64) | https://aka.ms/vs/17/release/vc_redist.x64.exe | MSVC 运行时 |
-| DirectX End-User Runtime | https://www.microsoft.com/download/details.aspx?id=35 | DirectX 组件 |
+| 运行库 | 下载地址 | 用途 | 状态 |
+|--------|----------|------|------|
+| VC++ 2022 Redistributable (x64) | https://aka.ms/vs/17/release/vc_redist.x64.exe | MSVC 运行时 | ✅ 已下载 (24.5 MB) |
+| DirectX End-User Runtime | https://www.microsoft.com/download/details.aspx?id=35 | DirectX 组件 | ⏳ 可选 |
 
-创建目录结构：
+当前目录结构：
 ```
 installer/
-├── resources/
-│   ├── welcome.bmp          # 欢迎页面图片 (500x314)
-│   ├── header.bmp           # 页面头部图片 (150x57)
-│   └── app.ico              # 应用图标
-├── redist/
-│   ├── vc_redist.x64.exe    # VC++ 运行库
-│   └── dxwebsetup.exe       # DirectX 安装程序（可选）
 ├── license/
-│   ├── license_zh.txt       # 中文许可协议
-│   └── license_en.txt       # 英文许可协议
-└── setup.nsi                # NSIS 主脚本
+│   ├── license_en.txt       ✅ 英文许可协议
+│   └── license_zh.txt       ✅ 中文许可协议
+├── redist/
+│   └── vc_redist.x64.exe    ✅ VC++ 2022 运行库
+├── resources/             📁 待添加品牌图片
+│   ├── welcome.bmp        ⏳ 需要提供 (500x314)
+│   ├── header.bmp         ⏳ 需要提供 (150x57)
+│   └── app.ico            ⏳ 需要提供 (256x256)
+└── README.md              ✅ 资源准备说明
 ```
 
 ### 3. 构建 Release 版本
@@ -1121,7 +1122,7 @@ if ($LASTEXITCODE -ne 0) { throw "打包验证失败" }
 
 # 4. 创建安装程序
 Write-Host "`n[4/6] 创建安装程序..." -ForegroundColor Yellow
-makensis installer\setup.nsi
+"E:\Program Files (x86)\NSIS\makensis.exe" installer\setup.nsi
 if ($LASTEXITCODE -ne 0) { throw "创建安装程序失败" }
 
 # 5. 创建便携版

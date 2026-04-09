@@ -22,6 +22,7 @@
         <file>../qml/components/MessageList.qml</file>
         <file>../qml/components/MessageItem.qml</file>
         <file>../qml/components/MediaThumbnailStrip.qml</file>
+        <file>../qml/components/ThumbnailStatusImage.qml</file>
         <file>../qml/components/MediaViewerWindow.qml</file>
         <file>../qml/components/EmbeddedMediaViewer.qml</file>
         <file>../qml/components/MinimizedWindowDock.qml</file>
@@ -158,8 +159,6 @@
         <file>icons/app_icon.png</file>
         <file>icons/app_icon.ico</file>
         
-        <!-- 占位图 -->
-        <file>icons/placeholder.png</file>
     </qresource>
     
     <qresource prefix="/shaders">

@@ -157,27 +157,16 @@ Rectangle {
                             radius: Theme.radius.sm
                             color: Theme.colors.muted
                             clip: true
-                            
-                            Image {
-                                id: thumbImage
+
+                            ThumbnailStatusImage {
                                 anchors.fill: parent
-                                source: model.filePath ? "image://thumbnail/" + model.filePath : ""
+                                baseThumbnailId: model.filePath || ""
+                                mediaType: model.mediaType !== undefined ? model.mediaType : 0
+                                requestedSourceSize: Qt.size(120, 120)
                                 fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                                smooth: true
-                                sourceSize: Qt.size(120, 120)
-                                visible: status === Image.Ready
-                                
-                                layer.enabled: true
-                                layer.samples: 4
-                            }
-                            
-                            ColoredIcon {
-                                anchors.centerIn: parent
-                                source: model.mediaType === 0 ? Theme.icon("image") : Theme.icon("video")
-                                iconSize: 24
-                                color: Theme.colors.mutedForeground
-                                visible: thumbImage.status !== Image.Ready
+                                cornerRadius: Theme.radius.sm
+                                backgroundColor: Theme.colors.muted
+                                showFailureBorder: true
                             }
                             
                             Rectangle {
