@@ -82,6 +82,7 @@ protected:
 private:
     void setupWindowFrame();
     void updateMaximizedState();
+    void updateFrameForState();
 
 public:
     // Called by SubWindowWndProc

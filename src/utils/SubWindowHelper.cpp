@@ -26,6 +26,61 @@ class SubWindowHelper;
 static QHash<HWND, EnhanceVision::SubWindowHelper*> g_windowHelpers;
 static QHash<HWND, WNDPROC> g_originalWndProcs;
 
+static bool isWindowMaximizedOrFullscreen(HWND hwnd)
+{
+    if (IsZoomed(hwnd))
+        return true;
+
+    RECT wr;
+    GetWindowRect(hwnd, &wr);
+
+    HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi = {};
+    mi.cbSize = sizeof(mi);
+    GetMonitorInfo(monitor, &mi);
+
+    return wr.left <= mi.rcMonitor.left && wr.top <= mi.rcMonitor.top &&
+           wr.right >= mi.rcMonitor.right && wr.bottom >= mi.rcMonitor.bottom;
+}
+
+static bool isWindowSnappedToEdge(HWND hwnd)
+{
+    if (IsZoomed(hwnd))
+        return true;
+
+    RECT wr;
+    GetWindowRect(hwnd, &wr);
+
+    HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi = {};
+    mi.cbSize = sizeof(mi);
+    GetMonitorInfo(monitor, &mi);
+
+    if (wr.left <= mi.rcMonitor.left && wr.top <= mi.rcMonitor.top &&
+        wr.right >= mi.rcMonitor.right && wr.bottom >= mi.rcMonitor.bottom)
+        return true;
+
+    RECT wa = mi.rcWork;
+    LONG workW = wa.right - wa.left;
+    LONG workH = wa.bottom - wa.top;
+    LONG winW = wr.right - wr.left;
+    LONG winH = wr.bottom - wr.top;
+
+    bool fillsWidth = (wr.left == wa.left && wr.right == wa.right) || (winW >= workW);
+    bool fillsHeight = (wr.top == wa.top && wr.bottom == wa.bottom) || (winH >= workH);
+
+    return fillsWidth || fillsHeight;
+}
+
+static void updateWindowFrame(HWND hwnd, bool removeMargins, bool squareCorners)
+{
+    MARGINS margins = removeMargins ? MARGINS{0, 0, 0, 0} : MARGINS{1, 1, 1, 1};
+    DwmExtendFrameIntoClientArea(hwnd, &margins);
+
+    DWM_WINDOW_CORNER_PREFERENCE pref = squareCorners ? DWMWCP_DONOTROUND : DWMWCP_ROUND;
+    DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &pref, sizeof(pref));
+}
+
 static LRESULT CALLBACK SubWindowWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     auto it = g_windowHelpers.find(hwnd);
@@ -132,8 +187,27 @@ static LRESULT CALLBACK SubWindowWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
     }
     case WM_NCCALCSIZE: {
         if (wParam == TRUE) {
-            // 移除系统非客户区边框，统一全屏/最大化/吸附路径下的边缘显示
+            if (IsZoomed(hwnd)) {
+                NCCALCSIZE_PARAMS* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(lParam);
+                HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+                MONITORINFO mi = {};
+                mi.cbSize = sizeof(mi);
+                GetMonitorInfo(monitor, &mi);
+                params->rgrc[0] = mi.rcWork;
+            }
             return 0;
+        }
+        break;
+    }
+    case WM_SIZE: {
+        if (IsWindowVisible(hwnd)) {
+            if (wParam == SIZE_MAXIMIZED) {
+                updateWindowFrame(hwnd, true, true);
+            } else if (wParam == SIZE_RESTORED) {
+                bool maxOrFull = isWindowMaximizedOrFullscreen(hwnd);
+                bool snapped = isWindowSnappedToEdge(hwnd);
+                updateWindowFrame(hwnd, maxOrFull || snapped, maxOrFull);
+            }
         }
         break;
     }
@@ -253,6 +327,7 @@ bool SubWindowHelper::eventFilter(QObject* watched, QEvent* event)
     if (watched == m_window) {
         if (event->type() == QEvent::WindowStateChange) {
             updateMaximizedState();
+            QMetaObject::invokeMethod(this, &SubWindowHelper::updateFrameForState, Qt::QueuedConnection);
         } else if (event->type() == QEvent::Show) {
 #ifdef Q_OS_WIN
             HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
@@ -511,6 +586,17 @@ void SubWindowHelper::setDragging(bool dragging)
         m_isDragging = dragging;
         emit draggingChanged();
     }
+}
+
+void SubWindowHelper::updateFrameForState()
+{
+#ifdef Q_OS_WIN
+    if (!m_window) return;
+    HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
+    bool maxOrFull = isWindowMaximizedOrFullscreen(hwnd);
+    bool snapped = isWindowSnappedToEdge(hwnd);
+    updateWindowFrame(hwnd, maxOrFull || snapped, maxOrFull);
+#endif
 }
 
 } // namespace EnhanceVision

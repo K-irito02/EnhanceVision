@@ -61,6 +61,8 @@ private:
     explicit WindowHelper(QObject* parent = nullptr);
     Q_DISABLE_COPY(WindowHelper)
 
+    void updateFrameForState();
+
     QQuickWidget* m_window = nullptr;
     bool m_isMaximized = false;
     bool m_isResizing = false;

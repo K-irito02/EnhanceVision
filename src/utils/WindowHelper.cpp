@@ -23,6 +23,61 @@
 #include <windows.h>
 #pragma comment(lib, "dwmapi.lib")
 #pragma comment(lib, "user32.lib")
+
+static bool isWindowMaximizedOrFullscreen(HWND hwnd)
+{
+    if (IsZoomed(hwnd))
+        return true;
+
+    RECT wr;
+    GetWindowRect(hwnd, &wr);
+
+    HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi = {};
+    mi.cbSize = sizeof(mi);
+    GetMonitorInfo(monitor, &mi);
+
+    return wr.left <= mi.rcMonitor.left && wr.top <= mi.rcMonitor.top &&
+           wr.right >= mi.rcMonitor.right && wr.bottom >= mi.rcMonitor.bottom;
+}
+
+static bool isWindowSnappedToEdge(HWND hwnd)
+{
+    if (IsZoomed(hwnd))
+        return true;
+
+    RECT wr;
+    GetWindowRect(hwnd, &wr);
+
+    HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi = {};
+    mi.cbSize = sizeof(mi);
+    GetMonitorInfo(monitor, &mi);
+
+    if (wr.left <= mi.rcMonitor.left && wr.top <= mi.rcMonitor.top &&
+        wr.right >= mi.rcMonitor.right && wr.bottom >= mi.rcMonitor.bottom)
+        return true;
+
+    RECT wa = mi.rcWork;
+    LONG workW = wa.right - wa.left;
+    LONG workH = wa.bottom - wa.top;
+    LONG winW = wr.right - wr.left;
+    LONG winH = wr.bottom - wr.top;
+
+    bool fillsWidth = (wr.left == wa.left && wr.right == wa.right) || (winW >= workW);
+    bool fillsHeight = (wr.top == wa.top && wr.bottom == wa.bottom) || (winH >= workH);
+
+    return fillsWidth || fillsHeight;
+}
+
+static void updateWindowFrame(HWND hwnd, bool removeMargins, bool squareCorners)
+{
+    MARGINS margins = removeMargins ? MARGINS{0, 0, 0, 0} : MARGINS{1, 1, 1, 1};
+    DwmExtendFrameIntoClientArea(hwnd, &margins);
+
+    DWM_WINDOW_CORNER_PREFERENCE pref = squareCorners ? DWMWCP_DONOTROUND : DWMWCP_ROUND;
+    DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &pref, sizeof(pref));
+}
 #endif
 
 namespace EnhanceVision {
@@ -90,6 +145,8 @@ bool WindowHelper::eventFilter(QObject* watched, QEvent* event)
             if (wasMaximized != m_isMaximized) {
                 emit maximizedChanged();
             }
+
+            QTimer::singleShot(0, this, &WindowHelper::updateFrameForState);
         }
         
         if (event->type() == QEvent::Resize) {
@@ -98,6 +155,7 @@ bool WindowHelper::eventFilter(QObject* watched, QEvent* event)
                 emit resizingChanged();
                 emit resizeStarted();
             }
+            QTimer::singleShot(0, this, &WindowHelper::updateFrameForState);
         }
         
         if (event->type() == QEvent::Move) {
@@ -106,6 +164,7 @@ bool WindowHelper::eventFilter(QObject* watched, QEvent* event)
                 emit resizingChanged();
                 emit resizeStarted();
             }
+            QTimer::singleShot(0, this, &WindowHelper::updateFrameForState);
         }
         
         if (event->type() == QEvent::Expose) {
@@ -205,7 +264,7 @@ bool WindowHelper::nativeEventFilter(const QByteArray& eventType, void* message,
                 return true;
             }
         }
-        
+
         if (msg->message == WM_ENTERSIZEMOVE && m_window) {
             if (!m_isResizing) {
                 m_isResizing = true;
@@ -367,6 +426,17 @@ void WindowHelper::setOverrideCursor(int cursorShape)
 void WindowHelper::restoreOverrideCursor()
 {
     QGuiApplication::restoreOverrideCursor();
+}
+
+void WindowHelper::updateFrameForState()
+{
+#ifdef Q_OS_WIN
+    if (!m_window) return;
+    HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
+    bool maxOrFull = isWindowMaximizedOrFullscreen(hwnd);
+    bool snapped = isWindowSnappedToEdge(hwnd);
+    updateWindowFrame(hwnd, maxOrFull || snapped, maxOrFull);
+#endif
 }
 
 } // namespace EnhanceVision
