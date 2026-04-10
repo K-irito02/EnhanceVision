@@ -33,7 +33,7 @@
 ; 安装程序信息
 ; ----------------------------------------------------------------------------
 Name "${APP_NAME} ${APP_VERSION}"
-OutFile "..\package\EnhanceVision-v${APP_VERSION}-windows-x64-installer.exe"
+OutFile "..\output\EnhanceVision-v${APP_VERSION}-windows-x64-installer.exe"
 InstallDir "$PROGRAMFILES64\${APP_NAME}"
 InstallDirRegKey HKLM "${APP_REGISTRY_KEY}" "Install_Dir"
 RequestExecutionLevel admin
@@ -44,8 +44,8 @@ SetCompressorDictSize 64
 ; ----------------------------------------------------------------------------
 ; 界面设置
 ; ----------------------------------------------------------------------------
-!define MUI_ICON "..\resources\icons\app_icon.ico"
-!define MUI_UNICON "..\resources\icons\app_icon.ico"
+!define MUI_ICON "..\..\resources\icons\app_icon.ico"
+!define MUI_UNICON "..\..\resources\icons\app_icon.ico"
 
 !define MUI_LANGDLL_REGISTRY_ROOT "HKLM"
 !define MUI_LANGDLL_REGISTRY_KEY "${APP_REGISTRY_KEY}"
@@ -79,8 +79,8 @@ Page custom DataDirectoryPage
 ; ----------------------------------------------------------------------------
 ; 多语言许可证（在 MUI_LANGUAGE 之后）
 ; ----------------------------------------------------------------------------
-LicenseLangString LicenseFile ${LANG_SIMPCHINESE} "..\installer\license\license_zh.txt"
-LicenseLangString LicenseFile ${LANG_ENGLISH} "..\installer\license\license_en.txt"
+LicenseLangString LicenseFile ${LANG_SIMPCHINESE} "license\license_zh.txt"
+LicenseLangString LicenseFile ${LANG_ENGLISH} "license\license_en.txt"
 
 ; ----------------------------------------------------------------------------
 ; 语言字符串 - 简体中文
@@ -276,12 +276,14 @@ Section "$(SectionMain)" SecMain
 
     SetOutPath $INSTDIR
 
-    File /r /x "start.vbs" "..\package\EnhanceVision-v${APP_VERSION}-windows-x64\*.*"
+    File /r /x "start.vbs" "..\output\EnhanceVision-v${APP_VERSION}-windows-x64\*.*"
 
     ${If} $VCRuntimeInstalled == 0
         SetOutPath "$TEMP\vc_redist"
-        File "..\installer\redist\vc_redist.x64.exe"
-        ExecWait '"$TEMP\vc_redist\vc_redist.x64.exe" /quiet /norestart' $0
+        File /nonfatal "redist\vc_redist.x64.exe"
+        ${If} ${FileExists} "$TEMP\vc_redist\vc_redist.x64.exe"
+            ExecWait '"$TEMP\vc_redist\vc_redist.x64.exe" /quiet /norestart' $0
+        ${EndIf}
         RMDir /r "$TEMP\vc_redist"
     ${EndIf}
 

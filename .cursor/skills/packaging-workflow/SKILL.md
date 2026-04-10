@@ -9,28 +9,24 @@ Automated packaging workflow for building NSIS installer and portable ZIP.
 
 ## Prerequisites
 
-| Requirement | Path/Command | Required |
-|-------------|-------------|----------|
-| NSIS 3.11 | `E:\Program Files (x86)\NSIS\makensis.exe` | Yes |
-| CMake | `C:\Program Files\CMake\bin\cmake.exe` | Yes |
-| Qt 6.10.2 | `E:\Qt\6.10.2\msvc2022_64` | Yes |
-| VC++ Redistributable | `packaging/installer/redist/vc_redist.x64.exe` | Optional (see below) |
-
-### VC++ Redistributable (Optional)
-
-The VC++ redistributable is optional. If the file is not present, the installer will skip VC++ runtime installation and assume the user already has it installed. This is handled by using `File /nonfatal` in the NSIS script.
+| Requirement | Path/Command |
+|-------------|-------------|
+| NSIS 3.11 | `E:\Program Files (x86)\NSIS\makensis.exe` |
+| CMake | `C:\Program Files\CMake\bin\cmake.exe` |
+| Qt 6.10.2 | `E:\Qt\6.10.2\msvc2022_64` |
+| VC++ Redistributable | `installer/redist/vc_redist.x64.exe` |
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `packaging/installer/setup.nsi` | NSIS installer script (UTF-8 BOM encoding) |
-| `packaging/installer/redist/vc_redist.x64.exe` | VC++ 2022 runtime |
-| `packaging/installer/license/license_zh.txt` | Chinese license (UTF-16 LE BOM) |
-| `packaging/installer/license/license_en.txt` | English license (UTF-16 LE BOM) |
-| `packaging/scripts/build-package.ps1` | One-click packaging script |
-| `packaging/scripts/verify-package.ps1` | Package verification script |
-| `packaging/portable/start.vbs` | Portable launcher (VBS, no console window) |
+| `installer/setup.nsi` | NSIS installer script (UTF-8 BOM encoding) |
+| `installer/redist/vc_redist.x64.exe` | VC++ 2022 runtime |
+| `installer/license/license_zh.txt` | Chinese license (UTF-16 LE BOM) |
+| `installer/license/license_en.txt` | English license (UTF-16 LE BOM) |
+| `scripts/build-package.ps1` | One-click packaging script |
+| `scripts/verify-package.ps1` | Package verification script |
+| `portable/start.vbs` | Portable launcher (VBS, no console window) |
 | `resources/icons/app_icon.ico` | Application icon |
 
 ## Execution Flow
@@ -43,13 +39,13 @@ The VC++ redistributable is optional. If the file is not present, the installer 
 
 ```powershell
 # Full packaging (build + verify + installer + portable)
-.\packaging\scripts\build-package.ps1 -Version "0.1.0"
+.\scripts\build-package.ps1 -Version "0.1.0"
 
 # Verify only
-.\packaging\scripts\verify-package.ps1 -Version "0.1.0"
+.\scripts\verify-package.ps1 -Version "0.1.0"
 
 # NSIS compile only
-& "E:\Program Files (x86)\NSIS\makensis.exe" /INPUTCHARSET UTF8 packaging\installer\setup.nsi
+& "E:\Program Files (x86)\NSIS\makensis.exe" /INPUTCHARSET UTF8 installer\setup.nsi
 ```
 
 ## Step-by-Step Manual Packaging
@@ -65,7 +61,7 @@ The VC++ redistributable is optional. If the file is not present, the installer 
 
 ```powershell
 $Version = "0.1.0"
-$packageDir = "packaging\output\EnhanceVision-v$Version-windows-x64"
+$packageDir = "package\EnhanceVision-v$Version-windows-x64"
 $buildDir = "build\msvc2022\Release\Release"
 
 Remove-Item -Recurse -Force $packageDir -ErrorAction SilentlyContinue
@@ -89,28 +85,28 @@ Copy-Item -Path "THIRD_PARTY_LICENSES.md" -Destination $packageDir
 ### Step 3: Verify Package
 
 ```powershell
-& ".\packaging\scripts\verify-package.ps1" -Version $Version
+& ".\scripts\verify-package.ps1" -Version $Version
 ```
 
 ### Step 4: Create NSIS Installer
 
 ```powershell
-& "E:\Program Files (x86)\NSIS\makensis.exe" /INPUTCHARSET UTF8 packaging\installer\setup.nsi
+& "E:\Program Files (x86)\NSIS\makensis.exe" /INPUTCHARSET UTF8 installer\setup.nsi
 ```
 
 ### Step 5: Create Portable ZIP
 
 ```powershell
-Copy-Item -Path "packaging\portable\start.vbs" -Destination $packageDir
-Compress-Archive -Path $packageDir -DestinationPath "packaging\output\EnhanceVision-v$Version-windows-x64-portable.zip"
+Copy-Item -Path "portable\start.vbs" -Destination $packageDir
+Compress-Archive -Path $packageDir -DestinationPath "package\EnhanceVision-v$Version-windows-x64-portable.zip"
 Remove-Item "$packageDir\start.vbs" -ErrorAction SilentlyContinue
 ```
 
 ### Step 6: Calculate Checksums
 
 ```powershell
-Get-FileHash "packaging\output\EnhanceVision-v$Version-windows-x64-installer.exe" -Algorithm SHA256
-Get-FileHash "packaging\output\EnhanceVision-v$Version-windows-x64-portable.zip" -Algorithm SHA256
+Get-FileHash "package\EnhanceVision-v$Version-windows-x64-installer.exe" -Algorithm SHA256
+Get-FileHash "package\EnhanceVision-v$Version-windows-x64-portable.zip" -Algorithm SHA256
 ```
 
 ## Files to Exclude from Package
@@ -131,24 +127,19 @@ Get-FileHash "packaging\output\EnhanceVision-v$Version-windows-x64-portable.zip"
 6. **License file encoding**: Must be UTF-16 LE BOM for Chinese characters to display correctly
 7. **Language selection**: Use `MUI_LANGDLL_DISPLAY` only; do NOT add custom language page or override `$LANGUAGE` with system locale after `MUI_LANGDLL_DISPLAY`
 8. **Uninstaller language**: Use `MUI_UNGETLANGUAGE` in `un.onInit` to match installer language
-9. **Optional files**: Use `File /nonfatal` for files that may not exist (e.g., VC++ redistributable). Combine with `${If} ${FileExists}` to conditionally execute.
-
-## PowerShell Script Encoding
-
-PowerShell scripts in this project use English-only output to avoid encoding issues. Chinese characters in PowerShell scripts can cause parsing errors on some systems. If you need to add localized output, consider using resource files or external localization mechanisms.
 
 ## Version Update Checklist
 
 When changing version number, update these files:
 
-1. `packaging/installer/setup.nsi` → `!define APP_VERSION`
-2. `packaging/scripts/build-package.ps1` → `$Version` default
-3. `packaging/scripts/verify-package.ps1` → `$Version` default
+1. `installer/setup.nsi` → `!define APP_VERSION`
+2. `scripts/build-package.ps1` → `$Version` default
+3. `scripts/verify-package.ps1` → `$Version` default
 4. `CMakeLists.txt` → `project(EnhanceVision VERSION ...)`
 
 ## Output
 
 | File | Expected Size |
 |------|--------------|
-| `packaging/output/EnhanceVision-v{ver}-windows-x64-installer.exe` | ~155 MB |
-| `packaging/output/EnhanceVision-v{ver}-windows-x64-portable.zip` | ~200 MB |
+| `package/EnhanceVision-v{ver}-windows-x64-installer.exe` | ~155 MB |
+| `package/EnhanceVision-v{ver}-windows-x64-portable.zip` | ~200 MB |

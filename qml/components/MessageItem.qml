@@ -72,19 +72,18 @@ Rectangle {
         // 【修复】只有在真正开始处理过（有处理开始时间）且所有文件都已结算时才计算总耗时
         // 避免在任务还未开始时就显示总耗时
         if (allFilesSettled && _actualTotalSec === 0 && _hasStartedProcessing) {
-            // 使用实际经过的时间，如果太短则使用持久化的值或默认1秒
-            var totalSec = elapsedSec > 0 ? elapsedSec : (persistedActualTotalSec > 0 ? persistedActualTotalSec : 1)
-            _actualTotalSec = totalSec
-            // 通知父组件持久化总耗时到 C++
+            // 仅作为临时显示值，最终以 C++ 持久化值为准
+            var totalSec = elapsedSec > 0 ? elapsedSec : persistedActualTotalSec
             if (totalSec > 0) {
-                actualTotalSecChanged(totalSec)
+                _actualTotalSec = totalSec
             }
         }
     }
 
     // 从持久化值恢复实际总耗时（用于重新打开应用时显示）
     onPersistedActualTotalSecChanged: {
-        if (persistedActualTotalSec > 0 && _actualTotalSec === 0) {
+        // C++ 是总耗时单一真源，允许覆盖早到的临时值（例如完成瞬间的低估值）
+        if (persistedActualTotalSec > 0 && persistedActualTotalSec !== _actualTotalSec) {
             _actualTotalSec = persistedActualTotalSec
         }
     }

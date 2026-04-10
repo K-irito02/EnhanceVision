@@ -8,6 +8,7 @@
 #include "EnhanceVision/core/TaskTimeEstimator.h"
 #include "EnhanceVision/models/MessageModel.h"
 #include <QDebug>
+#include <QtMath>
 
 namespace EnhanceVision {
 
@@ -67,21 +68,34 @@ void ProcessingTimeManager::unregisterTask(const QString& messageId)
 {
     auto it = m_tasks.find(messageId);
     if (it != m_tasks.end()) {
-        // 在注销前获取最终的实际耗时
+        // 在注销前获取最终的实际耗时（以实时时钟为主，避免完成瞬间因采样滞后导致仅显示 1 秒）
         TaskTimeEstimator* estimator = TaskTimeEstimator::instance();
         QVariantMap timeInfo = estimator->getTaskTimeInfo(messageId);
-        
-        qint64 actualTotalSec = 0;
+
+        double estimatorElapsedSec = 0.0;
         if (timeInfo.value("valid", false).toBool()) {
-            actualTotalSec = static_cast<qint64>(timeInfo.value("elapsedSec", 0.0).toDouble());
-        } else {
-            // 回退：使用本地记录的已用时间
-            actualTotalSec = it.value().elapsedSec;
+            estimatorElapsedSec = timeInfo.value("elapsedSec", 0.0).toDouble();
         }
-        
+
+        const TaskTimeInfo info = it.value();
+        const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+        const double realtimeElapsedSec = info.processingStartTime > 0
+            ? static_cast<double>(qMax<qint64>(0, nowMs - info.processingStartTime)) / 1000.0
+            : 0.0;
+        const double localElapsedSec = static_cast<double>(qMax<qint64>(0, info.elapsedSec));
+
+        // 采用三者最大值，避免任何单一路径低估最终总耗时
+        const double bestElapsedSec = qMax(estimatorElapsedSec, qMax(realtimeElapsedSec, localElapsedSec));
+        qint64 actualTotalSec = bestElapsedSec > 0.0 ? qMax<qint64>(1, qRound64(bestElapsedSec)) : 0;
+
+        // 若任务确实启动过但最终仍为 0，则兜底为 1 秒
+        if (actualTotalSec <= 0 && info.processingStartTime > 0) {
+            actualTotalSec = 1;
+        }
+
         // 更新 MessageModel 中的实际总耗时
         if (m_messageModel) {
-            const qint64 displayActualTotalSec = actualTotalSec > 0 ? actualTotalSec : (it.value().processingStartTime > 0 ? 1 : 0);
+            const qint64 displayActualTotalSec = actualTotalSec > 0 ? actualTotalSec : (info.processingStartTime > 0 ? 1 : 0);
             if (displayActualTotalSec > 0) {
                 m_messageModel->updateActualTotalSec(messageId, displayActualTotalSec);
                 qInfo() << "[ProcessingTimeManager] Updated actualTotalSec for:" << messageId << "value:" << displayActualTotalSec;

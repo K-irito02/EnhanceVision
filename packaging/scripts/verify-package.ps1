@@ -2,13 +2,13 @@ param(
     [string]$Version = "0.1.0"
 )
 
-$packageDir = "package\EnhanceVision-v$Version-windows-x64"
+$packageDir = "packaging\output\EnhanceVision-v$Version-windows-x64"
 $buildDir = "build\msvc2022\Release\Release"
 $errors = @()
 $warnings = @()
 
 if (-not (Test-Path $packageDir)) {
-    Write-Host "❌ 打包目录不存在: $packageDir" -ForegroundColor Red
+    Write-Host "[ERROR] Package directory not found: $packageDir" -ForegroundColor Red
     exit 1
 }
 
@@ -30,7 +30,7 @@ $requiredFiles = @(
 
 foreach ($file in $requiredFiles) {
     if (-not (Test-Path "$packageDir\$file")) {
-        $errors += "缺少文件: $file"
+        $errors += "Missing file: $file"
     }
 }
 
@@ -49,64 +49,64 @@ $requiredDlls = @(
 
 foreach ($dll in $requiredDlls) {
     if (-not (Test-Path "$packageDir\$dll")) {
-        $errors += "缺少 DLL: $dll"
+        $errors += "Missing DLL: $dll"
     }
 }
 
 if (-not (Test-Path "$packageDir\models")) {
-    $errors += "缺少 models 目录"
+    $errors += "Missing models directory"
 } else {
     $modelFiles = Get-ChildItem -Path "$packageDir\models" -Recurse -Filter "*.param"
     if ($modelFiles.Count -eq 0) {
-        $errors += "models 目录中没有 AI 模型文件"
+        $errors += "No AI model files in models directory"
     }
 }
 
 if (-not (Test-Path "$packageDir\translations")) {
-    $warnings += "缺少 translations 目录"
+    $warnings += "Missing translations directory"
 }
 
 $requiredDirs = @("platforms", "qml", "styles", "imageformats")
 foreach ($dir in $requiredDirs) {
     if (-not (Test-Path "$packageDir\$dir")) {
-        $errors += "缺少目录: $dir"
+        $errors += "Missing directory: $dir"
     }
 }
 
 if (-not (Test-Path $buildDir)) {
-    $warnings += "构建目录不存在，跳过与 Release 运行目录的一致性对比"
+    $warnings += "Build directory not found, skipping consistency check"
 } else {
     $expectedEntries = Get-ChildItem -Path $buildDir | Where-Object { $excludedRuntimeEntries -notcontains $_.Name } | Select-Object -ExpandProperty Name
     $packagedEntries = Get-ChildItem -Path $packageDir | Select-Object -ExpandProperty Name
 
     foreach ($name in $expectedEntries) {
         if (-not (Test-Path (Join-Path $packageDir $name))) {
-            $errors += "打包缺少运行时条目: $name"
+            $errors += "Missing runtime entry in package: $name"
         }
     }
 
     foreach ($name in $packagedEntries) {
         if (($excludedRuntimeEntries -contains $name) -or (-not ($expectedEntries -contains $name) -and $requiredFiles -notcontains $name)) {
-            $warnings += "存在未对齐的打包条目: $name"
+            $warnings += "Unaligned package entry: $name"
         }
     }
 }
 
 $totalSize = (Get-ChildItem -Path $packageDir -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB
-Write-Host "`n📦 打包大小: $([math]::Round($totalSize, 2)) MB" -ForegroundColor Cyan
+Write-Host "`nPackage size: $([math]::Round($totalSize, 2)) MB" -ForegroundColor Cyan
 
-Write-Host "`n--- 验证结果 ---" -ForegroundColor Cyan
+Write-Host "`n--- Verification Results ---" -ForegroundColor Cyan
 
 if ($warnings.Count -gt 0) {
-    Write-Host "`n⚠️ 警告:" -ForegroundColor Yellow
+    Write-Host "`nWarnings:" -ForegroundColor Yellow
     $warnings | ForEach-Object { Write-Host "  - $_" -ForegroundColor Yellow }
 }
 
 if ($errors.Count -eq 0) {
-    Write-Host "`n✅ 打包验证通过" -ForegroundColor Green
+    Write-Host "`nPackage verification passed" -ForegroundColor Green
     exit 0
 } else {
-    Write-Host "`n❌ 打包验证失败:" -ForegroundColor Red
+    Write-Host "`nPackage verification failed:" -ForegroundColor Red
     $errors | ForEach-Object { Write-Host "  - $_" -ForegroundColor Red }
     exit 1
 }

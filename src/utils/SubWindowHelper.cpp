@@ -130,6 +130,13 @@ static LRESULT CALLBACK SubWindowWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
         minMaxInfo->ptMinTrackSize.y = helper->windowMinHeight();
         return 0;
     }
+    case WM_NCCALCSIZE: {
+        if (wParam == TRUE) {
+            // 移除系统非客户区边框，统一全屏/最大化/吸附路径下的边缘显示
+            return 0;
+        }
+        break;
+    }
     }
 
     auto procIt = g_originalWndProcs.find(hwnd);

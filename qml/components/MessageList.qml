@@ -436,7 +436,8 @@ Item {
                 }
             }
             onActualTotalSecChanged: function(totalSec) {
-                if (root._hasRealModel && totalSec > 0) {
+                // 仅在模型尚无耗时时允许补写，避免覆盖后端的最终统计值
+                if (root._hasRealModel && totalSec > 0 && _modelActualTotalSec <= 0) {
                     messageModel.updateActualTotalSec(model.id, Math.round(totalSec))
                 }
             }

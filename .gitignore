@@ -62,8 +62,8 @@ ShaderStackTrace*
 .qmake.files
 
 # Logs (runtime output, do not commit)
-# logs/
-# *.log
+logs/
+*.log
 
 # Temporary files
 *.tmp
@@ -82,6 +82,9 @@ third_party/
 
 # AI Models (large binary files, distribute separately)
 resources/models/
+
+# Packaging output (generated, do not commit)
+packaging/output/
 
 # Test video assets (large files, distribute separately)
 tests/testAssetsDirectory/video/

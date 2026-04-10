@@ -5,7 +5,7 @@
 ## 目录结构
 
 ```
-installer/
+packaging/installer/
 ├── resources/           # 品牌图片资源
 │   ├── welcome.bmp      # 欢迎页面图片 (500x314)
 │   ├── header.bmp       # 页面头部图片 (150x57)
@@ -55,10 +55,10 @@ installer/
 **下载命令：**
 ```powershell
 # 下载 VC++ 运行库
-Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "installer\redist\vc_redist.x64.exe"
+Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "packaging\installer\redist\vc_redist.x64.exe"
 
 # 下载 DirectX Web Setup (可选)
-Invoke-WebRequest -Uri "https://download.microsoft.com/download/1/7/1/1718CCC4-6EC5-465D-AEDC-6A1A2D66C6CF/dxwebsetup.exe" -OutFile "installer\redist\dxwebsetup.exe"
+Invoke-WebRequest -Uri "https://download.microsoft.com/download/1/7/1/1718CCC4-6EC5-465D-AEDC-6A1A2D66C6CF/dxwebsetup.exe" -OutFile "packaging\installer\redist\dxwebsetup.exe"
 ```
 
 ### 4. 许可协议文件

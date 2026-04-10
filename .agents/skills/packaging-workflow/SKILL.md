@@ -14,25 +14,25 @@ Automated packaging workflow for building NSIS installer and portable ZIP.
 | NSIS 3.11 | `E:\Program Files (x86)\NSIS\makensis.exe` |
 | CMake | `C:\Program Files\CMake\bin\cmake.exe` |
 | Qt 6.10.2 | `E:\Qt\6.10.2\msvc2022_64` |
-| VC++ Redistributable | `installer/redist/vc_redist.x64.exe` |
+| VC++ Redistributable | `packaging/installer/redist/vc_redist.x64.exe` |
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `installer/setup.nsi` | NSIS installer script (UTF-8 BOM encoding) |
-| `installer/redist/vc_redist.x64.exe` | VC++ 2022 runtime |
-| `installer/license/license_zh.txt` | Chinese license (UTF-16 LE BOM) |
-| `installer/license/license_en.txt` | English license (UTF-16 LE BOM) |
-| `scripts/build-package.ps1` | One-click packaging script |
-| `scripts/verify-package.ps1` | Package verification script |
-| `portable/start.vbs` | Portable launcher (VBS, no console window) |
+| `packaging/installer/setup.nsi` | NSIS installer script (UTF-8 BOM encoding) |
+| `packaging/installer/redist/vc_redist.x64.exe` | VC++ 2022 runtime |
+| `packaging/installer/license/license_zh.txt` | Chinese license (UTF-16 LE BOM) |
+| `packaging/installer/license/license_en.txt` | English license (UTF-16 LE BOM) |
+| `packaging/scripts/build-package.ps1` | One-click packaging script |
+| `packaging/scripts/verify-package.ps1` | Package verification script |
+| `packaging/portable/start.vbs` | Portable launcher (VBS, no console window) |
 | `resources/icons/app_icon.ico` | Application icon |
 
 ## Execution Flow
 
 ```
-1. Build Release â†’ 2. Copy release tree â†’ 3. Run windeployqt â†’ 4. Verify â†’ 5. NSIS installer â†’ 6. Portable ZIP â†’ 7. Checksums
+1. Build Release â†?2. Copy release tree â†?3. Run windeployqt â†?4. Verify â†?5. NSIS installer â†?6. Portable ZIP â†?7. Checksums
 ```
 
 ## Quick Start
@@ -63,14 +63,14 @@ Automated packaging workflow for building NSIS installer and portable ZIP.
 
 When changing version number, update these files:
 
-1. `installer/setup.nsi` â†’ `!define APP_VERSION`
-2. `scripts/build-package.ps1` â†’ `$Version` default
-3. `scripts/verify-package.ps1` â†’ `$Version` default
-4. `CMakeLists.txt` â†’ `project(EnhanceVision VERSION ...)`
+1. `packaging/installer/setup.nsi` â†?`!define APP_VERSION`
+2. `packaging/scripts/build-package.ps1` â†?`$Version` default
+3. `packaging/scripts/verify-package.ps1` â†?`$Version` default
+4. `CMakeLists.txt` â†?`project(EnhanceVision VERSION ...)`
 
 ## Output
 
 | File | Expected Size |
 |------|--------------|
-| `package/EnhanceVision-v{ver}-windows-x64-installer.exe` | ~155 MB |
-| `package/EnhanceVision-v{ver}-windows-x64-portable.zip` | ~200 MB |
+| `packaging/output/EnhanceVision-v{ver}-windows-x64-installer.exe` | ~155 MB |
+| `packaging/output/EnhanceVision-v{ver}-windows-x64-portable.zip` | ~200 MB |
