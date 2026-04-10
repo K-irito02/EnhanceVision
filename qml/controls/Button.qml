@@ -28,6 +28,15 @@ Button {
      * @brief 图标名称（可选，显示在文字左侧）
      */
     property string iconName: ""
+    property bool useCustomBackgroundColors: false
+    property color customBackgroundColor: "transparent"
+    property color customHoverBackgroundColor: "transparent"
+    property color customPressedBackgroundColor: "transparent"
+    property bool useCustomTextColor: false
+    property color customTextColor: Theme.colors.foreground
+    property bool useCustomBorderColor: false
+    property color customBorderColor: Theme.colors.border
+    property bool forceBorder: false
 
     // ========== 尺寸计算 ==========
     readonly property var sizeValues: ({
@@ -50,6 +59,18 @@ Button {
 
         radius: Theme.radius.md
         color: {
+            if (root.useCustomBackgroundColors) {
+                if (!root.enabled) {
+                    return Qt.rgba(root.customBackgroundColor.r,
+                                   root.customBackgroundColor.g,
+                                   root.customBackgroundColor.b,
+                                   Math.min(0.35, root.customBackgroundColor.a))
+                }
+                if (root.pressed) return root.customPressedBackgroundColor
+                if (root.hovered) return root.customHoverBackgroundColor
+                return root.customBackgroundColor
+            }
+
             var v = root.variant
             if (!root.enabled) {
                 if (v === "ghost") return "transparent"
@@ -77,8 +98,9 @@ Button {
         }
 
         // 边框
-        border.width: root.variant === "secondary" || root.variant === "ghost" ? 1 : 0
+        border.width: root.forceBorder || root.useCustomBorderColor || root.variant === "secondary" || root.variant === "ghost" ? 1 : 0
         border.color: {
+            if (root.useCustomBorderColor) return root.customBorderColor
             if (!root.enabled) return Theme.colors.border
             if (root.hovered) return Theme.colors.borderHover
             return Theme.colors.border
@@ -125,6 +147,15 @@ Button {
 
     // ========== 文本颜色 ==========
     property color textColor: {
+        if (root.useCustomTextColor) {
+            if (!root.enabled) {
+                return Qt.rgba(root.customTextColor.r,
+                               root.customTextColor.g,
+                               root.customTextColor.b,
+                               0.55)
+            }
+            return root.customTextColor
+        }
         if (!root.enabled) return Theme.colors.mutedForeground
         var v = root.variant
         if (v === "primary") return Theme.colors.primaryForeground

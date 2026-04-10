@@ -408,7 +408,26 @@ Item {
             }
         }
     }
-    function _getSource(s) { return !s ? "" : (s.startsWith("file:///") || s.startsWith("qrc:/") ? s : "file:///" + s) }
+    function _getSource(s) {
+        if (!s) return ""
+
+        var src = s.toString()
+        if (src.startsWith("file:///") || src.startsWith("qrc:/") || src.startsWith("demo://")
+                || src.startsWith("http://") || src.startsWith("https://")) {
+            return src
+        }
+
+        src = src.replace(/\\/g, "/")
+
+        if (/^[A-Za-z]:\//.test(src)) {
+            return "file:///" + src
+        }
+        if (src.startsWith("/")) {
+            return "file://" + src
+        }
+
+        return Qt.resolvedUrl(src)
+    }
     function _formatTime(ms) { 
         if (ms === undefined || ms === null || isNaN(ms) || ms < 0) return "00:00"
         var s = Math.floor(ms/1000)

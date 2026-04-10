@@ -22,62 +22,31 @@ Remove-Item -Recurse -Force $packageDir -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
 
 $buildDir = "build\msvc2022\Release\Release"
-
-# 复制主程序
-Copy-Item -Path "$buildDir\EnhanceVision.exe" -Destination $packageDir
-
-# 复制 Qt DLLs
-$qtDlls = @(
-    "Qt6Core.dll", "Qt6Gui.dll", "Qt6Qml.dll", "Qt6Quick.dll",
-    "Qt6QuickControls2.dll", "Qt6QuickControls2Impl.dll",
-    "Qt6QuickControls2Basic.dll", "Qt6QuickControls2BasicStyleImpl.dll",
-    "Qt6QuickControls2Fusion.dll", "Qt6QuickControls2FusionStyleImpl.dll",
-    "Qt6QuickControls2Material.dll", "Qt6QuickControls2MaterialStyleImpl.dll",
-    "Qt6QuickControls2Imagine.dll", "Qt6QuickControls2ImagineStyleImpl.dll",
-    "Qt6QuickControls2Universal.dll", "Qt6QuickControls2UniversalStyleImpl.dll",
-    "Qt6QuickControls2WindowsStyleImpl.dll", "Qt6QuickControls2FluentWinUI3StyleImpl.dll",
-    "Qt6QuickTemplates2.dll", "Qt6QuickLayouts.dll", "Qt6QuickShapes.dll",
-    "Qt6QuickEffects.dll", "Qt6QuickDialogs2.dll", "Qt6QuickDialogs2QuickImpl.dll",
-    "Qt6QuickDialogs2Utils.dll", "Qt6QuickWidgets.dll",
-    "Qt6Network.dll", "Qt6OpenGL.dll",
-    "Qt6Multimedia.dll", "Qt6MultimediaQuick.dll",
-    "Qt6QmlModels.dll", "Qt6QmlCore.dll", "Qt6QmlMeta.dll", "Qt6QmlWorkerScript.dll",
-    "Qt6LabsFolderListModel.dll", "Qt6LabsQmlModels.dll",
-    "Qt6Widgets.dll", "Qt6Svg.dll", "Qt6Sql.dll", "Qt6Quick3DUtils.dll"
+$excludedRuntimeEntries = @(
+    "EnhanceVision.exp",
+    "EnhanceVision.lib",
+    "EnhanceVisionMessageStatusResolverTest.exe",
+    "EnhanceVisionSessionPruneUtilsTest.exe",
+    "Qt6Test.dll",
+    "logs"
 )
-foreach ($dll in $qtDlls) {
-    $src = "$buildDir\$dll"
-    if (Test-Path $src) {
-        Copy-Item -Path $src -Destination $packageDir
+
+Get-ChildItem -Path $buildDir | ForEach-Object {
+    if ($excludedRuntimeEntries -contains $_.Name) {
+        return
     }
+
+    Copy-Item -Path $_.FullName -Destination $packageDir -Recurse
 }
 
-# 复制系统 DLLs
-$sysDlls = @("D3Dcompiler_47.dll", "dxcompiler.dll", "dxil.dll", "opengl32sw.dll", "icuuc.dll")
-foreach ($dll in $sysDlls) {
-    $src = "$buildDir\$dll"
-    if (Test-Path $src) {
-        Copy-Item -Path $src -Destination $packageDir
-    }
+$windeployqt = "E:\Qt\6.10.2\msvc2022_64\bin\windeployqt.exe"
+if (-not (Test-Path $windeployqt)) {
+    throw "未找到 windeployqt: $windeployqt"
 }
 
-# 复制 FFmpeg DLLs（仅新版）
-$ffmpegDlls = @("avcodec-62.dll", "avformat-62.dll", "avutil-60.dll", "swscale-9.dll", "swresample-6.dll", "avdevice-62.dll", "avfilter-11.dll")
-foreach ($dll in $ffmpegDlls) {
-    $src = "$buildDir\$dll"
-    if (Test-Path $src) {
-        Copy-Item -Path $src -Destination $packageDir
-    }
-}
-
-# 复制子目录
-$subDirs = @("models", "translations", "qml", "platforms", "styles", "imageformats", "iconengines", "generic", "networkinformation", "tls", "sqldrivers", "multimedia", "qmltooling")
-foreach ($dir in $subDirs) {
-    $src = "$buildDir\$dir"
-    if (Test-Path $src) {
-        Copy-Item -Path $src -Destination $packageDir -Recurse
-    }
-}
+Write-Host "  同步 Qt 运行时依赖到打包目录..." -ForegroundColor DarkGray
+& $windeployqt --release --qmldir (Resolve-Path "qml") (Join-Path (Resolve-Path $packageDir) "EnhanceVision.exe")
+if ($LASTEXITCODE -ne 0) { throw "windeployqt 运行失败" }
 
 # 复制许可证文件
 Copy-Item -Path "LICENSE" -Destination $packageDir

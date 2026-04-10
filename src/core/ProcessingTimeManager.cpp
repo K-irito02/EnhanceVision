@@ -51,6 +51,12 @@ void ProcessingTimeManager::registerTask(const QString& messageId,
     
     // 同步到 TaskTimeEstimator 进行动态跟踪
     TaskTimeEstimator::instance()->startTracking(messageId, static_cast<double>(predictedTotalSec));
+
+    if (m_messageModel) {
+        m_messageModel->updateProcessingStartTime(messageId, info.processingStartTime);
+        m_messageModel->updatePredictedTotalSec(messageId, info.predictedTotalSec);
+        m_messageModel->updateTimeInfo(messageId, info.elapsedSec, info.remainingSec, info.isOvertime);
+    }
     
     qInfo() << "[ProcessingTimeManager] Registered task:" << messageId
             << "predictedTotalSec:" << predictedTotalSec
@@ -74,9 +80,12 @@ void ProcessingTimeManager::unregisterTask(const QString& messageId)
         }
         
         // 更新 MessageModel 中的实际总耗时
-        if (m_messageModel && actualTotalSec > 0) {
-            m_messageModel->updateActualTotalSec(messageId, actualTotalSec);
-            qInfo() << "[ProcessingTimeManager] Updated actualTotalSec for:" << messageId << "value:" << actualTotalSec;
+        if (m_messageModel) {
+            const qint64 displayActualTotalSec = actualTotalSec > 0 ? actualTotalSec : (it.value().processingStartTime > 0 ? 1 : 0);
+            if (displayActualTotalSec > 0) {
+                m_messageModel->updateActualTotalSec(messageId, displayActualTotalSec);
+                qInfo() << "[ProcessingTimeManager] Updated actualTotalSec for:" << messageId << "value:" << displayActualTotalSec;
+            }
         }
         
         // 同步停止 TaskTimeEstimator 跟踪
@@ -159,6 +168,11 @@ void ProcessingTimeManager::resumeTask(const QString& messageId)
     
     // 同步到 TaskTimeEstimator
     TaskTimeEstimator::instance()->resumeTracking(messageId);
+
+    if (m_messageModel) {
+        m_messageModel->updateProcessingStartTime(messageId, info.processingStartTime);
+        m_messageModel->updateTimeInfo(messageId, pausedElapsed, qMax<qint64>(0, info.predictedTotalSec - pausedElapsed), false);
+    }
     
     qInfo() << "[ProcessingTimeManager] Resumed task:" << messageId
             << "adjustedStartTime:" << info.processingStartTime;
@@ -243,6 +257,7 @@ void ProcessingTimeManager::onTimerTick()
                                            info.elapsedSec, 
                                            info.remainingSec, 
                                            info.isOvertime);
+            m_messageModel->updatePredictedTotalSec(info.messageId, info.predictedTotalSec);
         }
     }
 }

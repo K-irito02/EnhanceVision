@@ -35,8 +35,10 @@ EnhanceVision-v0.1.0-windows-x64/
 │   ├── RealESRGAN_x4plus.param
 │   └── RealESRGAN_x4plus.bin
 ├── translations/              # 翻译文件 (~50KB)
-├── Qt DLLs/                   # Qt 运行时 (~30MB)
-├── FFmpeg DLLs/               # FFmpeg 运行时 (~20MB)
+├── Qt DLLs/                   # Qt 运行时
+├── multimedia/                # Qt Multimedia 后端插件
+├── qml/QtMultimedia/          # QML 多媒体插件
+├── FFmpeg DLLs/               # FFmpeg 运行时
 ├── LICENSE                    # MIT 许可证
 ├── THIRD_PARTY_LICENSES.md    # 第三方许可证
 └── README.txt                 # 简要说明
@@ -44,8 +46,8 @@ EnhanceVision-v0.1.0-windows-x64/
 
 ### 预计大小
 
-- 安装程序: ~150MB（含运行库，LZMA 压缩）
-- 便携版 ZIP: ~180MB
+- 安装程序: ~155MB（含运行库，LZMA 压缩）
+- 便携版 ZIP: ~200MB
 
 ---
 
@@ -207,8 +209,15 @@ $version = "0.1.0"
 $packageDir = "package\EnhanceVision-v$version-windows-x64"
 New-Item -ItemType Directory -Force -Path $packageDir
 
-# 复制主程序
+# 复制 Release 运行目录
 Copy-Item -Path "build\msvc2022\Release\Release\*" -Destination $packageDir -Recurse
+
+# 补齐 Qt 运行时依赖
+& "E:\Qt\6.10.2\msvc2022_64\bin\windeployqt.exe" `
+    --release `
+    --qmldir "qml" `
+    --dir $packageDir `
+    "$packageDir\EnhanceVision.exe"
 
 # 复制许可证文件
 Copy-Item -Path "LICENSE" -Destination $packageDir
@@ -1153,11 +1162,15 @@ if (-not (Test-Path "$packageDir\Qt6Core.dll")) {
     $errors += "缺少 Qt DLL 文件"
 }
 
-# 检查 FFmpeg DLL
-$ffmpegDlls = @("avcodec-62.dll", "avformat-62.dll", "avutil-60.dll", "swscale-9.dll")
-foreach ($dll in $ffmpegDlls) {
-    if (-not (Test-Path "$packageDir\$dll")) {
-        $errors += "缺少 FFmpeg DLL: $dll"
+# 检查多媒体后端
+$mediaPlugins = @(
+    "multimedia\ffmpegmediaplugin.dll",
+    "multimedia\windowsmediaplugin.dll",
+    "qml\QtMultimedia\quickmultimediaplugin.dll"
+)
+foreach ($file in $mediaPlugins) {
+    if (-not (Test-Path "$packageDir\$file")) {
+        $errors += "缺少多媒体插件: $file"
     }
 }
 
@@ -1202,8 +1215,17 @@ $packageDir = "package\EnhanceVision-v$Version-windows-x64"
 Remove-Item -Recurse -Force $packageDir -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
 
-# 复制文件
+# 复制 Release 运行目录
 Copy-Item -Path "build\msvc2022\Release\Release\*" -Destination $packageDir -Recurse
+
+# 补齐 Qt 运行时依赖，避免安装版和便携版缺少多媒体后端
+& "E:\Qt\6.10.2\msvc2022_64\bin\windeployqt.exe" `
+    --release `
+    --qmldir "qml" `
+    --dir $packageDir `
+    "$packageDir\EnhanceVision.exe"
+
+# 复制项目说明文件
 Copy-Item -Path "LICENSE" -Destination $packageDir
 Copy-Item -Path "THIRD_PARTY_LICENSES.md" -Destination $packageDir
 

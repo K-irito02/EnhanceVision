@@ -48,6 +48,75 @@ Automated packaging workflow for building NSIS installer and portable ZIP.
 & "E:\Program Files (x86)\NSIS\makensis.exe" /INPUTCHARSET UTF8 installer\setup.nsi
 ```
 
+## Step-by-Step Manual Packaging
+
+### Step 1: Build Release
+
+```powershell
+& "C:\Program Files\CMake\bin\cmake.exe" --preset windows-msvc-2022-release
+& "C:\Program Files\CMake\bin\cmake.exe" --build build/msvc2022/Release --config Release -j 8
+```
+
+### Step 2: Prepare Package Directory
+
+```powershell
+$Version = "0.1.0"
+$packageDir = "package\EnhanceVision-v$Version-windows-x64"
+$buildDir = "build\msvc2022\Release\Release"
+
+Remove-Item -Recurse -Force $packageDir -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
+
+# Copy the release runtime tree first
+Copy-Item -Path "$buildDir\*" -Destination $packageDir -Recurse
+
+# Deploy Qt runtime dependencies into the package output
+& "E:\Qt\6.10.2\msvc2022_64\bin\windeployqt.exe" `
+    --release `
+    --qmldir "qml" `
+    --dir $packageDir `
+    "$packageDir\EnhanceVision.exe"
+
+# Copy license files
+Copy-Item -Path "LICENSE" -Destination $packageDir
+Copy-Item -Path "THIRD_PARTY_LICENSES.md" -Destination $packageDir
+```
+
+### Step 3: Verify Package
+
+```powershell
+& ".\scripts\verify-package.ps1" -Version $Version
+```
+
+### Step 4: Create NSIS Installer
+
+```powershell
+& "E:\Program Files (x86)\NSIS\makensis.exe" /INPUTCHARSET UTF8 installer\setup.nsi
+```
+
+### Step 5: Create Portable ZIP
+
+```powershell
+Copy-Item -Path "portable\start.vbs" -Destination $packageDir
+Compress-Archive -Path $packageDir -DestinationPath "package\EnhanceVision-v$Version-windows-x64-portable.zip"
+Remove-Item "$packageDir\start.vbs" -ErrorAction SilentlyContinue
+```
+
+### Step 6: Calculate Checksums
+
+```powershell
+Get-FileHash "package\EnhanceVision-v$Version-windows-x64-installer.exe" -Algorithm SHA256
+Get-FileHash "package\EnhanceVision-v$Version-windows-x64-portable.zip" -Algorithm SHA256
+```
+
+## Files to Exclude from Package
+
+| Pattern | Reason |
+|---------|--------|
+| `*.exp`, `*.lib` | Build artifacts |
+| `*Test.exe` | Test executables |
+| `logs/` directory | Runtime logs |
+
 ## NSIS Known Pitfalls
 
 1. **LicenseLangString order**: Must come AFTER `!insertmacro MUI_LANGUAGE`

@@ -1782,9 +1782,25 @@ Rectangle {
                                 Button {
                                     id: clearAllButton
                                     text: qsTr("清理全部")
-                                    variant: "destructive"
+                                    variant: "secondary"
                                     size: "sm"
                                     iconName: "trash-2"
+                                    useCustomBackgroundColors: true
+                                    customBackgroundColor: Theme.isDark
+                                                           ? Qt.rgba(Theme.colors.destructive.r, Theme.colors.destructive.g, Theme.colors.destructive.b, 0.18)
+                                                           : Qt.rgba(Theme.colors.destructive.r, Theme.colors.destructive.g, Theme.colors.destructive.b, 0.10)
+                                    customHoverBackgroundColor: Theme.isDark
+                                                                ? Qt.rgba(Theme.colors.destructive.r, Theme.colors.destructive.g, Theme.colors.destructive.b, 0.24)
+                                                                : Qt.rgba(Theme.colors.destructive.r, Theme.colors.destructive.g, Theme.colors.destructive.b, 0.14)
+                                    customPressedBackgroundColor: Theme.isDark
+                                                                  ? Qt.rgba(Theme.colors.destructive.r, Theme.colors.destructive.g, Theme.colors.destructive.b, 0.30)
+                                                                  : Qt.rgba(Theme.colors.destructive.r, Theme.colors.destructive.g, Theme.colors.destructive.b, 0.18)
+                                    useCustomTextColor: true
+                                    customTextColor: Theme.colors.destructive
+                                    useCustomBorderColor: true
+                                    customBorderColor: Theme.isDark
+                                                       ? Qt.rgba(Theme.colors.destructive.r, Theme.colors.destructive.g, Theme.colors.destructive.b, 0.34)
+                                                       : Qt.rgba(Theme.colors.destructive.r, Theme.colors.destructive.g, Theme.colors.destructive.b, 0.22)
                                     enabled: SettingsController.totalCacheSize > 0
                                     onClicked: {
                                         var totalFiles = SettingsController.aiImageFileCount + 

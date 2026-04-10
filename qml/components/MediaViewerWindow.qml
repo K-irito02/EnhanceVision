@@ -89,7 +89,26 @@ Window {
     readonly property string _resultSource: currentFile ? (currentFile.resultPath && currentFile.resultPath !== "" ? currentFile.resultPath : (currentFile.filePath || "")) : ""
     readonly property string _originalSource: currentFile ? (currentFile.originalPath && currentFile.originalPath !== "" ? currentFile.originalPath : (currentFile.filePath || "")) : ""
     readonly property bool _hasDistinctResult: currentFile && currentFile.resultPath && currentFile.originalPath && currentFile.resultPath !== currentFile.originalPath
-    function _getSource(s) { return !s ? "" : (s.startsWith("file:///") || s.startsWith("qrc:/") ? s : "file:///" + s) }
+    function _getSource(s) {
+        if (!s) return ""
+
+        var src = s.toString()
+        if (src.startsWith("file:///") || src.startsWith("qrc:/") || src.startsWith("demo://")
+                || src.startsWith("http://") || src.startsWith("https://")) {
+            return src
+        }
+
+        src = src.replace(/\\/g, "/")
+
+        if (/^[A-Za-z]:\//.test(src)) {
+            return "file:///" + src
+        }
+        if (src.startsWith("/")) {
+            return "file://" + src
+        }
+
+        return Qt.resolvedUrl(src)
+    }
     function _normalizeThumbnailKey(source) { return !source ? "" : (source.startsWith("file:///") ? source.substring(8) : source) }
     function _baseThumbnailKey(file) { return !file ? "" : _normalizeThumbnailKey(file.originalPath || file.filePath || "") }
     function _preferredThumbnailKey(file) {
@@ -409,9 +428,7 @@ Window {
                 visible: false
                 source: {
                     if (isVideo || !currentSource) return ""
-                    var src = currentSource
-                    if (src.startsWith("file:///") || src.startsWith("qrc:/") || src.startsWith("demo://")) return src
-                    return "file:///" + src
+                    return _getSource(currentSource)
                 }
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
@@ -500,9 +517,7 @@ Window {
                 visible: !isVideo && currentSource !== "" && !_shouldApplyShader && !(messageMode && _hasDistinctResult)
                 source: {
                     if (isVideo || !currentSource) return ""
-                    var src = currentSource
-                    if (src.startsWith("file:///") || src.startsWith("qrc:/") || src.startsWith("demo://")) return src
-                    return "file:///" + src
+                    return _getSource(currentSource)
                 }
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
@@ -672,10 +687,7 @@ Window {
                     target: root
                     function onCurrentSourceChanged() {
                         if (isVideo && currentSource && currentSource !== "") {
-                            var src = currentSource
-                            if (!src.startsWith("file:///") && !src.startsWith("qrc:/")) {
-                                src = "file:///" + src
-                            }
+                            var src = _getSource(currentSource)
                             videoPlayer.source = src
                             // 只有在非源件/结果切换模式时才调用 handleFileOpen
                             if (playbackController._switchMode !== 2) {

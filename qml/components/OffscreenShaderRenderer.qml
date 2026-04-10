@@ -20,6 +20,27 @@ Item {
     property var exportQueue: []
     
     signal exportReady(string exportId, bool success, string outputPath, string error)
+
+    function _toUrl(path) {
+        if (!path) return ""
+
+        var src = path.toString()
+        if (src.startsWith("file:///") || src.startsWith("qrc:/") || src.startsWith("demo://")
+                || src.startsWith("http://") || src.startsWith("https://")) {
+            return src
+        }
+
+        src = src.replace(/\\/g, "/")
+
+        if (/^[A-Za-z]:\//.test(src)) {
+            return "file:///" + src
+        }
+        if (src.startsWith("/")) {
+            return "file://" + src
+        }
+
+        return Qt.resolvedUrl(src)
+    }
     
     Image {
         id: sourceImage
@@ -83,13 +104,8 @@ Item {
         root.currentOutputPath = task.outputPath
         root.currentShaderParams = task.shaderParams
         
-        var src = task.imagePath
-        if (!src.startsWith("file:///") && !src.startsWith("qrc:/") && !src.startsWith("demo://")) {
-            src = "file:///" + src
-        }
-        
         sourceImage.source = ""
-        sourceImage.source = src
+        sourceImage.source = _toUrl(task.imagePath)
     }
     
     function startExport() {
@@ -122,7 +138,7 @@ Item {
             var saveResult = false
             try {
                 var outputPath = root.currentOutputPath
-                var fileUrl = "file:///" + outputPath.replace(/\\/g, "/")
+                var fileUrl = _toUrl(outputPath)
                 saveResult = result.saveToFile(fileUrl)
             } catch (e) {
                 finishExport(false, "Error saving image: " + e)

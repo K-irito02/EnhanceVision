@@ -46,7 +46,11 @@ Rectangle {
     property bool persistedErrorTipDismissed: false
 
     // 标记是否已开始处理（避免进度条倒走）
-    property bool _hasStartedProcessing: persistedProcessingStartTime > 0 || _processingStartTime > 0
+    property bool _hasStartedProcessing: persistedProcessingStartTime > 0
+                                         || _processingStartTime > 0
+                                         || elapsedSec > 0
+                                         || _actualTotalSec > 0
+                                         || persistedActualTotalSec > 0
 
     // 动画控制属性
     readonly property bool processingBorderAnimated: status === 1 && processingFileCount > 0
@@ -796,9 +800,7 @@ Rectangle {
             // 显示条件：必须已开始处理且所有文件都已结算，或者有持久化的总耗时
             Text {
                 property real displayTotalSec: root._actualTotalSec > 0 ? root._actualTotalSec : root.persistedActualTotalSec
-                // 【修复】只有在真正处理完成后才显示总耗时
-                // 条件：(已开始处理 且 所有文件已结算 且 有耗时数据) 或 有持久化的耗时数据
-                visible: (root._hasStartedProcessing && root.allFilesSettled && displayTotalSec > 0) || root.persistedActualTotalSec > 0
+                visible: root.allFilesSettled && displayTotalSec > 0
                 text: root._formatTotalDuration(displayTotalSec)
                 // 使用蓝色
                 color: "#5B8DEF"

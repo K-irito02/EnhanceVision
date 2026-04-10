@@ -12,7 +12,10 @@
 #include <QDir>
 #include <QDebug>
 #include <QIcon>
+#include <QStandardPaths>
 #include <cstdlib>
+#include <cstdio>
+#include <cstring>
 #include "EnhanceVision/app/Application.h"
 
 #ifdef Q_OS_WIN
@@ -23,6 +26,24 @@
 namespace {
     QFile* logFile = nullptr;
     QString logFilePath;
+#ifdef Q_OS_WIN
+    wchar_t crashLogPath[MAX_PATH] = L"";
+#endif
+
+    QString ensureLogDirectory()
+    {
+        QString basePath = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+        if (basePath.isEmpty()) {
+            basePath = QDir::tempPath() + "/EnhanceVision";
+        }
+
+        QDir logDir(QDir(basePath).filePath("logs"));
+        if (!logDir.exists()) {
+            logDir.mkpath(".");
+        }
+
+        return logDir.absolutePath();
+    }
 
     void messageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
     {
@@ -75,7 +96,7 @@ namespace {
         
         // 写入崩溃日志文件
         HANDLE hFile = CreateFileW(
-            L"logs/crash.log",
+            crashLogPath[0] != L'\0' ? crashLogPath : L"crash.log",
             FILE_APPEND_DATA,
             FILE_SHARE_READ,
             nullptr,
@@ -118,6 +139,8 @@ namespace {
             WriteFile(hStdErr, msg, strlen(msg), &written, nullptr);
             FlushFileBuffers(hStdErr);
         }
+
+        writeCrashLog(msg);
         
         // 立即终止进程，不调用任何清理函数
         TerminateProcess(GetCurrentProcess(), 1);
@@ -157,14 +180,14 @@ int main(int argc, char *argv[])
     
     QQuickStyle::setStyle("Basic");
     
-    // 创建日志目录
-    QDir logDir("logs");
-    if (!logDir.exists()) {
-        logDir.mkpath(".");
-    }
-    
-    // 使用固定的日志文件名，每次启动覆盖
-    logFilePath = "logs/runtime_output.log";
+    const QString logDirPath = ensureLogDirectory();
+    logFilePath = QDir(logDirPath).filePath("runtime_output.log");
+#ifdef Q_OS_WIN
+    const QString nativeCrashLogPath = QDir::toNativeSeparators(QDir(logDirPath).filePath("crash.log"));
+    const int crashPathLength = qMin(nativeCrashLogPath.size(), static_cast<int>(MAX_PATH) - 1);
+    nativeCrashLogPath.left(crashPathLength).toWCharArray(crashLogPath);
+    crashLogPath[crashPathLength] = L'\0';
+#endif
     logFile = new QFile(logFilePath);
     
     if (logFile->open(QIODevice::WriteOnly | QIODevice::Truncate)) {

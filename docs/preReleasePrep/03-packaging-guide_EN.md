@@ -36,8 +36,10 @@ EnhanceVision-v0.1.0-windows-x64/
 │   ├── RealESRGAN_x4plus.param
 │   └── RealESRGAN_x4plus.bin
 ├── translations/              # Translation files (~50KB)
-├── Qt DLLs/                   # Qt runtime (~30MB)
-├── FFmpeg DLLs/               # FFmpeg runtime (~20MB)
+├── Qt DLLs/                   # Qt runtime
+├── multimedia/                # Qt Multimedia backends
+├── qml/QtMultimedia/          # QML multimedia plugin
+├── FFmpeg DLLs/               # FFmpeg runtime
 ├── LICENSE                    # MIT License
 ├── THIRD_PARTY_LICENSES.md    # Third-party licenses
 └── README.txt                 # Brief description
@@ -45,8 +47,8 @@ EnhanceVision-v0.1.0-windows-x64/
 
 ### Estimated Size
 
-- Installer: ~150MB (including runtime libraries, LZMA compressed)
-- Portable ZIP: ~180MB
+- Installer: ~155MB (including runtime libraries, LZMA compressed)
+- Portable ZIP: ~200MB
 
 ---
 
@@ -208,8 +210,15 @@ $version = "0.1.0"
 $packageDir = "package\EnhanceVision-v$version-windows-x64"
 New-Item -ItemType Directory -Force -Path $packageDir
 
-# Copy main program
+# Copy the Release runtime tree
 Copy-Item -Path "build\msvc2022\Release\Release\*" -Destination $packageDir -Recurse
+
+# Deploy Qt runtime dependencies
+& "E:\Qt\6.10.2\msvc2022_64\bin\windeployqt.exe" `
+    --release `
+    --qmldir "qml" `
+    --dir $packageDir `
+    "$packageDir\EnhanceVision.exe"
 
 # Copy license files
 Copy-Item -Path "LICENSE" -Destination $packageDir
@@ -1154,11 +1163,15 @@ if (-not (Test-Path "$packageDir\Qt6Core.dll")) {
     $errors += "Missing Qt DLL files"
 }
 
-# Check FFmpeg DLLs
-$ffmpegDlls = @("avcodec-62.dll", "avformat-62.dll", "avutil-60.dll", "swscale-9.dll")
-foreach ($dll in $ffmpegDlls) {
-    if (-not (Test-Path "$packageDir\$dll")) {
-        $errors += "Missing FFmpeg DLL: $dll"
+# Check multimedia backends
+$mediaPlugins = @(
+    "multimedia\ffmpegmediaplugin.dll",
+    "multimedia\windowsmediaplugin.dll",
+    "qml\QtMultimedia\quickmultimediaplugin.dll"
+)
+foreach ($file in $mediaPlugins) {
+    if (-not (Test-Path "$packageDir\$file")) {
+        $errors += "Missing multimedia plugin: $file"
     }
 }
 
@@ -1203,8 +1216,17 @@ $packageDir = "package\EnhanceVision-v$Version-windows-x64"
 Remove-Item -Recurse -Force $packageDir -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
 
-# Copy files
+# Copy the Release runtime tree
 Copy-Item -Path "build\msvc2022\Release\Release\*" -Destination $packageDir -Recurse
+
+# Deploy Qt runtime dependencies so the installer and portable package both include multimedia backends
+& "E:\Qt\6.10.2\msvc2022_64\bin\windeployqt.exe" `
+    --release `
+    --qmldir "qml" `
+    --dir $packageDir `
+    "$packageDir\EnhanceVision.exe"
+
+# Copy project documentation files
 Copy-Item -Path "LICENSE" -Destination $packageDir
 Copy-Item -Path "THIRD_PARTY_LICENSES.md" -Destination $packageDir
 

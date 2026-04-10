@@ -3,6 +3,7 @@ param(
 )
 
 $packageDir = "package\EnhanceVision-v$Version-windows-x64"
+$buildDir = "build\msvc2022\Release\Release"
 $errors = @()
 $warnings = @()
 
@@ -10,6 +11,15 @@ if (-not (Test-Path $packageDir)) {
     Write-Host "❌ 打包目录不存在: $packageDir" -ForegroundColor Red
     exit 1
 }
+
+$excludedRuntimeEntries = @(
+    "EnhanceVision.exp",
+    "EnhanceVision.lib",
+    "EnhanceVisionMessageStatusResolverTest.exe",
+    "EnhanceVisionSessionPruneUtilsTest.exe",
+    "Qt6Test.dll",
+    "logs"
+)
 
 $requiredFiles = @(
     "EnhanceVision.exe",
@@ -63,29 +73,23 @@ foreach ($dir in $requiredDirs) {
     }
 }
 
-$excludedFiles = @(
-    "EnhanceVision.exp",
-    "EnhanceVision.lib",
-    "EnhanceVisionMessageStatusResolverTest.exe",
-    "EnhanceVisionSessionPruneUtilsTest.exe",
-    "ffmpeg.exe",
-    "ffplay.exe",
-    "ffprobe.exe",
-    "avcodec-61.dll",
-    "avformat-61.dll",
-    "avutil-59.dll",
-    "swscale-8.dll",
-    "swresample-5.dll"
-)
+if (-not (Test-Path $buildDir)) {
+    $warnings += "构建目录不存在，跳过与 Release 运行目录的一致性对比"
+} else {
+    $expectedEntries = Get-ChildItem -Path $buildDir | Where-Object { $excludedRuntimeEntries -notcontains $_.Name } | Select-Object -ExpandProperty Name
+    $packagedEntries = Get-ChildItem -Path $packageDir | Select-Object -ExpandProperty Name
 
-foreach ($file in $excludedFiles) {
-    if (Test-Path "$packageDir\$file") {
-        $warnings += "不应包含的文件: $file"
+    foreach ($name in $expectedEntries) {
+        if (-not (Test-Path (Join-Path $packageDir $name))) {
+            $errors += "打包缺少运行时条目: $name"
+        }
     }
-}
 
-if (Test-Path "$packageDir\logs") {
-    $warnings += "不应包含 logs 目录"
+    foreach ($name in $packagedEntries) {
+        if (($excludedRuntimeEntries -contains $name) -or (-not ($expectedEntries -contains $name) -and $requiredFiles -notcontains $name)) {
+            $warnings += "存在未对齐的打包条目: $name"
+        }
+    }
 }
 
 $totalSize = (Get-ChildItem -Path $packageDir -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB

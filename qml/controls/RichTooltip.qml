@@ -202,42 +202,41 @@ Popup {
         NumberAnimation { property: "opacity"; from: 1.0; to: 0.0; duration: 80 }
     }
 
+    function _overlayItem() {
+        return root.parent ? root.parent : Overlay.overlay
+    }
+
     function show(targetItem) {
         if (!targetItem || root.contentModel.length === 0) return
 
-        var globalPos = targetItem.mapToGlobal(targetItem.width / 2, targetItem.height)
-        var localPos = Overlay.overlay.mapFromGlobal(globalPos.x, globalPos.y)
+        var overlayItem = _overlayItem()
+        if (!overlayItem) return
 
         var tooltipW = root.implicitWidth
         var tooltipH = root.implicitHeight + root.arrowSize
+        var margin = 10
+        var bottomAnchor = targetItem.mapToItem(overlayItem, targetItem.width / 2, targetItem.height)
+        var topAnchor = targetItem.mapToItem(overlayItem, targetItem.width / 2, 0)
 
-        var posX = localPos.x - tooltipW / 2
-        var posY = localPos.y + tooltipOffset
-        var arrowOffset = 0
+        var posX = bottomAnchor.x - tooltipW / 2
+        var posY = bottomAnchor.y + tooltipOffset
         var arrowDirection = "up"
 
-        var overlayW = Overlay.overlay.width
-        var overlayH = Overlay.overlay.height
-
-        if (posY + tooltipH > overlayH - 10) {
-            var globalPosTop = targetItem.mapToGlobal(targetItem.width / 2, 0)
-            var localPosTop = Overlay.overlay.mapFromGlobal(globalPosTop.x, globalPosTop.y)
-            posY = localPosTop.y - tooltipH - tooltipOffset
+        if (posY + tooltipH > overlayItem.height - margin) {
+            posY = topAnchor.y - tooltipH - tooltipOffset
             arrowDirection = "down"
         }
 
-        if (posX < 10) {
-            arrowOffset = posX - 10 + tooltipW / 2
-            posX = 10
-        } else if (posX + tooltipW > overlayW - 10) {
-            arrowOffset = posX + tooltipW - (overlayW - 10) - tooltipW / 2
-            posX = overlayW - tooltipW - 10
-        }
+        posX = Math.max(margin, Math.min(posX, overlayItem.width - tooltipW - margin))
+        posY = Math.max(margin, Math.min(posY, overlayItem.height - tooltipH - margin))
 
-        if (posY < 10) posY = 10
+        var anchorX = arrowDirection === "up" ? bottomAnchor.x : topAnchor.x
+        var minArrowX = root.arrowSize + 6
+        var maxArrowX = tooltipW - root.arrowSize - 6
+        var arrowOffset = Math.max(minArrowX, Math.min(anchorX - posX, maxArrowX)) - tooltipW / 2
 
         arrowCanvas.arrowDirection = arrowDirection
-        arrowCanvas.arrowOffset = -arrowOffset
+        arrowCanvas.arrowOffset = arrowOffset
         root.x = posX
         root.y = posY
         root.open()
