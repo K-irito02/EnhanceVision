@@ -18,15 +18,10 @@ Item {
     
     property string currentSessionId: ""
     property bool hasFiles: false
-    property real previewAreaHeight: 0  // 待处理预览区域高度
+    property real previewAreaHeight: 0
     
     property bool isLastMessageFullyVisible: true
     readonly property bool canOverlayLastMessage: !isLastMessageFullyVisible
-    
-    // 锁定机制：当预览区域出现时，锁定覆盖模式，避免滚动时反复调整导致闪烁
-    property bool _overlayModeLocked: false
-    property bool _lockedCanOverlay: false
-    readonly property bool effectiveCanOverlay: _overlayModeLocked ? _lockedCanOverlay : canOverlayLastMessage
 
     ListView {
         id: messageList
@@ -625,20 +620,13 @@ Item {
         }
         
         function onStatusUpdated(messageId, status) {
-            if (status === 2 && !messageList.userHasScrolledUp) {
-                Qt.callLater(messageList.scrollToBottomAnimated)
-            }
         }
     }
     
     Connections {
         target: messageList
         function onCountChanged() {
-            // 会话切换期间不自动滚动
-            if (messageList.count > 0 && !messageList.userHasScrolledUp && !messageList.isSessionSwitching) {
-                Qt.callLater(messageList.scrollToBottomAnimated)
-            }
-            Qt.callLater(root._updateLastMessageVisibility)
+            visibilityUpdateTimer.restart()
         }
         
         function onMovingChanged() {
@@ -651,19 +639,27 @@ Item {
         }
         
         function onContentYChanged() {
-            Qt.callLater(root._updateLastMessageVisibility)
+            visibilityUpdateTimer.restart()
         }
         
         function onHeightChanged() {
-            Qt.callLater(root._updateLastMessageVisibility)
+            visibilityUpdateTimer.restart()
         }
         
         function onContentHeightChanged() {
-            Qt.callLater(root._updateLastMessageVisibility)
+            visibilityUpdateTimer.restart()
         }
     }
     
-    // 会话滚动位置存储（只保存用户主动滚动过的会话）
+    Timer {
+        id: visibilityUpdateTimer
+        interval: 50
+        repeat: false
+        onTriggered: {
+            root._updateLastMessageVisibility()
+        }
+    }
+    
     property var _sessionScrollPositions: ({})
     
     function _updateLastMessageVisibility() {
@@ -684,62 +680,35 @@ Item {
         var visibleTop = messageList.contentY
         var visibleBottom = messageList.contentY + messageList.height
         
-        root.isLastMessageFullyVisible = (lastItemTop >= visibleTop && lastItemBottom <= visibleBottom)
+        var hysteresis = 5
+        var isFullyVisible = (lastItemTop >= visibleTop - hysteresis && lastItemBottom <= visibleBottom + hysteresis)
+        var isClearlyNotVisible = (lastItemTop < visibleTop - hysteresis * 2 || lastItemBottom > visibleBottom + hysteresis * 2)
+        
+        if (isFullyVisible) {
+            root.isLastMessageFullyVisible = true
+        } else if (isClearlyNotVisible) {
+            root.isLastMessageFullyVisible = false
+        }
     }
     
     Connections {
         target: root.minimizedDock
         enabled: root.minimizedDock !== null
         function onHeightChanged() {
-            if (!messageList.userHasScrolledUp || messageList.isNearBottom()) {
-                Qt.callLater(messageList.scrollToBottom)
-            }
         }
     }
     
     // 监听预览区域高度变化，与最小化停靠区域使用相同的滚动逻辑
     onPreviewAreaHeightChanged: {
-        // 当预览区域高度从 0 增加时（出现），检查是否需要滚动
-        if (previewAreaHeight > 0) {
-            // 如果已锁定且锁定时最新消息完整显示（不允许覆盖），则需要滚动
-            // _lockedCanOverlay 为 false 表示锁定时最新消息完整显示
-            if (root._overlayModeLocked && !root._lockedCanOverlay && messageList.count > 0) {
-                previewScrollTimer.restart()
-            }
-        }
-        // 当预览区域消失时，更新可见性
         if (previewAreaHeight === 0) {
-            Qt.callLater(root._updateLastMessageVisibility)
-        }
-    }
-    
-    // 预览区域出现时的滚动定时器
-    Timer {
-        id: previewScrollTimer
-        interval: 50  // 短延迟，确保布局计算完成
-        repeat: false
-        onTriggered: {
-            if (messageList.count > 0) {
-                messageList.scrollToBottomAnimated()
-            }
+            visibilityUpdateTimer.restart()
         }
     }
     
     Connections {
         target: root
         function onHasFilesChanged() {
-            if (root.hasFiles) {
-                // 预览区域出现时，锁定当前的覆盖模式
-                root._lockedCanOverlay = root.canOverlayLastMessage
-                root._overlayModeLocked = true
-                
-                // 注意：滚动逻辑已移至 onPreviewAreaHeightChanged，
-                // 这样可以在布局实际变化时触发，而不是在 hasFiles 变化时
-            } else {
-                // 预览区域消失时，解锁覆盖模式
-                root._overlayModeLocked = false
-            }
-            Qt.callLater(root._updateLastMessageVisibility)
+            visibilityUpdateTimer.restart()
         }
     }
 

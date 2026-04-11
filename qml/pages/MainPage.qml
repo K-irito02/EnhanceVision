@@ -220,14 +220,7 @@ Rectangle {
                 id: messageListView
                 anchors.fill: parent
                 anchors.margins: 12
-                anchors.bottomMargin: {
-                    var baseMargin = 12
-                    var dockHeight = pendingMinimizedDock.height
-                    if (effectiveCanOverlay) {
-                        return baseMargin
-                    }
-                    return baseMargin + dockHeight
-                }
+                anchors.bottomMargin: 12 + pendingMinimizedDock.height
                 
                 currentSessionId: root.currentSessionId
                 hasFiles: root.hasFiles
@@ -317,7 +310,7 @@ Rectangle {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
-                z: messageListView.effectiveCanOverlay ? 100 : 5
+                z: 100
                 
                 onRestoreWindow: function(viewerId) {
                     if (viewerId === "pending-viewer") {
@@ -346,7 +339,7 @@ Rectangle {
             Layout.preferredHeight: root.hasFiles ? 100 : 0
             visible: root.hasFiles
             color: Theme.colors.card
-            z: messageListView.effectiveCanOverlay ? 100 : 5
+            z: 100
             
             // 顶部分隔线
             Rectangle {

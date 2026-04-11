@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file VideoSizeAdapter.cpp
  * @brief 视频尺寸适配器实现
  * @author EnhanceVision Team
@@ -162,13 +162,6 @@ SizeAdaptationResult VideoSizeAdapter::analyze(const QSize& videoSize) const
 QImage VideoSizeAdapter::adaptFrame(const QImage& frame, 
                                      const SizeAdaptationResult& adaptation) const
 {
-    qInfo() << "[VideoSizeAdapter][DEBUG] adaptFrame() called:"
-            << "frameSize:" << frame.width() << "x" << frame.height()
-            << "frameFormat:" << frame.format()
-            << "frameIsNull:" << frame.isNull()
-            << "frameBits:" << (frame.bits() != nullptr ? "valid" : "null")
-            << "frameBytesPerLine:" << frame.bytesPerLine()
-            << "compatibility:" << static_cast<int>(adaptation.compatibility);
     fflush(stdout);
     
     if (frame.isNull()) {
@@ -192,7 +185,6 @@ QImage VideoSizeAdapter::adaptFrame(const QImage& frame,
     if (adaptation.compatibility == SizeCompatibility::FullyCompatible) {
         // 【关键修复】对于 FullyCompatible,直接返回传入的帧,避免任何内存操作
         // 这样可以避免在堆损坏时触发崩溃
-        qInfo() << "[VideoSizeAdapter][DEBUG] adaptFrame: FullyCompatible, returning frame directly (no copy)";
         fflush(stdout);
         return frame;
     }
@@ -200,7 +192,6 @@ QImage VideoSizeAdapter::adaptFrame(const QImage& frame,
     if (adaptation.compatibility == SizeCompatibility::NeedsTiling) {
         // 【关键修复】对于 NeedsTiling,也直接返回传入的帧
         // 分块处理会在 AIEngine 中进行,这里不需要复制
-        qInfo() << "[VideoSizeAdapter][DEBUG] adaptFrame: NeedsTiling, returning frame directly (no copy)";
         fflush(stdout);
         return frame;
     }
@@ -215,7 +206,6 @@ QImage VideoSizeAdapter::adaptFrame(const QImage& frame,
     
     switch (adaptation.compatibility) {
     case SizeCompatibility::NeedsPadding: {
-        qInfo() << "[VideoSizeAdapter][DEBUG] adaptFrame: NeedsPadding case";
         fflush(stdout);
         
         adapted = QImage(targetSize, frame.format());
@@ -238,7 +228,6 @@ QImage VideoSizeAdapter::adaptFrame(const QImage& frame,
     }
     
     case SizeCompatibility::NeedsDownscale: {
-        qInfo() << "[VideoSizeAdapter][DEBUG] adaptFrame: NeedsDownscale case";
         fflush(stdout);
         
         adapted = frame.scaled(targetSize, Qt::KeepAspectRatio, 
@@ -251,16 +240,12 @@ QImage VideoSizeAdapter::adaptFrame(const QImage& frame,
     }
     
     default:
-        qInfo() << "[VideoSizeAdapter][DEBUG] adaptFrame: default case";
         fflush(stdout);
         
         adapted = frame.copy();
         break;
     }
     
-    qInfo() << "[VideoSizeAdapter][DEBUG] adaptFrame: returning adapted image"
-                << "size:" << adapted.width() << "x" << adapted.height()
-                << "format:" << adapted.format();
     fflush(stdout);
     
     return adapted;

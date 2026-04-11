@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import "../../styles"
 import "../../controls"
 import "."
+import EnhanceVision.Utils
 
 Rectangle {
     id: root
@@ -17,17 +18,22 @@ Rectangle {
     property bool showFullscreenButton: false
     property bool fullscreenActive: false
     property bool showThumbnailBar: false
+    property bool enableDragOut: false
     property alias titleBarItem: titleBar
     property alias buttonRowItem: buttonRow
     property alias compareButtonItem: compareButton
     property alias videoOutput: canvas.videoOutput
     property alias audioOutput: canvas.audioOutput
+    property alias dragAreaItem: dragArea
 
     signal detachRequested()
     signal embedRequested()
     signal minimizeRequested()
     signal fullscreenRequested()
     signal closeRequested()
+    signal dragOutStarted(real startX, real startY)
+    signal dragOutPositionChanged(real globalX, real globalY)
+    signal dragOutFinished(real finalX, real finalY, bool shouldSnap)
 
     color: Theme.colors.background
 
@@ -130,6 +136,71 @@ Rectangle {
                     tooltip: qsTr("关闭")
                     onClicked: root.closeRequested()
                 }
+            }
+        }
+
+        MouseArea {
+            id: dragArea
+            anchors.fill: parent
+            anchors.rightMargin: buttonRow.width + 8
+            hoverEnabled: root.enableDragOut
+            enabled: root.enableDragOut
+            acceptedButtons: Qt.LeftButton
+
+            property real startX: 0
+            property real startY: 0
+            property bool isDraggingOut: false
+
+            onContainsMouseChanged: {
+                if (root.enableDragOut) {
+                    if (containsMouse) {
+                        WindowHelper.setOverrideCursor(pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
+                    } else {
+                        WindowHelper.restoreOverrideCursor()
+                    }
+                }
+            }
+
+            onPressedChanged: {
+                if (root.enableDragOut) {
+                    if (containsMouse) {
+                        WindowHelper.restoreOverrideCursor()
+                        WindowHelper.setOverrideCursor(pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
+                    }
+                }
+            }
+
+            onPressed: function(mouse) {
+                if (!root.enableDragOut) return
+                startX = mouse.x
+                startY = mouse.y
+            }
+
+            onPositionChanged: function(mouse) {
+                if (!root.enableDragOut || !pressed) return
+
+                var dx = mouse.x - startX
+                var dy = mouse.y - startY
+                var distance = Math.sqrt(dx * dx + dy * dy)
+
+                if (distance > 10 && !isDraggingOut) {
+                    isDraggingOut = true
+                    var globalPos = mapToGlobal(mouse.x, mouse.y)
+                    root.dragOutStarted(globalPos.x - startX, globalPos.y - startY)
+                }
+
+                if (isDraggingOut) {
+                    var globalPos = mapToGlobal(mouse.x, mouse.y)
+                    root.dragOutPositionChanged(globalPos.x - startX, globalPos.y - startY)
+                }
+            }
+
+            onReleased: {
+                if (!root.enableDragOut || !isDraggingOut) return
+
+                isDraggingOut = false
+                var globalPos = mapToGlobal(mouseX, mouseY)
+                root.dragOutFinished(globalPos.x - startX, globalPos.y - startY, false)
             }
         }
     }

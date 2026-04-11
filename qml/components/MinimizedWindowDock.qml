@@ -26,10 +26,6 @@ Rectangle {
     color: Theme.colors.card
     visible: minimizedWindows.count > 0
     
-    Behavior on height {
-        NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
-    }
-    
     // 顶部边框
     Rectangle {
         anchors.top: parent.top

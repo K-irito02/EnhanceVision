@@ -322,8 +322,8 @@ Rectangle {
                     ScrollView {
                         id: aiParamsScrollView
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 380
-                        Layout.minimumHeight: 200
+                        Layout.preferredHeight: 350
+                        Layout.minimumHeight: 120
                         clip: true
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                         ScrollBar.vertical.policy: ScrollBar.AsNeeded

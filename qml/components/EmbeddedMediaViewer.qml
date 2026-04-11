@@ -440,78 +440,26 @@ Item {
             showDetachButton: true
             showMinimizeButton: true
             showThumbnailBar: root.messageMode
+            enableDragOut: true
             onDetachRequested: root.switchToDetached()
             onMinimizeRequested: root.minimize()
             onCloseRequested: root.close()
-        }
-
-        MouseArea {
-            id: titleDragArea
-            anchors.fill: embeddedShell.titleBarItem
-            anchors.rightMargin: embeddedShell.buttonRowItem.width + 8
-            hoverEnabled: true
-
-            property real startX: 0
-            property real startY: 0
-            property bool isDraggingOut: false
-
-            onContainsMouseChanged: {
-                if (containsMouse) {
-                    WindowHelper.setOverrideCursor(pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
-                } else {
-                    WindowHelper.restoreOverrideCursor()
-                }
+            onDragOutStarted: function(startX, startY) {
+                dragPreviewWindow.x = startX
+                dragPreviewWindow.y = startY
+                dragPreviewWindow.width = root._savedW
+                dragPreviewWindow.height = root._savedH
+                dragPreviewWindow.show()
             }
-
-            onPressedChanged: {
-                if (containsMouse) {
-                    WindowHelper.restoreOverrideCursor()
-                    WindowHelper.setOverrideCursor(pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
-                }
+            onDragOutPositionChanged: function(globalX, globalY) {
+                dragPreviewWindow.x = globalX
+                dragPreviewWindow.y = globalY
+                var previewCenterX = dragPreviewWindow.x + dragPreviewWindow.width / 2
+                var previewCenterY = dragPreviewWindow.y + 22
+                dragPreviewWindow._snapHint = root._isOverContainer(previewCenterX, previewCenterY)
             }
-
-            onPressed: function(mouse) {
-                startX = mouse.x
-                startY = mouse.y
-            }
-
-            onPositionChanged: function(mouse) {
-                if (!pressed) {
-                    return
-                }
-
-                var dx = mouse.x - startX
-                var dy = mouse.y - startY
-                var distance = Math.sqrt(dx * dx + dy * dy)
-                if (distance > 10 && !isDraggingOut) {
-                    isDraggingOut = true
-                    var globalPos = mapToGlobal(mouse.x, mouse.y)
-                    dragPreviewWindow.x = globalPos.x - startX
-                    dragPreviewWindow.y = globalPos.y - startY
-                    dragPreviewWindow.width = root._savedW
-                    dragPreviewWindow.height = root._savedH
-                    dragPreviewWindow.show()
-                }
-
-                if (isDraggingOut) {
-                    var dragGlobalPos = mapToGlobal(mouse.x, mouse.y)
-                    dragPreviewWindow.x = dragGlobalPos.x - startX
-                    dragPreviewWindow.y = dragGlobalPos.y - startY
-                    var previewCenterX = dragPreviewWindow.x + dragPreviewWindow.width / 2
-                    var previewCenterY = dragPreviewWindow.y + 22
-                    dragPreviewWindow._snapHint = root._isOverContainer(previewCenterX, previewCenterY)
-                }
-            }
-
-            onReleased: {
-                if (!isDraggingOut) {
-                    return
-                }
-
-                isDraggingOut = false
-                var finalX = dragPreviewWindow.x
-                var finalY = dragPreviewWindow.y
-                var shouldSnap = dragPreviewWindow._snapHint
+            onDragOutFinished: function(finalX, finalY, shouldSnap) {
+                shouldSnap = dragPreviewWindow._snapHint
                 dragPreviewWindow.hide()
 
                 if (shouldSnap) {
