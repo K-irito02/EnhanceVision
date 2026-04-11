@@ -34,6 +34,7 @@
         <file>../qml/components/MultiPassShaderEffect.qml</file>
         <file>../qml/components/SeparableBlurEffect.qml</file>
         <file>../qml/components/VideoPlaybackController.qml</file>
+        <file>../qml/components/VideoControlBar.qml</file>
         
         <!-- 自定义控件 -->
         <file>../qml/controls/Button.qml</file>
@@ -68,6 +69,9 @@
         <!-- 工具脚本 -->
         <file>../qml/utils/Helpers.js</file>
         <file>../qml/utils/ShortcutManager.qml</file>
+        <file>../qml/utils/NotificationManager.qml</file>
+        <file>../qml/utils/ResponsiveUtils.qml</file>
+        <file>../qml/utils/qmldir</file>
     </qresource>
     
     <qresource prefix="/">

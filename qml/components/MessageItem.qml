@@ -429,7 +429,7 @@ Rectangle {
             Row {
                 spacing: 2
                 visible: root.totalFileCount > 0
-                
+
                 IconButton {
                     iconName: "download"; iconSize: 14; btnSize: 26
                     iconColor: Theme.colors.icon
@@ -437,7 +437,7 @@ Rectangle {
                     visible: root.successFileCount > 0
                     onClicked: root.saveSuccessfulFilesClicked()
                 }
-                
+
                 IconButton {
                     iconName: "refresh-cw"; iconSize: 14; btnSize: 26
                     iconColor: Theme.colors.icon
@@ -445,10 +445,10 @@ Rectangle {
                     visible: root.hasFailedFiles
                     onClicked: root.retryFailedFilesClicked()
                 }
-                
+
                 IconButton {
                     iconName: root.shouldShowResumeButton ? "play" : "pause"
-                    iconSize: 14; btnSize: 26
+                    iconSize: root.width < 350 ? 12 : 14; btnSize: root.width < 350 ? 22 : 26
                     iconColor: root.shouldShowResumeButton ? Theme.colors.success : Theme.colors.warning
                     tooltip: root.shouldShowResumeButton ? qsTr("继续处理") : qsTr("暂停处理")
                     visible: (root.shouldShowPauseButton || root.shouldShowResumeButton) && !root.allFilesSettled
@@ -460,13 +460,31 @@ Rectangle {
                         }
                     }
                 }
-                
+
                 IconButton {
-                    iconName: "trash"; iconSize: 14; btnSize: 26
+                    iconName: "trash"
+                    iconSize: root.width < 350 ? 12 : 14; btnSize: root.width < 350 ? 22 : 26
                     danger: true
                     tooltip: root.allFilesPending ? qsTr("删除待处理任务") : qsTr("删除此消息")
-                    visible: root.totalFileCount > 0 || root.allFilesPending
+                    visible: (root.totalFileCount > 0 || root.allFilesPending) && root.width >= 300
                     onClicked: root.deleteClicked()
+                }
+
+                IconButton {
+                    iconName: "more-vertical"; iconSize: 14; btnSize: 26
+                    tooltip: qsTr("更多操作")
+                    visible: (root.totalFileCount > 0 || root.allFilesPending) && root.width < 300
+                    onClicked: moreActionsMenu.popup(this, 0, this.height)
+
+                    Menu {
+                        id: moreActionsMenu
+
+                        MenuItem {
+                            text: qsTr("删除此消息")
+                            enabled: root.totalFileCount > 0 || root.allFilesPending
+                            onTriggered: root.deleteClicked()
+                        }
+                    }
                 }
             }
         }
@@ -610,7 +628,7 @@ Rectangle {
                         spacing: 6
 
                         Text {
-                            visible: root.predictedTotalSec > 0
+                            visible: root.predictedTotalSec > 0 && root.width > 280
                             text: root._formatEstimatedDuration(root.predictedTotalSec)
                             color: Theme.colors.mutedForeground
                             font.pixelSize: 10
@@ -619,7 +637,7 @@ Rectangle {
                         }
 
                         Text {
-                            visible: ((root.processingBorderAnimated || root.isPaused) && root.elapsedSec > 0 && root.predictedTotalSec > 0)
+                            visible: ((root.processingBorderAnimated || root.isPaused) && root.elapsedSec > 0 && root.predictedTotalSec > 0) && root.width > 320
                             text: "|"
                             color: Theme.colors.border
                             font.pixelSize: 10
@@ -801,12 +819,12 @@ Rectangle {
                 property real displayTotalSec: root._actualTotalSec > 0 ? root._actualTotalSec : root.persistedActualTotalSec
                 visible: root.allFilesSettled && displayTotalSec > 0
                 text: root._formatTotalDuration(displayTotalSec)
-                // 使用蓝色
                 color: "#5B8DEF"
-                font.pixelSize: 11
+                font.pixelSize: root.width < 350 ? 10 : 11
                 font.weight: Font.DemiBold
                 elide: Text.ElideRight
-                Layout.maximumWidth: Math.max(85, root.width * 0.26)
+                Layout.minimumWidth: 60
+                Layout.maximumWidth: Math.max(85, root.width * 0.28)
             }
         }
         

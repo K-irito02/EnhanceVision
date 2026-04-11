@@ -37,6 +37,7 @@ A desktop image processing and AI inference quality enhancement tool built with 
 - Chinese/English bilingual support
 - Session-based workflow with pinning, reordering, and batch file processing
 - Embedded media viewer with fullscreen, drag-out, and smart docking support
+- Shared media viewer kernel (`qml/components/mediaViewer/`) for unified canvas, controls, thumbnail adaptation, and context menu behavior
 - Viewer thumbnails stay synchronized with message cards during incremental file completion and cleanup
 - Cache cleanup summaries show residual files and next-step guidance when disk removal is partially blocked
 - Message-card runtime state is unified in C++ derivation (including paused/recoverable), with declarative breathing-border animation that only runs during real processing
@@ -70,8 +71,10 @@ EnhanceVision/
 ├── qml/                   # QML source code
 │   ├── pages/            # Pages
 │   ├── components/       # Reusable components
+│   │   └── mediaViewer/  # Shared media viewer internals
 │   ├── controls/         # Custom controls
 │   ├── shaders/          # ShaderEffect wrappers
+│   ├── utils/            # QML utils and singletons
 │   └── styles/           # Style definitions
 ├── resources/            # Qt resources
 │   ├── shaders/          # GLSL shaders

@@ -385,8 +385,17 @@ qt_add_qml_module(EnhanceVision
         qml/components/AIParamsPanel.qml
         qml/components/DialogTitleBar.qml
         qml/components/VideoPlaybackController.qml
+        qml/components/VideoControlBar.qml
         qml/components/FullShaderEffect.qml
         qml/components/OffscreenShaderRenderer.qml
+        qml/components/mediaViewer/MediaViewerCanvas.qml
+        qml/components/mediaViewer/MediaViewerControls.qml
+        qml/components/mediaViewer/MediaViewerHelpers.js
+        qml/components/mediaViewer/MediaViewerShell.qml
+        qml/components/mediaViewer/MediaViewerThumbnailBar.qml
+        qml/components/mediaViewer/MediaThumbnailAdapter.qml
+        qml/components/mediaViewer/MediaThumbnailContextMenu.qml
+        qml/components/mediaViewer/MediaThumbnailDelegate.qml
         qml/controls/IconButton.qml
         qml/controls/Slider.qml
         qml/controls/ComboBox.qml
@@ -415,9 +424,11 @@ qt_add_qml_module(EnhanceVision
         qml/utils/Helpers.js
         qml/utils/ShortcutManager.qml
         qml/utils/NotificationManager.qml
+        qml/utils/ResponsiveUtils.qml
         qml/stores/AIModelConfigStore.qml
     RESOURCES
         qml/styles/qmldir
+        qml/utils/qmldir
         qml/stores/qmldir
         resources/icons/home.svg
         resources/icons/settings.svg

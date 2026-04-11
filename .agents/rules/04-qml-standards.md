@@ -52,3 +52,10 @@
 1. **图像设置 `sourceSize`**：禁止无控制加载原图
 2. **列表使用 `ListView`**：避免大规模 `Repeater`
 3. **重组件使用 `Loader`**：延迟加载
+
+## 运行时告警规避
+
+1. **Singleton 必须限定名访问**：本地目录导入单例时使用 `import "../utils" as Utils` 并通过 `Utils.ResponsiveUtils` 访问，避免 `ReferenceError`。
+2. **信号处理器禁止隐式注入参数**：使用 `onSignal: function(arg1, arg2) { ... }`，避免 Qt 6 的参数注入弃用告警。
+3. **按媒体类型绑定 `Image.source`**：`visible: false` 不能阻止资源加载，视频场景必须将 `source` 绑定为空字符串，避免 `QQuickImage` 误加载 mp4 告警。
+4. **Menu 动态项 API 区分**：`MenuItem` 使用 `insertItem/removeItem`，`Menu` 使用 `insertMenu/removeMenu`，避免 JS 到 C++ 参数类型错误。

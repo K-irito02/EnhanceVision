@@ -1201,13 +1201,8 @@ void ProcessingController::startTask(QueueTask& task)
 
     QString taskId = task.taskId;
     
-    qInfo() << "[ProcessingController][startTask] Checking m_taskMessages for taskId:" << taskId << "contains:" << m_taskMessages.contains(taskId);
-    fflush(stdout);
-    
     if (m_taskMessages.contains(taskId)) {
         const Message& message = m_taskMessages[taskId];
-        qInfo() << "[ProcessingController][startTask] Message found, mode:" << static_cast<int>(message.mode);
-        fflush(stdout);
         
         if (message.mode == ProcessingMode::Shader) {
             QString inputPath;
@@ -1281,9 +1276,6 @@ void ProcessingController::startTask(QueueTask& task)
             }
             
             QTimer::singleShot(10, this, [this, taskId]() {
-                qInfo() << "[ProcessingController][startTask] QTimer callback for Shader video task:" << taskId;
-                TaskLifecycle lifecycle = m_taskLifecycle.value(taskId, TaskLifecycle::Active);
-                qInfo() << "[ProcessingController][startTask] Task lifecycle:" << static_cast<int>(lifecycle);
                 completeTask(taskId, "");
             });
             return;
@@ -3990,15 +3982,10 @@ QString ProcessingController::createAndRegisterTask(const Message& message, cons
     task.queuedAt = QDateTime::currentDateTime();
     task.status = ProcessingStatus::Pending;
 
-    qDebug() << "[ProcessingController][createAndRegisterTask] Creating task:" << task.taskId
-             << "for file:" << file.id << "message:" << message.id;
-
     m_tasks.append(task);
     m_processingModel->addTask(task);
     m_taskToMessage[task.taskId] = message.id;
     m_taskMessages[task.taskId] = message;
-
-    qDebug() << "[ProcessingController][createAndRegisterTask] Task created, taskId:" << task.taskId;
 
     qint64 estimatedMemory = estimateMemoryUsage(file.filePath, file.type);
     registerTaskContext(task.taskId, message.id, sessionId, file.id, estimatedMemory);

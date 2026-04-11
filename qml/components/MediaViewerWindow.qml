@@ -1,43 +1,22 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Layouts
 import QtQuick.Window
-import QtQuick.Effects
 import QtMultimedia
 import EnhanceVision.Controllers
 import "../styles"
-import "../controls"
-import EnhanceVision.Utils
+import "mediaViewer"
+import "mediaViewer/MediaViewerHelpers.js" as MediaViewerHelpers
 
-/**
- * @brief 媒体查看器独立窗口
- *
- * 功能：
- * - 独立窗口，支持自由拖拽和伸缩
- * - 全屏模式（按 Esc 或按钮恢复）
- * - 左右按钮浏览媒体文件
- * - 关闭按钮
- * - 视频播放控制（播放/暂停、快进/快退、倍速、进度条、音量）
- * - 原效果对比按钮（消息模式下）
- * - 图片自适应缩放显示
- * - 自定义标题栏
- * - 删除文件功能（底部缩略图悬停显示删除按钮）
- */
 Window {
     id: root
 
     property var mediaFiles: []
     property int currentIndex: 0
+    property string selectedFileId: ""
+    property string selectedFilePath: ""
     property bool messageMode: false
     property bool showOriginal: false
     property string messageId: ""
-    
-    onShowOriginalChanged: {
-        if (isVideo && mediaPlayer) {
-            playbackController.prepareSourceResultSwitch()
-        }
-    }
-
     property bool shaderEnabled: false
     property real shaderBrightness: 0.0
     property real shaderContrast: 1.0
@@ -53,127 +32,27 @@ Window {
     property real shaderVignette: 0.0
     property real shaderHighlights: 0.0
     property real shaderShadows: 0.0
+    property int aiScaleFactor: 1
 
-    property var currentFile: mediaFiles.length > 0 && currentIndex >= 0 && currentIndex < mediaFiles.length
-                              ? mediaFiles[currentIndex] : null
-    property bool isVideo: currentFile ? (currentFile.mediaType === 1) : false
-    
-    // 是否应用 shader 效果
-    // - 预览区（messageMode=false）：应用 shader（实时预览效果）
-    // - 消息区（messageMode=true）：不应用 shader（图片已处理或查看原图对比）
-    property bool _shouldApplyShader: {
-        if (!shaderEnabled) return false
-        // 消息模式下永远不应用 shader：
-        // - 默认显示已处理图片（shader 已烘焙）
-        // - 查看原图时只显示原图（不应用 shader，用于对比）
-        if (messageMode) return false
-        return true
-    }
-    
-    property string currentSource: {
-        if (!currentFile) return ""
-        
-        if (messageMode) {
-            if (showOriginal) {
-                return currentFile.originalPath || currentFile.filePath || ""
-            }
-            if (currentFile.resultPath && currentFile.resultPath !== "") {
-                return currentFile.resultPath
-            }
-            return currentFile.filePath || currentFile.originalPath || ""
-        } else {
-            return currentFile.filePath || currentFile.originalPath || ""
-        }
-    }
-    // 预加载路径：始终准备好原图和结果图，用于无闪烁切换
-    readonly property string _resultSource: currentFile ? (currentFile.resultPath && currentFile.resultPath !== "" ? currentFile.resultPath : (currentFile.filePath || "")) : ""
-    readonly property string _originalSource: currentFile ? (currentFile.originalPath && currentFile.originalPath !== "" ? currentFile.originalPath : (currentFile.filePath || "")) : ""
-    readonly property bool _hasDistinctResult: currentFile && currentFile.resultPath && currentFile.originalPath && currentFile.resultPath !== currentFile.originalPath
-    function _getSource(s) {
-        if (!s) return ""
+    readonly property var currentFile: mediaFiles.length > 0 && currentIndex >= 0 && currentIndex < mediaFiles.length ? mediaFiles[currentIndex] : null
+    readonly property bool isVideo: currentFile ? currentFile.mediaType === 1 : false
+    readonly property bool _shouldApplyShader: shaderEnabled && !messageMode && !showOriginal
+    readonly property bool _hasDistinctResult: MediaViewerHelpers.hasDistinctResult(currentFile)
+    readonly property bool _hasShaderOrOriginal: MediaViewerHelpers.shouldShowCompare(shaderEnabled, messageMode, currentFile)
+    readonly property string currentSource: MediaViewerHelpers.resolveCurrentSource(currentFile, messageMode, showOriginal)
+    readonly property string _resultSource: MediaViewerHelpers.resultSource(currentFile)
+    readonly property string _originalSource: MediaViewerHelpers.originalSource(currentFile)
 
-        var src = s.toString()
-        if (src.startsWith("file:///") || src.startsWith("qrc:/") || src.startsWith("demo://")
-                || src.startsWith("http://") || src.startsWith("https://")) {
-            return src
-        }
+    signal fileRemoved(string messageId, int fileIndex)
 
-        src = src.replace(/\\/g, "/")
-
-        if (/^[A-Za-z]:\//.test(src)) {
-            return "file:///" + src
-        }
-        if (src.startsWith("/")) {
-            return "file://" + src
-        }
-
-        return Qt.resolvedUrl(src)
-    }
-    function _normalizeThumbnailKey(source) { return !source ? "" : (source.startsWith("file:///") ? source.substring(8) : source) }
-    function _baseThumbnailKey(file) { return !file ? "" : _normalizeThumbnailKey(file.originalPath || file.filePath || "") }
-    function _preferredThumbnailKey(file) {
-        if (!file) return ""
-        if (file.processedThumbnailId && file.processedThumbnailId !== "") return file.processedThumbnailId
-        return _normalizeThumbnailKey(file.resultPath || "")
-    }
-
+    property var mediaPlayer: vidPlayer
     property real _savedX: 0
     property real _savedY: 0
     property real _savedW: 0
     property real _savedH: 0
-    property bool _wasMaximized: false
     property bool _userDraggedPosition: false
-    property var mediaPlayer: null
+    property real sharedVolume: SettingsController.volume / 100
     property real _volumeBeforeMute: 0.5
-    
-    VideoPlaybackController {
-        id: playbackController
-        mediaPlayer: root.mediaPlayer
-        isVideo: root.isVideo
-        currentSource: root.currentSource
-        currentFile: root.currentFile
-        
-        onProgressRestored: function(position) {
-        }
-    }
-
-    // ========== 导航按钮状态管理 ==========
-    property bool navButtonsVisible: false
-    property bool prevBtnHovered: false
-    property bool nextBtnHovered: false
-
-    signal fileRemoved(string messageId, int fileIndex)
-
-    // 2秒后自动隐藏定时器
-    Timer {
-        id: autoHideTimer
-        interval: 2000
-        repeat: false
-        onTriggered: {
-            // 只要鼠标不在按钮上就隐藏
-            if (!prevBtnHovered && !nextBtnHovered) {
-                navButtonsVisible = false
-            }
-        }
-    }
-    
-    // 显示导航按钮并重置定时器
-    function showNavButtonsAndResetTimer() {
-        navButtonsVisible = true
-        autoHideTimer.restart()
-    }
-    
-    // 停止自动隐藏（当悬停在按钮上时）
-    function stopAutoHide() {
-        autoHideTimer.stop()
-    }
-    
-    // 启动自动隐藏（当离开按钮时）
-    function startAutoHideIfNeeded() {
-        if (!prevBtnHovered && !nextBtnHovered) {
-            autoHideTimer.restart()
-        }
-    }
 
     width: 900
     height: 650
@@ -183,42 +62,30 @@ Window {
     color: Theme.colors.background
     flags: Qt.Window | Qt.FramelessWindowHint
 
-    // ========== 窗口尺寸智能调整 ==========
-    // 根据媒体文件分辨率和 AI 放大倍数智能设置初始窗口尺寸
-    // 规则：
-    //   1. 基于媒体原始分辨率 × AI 放大倍数得到「目标内容尺寸」
-    //   2. 加上 UI 装饰（标题栏 44px、控制栏高度）得到「目标窗口尺寸」
-    //   3. 限制在屏幕工作区的 80% 以内
-    //   4. 不小于最小可用尺寸（480×360）
-    function computeIdealWindowSize(mediaW, mediaH, scaleFactor) {
-        var sf = Math.max(1, scaleFactor || 1)
-        // 防御：媒体尺寸无效时使用合理默认值
-        var cw = (mediaW > 0 ? mediaW : 1280) * sf
-        var ch = (mediaH > 0 ? mediaH : 720)  * sf
+    onShowOriginalChanged: {
+        if (isVideo && mediaPlayer) {
+            playbackController.prepareSourceResultSwitch()
+        }
+    }
 
-        // UI 装饰高度：标题栏(44) + 视频控制栏(90) + 缩略图栏(60)
-        var decorH = 44
-        if (isVideo) decorH += 90
-        if (mediaFiles.length > 1) decorH += 60
-        var decorW = 16
+    onCurrentFileChanged: {
+        if (currentFile) {
+            selectedFileId = currentFile.id || ""
+            selectedFilePath = currentFile.filePath || ""
+        }
+    }
 
-        var targetW = cw + decorW
-        var targetH = ch + decorH
+    onCurrentIndexChanged: {
+        showOriginal = false
+        playbackController._resetState()
+    }
 
-        // 屏幕工作区 80% 上限
-        var maxW = Math.max(480, Math.floor(Screen.desktopAvailableWidth  * 0.80))
-        var maxH = Math.max(360, Math.floor(Screen.desktopAvailableHeight * 0.80))
-
-        // 等比缩放，保持宽高比不失真
-        var scaleToFit = Math.min(1.0, Math.min(maxW / targetW, maxH / targetH))
-        targetW = Math.floor(targetW * scaleToFit)
-        targetH = Math.floor(targetH * scaleToFit)
-
-        // 最小保障（确保控制按钮可点击）
-        targetW = Math.max(480, targetW)
-        targetH = Math.max(360, targetH)
-
-        return Qt.size(targetW, targetH)
+    VideoPlaybackController {
+        id: playbackController
+        mediaPlayer: root.mediaPlayer
+        isVideo: root.isVideo
+        currentSource: root.currentSource
+        currentFile: root.currentFile
     }
 
     SubWindowHelper {
@@ -230,102 +97,138 @@ Window {
             windowHelper.setTitleBarHeight(44)
         }
         onDraggingChanged: {
-            // 用户拖动结束后标记位置已手动调整
             if (!isDragging) {
                 root._userDraggedPosition = true
             }
         }
     }
 
-    function updateExcludeRegions() {
-        windowHelper.clearExcludeRegions()
-        var buttonsRow = titleBarButtonsRow
-        if (buttonsRow && buttonsRow.width > 0) {
-            var globalPos = buttonsRow.mapToItem(titleBar, 0, 0)
-            windowHelper.addExcludeRegion(globalPos.x, globalPos.y, buttonsRow.width, buttonsRow.height)
-        }
-        var compareBtn = compareButton
-        if (compareBtn && compareBtn.visible && compareBtn.width > 0) {
-            var globalPos2 = compareBtn.mapToItem(titleBar, 0, 0)
-            windowHelper.addExcludeRegion(globalPos2.x, globalPos2.y, compareBtn.width, compareBtn.height)
+    function computeIdealWindowSize(mediaW, mediaH, scaleFactor) {
+        return MediaViewerHelpers.computeIdealWindowSize(mediaW, mediaH, scaleFactor, root.isVideo, true)
+    }
+
+    function _normalizeThumbnailKey(source) {
+        return MediaViewerHelpers.normalizeThumbnailKey(source)
+    }
+
+    function _baseThumbnailKey(file) {
+        return MediaViewerHelpers.baseThumbnailKey(file)
+    }
+
+    function _preferredThumbnailKey(file) {
+        return MediaViewerHelpers.preferredThumbnailKey(file)
+    }
+
+    function _getSource(source) {
+        return MediaViewerHelpers.resolveSource(source)
+    }
+
+    function _formatTime(ms) {
+        return MediaViewerHelpers.formatTime(ms)
+    }
+
+    function _syncSelectedFile() {
+        if (currentFile) {
+            selectedFileId = currentFile.id || ""
+            selectedFilePath = currentFile.filePath || ""
         }
     }
 
-    onWidthChanged: Qt.callLater(updateExcludeRegions)
-    onHeightChanged: Qt.callLater(updateExcludeRegions)
-    onVisibleChanged: {
-        if (visible) {
-            Qt.callLater(updateExcludeRegions)
+    function syncMediaFiles(files, preferredFileId, preferredFilePath) {
+        var nextFiles = files || []
+        if (nextFiles.length === 0) {
+            close()
+            return
+        }
+
+        var nextIndex = MediaViewerHelpers.resolveNextIndex(mediaFiles, nextFiles, currentIndex,
+                                                            preferredFileId, preferredFilePath,
+                                                            selectedFileId, selectedFilePath)
+
+        if (MediaViewerHelpers.isAppendOnlyUpdate(mediaFiles, nextFiles)) {
+            var mergedFiles = mediaFiles.slice(0)
+            for (var appendIndex = mediaFiles.length; appendIndex < nextFiles.length; ++appendIndex) {
+                mergedFiles.push(nextFiles[appendIndex])
+            }
+            mediaFiles = mergedFiles
+        } else {
+            mediaFiles = nextFiles
+        }
+
+        currentIndex = Math.max(0, Math.min(nextIndex, mediaFiles.length - 1))
+        _syncSelectedFile()
+    }
+
+    function updateExcludeRegions() {
+        windowHelper.clearExcludeRegions()
+        if (shell.buttonRowItem && shell.buttonRowItem.width > 0) {
+            var buttonRowPos = shell.buttonRowItem.mapToItem(shell.titleBarItem, 0, 0)
+            windowHelper.addExcludeRegion(buttonRowPos.x, buttonRowPos.y, shell.buttonRowItem.width, shell.buttonRowItem.height)
+        }
+        if (shell.compareButtonItem && shell.compareButtonItem.visible && shell.compareButtonItem.width > 0) {
+            var comparePos = shell.compareButtonItem.mapToItem(shell.titleBarItem, 0, 0)
+            windowHelper.addExcludeRegion(comparePos.x, comparePos.y, shell.compareButtonItem.width, shell.compareButtonItem.height)
         }
     }
 
     function _toggleFullscreen() {
         if (root.visibility === Window.FullScreen) {
-            _exitFullscreen()
+            root.showNormal()
+            root.x = _savedX
+            root.y = _savedY
+            root.width = _savedW
+            root.height = _savedH
         } else {
-            _savedX = root.x; _savedY = root.y
-            _savedW = root.width; _savedH = root.height
+            _savedX = root.x
+            _savedY = root.y
+            _savedW = root.width
+            _savedH = root.height
             root.showFullScreen()
         }
     }
 
-    function _exitFullscreen() {
-        root.showNormal()
-        root.x = _savedX; root.y = _savedY
-        root.width = _savedW; root.height = _savedH
-    }
-
     function _prevFile() {
         if (currentIndex > 0) {
-            _stopCurrentMedia()
+            if (isVideo && mediaPlayer) {
+                mediaPlayer.stop()
+            }
             currentIndex--
+            _syncSelectedFile()
         }
     }
 
     function _nextFile() {
         if (currentIndex < mediaFiles.length - 1) {
-            _stopCurrentMedia()
+            if (isVideo && mediaPlayer) {
+                mediaPlayer.stop()
+            }
             currentIndex++
+            _syncSelectedFile()
         }
     }
-
-    function _stopCurrentMedia() {
-        if (isVideo && mediaPlayer) {
-            mediaPlayer.stop()
-        }
-        showOriginal = false
-    }
-
-    // AI 放大倍数属性：由外部（如 AIParamsPanel）在推理参数更新时设置。
-    // 用于窗口初始尺寸计算，避免超分结果图过小或过大。
-    // 默认值 1 = 不放大（浏览模式或 Shader 模式），超分模式由调用方注入。
-    property int aiScaleFactor: 1
 
     function openAt(index) {
-        currentIndex = index
+        if (mediaFiles.length === 0) {
+            return
+        }
+
+        currentIndex = Math.max(0, Math.min(index, mediaFiles.length - 1))
+        _syncSelectedFile()
         showOriginal = false
 
-        // ── 窗口尺寸智能调整 ───────────────────────────────────────
-        // 仅在窗口非全屏状态下调整（全屏时保持全屏）
         if (root.visibility !== Window.FullScreen) {
-            var file = mediaFiles.length > 0 && index >= 0 && index < mediaFiles.length
-                       ? mediaFiles[index] : null
+            var file = currentFile
             if (file && file.resolution && file.resolution.width > 0 && file.resolution.height > 0) {
-                // 使用 AI 放大倍数感知窗口尺寸：
-                // - messageMode（查看结果）：结果图已是 scaleFactor 倍，此处传 1 避免重复放大
-                // - 预览模式（实时查看）：传入 aiScaleFactor 预估输出尺寸
-                var sf = root.messageMode ? 1 : Math.max(1, root.aiScaleFactor)
-                var ideal = computeIdealWindowSize(file.resolution.width, file.resolution.height, sf)
-                root.width  = ideal.width
+                var scaleFactor = root.messageMode ? 1 : Math.max(1, root.aiScaleFactor)
+                var ideal = computeIdealWindowSize(file.resolution.width, file.resolution.height, scaleFactor)
+                root.width = ideal.width
                 root.height = ideal.height
             } else {
-                // 无法获取分辨率时使用合理默认值
-                root.width  = 900
+                root.width = 900
                 root.height = 650
             }
-            // 仅在用户未手动拖动过位置时才居中，否则保持拖动后的位置
             if (!_userDraggedPosition) {
-                root.x = Math.floor((Screen.desktopAvailableWidth  - root.width)  / 2)
+                root.x = Math.floor((Screen.desktopAvailableWidth - root.width) / 2)
                 root.y = Math.floor((Screen.desktopAvailableHeight - root.height) / 2)
             }
         }
@@ -335,1167 +238,74 @@ Window {
         root.requestActivate()
     }
 
-    onCurrentIndexChanged: showOriginal = false
-
-    Rectangle {
-        anchors.fill: parent
-        color: Theme.colors.background
-        radius: 8
-
-        Rectangle {
-            id: titleBar
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            height: 44
-            color: Theme.colors.titleBar
-            z: 100
-
-            Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                height: 1
-                color: Theme.colors.titleBarBorder
-            }
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 12
-                anchors.rightMargin: 8
-                spacing: 8
-
-                Text {
-                    text: currentFile ? currentFile.fileName : ""
-                    color: Theme.colors.foreground
-                    font.pixelSize: 14
-                    font.weight: Font.Medium
-                    elide: Text.ElideMiddle
-                    Layout.fillWidth: true
-                }
-
-                Text {
-                    text: mediaFiles.length > 0 ? "%1 / %2".arg(currentIndex + 1).arg(mediaFiles.length) : ""
-                    color: Theme.colors.mutedForeground
-                    font.pixelSize: 12
-                }
-
-                Row {
-                    id: titleBarButtonsRow
-                    spacing: 2
-
-                    IconButton {
-                        id: compareButton
-                        visible: root.messageMode && root.currentFile && root.currentFile.resultPath && root.currentFile.originalPath && root.currentFile.resultPath !== root.currentFile.originalPath
-                        iconName: showOriginal ? "view-result" : "view-source"
-                        iconSize: 16
-                        btnSize: 32
-                        tooltip: showOriginal ? qsTr("点击查看成果") : qsTr("点击查看源件")
-                        iconColor: showOriginal ? Theme.colors.primary : Theme.colors.icon
-                        onClicked: showOriginal = !showOriginal
-                    }
-
-                    IconButton {
-                        iconName: root.visibility === Window.FullScreen ? "minimize-2" : "maximize"
-                        iconSize: 16; btnSize: 32
-                        onClicked: _toggleFullscreen()
-                        tooltip: root.visibility === Window.FullScreen ? qsTr("退出全屏") : qsTr("全屏")
-                    }
-
-                    IconButton {
-                        iconName: "x"
-                        iconSize: 16; btnSize: 32
-                        danger: true
-                        onClicked: root.close()
-                        tooltip: qsTr("关闭")
-                    }
-                }
-            }
-        }
-
-        Item {
-            id: contentArea
-            anchors.top: titleBar.bottom
-            anchors.bottom: isVideo ? videoControls.top : bottomBar.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            clip: true  // 防止超分后大图溢出窗口边界
-
-            Image {
-                id: imageViewSource
-                anchors.fill: parent
-                anchors.margins: 8
-                visible: false
-                source: {
-                    if (isVideo || !currentSource) return ""
-                    return _getSource(currentSource)
-                }
-                fillMode: Image.PreserveAspectFit
-                asynchronous: true
-                smooth: true
-                mipmap: true
-            }
-
-            // Shader 效果层：anchors.fill parent（而非 imageViewSource），
-            // 避免因 imageViewSource 隐藏时尺寸计算异常导致的溢出
-            FullShaderEffect {
-                id: imageViewWithShader
-                anchors.fill: parent
-                anchors.margins: 8
-                source: imageViewSource
-                visible: !isVideo && currentSource !== "" && _shouldApplyShader
-                
-                brightness: shaderBrightness
-                contrast: shaderContrast
-                saturation: shaderSaturation
-                hue: shaderHue
-                sharpness: shaderSharpness
-                blurAmount: shaderBlur
-                denoise: shaderDenoise
-                exposure: shaderExposure
-                gamma: shaderGamma
-                temperature: shaderTemperature
-                tint: shaderTint
-                vignette: shaderVignette
-                highlights: shaderHighlights
-                shadows: shaderShadows
-                
-                MouseArea {
-                    id: shaderImageClickArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    acceptedButtons: Qt.LeftButton
-
-                    onContainsMouseChanged: {
-                        if (containsMouse) {
-                            root.showNavButtonsAndResetTimer()
-                        } else {
-                            root.startAutoHideIfNeeded()
-                        }
-                    }
-                    
-                    onPositionChanged: {
-                        root.showNavButtonsAndResetTimer()
-                    }
-
-                    onDoubleClicked: {
-                        _toggleFullscreen()
-                    }
-                }
-            }
-
-            // ── 无闪烁源件/结果对比：双图预加载 + opacity 切换 ──────────
-            // 结果图层（消息模式默认显示）
-            Image {
-                id: resultImageLayer
-                anchors.fill: parent
-                anchors.margins: 8
-                visible: !isVideo && messageMode && _hasDistinctResult
-                opacity: showOriginal ? 0.0 : 1.0
-                source: !isVideo && messageMode ? _getSource(_resultSource) : ""
-                fillMode: Image.PreserveAspectFit
-                asynchronous: true; smooth: true; mipmap: true
-                Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.InOutQuad } }
-            }
-            // 原图层（showOriginal 时显示）
-            Image {
-                id: originalImageLayer
-                anchors.fill: parent
-                anchors.margins: 8
-                visible: !isVideo && messageMode && _hasDistinctResult
-                opacity: showOriginal ? 1.0 : 0.0
-                source: !isVideo && messageMode && _hasDistinctResult ? _getSource(_originalSource) : ""
-                fillMode: Image.PreserveAspectFit
-                asynchronous: true; smooth: true; mipmap: true
-                Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.InOutQuad } }
-            }
-            // 普通图像层（非消息模式 或 无对比结果时）
-            Image {
-                id: imageView
-                anchors.fill: parent
-                anchors.margins: 8
-                visible: !isVideo && currentSource !== "" && !_shouldApplyShader && !(messageMode && _hasDistinctResult)
-                source: {
-                    if (isVideo || !currentSource) return ""
-                    return _getSource(currentSource)
-                }
-                fillMode: Image.PreserveAspectFit
-                asynchronous: true
-                smooth: true
-                mipmap: true
-
-                MouseArea {
-                    id: imageClickArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    acceptedButtons: Qt.LeftButton
-
-                    onContainsMouseChanged: {
-                        if (containsMouse) {
-                            root.showNavButtonsAndResetTimer()
-                        } else {
-                            root.startAutoHideIfNeeded()
-                        }
-                    }
-                    
-                    onPositionChanged: {
-                        root.showNavButtonsAndResetTimer()
-                    }
-
-                    onDoubleClicked: {
-                        _toggleFullscreen()
-                    }
-                }
-            }
-
-            Item {
-                id: videoContainer
-                anchors.fill: parent
-                anchors.margins: 8
-                visible: isVideo
-                clip: true  // 防止视频帧溢出容器
-
-                // 是否应用视频Shader效果（消息模式下也需要应用）
-                property bool _applyVideoShader: shaderEnabled && !showOriginal
-
-                ThumbnailStatusImage {
-                    id: videoPreviewFrame
-                    anchors.fill: parent
-                    visible: isVideo && mediaPlayer && mediaPlayer.playbackState === MediaPlayer.StoppedState
-                    opacity: visible ? 1.0 : 0.0
-                    z: 1
-                    baseThumbnailId: root._baseThumbnailKey(root.currentFile)
-                    preferredThumbnailId: root._preferredThumbnailKey(root.currentFile)
-                    preferPreferredThumbnail: root.messageMode
-                                              && root.currentFile
-                                              && root.currentFile.status === 2
-                                              && preferredThumbnailId !== ""
-                    mediaType: 1
-                    requestedSourceSize: Qt.size(Math.max(256, Math.round(width)), Math.max(256, Math.round(height)))
-                    fillMode: Image.PreserveAspectFit
-                    backgroundColor: "transparent"
-                    showFailureBorder: true
-
-                    Behavior on opacity { NumberAnimation { duration: 200 } }
-                }
-
-                VideoOutput {
-                    id: videoOutput
-                    anchors.fill: parent
-                    z: 0
-                    visible: !videoContainer._applyVideoShader
-                }
-                
-                ShaderEffectSource {
-                    id: videoShaderSource
-                    sourceItem: videoOutput
-                    live: videoContainer._applyVideoShader
-                    hideSource: videoContainer._applyVideoShader
-                    visible: false
-                    textureSize: {
-                        var maxVideoSize = 1280
-                        var srcW = videoOutput.sourceRect.width > 0 ? videoOutput.sourceRect.width : videoOutput.width
-                        var srcH = videoOutput.sourceRect.height > 0 ? videoOutput.sourceRect.height : videoOutput.height
-                        if (srcW <= 0 || srcH <= 0) return Qt.size(512, 512)
-                        var scale = Math.min(1.0, maxVideoSize / Math.max(srcW, srcH))
-                        return Qt.size(Math.floor(srcW * scale), Math.floor(srcH * scale))
-                    }
-                    recursive: false
-                    mipmap: false
-                    smooth: true
-                }
-                
-                ShaderEffect {
-                    id: videoShaderEffect
-                    anchors.fill: parent
-                    visible: videoContainer._applyVideoShader
-                    z: 0
-                    
-                    property var source: videoShaderSource
-                    property real brightness: shaderBrightness
-                    property real contrast: shaderContrast
-                    property real saturation: shaderSaturation
-                    property real hue: shaderHue
-                    property real sharpness: shaderSharpness
-                    property real blurAmount: shaderBlur
-                    property real denoise: shaderDenoise
-                    property real exposure: shaderExposure
-                    property real gamma: shaderGamma
-                    property real temperature: shaderTemperature
-                    property real tint: shaderTint
-                    property real vignette: shaderVignette
-                    property real highlights: shaderHighlights
-                    property real shadows: shaderShadows
-                    property size imgSize: Qt.size(videoOutput.sourceRect.width > 0 ? videoOutput.sourceRect.width : videoOutput.width,
-                                                   videoOutput.sourceRect.height > 0 ? videoOutput.sourceRect.height : videoOutput.height)
-                    
-                    vertexShader: "qrc:///resources/shaders/fullshader.vert.qsb"
-                    fragmentShader: "qrc:///resources/shaders/fullshader.frag.qsb"
-                    
-                    supportsAtlasTextures: true
-                }
-
-                AudioOutput {
-                    id: audioOutput
-                    volume: volumeSlider.value
-                }
-
-                MediaPlayer {
-                    id: videoPlayer
-                    videoOutput: videoOutput
-                    audioOutput: audioOutput
-                    playbackRate: 1.0
-
-                    function togglePlay() {
-                        if (playbackState === MediaPlayer.PlayingState) {
-                            pause()
-                        } else {
-                            play()
-                        }
-                    }
-
-                    onPositionChanged: function(position) {
-                        if (!videoProgressSlider.pressed) {
-                            videoProgressSlider.value = position
-                        }
-                    }
-
-                    onPlaybackStateChanged: {
-                    }
-                    
-                    onMediaStatusChanged: {
-                        // 传递所有状态给控制器处理
-                        playbackController.handleMediaStatusChanged(mediaStatus)
-                        if (mediaStatus === MediaPlayer.InvalidMedia) {
-                            playbackController.handleMediaError(error, errorString)
-                        }
-                    }
-                    
-                    onErrorChanged: {
-                        if (error !== MediaPlayer.NoError) {
-                            playbackController.handleMediaError(error, errorString)
-                        }
-                    }
-
-                    Component.onCompleted: {
-                        root.mediaPlayer = this
-                        playbackController.mediaPlayer = this
-                    }
-                }
-
-                Connections {
-                    target: root
-                    function onCurrentSourceChanged() {
-                        if (isVideo && currentSource && currentSource !== "") {
-                            var src = _getSource(currentSource)
-                            videoPlayer.source = src
-                            // 只有在非源件/结果切换模式时才调用 handleFileOpen
-                            if (playbackController._switchMode !== 2) {
-                                playbackController.handleFileOpen()
-                            }
-                        } else {
-                            videoPlayer.source = ""
-                            playbackController._resetState()
-                        }
-                    }
-                    function onIsVideoChanged() {
-                        if (!isVideo) {
-                            videoPlayer.stop()
-                            videoPlayer.source = ""
-                            playbackController._resetState()
-                        }
-                    }
-                    function onCurrentIndexChanged() {
-                        playbackController._resetState()
-                    }
-                }
-
-                // 加载图标（仅在源/结切换时显示）
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: 64; height: 64; radius: 32
-                    color: Theme.isDark ? Qt.rgba(0, 0, 0, 0.5) : Qt.rgba(255, 255, 255, 0.8)
-                    visible: isVideo && mediaPlayer && playbackController.isLoading
-                    z: 11
-
-                    ColoredIcon {
-                        id: windowCenterLoadingIcon
-                        anchors.centerIn: parent
-                        source: Theme.icon("loader")
-                        iconSize: 28
-                        color: Theme.colors.mediaControlIcon
-                        
-                        RotationAnimator {
-                            target: windowCenterLoadingIcon
-                            running: playbackController.isLoading
-                            from: 0
-                            to: 360
-                            duration: 1000
-                            loops: Animation.Infinite
-                        }
-                    }
-                }
-                // 播放图标（正常情况）
-                // 当"开/切自动播放"开启时，隐藏切换过程中的播放图标，避免短暂闪烁
-                property bool _shouldShowPlayIcon: {
-                    if (!isVideo || !mediaPlayer) return false
-                    if (playbackController.isLoading) return false
-                    if (mediaPlayer.playbackState === MediaPlayer.PlayingState) return false
-                    // 当"开/切自动播放"开启且处于普通文件打开模式时，不显示播放图标
-                    if (SettingsController.videoAutoPlay && playbackController._switchMode === 1) return false
-                    return true
-                }
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: 64; height: 64; radius: 32
-                    color: Theme.isDark ? Qt.rgba(0, 0, 0, 0.5) : Qt.rgba(255, 255, 255, 0.8)
-                    visible: parent._shouldShowPlayIcon
-                    opacity: videoCenterMouse.containsMouse ? 1.0 : 0.7
-                    z: 10
-
-                    ColoredIcon {
-                        anchors.centerIn: parent
-                        source: Theme.icon("play")
-                        iconSize: 28
-                        color: Theme.colors.mediaControlIcon
-                    }
-
-                    MouseArea {
-                        id: videoCenterMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: if (mediaPlayer) mediaPlayer.togglePlay()
-                        onContainsMouseChanged: {
-                            if (containsMouse) {
-                                root.hoverActive = true
-                                hideButtonsTimer.stop()
-                            }
-                        }
-                    }
-
-                    Behavior on opacity { NumberAnimation { duration: 150 } }
-                }
-
-                MouseArea {
-                    id: videoClickArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    acceptedButtons: Qt.LeftButton
-                    z: 3
-
-                    onContainsMouseChanged: {
-                        if (containsMouse) {
-                            root.showNavButtonsAndResetTimer()
-                        } else {
-                            root.startAutoHideIfNeeded()
-                        }
-                    }
-                    
-                    onPositionChanged: {
-                        root.showNavButtonsAndResetTimer()
-                    }
-
-                    onClicked: {
-                        if (mediaPlayer) {
-                            mediaPlayer.togglePlay()
-                        }
-                    }
-
-                    onDoubleClicked: {
-                        _toggleFullscreen()
-                    }
-                }
-            }
-
-            ColumnLayout {
-                anchors.centerIn: parent
-                spacing: 12
-                visible: !currentFile
-
-                ColoredIcon {
-                    Layout.alignment: Qt.AlignHCenter
-                    source: Theme.icon("image")
-                    iconSize: 48
-                    color: Theme.colors.mutedForeground
-                }
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: qsTr("无媒体文件")
-                    color: Theme.colors.mutedForeground
-                    font.pixelSize: 14
-                }
-            }
-        }
-
-        Rectangle {
-            id: prevButton
-            anchors.left: parent.left
-            anchors.leftMargin: 16
-            anchors.verticalCenter: contentArea.verticalCenter
-            width: 44; height: 44; radius: 22
-            visible: currentIndex > 0
-            // 关键修复：enabled 必须同时考虑 visible 和 navButtonsVisible
-            // 当 navButtonsVisible 为 false 时（opacity: 0），按钮不应响应点击
-            enabled: visible && navButtonsVisible
-            opacity: navButtonsVisible ? 1.0 : 0.0
-            z: 50
-            
-            property bool isHovered: prevMouse.containsMouse && enabled
-            property bool isPressed: prevMouse.pressed && enabled
-            
-            // 玻璃拟态背景
-            color: {
-                if (isPressed) return Qt.rgba(0.15, 0.15, 0.15, 0.75)
-                if (isHovered) return Qt.rgba(0.2, 0.2, 0.2, 0.7)
-                return Qt.rgba(0.25, 0.25, 0.25, 0.55)
-            }
-            border.width: 1
-            border.color: Qt.rgba(1, 1, 1, isHovered ? 0.25 : 0.15)
-            
-            scale: isPressed ? 0.9 : (isHovered ? 1.1 : 1.0)
-            
-            Behavior on color { ColorAnimation { duration: 150 } }
-            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
-            Behavior on border.color { ColorAnimation { duration: 150 } }
-
-            ColoredIcon {
-                anchors.centerIn: parent
-                source: Theme.icon("chevron-left")
-                iconSize: 22
-                color: Theme.colors.textOnPrimary
-            }
-
-            MouseArea {
-                id: prevMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                enabled: parent.enabled
-                cursorShape: Qt.PointingHandCursor
-                onClicked: _prevFile()
-                onEntered: {
-                    root.prevBtnHovered = true
-                    root.stopAutoHide()
-                }
-                onExited: {
-                    root.prevBtnHovered = false
-                    root.startAutoHideIfNeeded()
-                }
-            }
-        }
-
-        Rectangle {
-            id: nextButton
-            anchors.right: parent.right
-            anchors.rightMargin: 16
-            anchors.verticalCenter: contentArea.verticalCenter
-            width: 44; height: 44; radius: 22
-            visible: currentIndex < mediaFiles.length - 1
-            // 关键修复：enabled 必须同时考虑 visible 和 navButtonsVisible
-            // 当 navButtonsVisible 为 false 时（opacity: 0），按钮不应响应点击
-            enabled: visible && navButtonsVisible
-            opacity: navButtonsVisible ? 1.0 : 0.0
-            z: 50
-            
-            property bool isHovered: nextMouse.containsMouse && enabled
-            property bool isPressed: nextMouse.pressed && enabled
-            
-            // 玻璃拟态背景
-            color: {
-                if (isPressed) return Qt.rgba(0.15, 0.15, 0.15, 0.75)
-                if (isHovered) return Qt.rgba(0.2, 0.2, 0.2, 0.7)
-                return Qt.rgba(0.25, 0.25, 0.25, 0.55)
-            }
-            border.width: 1
-            border.color: Qt.rgba(1, 1, 1, isHovered ? 0.25 : 0.15)
-            
-            scale: isPressed ? 0.9 : (isHovered ? 1.1 : 1.0)
-            
-            Behavior on color { ColorAnimation { duration: 150 } }
-            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
-            Behavior on border.color { ColorAnimation { duration: 150 } }
-
-            ColoredIcon {
-                anchors.centerIn: parent
-                source: Theme.icon("chevron-right")
-                iconSize: 22
-                color: Theme.colors.textOnPrimary
-            }
-
-            MouseArea {
-                id: nextMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                enabled: parent.enabled
-                cursorShape: Qt.PointingHandCursor
-                onClicked: _nextFile()
-                onEntered: {
-                    root.nextBtnHovered = true
-                    root.stopAutoHide()
-                }
-                onExited: {
-                    root.nextBtnHovered = false
-                    root.startAutoHideIfNeeded()
-                }
-            }
-        }
-
-        Rectangle {
-            id: videoControls
-            anchors.bottom: bottomBar.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            height: isVideo ? 90 : 0
-            visible: isVideo
-            color: Theme.colors.mediaControlBg
-
-            Rectangle {
-                anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.right: parent.right
-                height: 1
-                color: Theme.colors.mediaControlBorder
-            }
-
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 12
-                spacing: 6
-
-                // 计算显示位置：仅在源/结切换且恢复进度开启时使用冻结位置，否则使用实际位置
-                property int displayPosition: {
-                    // 源/结切换中且需要恢复进度时，使用冻结位置
-                    if (playbackController._switchMode === 2 && SettingsController.videoRestorePosition) {
-                        return playbackController.frozenPosition || 0
-                    }
-                    // 否则使用实际播放位置（确保 mediaPlayer 存在且位置有效）
-                    if (mediaPlayer && mediaPlayer.position !== undefined && mediaPlayer.position >= 0) {
-                        return mediaPlayer.position
-                    }
-                    return 0
-                }
-                
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 8
-
-                    Text {
-                        text: _formatTime(parent.parent.displayPosition)
-                        color: Theme.colors.mediaControlTextMuted
-                        font.pixelSize: 11
-                        font.family: "Consolas"
-                    }
-
-                    Slider {
-                        id: videoProgressSlider
-                        Layout.fillWidth: true
-                        from: 0
-                        to: {
-                            if (mediaPlayer && mediaPlayer.duration !== undefined && mediaPlayer.duration > 0) {
-                                return mediaPlayer.duration
-                            }
-                            return 1
-                        }
-                        value: parent.parent.displayPosition
-                        enabled: !playbackController.isLoading && mediaPlayer && mediaPlayer.duration > 0
-
-                        onMoved: {
-                            if (mediaPlayer && !playbackController.isLoading) mediaPlayer.position = value
-                        }
-
-                        background: Rectangle {
-                            x: videoProgressSlider.leftPadding
-                            y: videoProgressSlider.topPadding + videoProgressSlider.availableHeight / 2 - height / 2
-                            width: videoProgressSlider.availableWidth
-                            height: 4; radius: 2
-                            color: Theme.isDark ? Qt.rgba(1, 1, 1, 0.2) : Qt.rgba(0, 0, 0, 0.15)
-
-                            Rectangle {
-                                width: videoProgressSlider.visualPosition * parent.width
-                                height: parent.height; radius: 2
-                                color: Theme.colors.primary
-                            }
-                        }
-
-                        handle: Rectangle {
-                            x: videoProgressSlider.leftPadding + videoProgressSlider.visualPosition * (videoProgressSlider.availableWidth - width)
-                            y: videoProgressSlider.topPadding + videoProgressSlider.availableHeight / 2 - height / 2
-                            width: 14; height: 14; radius: 7
-                            color: videoProgressSlider.pressed ? Theme.colors.primaryLight : Theme.colors.card
-                            border.width: 2; border.color: Theme.colors.primary
-                            visible: videoProgressSlider.hovered || videoProgressSlider.pressed
-                        }
-                    }
-
-                    Text {
-                        text: _formatTime(mediaPlayer ? mediaPlayer.duration : 0)
-                        color: Theme.colors.mediaControlTextMuted
-                        font.pixelSize: 11
-                        font.family: "Consolas"
-                    }
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 8
-
-                    IconButton {
-                        iconName: "skip-back"
-                        iconSize: 16; btnSize: 32
-                        iconColor: Theme.colors.mediaControlIcon
-                        iconHoverColor: Theme.colors.mediaControlIconHover
-                        tooltip: qsTr("快退 10 秒")
-                        onClicked: if (mediaPlayer) mediaPlayer.position = Math.max(0, mediaPlayer.position - 10000)
-                    }
-
-                    Rectangle {
-                        width: 36; height: 36; radius: 18
-                        color: Theme.isDark 
-                               ? (playPauseMouse.containsMouse ? Qt.rgba(1,1,1,0.2) : Qt.rgba(1,1,1,0.1))
-                               : (playPauseMouse.containsMouse ? Qt.rgba(0,0,0,0.1) : Qt.rgba(0,0,0,0.05))
-
-                        ColoredIcon {
-                            anchors.centerIn: parent
-                            source: mediaPlayer && mediaPlayer.playbackState === MediaPlayer.PlayingState
-                                    ? Theme.icon("pause") : Theme.icon("play")
-                            iconSize: 18
-                            color: Theme.colors.mediaControlIcon
-                        }
-
-                        MouseArea {
-                            id: playPauseMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: if (mediaPlayer) mediaPlayer.togglePlay()
-                        }
-
-                        Behavior on color { ColorAnimation { duration: 100 } }
-                    }
-
-                    IconButton {
-                        iconName: "skip-forward"
-                        iconSize: 16; btnSize: 32
-                        iconColor: Theme.colors.mediaControlIcon
-                        iconHoverColor: Theme.colors.mediaControlIconHover
-                        tooltip: qsTr("快进 10 秒")
-                        onClicked: if (mediaPlayer) mediaPlayer.position = Math.min(mediaPlayer.duration, mediaPlayer.position + 10000)
-                    }
-
-                    Item { width: 8 }
-
-                    Row {
-                        spacing: 4
-
-                        Repeater {
-                            model: [0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
-                            Rectangle {
-                                id: speedBtnRect
-                                required property real modelData
-                                required property int index
-                                width: speedBtnText.implicitWidth + 12
-                                height: 26
-                                radius: 5
-                                
-                                function getSpeedColor() {
-                                    if (Theme.isDark) {
-                                        var darkColors = [
-                                            Qt.rgba(0.22, 0.36, 0.56, 1.0),
-                                            Qt.rgba(0.18, 0.42, 0.75, 1.0),
-                                            Qt.rgba(0.14, 0.35, 0.82, 1.0),
-                                            Qt.rgba(0.12, 0.27, 0.65, 1.0),
-                                            Qt.rgba(0.08, 0.18, 0.48, 1.0),
-                                            Qt.rgba(0.04, 0.10, 0.35, 1.0)
-                                        ]
-                                        return darkColors[index]
-                                    } else {
-                                        var lightColors = [
-                                            Qt.rgba(0.75, 0.85, 0.98, 1.0),
-                                            Qt.rgba(0.36, 0.55, 0.94, 1.0),
-                                            Qt.rgba(0.15, 0.35, 0.80, 1.0),
-                                            Qt.rgba(0.00, 0.18, 0.65, 1.0),
-                                            Qt.rgba(0.00, 0.12, 0.50, 1.0),
-                                            Qt.rgba(0.00, 0.07, 0.35, 1.0)
-                                        ]
-                                        return lightColors[index]
-                                    }
-                                }
-                                
-                                property bool isSelected: {
-                                    var currentRate = mediaPlayer ? mediaPlayer.playbackRate : 1.0
-                                    return Math.abs(currentRate - modelData) < 0.01
-                                }
-                                
-                                color: {
-                                    if (isSelected) {
-                                        return getSpeedColor()
-                                    }
-                                    if (speedBtnMouse.pressed) {
-                                        return Theme.isDark ? Qt.rgba(1,1,1,0.18) : Qt.rgba(0,0,0,0.12)
-                                    }
-                                    return Theme.isDark 
-                                           ? (speedBtnMouse.containsMouse ? Qt.rgba(1,1,1,0.12) : Qt.rgba(1,1,1,0.06))
-                                           : (speedBtnMouse.containsMouse ? Qt.rgba(0,0,0,0.08) : Qt.rgba(0,0,0,0.04))
-                                }
-                                border.width: 1
-                                border.color: isSelected ? "transparent" : Theme.colors.mediaControlBorder
-
-                                Text {
-                                    id: speedBtnText
-                                    anchors.centerIn: parent
-                                    text: speedBtnRect.modelData.toFixed(1) + "x"
-                                    color: speedBtnRect.isSelected ? "#FFFFFF" : Theme.colors.mediaControlTextMuted
-                                    font.pixelSize: 11
-                                    font.weight: speedBtnRect.isSelected ? Font.Bold : Font.Normal
-                                }
-
-                                MouseArea {
-                                    id: speedBtnMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: if (mediaPlayer) mediaPlayer.playbackRate = speedBtnRect.modelData
-                                }
-
-                                Behavior on color { ColorAnimation { duration: 100 } }
-                            }
-                        }
-                    }
-
-                    Item { Layout.fillWidth: true }
-
-                    Row {
-                        spacing: 4
-
-                        Rectangle {
-                            id: autoPlayBtn
-                            width: 32
-                            height: 26
-                            radius: 5
-                            color: SettingsController.videoAutoPlay 
-                                   ? Theme.colors.primary 
-                                   : (Theme.isDark 
-                                      ? (autoPlayMouse.containsMouse ? Qt.rgba(1,1,1,0.12) : Qt.rgba(1,1,1,0.06))
-                                      : (autoPlayMouse.containsMouse ? Qt.rgba(0,0,0,0.08) : Qt.rgba(0,0,0,0.04)))
-                            border.width: SettingsController.videoAutoPlay ? 0 : 1
-                            border.color: Theme.colors.mediaControlBorder
-
-                            ColoredIcon {
-                                anchors.centerIn: parent
-                                source: Theme.icon(SettingsController.videoAutoPlay ? "autoplay-on-open-on" : "autoplay-on-open-off")
-                                iconSize: 16
-                                color: SettingsController.videoAutoPlay ? "#FFFFFF" : Theme.colors.mediaControlIcon
-                            }
-
-                            MouseArea {
-                                id: autoPlayMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: SettingsController.videoAutoPlay = !SettingsController.videoAutoPlay
-                            }
-
-                            ToolTip.visible: autoPlayMouse.containsMouse
-                            ToolTip.text: qsTr("开/切自动播放")
-                            ToolTip.delay: 500
-
-                            Behavior on color { ColorAnimation { duration: 100 } }
-                        }
-
-                        Rectangle {
-                            id: autoPlayOnSwitchBtn
-                            width: 32
-                            height: 26
-                            radius: 5
-                            color: SettingsController.videoAutoPlayOnSwitch 
-                                   ? Theme.colors.primary 
-                                   : (Theme.isDark 
-                                      ? (autoPlayOnSwitchMouse.containsMouse ? Qt.rgba(1,1,1,0.12) : Qt.rgba(1,1,1,0.06))
-                                      : (autoPlayOnSwitchMouse.containsMouse ? Qt.rgba(0,0,0,0.08) : Qt.rgba(0,0,0,0.04)))
-                            border.width: SettingsController.videoAutoPlayOnSwitch ? 0 : 1
-                            border.color: Theme.colors.mediaControlBorder
-
-                            ColoredIcon {
-                                anchors.centerIn: parent
-                                source: Theme.icon(SettingsController.videoAutoPlayOnSwitch ? "autoplay-on-switch-on" : "autoplay-on-switch-off")
-                                iconSize: 16
-                                color: SettingsController.videoAutoPlayOnSwitch ? "#FFFFFF" : Theme.colors.mediaControlIcon
-                            }
-
-                            MouseArea {
-                                id: autoPlayOnSwitchMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: SettingsController.videoAutoPlayOnSwitch = !SettingsController.videoAutoPlayOnSwitch
-                            }
-
-                            ToolTip.visible: autoPlayOnSwitchMouse.containsMouse
-                            ToolTip.text: qsTr("源/结自动播放")
-                            ToolTip.delay: 500
-
-                            Behavior on color { ColorAnimation { duration: 100 } }
-                        }
-
-                        Rectangle {
-                            id: restorePositionBtn
-                            width: 32
-                            height: 26
-                            radius: 5
-                            color: SettingsController.videoRestorePosition 
-                                   ? Theme.colors.primary 
-                                   : (Theme.isDark 
-                                      ? (restorePositionMouse.containsMouse ? Qt.rgba(1,1,1,0.12) : Qt.rgba(1,1,1,0.06))
-                                      : (restorePositionMouse.containsMouse ? Qt.rgba(0,0,0,0.08) : Qt.rgba(0,0,0,0.04)))
-                            border.width: SettingsController.videoRestorePosition ? 0 : 1
-                            border.color: Theme.colors.mediaControlBorder
-
-                            ColoredIcon {
-                                anchors.centerIn: parent
-                                source: Theme.icon(SettingsController.videoRestorePosition ? "restore-position-on" : "restore-position-off")
-                                iconSize: 16
-                                color: SettingsController.videoRestorePosition ? "#FFFFFF" : Theme.colors.mediaControlIcon
-                            }
-
-                            MouseArea {
-                                id: restorePositionMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: SettingsController.videoRestorePosition = !SettingsController.videoRestorePosition
-                            }
-
-                            ToolTip.visible: restorePositionMouse.containsMouse
-                            ToolTip.text: qsTr("源/结恢复进度")
-                            ToolTip.delay: 500
-
-                            Behavior on color { ColorAnimation { duration: 100 } }
-                        }
-                    }
-
-                    Item { width: 8 }
-
-                    Row {
-                        spacing: 6
-
-                        IconButton {
-                            iconName: audioOutput.volume > 0 ? "volume-2" : "volume-x"
-                            iconSize: 16; btnSize: 28
-                            iconColor: Theme.colors.mediaControlIcon
-                            iconHoverColor: Theme.colors.mediaControlIconHover
-                            tooltip: qsTr("静音")
-                            onClicked: {
-                                if (audioOutput.volume > 0) {
-                                    root._volumeBeforeMute = audioOutput.volume
-                                    audioOutput.volume = 0
-                                    SettingsController.volume = 0
-                                } else {
-                                    audioOutput.volume = root._volumeBeforeMute
-                                    SettingsController.volume = Math.round(root._volumeBeforeMute * 100)
-                                }
-                            }
-                        }
-
-                        Slider {
-                            id: volumeSlider
-                            width: 80
-                            from: 0; to: 1
-                            value: SettingsController.volume / 100
-
-                            onMoved: {
-                                SettingsController.volume = Math.round(value * 100)
-                            }
-
-                            background: Rectangle {
-                                x: volumeSlider.leftPadding
-                                y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
-                                width: volumeSlider.availableWidth
-                                height: 3; radius: 1.5
-                                color: Theme.isDark ? Qt.rgba(1, 1, 1, 0.2) : Qt.rgba(0, 0, 0, 0.15)
-
-                                Rectangle {
-                                    width: volumeSlider.visualPosition * parent.width
-                                    height: parent.height; radius: 1.5
-                                    color: Theme.colors.primary
-                                }
-                            }
-
-                            handle: Rectangle {
-                                x: volumeSlider.leftPadding + volumeSlider.visualPosition * (volumeSlider.availableWidth - width)
-                                y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
-                                width: 12; height: 12; radius: 6
-                                color: Theme.colors.card
-                                visible: volumeSlider.hovered || volumeSlider.pressed
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Rectangle {
-            id: bottomBar
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.right: parent.right
-            height: mediaFiles.length > 1 ? 60 : 0
-            visible: mediaFiles.length > 1
-            color: Theme.colors.mediaControlBgLight
-
-            Rectangle {
-                anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.right: parent.right
-                height: 1
-                color: Theme.colors.mediaControlBorder
-            }
-
-            ListView {
-                id: bottomThumbList
-                anchors.fill: parent
-                anchors.margins: 6
-                orientation: ListView.Horizontal
-                spacing: 6
-                clip: true
-                model: mediaFiles.length
-                currentIndex: root.currentIndex
-
-                delegate: Item {
-                    required property int index
-                    width: 48; height: 48
-                    property bool showDeleteBtn: bottomThumbMouse.containsMouse || bottomDeleteBtnMouse.containsMouse
-
-                    Rectangle {
-                        id: bottomHoverBorder
-                        anchors.fill: parent
-                        radius: 6
-                        color: "transparent"
-                        border.width: 2
-                        border.color: index === root.currentIndex ? Theme.colors.primary : "transparent"
-                        z: 5
-                    }
-
-                    Rectangle {
-                        id: bottomThumbRect
-                        anchors.fill: parent
-                        anchors.margins: 2
-                        radius: 6
-                        color: Theme.isDark ? Qt.rgba(1, 1, 1, 0.05) : Qt.rgba(0, 0, 0, 0.03)
-                        clip: true
-
-                        ThumbnailStatusImage {
-                            anchors.fill: parent
-                            baseThumbnailId: root._baseThumbnailKey(root.mediaFiles[index])
-                            preferredThumbnailId: root._preferredThumbnailKey(root.mediaFiles[index])
-                            preferPreferredThumbnail: root.messageMode
-                                                      && root.mediaFiles[index]
-                                                      && root.mediaFiles[index].status === 2
-                                                      && preferredThumbnailId !== ""
-                            mediaType: root.mediaFiles[index] ? root.mediaFiles[index].mediaType : 0
-                            requestedSourceSize: Qt.size(96, 96)
-                            fillMode: Image.PreserveAspectCrop
-                            cornerRadius: 6
-                            backgroundColor: bottomThumbRect.color
-                            showFailureBorder: true
-                        }
-
-                        Rectangle {
-                            visible: {
-                                var f = root.mediaFiles[index]
-                                return f && f.mediaType === 1
-                            }
-                            anchors.bottom: parent.bottom
-                            anchors.left: parent.left
-                            anchors.margins: 3
-                            width: 16; height: 12
-                            radius: 2
-                            color: Theme.isDark ? Qt.rgba(0, 0, 0, 0.65) : Qt.rgba(0, 0, 0, 0.5)
-                            ColoredIcon {
-                                anchors.centerIn: parent
-                                source: Theme.icon("play")
-                                iconSize: 8
-                                color: Theme.colors.textOnPrimary
-                            }
-                        }
-                    }
-
-                    MouseArea {
-                        id: bottomThumbMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            _stopCurrentMedia()
-                            root.currentIndex = index
-                        }
-                    }
-                    
-                    Rectangle {
-                        id: bottomDeleteBtn
-                        anchors.top: parent.top
-                        anchors.right: parent.right
-                        anchors.margins: 2
-                        width: 14; height: 14
-                        radius: 7
-                        color: bottomDeleteBtnMouse.containsMouse ? Theme.colors.destructive : Qt.rgba(0, 0, 0, 0.7)
-                        visible: showDeleteBtn
-                        z: 10
-                        
-                        opacity: visible ? 1 : 0
-                        Behavior on opacity { NumberAnimation { duration: 100 } }
-                        
-                        Text {
-                            anchors.centerIn: parent
-                            text: "\u00D7"
-                            color: Theme.colors.textOnPrimary
-                            font.pixelSize: 10
-                            font.weight: Font.Bold
-                        }
-                        
-                        MouseArea {
-                            id: bottomDeleteBtnMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                root.fileRemoved(root.messageId, index)
-                            }
-                        }
-                        
-                        Behavior on color { ColorAnimation { duration: Theme.animation.fast } }
-                    }
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    z: -1
-                    onWheel: function(wheel) {
-                        var delta = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.angleDelta.x
-                        bottomThumbList.contentX = Math.max(0,
-                            Math.min(bottomThumbList.contentX - delta,
-                                     bottomThumbList.contentWidth - bottomThumbList.width))
-                    }
-                }
-            }
-        }
-    }
-
-    function _formatTime(ms) {
-        var totalSec = Math.floor(ms / 1000)
-        var h = Math.floor(totalSec / 3600)
-        var m = Math.floor((totalSec % 3600) / 60)
-        var s = totalSec % 60
-        if (h > 0)
-            return "%1:%2:%3".arg(h).arg(String(m).padStart(2, '0')).arg(String(s).padStart(2, '0'))
-        return "%1:%2".arg(String(m).padStart(2, '0')).arg(String(s).padStart(2, '0'))
-    }
-
+    onWidthChanged: Qt.callLater(updateExcludeRegions)
+    onHeightChanged: Qt.callLater(updateExcludeRegions)
+    onVisibleChanged: if (visible) Qt.callLater(updateExcludeRegions)
     onClosing: {
         if (isVideo && mediaPlayer) {
             mediaPlayer.stop()
         }
         playbackController._resetState()
+    }
+
+    MediaViewerShell {
+        id: shell
+        anchors.fill: parent
+        viewer: root
+        videoPlayer: vidPlayer
+        playbackController: playbackController
+        showFullscreenButton: true
+        fullscreenActive: root.visibility === Window.FullScreen
+        showThumbnailBar: true
+        onFullscreenRequested: root._toggleFullscreen()
+        onCloseRequested: root.close()
+    }
+
+    MediaPlayer {
+        id: vidPlayer
+        videoOutput: shell.videoOutput
+        audioOutput: shell.audioOutput
+
+        function togglePlay() {
+            if (playbackState === MediaPlayer.PlayingState) {
+                pause()
+            } else {
+                play()
+            }
+        }
+
+        onMediaStatusChanged: {
+            playbackController.handleMediaStatusChanged(mediaStatus)
+            if (mediaStatus === MediaPlayer.InvalidMedia) {
+                playbackController.handleMediaError(error, errorString)
+            }
+        }
+        onErrorChanged: {
+            if (error !== MediaPlayer.NoError) {
+                playbackController.handleMediaError(error, errorString)
+            }
+        }
+    }
+
+    Connections {
+        target: root
+        function onCurrentSourceChanged() {
+            if (root.isVideo && root.currentSource) {
+                vidPlayer.source = root._getSource(root.currentSource)
+                if (playbackController._switchMode !== 2) {
+                    playbackController.handleFileOpen()
+                }
+            } else {
+                vidPlayer.source = ""
+                playbackController._resetState()
+            }
+        }
+
+        function onIsVideoChanged() {
+            if (!root.isVideo && vidPlayer.playbackState !== MediaPlayer.StoppedState) {
+                vidPlayer.stop()
+            }
+            playbackController._resetState()
+        }
     }
 }

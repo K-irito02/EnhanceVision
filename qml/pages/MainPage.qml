@@ -747,7 +747,7 @@ Rectangle {
         }
         
         if (files.length > 0) {
-            pendingEmbeddedViewer.mediaFiles = files
+            pendingEmbeddedViewer.syncMediaFiles(files)
             pendingEmbeddedViewer.openAt(Math.min(index, files.length - 1))
         }
     }
@@ -792,10 +792,7 @@ Rectangle {
             return
         }
         
-        pendingEmbeddedViewer.mediaFiles = files
-        if (pendingEmbeddedViewer.currentIndex >= files.length) {
-            pendingEmbeddedViewer.currentIndex = Math.max(0, files.length - 1)
-        }
+        pendingEmbeddedViewer.syncMediaFiles(files)
     }
     
     function _addDemoFiles(urls) {

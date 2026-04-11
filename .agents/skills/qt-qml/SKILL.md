@@ -101,3 +101,10 @@ Three methods: Required Properties (preferred), Context Property, Registered QML
 ### Common QtQuick.Controls Components
 
 **Full component reference** — see [references/qml-components.md](references/qml-components.md)
+
+### Runtime Warning Checklist (Qt 6)
+
+- Use qualified singleton access for local imports (`import "../utils" as Utils` + `Utils.SingletonName`).
+- Use formal JavaScript parameters in signal handlers (`onFoo: function(value) { ... }`).
+- For mixed image/video viewers, gate both `visible` and `source`; set `source: ""` when media is not image.
+- For `Menu` + `Instantiator`, use `insertItem/removeItem` for `MenuItem` objects.

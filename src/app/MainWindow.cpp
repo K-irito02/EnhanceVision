@@ -13,6 +13,7 @@ MainWindow::MainWindow(QWidget *parent)
 {
     setWindowTitle(tr("EnhanceVision - 图像处理与AI推理画质增强工具"));
     resize(1280, 720);
+    setMinimumSize(480, 360);
 }
 
 MainWindow::~MainWindow()

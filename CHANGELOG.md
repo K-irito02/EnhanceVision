@@ -8,6 +8,13 @@
 ## [Unreleased]
 
 ### Fixed
+- 媒体查看器运行时告警治理：修复重构后 `MediaViewerControls/Canvas/ThumbnailBar` 的多项 QML 告警
+  - 修复 `ResponsiveUtils is not defined`（单例改为限定名访问）
+  - 修复 `MenuItem` 注入 `Menu` 时的 C++ 参数类型错误（`insertMenu` -> `insertItem`）
+  - 修复视频场景下 `Image` 误加载 mp4 的 `QQuickImage` 告警（非图片时 `source` 置空）
+  - 修复信号处理器参数注入弃用告警（改为显式函数参数）
+  - 修复缺失图标名引用（`gauge`/`volume-1`）
+- 清理消息列表冗余 QML 调试输出（`console.log`），并补齐 QML 资源注册（`qml/utils/qmldir` 等）
 - **窗口边框缝隙漏光修复**：修复 Windows 平台下无边框窗口在最大化、全屏、Aero Snap 吸附时四周出现缝隙漏光的问题
   - 动态调整 DWM 帧扩展边距：最大化/全屏/吸附时移除 1px 边距，正常状态保留以启用阴影
   - 动态调整 DWM 圆角偏好：最大化/全屏时使用直角，吸附窗口保持圆角

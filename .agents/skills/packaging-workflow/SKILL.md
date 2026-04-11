@@ -9,12 +9,16 @@ Automated packaging workflow for building NSIS installer and portable ZIP.
 
 ## Prerequisites
 
-| Requirement | Path/Command |
-|-------------|-------------|
-| NSIS 3.11 | `E:\Program Files (x86)\NSIS\makensis.exe` |
-| CMake | `C:\Program Files\CMake\bin\cmake.exe` |
-| Qt 6.10.2 | `E:\Qt\6.10.2\msvc2022_64` |
-| VC++ Redistributable | `packaging/installer/redist/vc_redist.x64.exe` |
+| Requirement | Path/Command | Required |
+|-------------|-------------|----------|
+| NSIS 3.11 | `E:\Program Files (x86)\NSIS\makensis.exe` | Yes |
+| CMake | `C:\Program Files\CMake\bin\cmake.exe` | Yes |
+| Qt 6.10.2 | `E:\Qt\6.10.2\msvc2022_64` | Yes |
+| VC++ Redistributable | `packaging/installer/redist/vc_redist.x64.exe` | Optional (see below) |
+
+### VC++ Redistributable (Optional)
+
+The VC++ redistributable is optional. If the file is not present, the installer will skip VC++ runtime installation and assume the user already has it installed. This is handled by using `File /nonfatal` in the NSIS script.
 
 ## Key Files
 
@@ -32,21 +36,90 @@ Automated packaging workflow for building NSIS installer and portable ZIP.
 ## Execution Flow
 
 ```
-1. Build Release â†?2. Copy release tree â†?3. Run windeployqt â†?4. Verify â†?5. NSIS installer â†?6. Portable ZIP â†?7. Checksums
+1. Build Release â†’ 2. Copy release tree â†’ 3. Run windeployqt â†’ 4. Verify â†’ 5. NSIS installer â†’ 6. Portable ZIP â†’ 7. Checksums
 ```
 
 ## Quick Start
 
 ```powershell
 # Full packaging (build + verify + installer + portable)
-.\scripts\build-package.ps1 -Version "0.1.0"
+.\packaging\scripts\build-package.ps1 -Version "0.1.0"
 
 # Verify only
-.\scripts\verify-package.ps1 -Version "0.1.0"
+.\packaging\scripts\verify-package.ps1 -Version "0.1.0"
 
 # NSIS compile only
-& "E:\Program Files (x86)\NSIS\makensis.exe" /INPUTCHARSET UTF8 installer\setup.nsi
+& "E:\Program Files (x86)\NSIS\makensis.exe" /INPUTCHARSET UTF8 packaging\installer\setup.nsi
 ```
+
+## Step-by-Step Manual Packaging
+
+### Step 1: Build Release
+
+```powershell
+& "C:\Program Files\CMake\bin\cmake.exe" --preset windows-msvc-2022-release
+& "C:\Program Files\CMake\bin\cmake.exe" --build build/msvc2022/Release --config Release -j 8
+```
+
+### Step 2: Prepare Package Directory
+
+```powershell
+$Version = "0.1.0"
+$packageDir = "packaging\output\EnhanceVision-v$Version-windows-x64"
+$buildDir = "build\msvc2022\Release\Release"
+
+Remove-Item -Recurse -Force $packageDir -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
+
+# Copy the release runtime tree first
+Copy-Item -Path "$buildDir\*" -Destination $packageDir -Recurse
+
+# Deploy Qt runtime dependencies into the package output
+& "E:\Qt\6.10.2\msvc2022_64\bin\windeployqt.exe" `
+    --release `
+    --qmldir "qml" `
+    --dir $packageDir `
+    "$packageDir\EnhanceVision.exe"
+
+# Copy license files
+Copy-Item -Path "LICENSE" -Destination $packageDir
+Copy-Item -Path "THIRD_PARTY_LICENSES.md" -Destination $packageDir
+```
+
+### Step 3: Verify Package
+
+```powershell
+& ".\packaging\scripts\verify-package.ps1" -Version $Version
+```
+
+### Step 4: Create NSIS Installer
+
+```powershell
+& "E:\Program Files (x86)\NSIS\makensis.exe" /INPUTCHARSET UTF8 packaging\installer\setup.nsi
+```
+
+### Step 5: Create Portable ZIP
+
+```powershell
+Copy-Item -Path "packaging\portable\start.vbs" -Destination $packageDir
+Compress-Archive -Path $packageDir -DestinationPath "packaging\output\EnhanceVision-v$Version-windows-x64-portable.zip"
+Remove-Item "$packageDir\start.vbs" -ErrorAction SilentlyContinue
+```
+
+### Step 6: Calculate Checksums
+
+```powershell
+Get-FileHash "packaging\output\EnhanceVision-v$Version-windows-x64-installer.exe" -Algorithm SHA256
+Get-FileHash "packaging\output\EnhanceVision-v$Version-windows-x64-portable.zip" -Algorithm SHA256
+```
+
+## Files to Exclude from Package
+
+| Pattern | Reason |
+|---------|--------|
+| `*.exp`, `*.lib` | Build artifacts |
+| `*Test.exe` | Test executables |
+| `logs/` directory | Runtime logs |
 
 ## NSIS Known Pitfalls
 
@@ -58,15 +131,20 @@ Automated packaging workflow for building NSIS installer and portable ZIP.
 6. **License file encoding**: Must be UTF-16 LE BOM for Chinese characters to display correctly
 7. **Language selection**: Use `MUI_LANGDLL_DISPLAY` only; do NOT add custom language page or override `$LANGUAGE` with system locale after `MUI_LANGDLL_DISPLAY`
 8. **Uninstaller language**: Use `MUI_UNGETLANGUAGE` in `un.onInit` to match installer language
+9. **Optional files**: Use `File /nonfatal` for files that may not exist (e.g., VC++ redistributable). Combine with `${If} ${FileExists}` to conditionally execute.
+
+## PowerShell Script Encoding
+
+PowerShell scripts in this project use English-only output to avoid encoding issues. Chinese characters in PowerShell scripts can cause parsing errors on some systems. If you need to add localized output, consider using resource files or external localization mechanisms.
 
 ## Version Update Checklist
 
 When changing version number, update these files:
 
-1. `packaging/installer/setup.nsi` â†?`!define APP_VERSION`
-2. `packaging/scripts/build-package.ps1` â†?`$Version` default
-3. `packaging/scripts/verify-package.ps1` â†?`$Version` default
-4. `CMakeLists.txt` â†?`project(EnhanceVision VERSION ...)`
+1. `packaging/installer/setup.nsi` â†’ `!define APP_VERSION`
+2. `packaging/scripts/build-package.ps1` â†’ `$Version` default
+3. `packaging/scripts/verify-package.ps1` â†’ `$Version` default
+4. `CMakeLists.txt` â†’ `project(EnhanceVision VERSION ...)`
 
 ## Output
 

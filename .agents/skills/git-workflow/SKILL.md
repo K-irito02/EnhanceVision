@@ -58,6 +58,10 @@ Format: `<type>(scope): <subject>`
 | `media` | 音视频处理 |
 | `i18n` | 国际化 |
 | `cmake` | 构建配置 |
+| `installer` | NSIS 安装程序 |
+| `scripts` | 构建与验证脚本 |
+| `portable` | 便携版启动器 |
+| `packaging` | 打包流程 |
 
 ## 必须推送的目录
 
@@ -70,7 +74,11 @@ Format: `<type>(scope): <subject>`
 | `tests/` | 单元测试 |
 | `CMakeLists.txt` | 主构建文件 |
 | `CMakePresets.json` | CMake 预设 |
+| `installer/` | NSIS 安装程序脚本与资源 |
+| `scripts/` | 构建与验证脚本 |
+| `portable/` | 便携版启动器 |
 | `.trae/` | Trae IDE 配置 |
+| `.agents/` | Agents 配置 |
 | `.windsurf/` | Windsurf IDE 配置 |
 | `.cursor/` | Cursor IDE 配置 |
 
@@ -82,6 +90,7 @@ Format: `<type>(scope): <subject>`
 | `logs/` | 运行时产物 |
 | `third_party/` | 第三方库，体积大 |
 | `resources/models/` | AI 模型文件，大型二进制 |
+| `package/` | 打包输出，可重新生成 |
 | `tests/testAssetsDirectory/video/` | 测试视频资源 |
 | `tests/testAssetsDirectory/audio/` | 测试音频资源 |
 
@@ -94,7 +103,8 @@ git status
 # 2. 添加文件
 git add src/ include/ qml/ resources/ tests/
 git add CMakeLists.txt CMakePresets.json
-git add .trae/ docs/
+git add installer/ scripts/ portable/
+git add .trae/ .agents/ docs/
 
 # 3. 检查暂存区
 git diff --staged --stat

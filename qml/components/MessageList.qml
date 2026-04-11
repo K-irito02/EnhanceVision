@@ -136,23 +136,15 @@ Item {
             Connections {
                 target: typeof processingController !== "undefined" ? processingController : null
                 function onMessageActivated(messageId) {
-                    console.log("[QML DEBUG] onMessageActivated received:", messageId, "my id:", model.id, "match:", messageId === model.id)
                     if (messageId === model.id) {
                         msgDelegate._localIsActivated = true
-                        console.log("[QML DEBUG] _localIsActivated set to true for:", model.id)
                     }
                 }
                 function onMessageDeactivated(messageId) {
-                    console.log("[QML DEBUG] onMessageDeactivated received:", messageId, "my id:", model.id)
                     if (messageId === model.id) {
                         msgDelegate._localIsActivated = false
-                        console.log("[QML DEBUG] _localIsActivated set to false for:", model.id)
                     }
                 }
-            }
-            
-            on_LocalIsActivatedChanged: {
-                console.log("[QML DEBUG] _localIsActivated changed to:", _localIsActivated, "for message:", model.id, "pauseMode:", pauseMode)
             }
 
             // 时间预测属性（由 C++ ProcessingTimeManager 管理）
