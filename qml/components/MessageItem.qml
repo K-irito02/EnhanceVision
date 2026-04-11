@@ -391,6 +391,7 @@ Rectangle {
             }
             
             Rectangle {
+                id: modeLabel
                 height: 22
                 radius: Theme.radius.sm
                 color: mode === 0 ? Theme.colors.primarySubtle : Theme.colors.accent
@@ -414,6 +415,38 @@ Rectangle {
                         color: mode === 0 ? Theme.colors.primary : Theme.colors.accentForeground
                         font.pixelSize: 10
                         font.weight: Font.DemiBold
+                        visible: root.width >= 350
+                    }
+                }
+
+                Tooltip {
+                    id: modeTooltip
+                    text: modeText
+                }
+
+                Timer {
+                    id: modeTooltipTimer
+                    interval: 500
+                    repeat: false
+                    onTriggered: {
+                        if (modeMouseArea.containsMouse && root.width < 350) {
+                            modeTooltip.show(modeLabel)
+                        }
+                    }
+                }
+
+                MouseArea {
+                    id: modeMouseArea
+                    anchors.fill: parent
+                    hoverEnabled: root.width < 350
+                    acceptedButtons: Qt.NoButton
+                    onContainsMouseChanged: {
+                        if (containsMouse && root.width < 350) {
+                            modeTooltipTimer.start()
+                        } else {
+                            modeTooltipTimer.stop()
+                            modeTooltip.close()
+                        }
                     }
                 }
             }
@@ -431,7 +464,7 @@ Rectangle {
                 visible: root.totalFileCount > 0
 
                 IconButton {
-                    iconName: "download"; iconSize: 14; btnSize: 26
+                    iconName: "download"; iconSize: root.width < 350 ? 12 : 14; btnSize: root.width < 350 ? 22 : 26
                     iconColor: Theme.colors.icon
                     tooltip: qsTr("保存成功文件")
                     visible: root.successFileCount > 0
@@ -439,7 +472,7 @@ Rectangle {
                 }
 
                 IconButton {
-                    iconName: "refresh-cw"; iconSize: 14; btnSize: 26
+                    iconName: "refresh-cw"; iconSize: root.width < 350 ? 12 : 14; btnSize: root.width < 350 ? 22 : 26
                     iconColor: Theme.colors.icon
                     tooltip: qsTr("重新处理失败文件")
                     visible: root.hasFailedFiles
@@ -466,25 +499,8 @@ Rectangle {
                     iconSize: root.width < 350 ? 12 : 14; btnSize: root.width < 350 ? 22 : 26
                     danger: true
                     tooltip: root.allFilesPending ? qsTr("删除待处理任务") : qsTr("删除此消息")
-                    visible: (root.totalFileCount > 0 || root.allFilesPending) && root.width >= 300
+                    visible: root.totalFileCount > 0 || root.allFilesPending
                     onClicked: root.deleteClicked()
-                }
-
-                IconButton {
-                    iconName: "more-vertical"; iconSize: 14; btnSize: 26
-                    tooltip: qsTr("更多操作")
-                    visible: (root.totalFileCount > 0 || root.allFilesPending) && root.width < 300
-                    onClicked: moreActionsMenu.popup(this, 0, this.height)
-
-                    Menu {
-                        id: moreActionsMenu
-
-                        MenuItem {
-                            text: qsTr("删除此消息")
-                            enabled: root.totalFileCount > 0 || root.allFilesPending
-                            onTriggered: root.deleteClicked()
-                        }
-                    }
                 }
             }
         }
@@ -747,6 +763,7 @@ Rectangle {
                 spacing: 8
                 
                 Rectangle {
+                    id: successCountRect
                     height: 24
                     radius: Theme.radius.sm
                     color: Theme.colors.successSubtle
@@ -766,15 +783,47 @@ Rectangle {
                         }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: qsTr("成功：%1个文件").arg(root.successFileCount)
+                            text: root.width < 350 ? root.successFileCount : qsTr("成功：%1个文件").arg(root.successFileCount)
                             color: Theme.colors.success
                             font.pixelSize: 11
                             font.weight: Font.Medium
                         }
                     }
+
+                    Tooltip {
+                        id: successTooltip
+                        text: qsTr("成功：%1个文件").arg(root.successFileCount)
+                    }
+
+                    Timer {
+                        id: successTooltipTimer
+                        interval: 500
+                        repeat: false
+                        onTriggered: {
+                            if (successMouseArea.containsMouse && root.width < 350) {
+                                successTooltip.show(successCountRect)
+                            }
+                        }
+                    }
+
+                    MouseArea {
+                        id: successMouseArea
+                        anchors.fill: parent
+                        hoverEnabled: root.width < 350
+                        acceptedButtons: Qt.NoButton
+                        onContainsMouseChanged: {
+                            if (containsMouse && root.width < 350) {
+                                successTooltipTimer.start()
+                            } else {
+                                successTooltipTimer.stop()
+                                successTooltip.close()
+                            }
+                        }
+                    }
                 }
                 
                 Rectangle {
+                    id: failedCountRect
                     height: 24
                     radius: Theme.radius.sm
                     color: Theme.colors.muted
@@ -794,10 +843,41 @@ Rectangle {
                         }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: qsTr("失败：%1个文件").arg(root.failedFileCount)
+                            text: root.width < 350 ? root.failedFileCount : qsTr("失败：%1个文件").arg(root.failedFileCount)
                             color: Theme.colors.foreground
                             font.pixelSize: 11
                             font.weight: Font.Medium
+                        }
+                    }
+
+                    Tooltip {
+                        id: failedTooltip
+                        text: qsTr("失败：%1个文件").arg(root.failedFileCount)
+                    }
+
+                    Timer {
+                        id: failedTooltipTimer
+                        interval: 500
+                        repeat: false
+                        onTriggered: {
+                            if (failedMouseArea.containsMouse && root.width < 350) {
+                                failedTooltip.show(failedCountRect)
+                            }
+                        }
+                    }
+
+                    MouseArea {
+                        id: failedMouseArea
+                        anchors.fill: parent
+                        hoverEnabled: root.width < 350
+                        acceptedButtons: Qt.NoButton
+                        onContainsMouseChanged: {
+                            if (containsMouse && root.width < 350) {
+                                failedTooltipTimer.start()
+                            } else {
+                                failedTooltipTimer.stop()
+                                failedTooltip.close()
+                            }
                         }
                     }
                 }
@@ -811,10 +891,9 @@ Rectangle {
                 font.pixelSize: 11
                 elide: Text.ElideRight
                 Layout.maximumWidth: Math.max(70, root.width * 0.2)
+                visible: root.width >= 350
             }
 
-            // 完成后显示实际总耗时（放在文件统计右侧）
-            // 显示条件：必须已开始处理且所有文件都已结算，或者有持久化的总耗时
             Text {
                 property real displayTotalSec: root._actualTotalSec > 0 ? root._actualTotalSec : root.persistedActualTotalSec
                 visible: root.allFilesSettled && displayTotalSec > 0

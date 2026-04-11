@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 import QtQuick.Layouts
 import QtMultimedia
 import EnhanceVision.Controllers
@@ -181,7 +182,7 @@ Rectangle {
 
             IconButton {
                 visible: root.shouldCollapseSpeed
-                iconName: "sliders"
+                iconName: "playback-speed"
                 iconSize: 16
                 btnSize: 28
                 iconColor: Theme.colors.icon
@@ -190,26 +191,70 @@ Rectangle {
 
                 Menu {
                     id: speedMenu
+                    padding: 4
+
+                    background: Rectangle {
+                        implicitWidth: 50
+                        color: Theme.isDark ? Qt.rgba(25/255, 28/255, 38/255, 0.92) : Qt.rgba(255/255, 255/255, 255/255, 0.92)
+                        radius: 8
+                        border.width: 1
+                        border.color: Theme.isDark ? Qt.rgba(255/255, 255/255, 255/255, 0.06) : Qt.rgba(0/255, 0/255, 0/255, 0.05)
+                        layer.enabled: true
+                        layer.effect: MultiEffect {
+                            blurEnabled: true
+                            blur: 0.5
+                            blurMax: 32
+                            shadowEnabled: true
+                            shadowBlur: 0.8
+                            shadowOpacity: 0.15
+                            shadowHorizontalOffset: 1
+                            shadowVerticalOffset: 2
+                        }
+                    }
 
                     Instantiator {
                         model: [0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
+                        delegate: MenuItem {
+                            id: speedDelegate
+                            implicitWidth: speedMenu.background.implicitWidth - 8
+                            implicitHeight: 22
 
-                        MenuItem {
-                            text: modelData.toFixed(1) + "x"
-                            checkable: true
-                            checked: {
+                            property real speedValue: modelData
+                            property bool isSelected: {
                                 var currentRate = root.videoPlayer ? root.videoPlayer.playbackRate : 1.0
-                                return Math.abs(currentRate - modelData) < 0.01
+                                return Math.abs(currentRate - speedValue) < 0.01
                             }
-                            onTriggered: if (root.videoPlayer) root.videoPlayer.playbackRate = modelData
-                        }
 
-                        onObjectAdded: function(index, object) {
-                            speedMenu.insertItem(index, object)
+                            background: Rectangle {
+                                anchors.fill: parent
+                                radius: 4
+                                color: "transparent"
+                            }
+
+                            contentItem: Text {
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                text: speedDelegate.speedValue.toFixed(1) + "x"
+                                color: {
+                                    if (speedDelegate.isSelected)
+                                        return Theme.colors.primary
+                                    if (speedDelegate.highlighted)
+                                        return Theme.isDark ? Qt.rgba(100/255, 150/255, 255/255, 1.0) : Qt.rgba(59/255, 130/255, 246/255, 1.0)
+                                    return Theme.isDark ? Qt.rgba(200/255, 205/255, 215/255, 1.0) : Qt.rgba(30/255, 35/255, 45/255, 1.0)
+                                }
+                                font.pixelSize: 11
+                                font.weight: speedDelegate.isSelected ? Font.DemiBold : Font.Normal
+                                elide: Text.ElideNone
+
+                                Behavior on color { ColorAnimation { duration: 100 } }
+                            }
+
+                            onTriggered: {
+                                if (root.videoPlayer) root.videoPlayer.playbackRate = speedValue
+                            }
                         }
-                        onObjectRemoved: function(index, object) {
-                            speedMenu.removeItem(object)
-                        }
+                        onObjectAdded: function(index, object) { speedMenu.insertItem(index, object) }
+                        onObjectRemoved: function(index, object) { speedMenu.removeItem(object) }
                     }
                 }
             }
@@ -282,33 +327,120 @@ Rectangle {
 
             IconButton {
                 visible: root.shouldCollapseSettings
-                iconName: "settings"
+                iconName: "playback-settings"
                 iconSize: 16
                 btnSize: 28
                 iconColor: Theme.colors.icon
                 tooltip: qsTr("播放设置")
-                onClicked: settingsMenu.popup(this, 0, height)
+                onClicked: settingsPopup.open()
 
-                Menu {
-                    id: settingsMenu
-                    MenuItem {
-                        text: qsTr("开/切自动播放")
-                        checkable: true
-                        checked: SettingsController.videoAutoPlay
-                        onTriggered: SettingsController.videoAutoPlay = !SettingsController.videoAutoPlay
+                Popup {
+                    id: settingsPopup
+                    x: parent.width / 2 - width / 2
+                    y: -height - 8
+                    padding: 8
+                    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+                    property bool isChinese: SettingsController.language.startsWith("zh")
+                    property int menuWidth: isChinese ? 135 : 260
+
+                    background: Rectangle {
+                        implicitWidth: settingsPopup.menuWidth
+                        implicitHeight: settingsColumn.implicitHeight + settingsPopup.padding * 2
+                        color: Theme.isDark ? Qt.rgba(25/255, 28/255, 38/255, 0.92) : Qt.rgba(255/255, 255/255, 255/255, 0.92)
+                        radius: 8
+                        border.width: 1
+                        border.color: Theme.isDark ? Qt.rgba(255/255, 255/255, 255/255, 0.06) : Qt.rgba(0/255, 0/255, 0/255, 0.05)
+                        layer.enabled: true
+                        layer.effect: MultiEffect {
+                            blurEnabled: true
+                            blur: 0.5
+                            blurMax: 32
+                            shadowEnabled: true
+                            shadowBlur: 0.8
+                            shadowOpacity: 0.15
+                            shadowHorizontalOffset: 1
+                            shadowVerticalOffset: 2
+                        }
                     }
-                    MenuItem {
-                        text: qsTr("源/结自动播放")
-                        checkable: true
-                        checked: SettingsController.videoAutoPlayOnSwitch
-                        onTriggered: SettingsController.videoAutoPlayOnSwitch = !SettingsController.videoAutoPlayOnSwitch
+
+                    contentItem: Column {
+                        id: settingsColumn
+                        spacing: 2
+
+                        property var settingKeys: ["videoAutoPlay", "videoAutoPlayOnSwitch", "videoRestorePosition"]
+                        property var settingLabels: [qsTr("开/切自动播放"), qsTr("源/结自动播放"), qsTr("源/结恢复进度")]
+
+                        Repeater {
+                            model: 3
+
+                            ItemDelegate {
+                                id: settingsDelegate
+                                width: settingsPopup.menuWidth - settingsPopup.padding * 2
+                                height: 26
+                                hoverEnabled: true
+
+                                property bool isChecked: SettingsController[settingsColumn.settingKeys[index]]
+                                property bool isHovered: settingsHoverArea.containsMouse
+
+                                background: Rectangle {
+                                    anchors.fill: parent
+                                    radius: 5
+                                    color: "transparent"
+                                }
+
+                                MouseArea {
+                                    id: settingsHoverArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    acceptedButtons: Qt.NoButton
+                                }
+
+                                contentItem: RowLayout {
+                                    spacing: 8
+
+                                    Rectangle {
+                                        width: 15
+                                        height: 15
+                                        radius: 4
+                                        color: settingsDelegate.isChecked ? Theme.colors.primary : (Theme.isDark ? Qt.rgba(55/255, 60/255, 78/255, 0.85) : Qt.rgba(215/255, 220/255, 232/255, 0.85))
+                                        border.width: settingsDelegate.isChecked ? 0 : 1.2
+                                        border.color: Theme.isDark ? Qt.rgba(90/255, 100/255, 130/255, 0.35) : Qt.rgba(155/255, 165/255, 185/255, 0.45)
+
+                                        Behavior on color { ColorAnimation { duration: 100 } }
+                                        Behavior on border.color { ColorAnimation { duration: 100 } }
+
+                                        ColoredIcon {
+                                            visible: settingsDelegate.isChecked
+                                            anchors.centerIn: parent
+                                            source: Theme.icon("check")
+                                            iconSize: 9
+                                            color: "#FFFFFF"
+                                        }
+                                    }
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: settingsColumn.settingLabels[index]
+                                        color: settingsDelegate.isHovered 
+                                            ? (Theme.isDark ? Qt.rgba(100/255, 150/255, 255/255, 1.0) : Qt.rgba(59/255, 130/255, 246/255, 1.0))
+                                            : (Theme.isDark ? Qt.rgba(220/255, 225/255, 235/255, 1.0) : Qt.rgba(30/255, 35/255, 45/255, 1.0))
+                                        font.pixelSize: 11
+                                        elide: Text.ElideNone
+
+                                        Behavior on color { ColorAnimation { duration: 100 } }
+                                    }
+                                }
+
+                                onClicked: {
+                                    SettingsController[settingsColumn.settingKeys[index]] = !SettingsController[settingsColumn.settingKeys[index]]
+                                }
+                            }
+                        }
                     }
-                    MenuItem {
-                        text: qsTr("源/结恢复进度")
-                        checkable: true
-                        checked: SettingsController.videoRestorePosition
-                        onTriggered: SettingsController.videoRestorePosition = !SettingsController.videoRestorePosition
-                    }
+
+                    enter: Transition { NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 150 } }
+                    exit: Transition { NumberAnimation { property: "opacity"; from: 1.0; to: 0.0; duration: 150 } }
                 }
             }
 
@@ -363,31 +495,131 @@ Rectangle {
                     id: volumePopup
                     x: parent.width / 2 - width / 2
                     y: -height - 8
-                    width: 160
-                    height: 40
+                    width: 40
+                    height: 145
                     modal: false
                     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+                    padding: 0
 
-                    contentItem: Slider {
-                        anchors.fill: parent
-                        anchors.margins: 8
-                        from: 0
-                        to: 1
-                        value: root.viewer ? root.viewer.sharedVolume : 0.5
-                        onMoved: {
-                            if (!root.viewer) {
-                                return
-                            }
-                            root.viewer.sharedVolume = value
-                            SettingsController.volume = Math.round(value * 100)
+                    background: Rectangle {
+                        radius: 20
+                        color: Theme.isDark ? Qt.rgba(25/255, 28/255, 38/255, 0.92) : Qt.rgba(255/255, 255/255, 255/255, 0.92)
+                        layer.enabled: true
+                        layer.effect: MultiEffect {
+                            blurEnabled: true
+                            blur: 0.5
+                            blurMax: 32
+                            shadowEnabled: true
+                            shadowBlur: 0.8
+                            shadowOpacity: 0.15
+                            shadowHorizontalOffset: 1
+                            shadowVerticalOffset: 2
+                        }
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: parent.radius
+                            color: "transparent"
+                            border.width: 1
+                            border.color: Theme.isDark ? Qt.rgba(255/255, 255/255, 255/255, 0.06) : Qt.rgba(0/255, 0/255, 0/255, 0.05)
                         }
                     }
 
-                    background: Rectangle {
-                        color: Theme.colors.card
-                        radius: 8
-                        border.width: 1
-                        border.color: Theme.colors.border
+                    contentItem: Column {
+                        width: volumePopup.width
+                        spacing: 8
+                        topPadding: 15
+                        bottomPadding: 15
+
+                        Item {
+                            width: volumePopup.width
+                            height: 95
+
+                            Rectangle {
+                                id: volumeTrack
+                                anchors.centerIn: parent
+                                width: 3
+                                height: parent.height
+                                radius: 1.5
+                                color: Theme.isDark ? Qt.rgba(255/255, 255/255, 255/255, 0.1) : Qt.rgba(0/255, 0/255, 0/255, 0.08)
+
+                                Rectangle {
+                                    id: volumeFill
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.bottom: parent.bottom
+                                    height: volumeSliderHelper.value * parent.height
+                                    radius: 1.5
+                                    color: Theme.isDark ? Qt.rgba(255/255, 255/255, 255/255, 1.0) : Qt.rgba(59/255, 130/255, 246/255, 1.0)
+
+                                    Behavior on height {
+                                        NumberAnimation { duration: 50 }
+                                    }
+                                }
+
+                                Rectangle {
+                                    id: volumeHandle
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    anchors.bottom: parent.bottom
+                                    anchors.bottomMargin: volumeSliderHelper.value * parent.height - height / 2
+                                    width: 11
+                                    height: 11
+                                    radius: 5.5
+                                    color: Theme.isDark ? Qt.rgba(255/255, 255/255, 255/255, 1.0) : Qt.rgba(59/255, 130/255, 246/255, 1.0)
+
+                                    Behavior on anchors.bottomMargin {
+                                        NumberAnimation { duration: 50 }
+                                    }
+                                }
+                            }
+
+                            QtObject {
+                                id: volumeSliderHelper
+                                property real value: root.viewer ? root.viewer.sharedVolume : 0.5
+                            }
+
+                            MouseArea {
+                                id: volumeMouseArea
+                                anchors.fill: parent
+                                preventStealing: true
+
+                                property bool dragging: false
+
+                                onPressed: function(mouse) {
+                                    dragging = true
+                                    updateValue(mouse.y)
+                                }
+
+                                onPositionChanged: function(mouse) {
+                                    if (dragging) {
+                                        updateValue(mouse.y)
+                                    }
+                                }
+
+                                onReleased: {
+                                    dragging = false
+                                }
+
+                                function updateValue(mouseY) {
+                                    var newValue = 1.0 - (mouseY / height)
+                                    newValue = Math.max(0, Math.min(1, newValue))
+                                    volumeSliderHelper.value = newValue
+                                    if (root.viewer) {
+                                        root.viewer.sharedVolume = newValue
+                                        SettingsController.volume = Math.round(newValue * 100)
+                                    }
+                                }
+                            }
+                        }
+
+                        Text {
+                            id: volumePercentText
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: Math.round(volumeSliderHelper.value * 100) + "%"
+                            color: Theme.isDark ? Qt.rgba(200/255, 210/255, 225/255, 0.95) : Qt.rgba(80/255, 95/255, 120/255, 0.95)
+                            font.pixelSize: 9
+                            font.weight: Font.DemiBold
+                        }
                     }
 
                     enter: Transition { NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 150 } }

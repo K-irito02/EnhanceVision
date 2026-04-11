@@ -50,7 +50,7 @@ QtObject {
      * @return 图标 URL
      */
     function icon(name) {
-        return "qrc:/icons/" + name + ".svg"
+        return "qrc:/qt/qml/EnhanceVision/resources/icons/" + name + ".svg"
     }
     
     /**

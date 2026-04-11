@@ -52,6 +52,7 @@ find_package(Qt6 REQUIRED COMPONENTS
     QuickEffects
     Sql
     Test
+    Svg
 )
 
 include(CTest)
@@ -492,6 +493,16 @@ qt_add_qml_module(EnhanceVision
         resources/icons/skip-forward.svg
         resources/icons/skip-back.svg
         resources/icons/grid.svg
+        resources/icons/volume.svg
+        resources/icons/playback-speed.svg
+        resources/icons/playback-settings.svg
+        resources/icons/panel-right.svg
+        resources/icons/autoplay-on-open-on.svg
+        resources/icons/autoplay-on-open-off.svg
+        resources/icons/autoplay-on-switch-on.svg
+        resources/icons/autoplay-on-switch-off.svg
+        resources/icons/restore-position-on.svg
+        resources/icons/restore-position-off.svg
         # ParamGroup 图标
         resources/icons/adjust-basic.svg
         resources/icons/detail-enhance.svg
@@ -534,6 +545,7 @@ target_link_libraries(EnhanceVision PRIVATE
     Qt6::ShaderTools
     Qt6::QuickEffects
     Qt6::Sql
+    Qt6::Svg
     ncnn
 )
 

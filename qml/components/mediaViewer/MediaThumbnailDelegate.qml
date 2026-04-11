@@ -215,9 +215,9 @@ Item {
         anchors.top: parent.top
         anchors.right: parent.right
         anchors.margins: 4
-        width: 20
-        height: 20
-        radius: 10
+        width: 16
+        height: 16
+        radius: 8
         color: deleteMouse.containsMouse ? Theme.colors.destructive : Qt.rgba(0, 0, 0, 0.7)
         visible: root._showDeleteButton
         z: 10
@@ -230,7 +230,7 @@ Item {
             anchors.centerIn: parent
             text: "\u00D7"
             color: Theme.colors.textOnPrimary
-            font.pixelSize: 14
+            font.pixelSize: 12
             font.weight: Font.Bold
         }
 
