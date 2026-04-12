@@ -131,8 +131,8 @@ FocusScope {
                 id: sidebarContainer
                 Layout.preferredWidth: root.sidebarExpanded ? root.sidebarWidth : 0
                 Layout.fillHeight: true
-                Layout.maximumWidth: root.sidebarExpanded ? root.sidebarMaxWidth : 0
-                Layout.minimumWidth: root.sidebarExpanded ? root.sidebarMinWidth : 0
+                Layout.maximumWidth: root.sidebarMaxWidth
+                Layout.minimumWidth: 0
                 
                 Behavior on Layout.preferredWidth {
                     id: sidebarAnimation
