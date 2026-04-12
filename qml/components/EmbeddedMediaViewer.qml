@@ -248,13 +248,13 @@ Item {
     }
 
     function minimize() {
+        isMinimized = true
         if (displayMode === "embedded") {
-            isMinimized = true
             embeddedOverlay.visible = false
-            minimizeRequested(viewerId, currentFile ? currentFile.fileName : "", currentFile ? (currentFile.thumbnail || "") : "")
         } else {
-            detachedWindow.showMinimized()
+            detachedWindow.hide()
         }
+        minimizeRequested(viewerId, currentFile ? currentFile.fileName : "", currentFile ? (currentFile.thumbnail || "") : "")
     }
 
     function restore() {
