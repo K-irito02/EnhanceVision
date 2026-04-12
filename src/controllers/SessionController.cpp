@@ -69,6 +69,9 @@ SessionController::SessionController(QObject* parent)
     , m_saveTimer(new QTimer(this))
     , m_sessionNotifyTimer(new QTimer(this))
 {
+    // 设置 ProcessingTimeManager 的 SessionController 引用（用于跨会话更新）
+    m_processingTimeManager->setSessionController(this);
+    
     connect(m_sessionModel, &SessionModel::errorOccurred, this, &SessionController::errorOccurred);
     connect(m_sessionModel, &SessionModel::sessionsReordered, this, &SessionController::rebuildSessionMessageIndex);
 
@@ -647,6 +650,41 @@ bool SessionController::updateMessageInSession(const QString& sessionId, const M
     return false;
 }
 
+bool SessionController::updateMessageActualTotalSec(const QString& messageId, qint64 actualTotalSec)
+{
+    // 查找消息所在的会话
+    QString sessionId = sessionIdForMessage(messageId);
+    if (sessionId.isEmpty()) {
+        qWarning() << "[SessionController] Cannot find session for message:" << messageId;
+        return false;
+    }
+    
+    Session* session = getSession(sessionId);
+    if (!session) {
+        return false;
+    }
+    
+    // 在会话中查找并更新消息
+    for (int i = 0; i < session->messages.size(); ++i) {
+        if (session->messages[i].id == messageId) {
+            session->messages[i].actualTotalSec = actualTotalSec;
+            session->modifiedAt = QDateTime::currentDateTime();
+            
+            // 如果是当前活动会话，同步更新 MessageModel
+            if (sessionId == m_activeSessionId && m_messageModel) {
+                m_messageModel->updateActualTotalSec(messageId, actualTotalSec);
+            }
+            
+            // 触发保存
+            saveSessions();
+            
+            return true;
+        }
+    }
+    
+    return false;
+}
+
 QString SessionController::ensureActiveSession()
 {
     // 如果已有活动会话，直接返回（复用现有会话）
@@ -995,6 +1033,8 @@ QJsonObject SessionController::messageToJson(const Message& message) const
     json["actualTotalSec"] = message.actualTotalSec;
     // 保存处理开始时间（用于会话切换后恢复进度）
     json["processingStartTime"] = message.processingStartTime;
+    // 保存累积暂停时间（用于准确计算实际耗时）
+    json["totalPausedMs"] = message.totalPausedMs;
     
     // 保存时间预测系统字段（用于应用关闭后恢复）
     json["predictedTotalSec"] = message.predictedTotalSec;
@@ -1041,6 +1081,8 @@ Message SessionController::jsonToMessage(const QJsonObject& json) const
     message.actualTotalSec = json["actualTotalSec"].toVariant().toLongLong();
     // 恢复处理开始时间（用于会话切换后恢复进度）
     message.processingStartTime = json["processingStartTime"].toVariant().toLongLong();
+    // 恢复累积暂停时间
+    message.totalPausedMs = json["totalPausedMs"].toVariant().toLongLong();
     
     // 恢复时间预测系统字段
     message.predictedTotalSec = json["predictedTotalSec"].toVariant().toLongLong();

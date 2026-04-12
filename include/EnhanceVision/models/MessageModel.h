@@ -49,6 +49,7 @@ public:
         ElapsedSecRole,
         RemainingSecRole,
         IsOvertimeRole,
+        TotalPausedMsRole,
         FailedTipDismissedRole,
         ErrorTipDismissedRole
     };
@@ -119,6 +120,7 @@ public:
      * @param predictedTotalSec 预测总时间（秒）
      */
     Q_INVOKABLE void updatePredictedTotalSec(const QString &messageId, qint64 predictedTotalSec);
+    Q_INVOKABLE void updateTotalPausedMs(const QString &messageId, qint64 totalPausedMs);
     Q_INVOKABLE void updateTipDismissState(const QString &messageId, bool failedDismissed, bool errorDismissed);
 
     /**

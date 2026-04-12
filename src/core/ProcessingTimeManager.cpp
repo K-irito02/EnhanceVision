@@ -7,6 +7,7 @@
 #include "EnhanceVision/core/ProcessingTimeManager.h"
 #include "EnhanceVision/core/TaskTimeEstimator.h"
 #include "EnhanceVision/models/MessageModel.h"
+#include "EnhanceVision/controllers/SessionController.h"
 #include <QtMath>
 
 namespace EnhanceVision {
@@ -31,6 +32,11 @@ void ProcessingTimeManager::setMessageModel(MessageModel* model)
     m_messageModel = model;
 }
 
+void ProcessingTimeManager::setSessionController(SessionController* controller)
+{
+    m_sessionController = controller;
+}
+
 void ProcessingTimeManager::registerTask(const QString& messageId, 
                                           qint64 predictedTotalSec,
                                           qint64 processingStartTime)
@@ -43,12 +49,14 @@ void ProcessingTimeManager::registerTask(const QString& messageId,
         : QDateTime::currentMSecsSinceEpoch();
     info.elapsedSec = 0;
     info.remainingSec = predictedTotalSec;
+    info.totalPausedMs = 0;
+    info.lastPauseStartMs = 0;
     info.isOvertime = false;
 
     m_tasks.insert(messageId, info);
     
-    // 同步到 TaskTimeEstimator 进行动态跟踪
-    TaskTimeEstimator::instance()->startTracking(messageId, static_cast<double>(predictedTotalSec));
+    // 同步到 TaskTimeEstimator，传入相同的开始时间以确保一致
+    TaskTimeEstimator::instance()->startTracking(messageId, static_cast<double>(predictedTotalSec), info.processingStartTime);
 
     if (m_messageModel) {
         m_messageModel->updateProcessingStartTime(messageId, info.processingStartTime);
@@ -62,45 +70,39 @@ void ProcessingTimeManager::unregisterTask(const QString& messageId)
 {
     auto it = m_tasks.find(messageId);
     if (it != m_tasks.end()) {
-        // 在注销前获取最终的实际耗时（以实时时钟为主，避免完成瞬间因采样滞后导致仅显示 1 秒）
-        TaskTimeEstimator* estimator = TaskTimeEstimator::instance();
-        QVariantMap timeInfo = estimator->getTaskTimeInfo(messageId);
-
-        double estimatorElapsedSec = 0.0;
-        if (timeInfo.value("valid", false).toBool()) {
-            estimatorElapsedSec = timeInfo.value("elapsedSec", 0.0).toDouble();
-        }
-
-        const TaskTimeInfo info = it.value();
+        TaskTimeInfo info = it.value();
         const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-        const double realtimeElapsedSec = info.processingStartTime > 0
-            ? static_cast<double>(qMax<qint64>(0, nowMs - info.processingStartTime)) / 1000.0
-            : 0.0;
-        const double localElapsedSec = static_cast<double>(qMax<qint64>(0, info.elapsedSec));
-
-        // 采用三者最大值，避免任何单一路径低估最终总耗时
-        const double bestElapsedSec = qMax(estimatorElapsedSec, qMax(realtimeElapsedSec, localElapsedSec));
-        qint64 actualTotalSec = bestElapsedSec > 0.0 ? qMax<qint64>(1, qRound64(bestElapsedSec)) : 0;
-
-        // 若任务确实启动过但最终仍为 0，则兜底为 1 秒
-        if (actualTotalSec <= 0 && info.processingStartTime > 0) {
-            actualTotalSec = 1;
+        
+        // 计算累积暂停时间（如果当前正在暂停，需要加上当前暂停的时间）
+        qint64 totalPaused = info.totalPausedMs;
+        if (m_pausedTasks.contains(messageId) && info.lastPauseStartMs > 0) {
+            totalPaused += (nowMs - info.lastPauseStartMs);
+        }
+        
+        // 基于 processingStartTime 直接计算真实总耗时（唯一真源）
+        qint64 actualTotalSec = 0;
+        if (info.processingStartTime > 0) {
+            const qint64 totalElapsedMs = nowMs - info.processingStartTime;
+            const qint64 effectiveElapsedMs = qMax<qint64>(0, totalElapsedMs - totalPaused);
+            actualTotalSec = qMax<qint64>(1, qRound64(effectiveElapsedMs / 1000.0));
         }
 
-        // 更新 MessageModel 中的实际总耗时
-        if (m_messageModel) {
-            const qint64 displayActualTotalSec = actualTotalSec > 0 ? actualTotalSec : (info.processingStartTime > 0 ? 1 : 0);
-            if (displayActualTotalSec > 0) {
-                m_messageModel->updateActualTotalSec(messageId, displayActualTotalSec);
-            }
+        // 优先使用 SessionController 跨会话更新（支持会话切换场景）
+        bool updated = false;
+        if (m_sessionController && actualTotalSec > 0) {
+            updated = m_sessionController->updateMessageActualTotalSec(messageId, actualTotalSec);
+        }
+        
+        // 如果 SessionController 未能更新（可能消息在当前会话），回退到 MessageModel
+        if (!updated && m_messageModel && actualTotalSec > 0) {
+            m_messageModel->updateActualTotalSec(messageId, actualTotalSec);
         }
         
         // 同步停止 TaskTimeEstimator 跟踪
-        estimator->stopTracking(messageId);
+        TaskTimeEstimator::instance()->stopTracking(messageId);
         
         m_tasks.erase(it);
         m_pausedTasks.remove(messageId);
-        m_pausedElapsedSec.remove(messageId);
     }
 }
 
@@ -123,7 +125,6 @@ void ProcessingTimeManager::clear()
 {
     m_tasks.clear();
     m_pausedTasks.clear();
-    m_pausedElapsedSec.clear();
 }
 
 void ProcessingTimeManager::pauseTask(const QString& messageId)
@@ -136,11 +137,17 @@ void ProcessingTimeManager::pauseTask(const QString& messageId)
         return;  // 已经暂停
     }
     
-    // 记录暂停时的已用时间
     TaskTimeInfo& info = m_tasks[messageId];
     qint64 now = QDateTime::currentMSecsSinceEpoch();
-    info.elapsedSec = (now - info.processingStartTime) / 1000;
-    m_pausedElapsedSec[messageId] = info.elapsedSec;
+    
+    // 记录暂停开始时间
+    info.lastPauseStartMs = now;
+    
+    // 更新当前已用时间（用于显示）
+    qint64 totalElapsedMs = now - info.processingStartTime;
+    qint64 effectiveElapsedMs = qMax<qint64>(0, totalElapsedMs - info.totalPausedMs);
+    info.elapsedSec = effectiveElapsedMs / 1000;
+    
     m_pausedTasks.insert(messageId);
     
     // 同步到 TaskTimeEstimator
@@ -157,22 +164,24 @@ void ProcessingTimeManager::resumeTask(const QString& messageId)
         return;  // 没有暂停
     }
     
-    // 恢复时调整开始时间，使已用时间保持连续
     TaskTimeInfo& info = m_tasks[messageId];
-    qint64 pausedElapsed = m_pausedElapsedSec.value(messageId, 0);
     qint64 now = QDateTime::currentMSecsSinceEpoch();
-    // 新的开始时间 = 当前时间 - 暂停时的已用时间
-    info.processingStartTime = now - (pausedElapsed * 1000);
+    
+    // 累积本次暂停时间
+    if (info.lastPauseStartMs > 0) {
+        info.totalPausedMs += (now - info.lastPauseStartMs);
+        info.lastPauseStartMs = 0;
+    }
     
     m_pausedTasks.remove(messageId);
-    m_pausedElapsedSec.remove(messageId);
     
     // 同步到 TaskTimeEstimator
     TaskTimeEstimator::instance()->resumeTracking(messageId);
-
+    
+    // 同步累积暂停时间到 MessageModel
     if (m_messageModel) {
-        m_messageModel->updateProcessingStartTime(messageId, info.processingStartTime);
-        m_messageModel->updateTimeInfo(messageId, pausedElapsed, qMax<qint64>(0, info.predictedTotalSec - pausedElapsed), false);
+        m_messageModel->updateTotalPausedMs(messageId, info.totalPausedMs);
+        m_messageModel->updateTimeInfo(messageId, info.elapsedSec, qMax<qint64>(0, info.predictedTotalSec - info.elapsedSec), false);
     }
 }
 

@@ -408,7 +408,7 @@ double TaskTimeEstimator::estimateAITime(const QString& modelId, bool useGpu,
 
 // ========== 功能3：动态时间跟踪与修正 ==========
 
-void TaskTimeEstimator::startTracking(const QString& taskId, double initialPredictedSec)
+void TaskTimeEstimator::startTracking(const QString& taskId, double initialPredictedSec, qint64 startTimeMs)
 {
     QMutexLocker locker(&m_mutex);
     
@@ -423,7 +423,7 @@ void TaskTimeEstimator::startTracking(const QString& taskId, double initialPredi
     tracker.currentPredictedSec = initialPredictedSec;
     tracker.elapsedSec = 0.0;
     tracker.progress = 0.0;
-    tracker.startTimeMs = QDateTime::currentMSecsSinceEpoch();
+    tracker.startTimeMs = (startTimeMs > 0) ? startTimeMs : QDateTime::currentMSecsSinceEpoch();
     tracker.pausedTimeMs = 0;
     tracker.lastPauseStartMs = 0;
     tracker.isPaused = false;

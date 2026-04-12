@@ -166,8 +166,9 @@ public:
      * @brief 开始跟踪任务时间
      * @param taskId 任务ID（通常是 messageId）
      * @param initialPredictedSec 初始预测时间（秒）
+     * @param startTimeMs 开始时间戳（毫秒），0表示使用当前时间
      */
-    void startTracking(const QString& taskId, double initialPredictedSec);
+    void startTracking(const QString& taskId, double initialPredictedSec, qint64 startTimeMs = 0);
 
     /**
      * @brief 更新任务进度并动态修正预测时间

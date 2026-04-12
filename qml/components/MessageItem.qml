@@ -67,23 +67,18 @@ Rectangle {
         return Math.min(99, Math.max(0, progressPct))
     }
 
-    // 当所有文件处理完成后，计算实际总耗时并持久化
+    // 当所有文件处理完成后，从持久化值恢复实际总耗时
+    // 注：实际总耗时由 C++ ProcessingTimeManager 计算并持久化，QML 仅读取显示
     onAllFilesSettledChanged: {
-        // 【修复】只有在真正开始处理过（有处理开始时间）且所有文件都已结算时才计算总耗时
-        // 避免在任务还未开始时就显示总耗时
-        if (allFilesSettled && _actualTotalSec === 0 && _hasStartedProcessing) {
-            // 仅作为临时显示值，最终以 C++ 持久化值为准
-            var totalSec = elapsedSec > 0 ? elapsedSec : persistedActualTotalSec
-            if (totalSec > 0) {
-                _actualTotalSec = totalSec
-            }
+        if (allFilesSettled && _actualTotalSec === 0 && persistedActualTotalSec > 0) {
+            _actualTotalSec = persistedActualTotalSec
         }
     }
 
-    // 从持久化值恢复实际总耗时（用于重新打开应用时显示）
+    // 从持久化值恢复实际总耗时（用于重新打开应用或切换会话时显示）
+    // C++ 是总耗时的单一真源，始终使用持久化值
     onPersistedActualTotalSecChanged: {
-        // C++ 是总耗时单一真源，允许覆盖早到的临时值（例如完成瞬间的低估值）
-        if (persistedActualTotalSec > 0 && persistedActualTotalSec !== _actualTotalSec) {
+        if (persistedActualTotalSec > 0) {
             _actualTotalSec = persistedActualTotalSec
         }
     }

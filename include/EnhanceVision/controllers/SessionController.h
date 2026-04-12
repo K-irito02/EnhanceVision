@@ -94,6 +94,15 @@ public:
     Message messageInSession(const QString& sessionId, const QString& messageId) const;
     QString sessionIdForMessage(const QString& messageId) const;
     bool updateMessageInSession(const QString& sessionId, const Message& message);
+    
+    /**
+     * @brief 跨会话更新消息的实际总耗时
+     * @param messageId 消息ID
+     * @param actualTotalSec 实际总耗时（秒）
+     * @return 是否更新成功
+     */
+    bool updateMessageActualTotalSec(const QString& messageId, qint64 actualTotalSec);
+    
     void rebuildSessionMessageIndex();
     
     /**

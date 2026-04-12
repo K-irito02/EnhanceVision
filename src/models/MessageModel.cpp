@@ -156,6 +156,8 @@ QVariant MessageModel::data(const QModelIndex &index, int role) const
         return message.remainingSec;
     case IsOvertimeRole:
         return message.isOvertime;
+    case TotalPausedMsRole:
+        return message.totalPausedMs;
     case FailedTipDismissedRole:
         return message.failedTipDismissed;
     case ErrorTipDismissedRole:
@@ -190,6 +192,7 @@ QHash<int, QByteArray> MessageModel::roleNames() const
     roles[ElapsedSecRole] = "elapsedSec";
     roles[RemainingSecRole] = "remainingSec";
     roles[IsOvertimeRole] = "isOvertime";
+    roles[TotalPausedMsRole] = "totalPausedMs";
     roles[FailedTipDismissedRole] = "failedTipDismissed";
     roles[ErrorTipDismissedRole] = "errorTipDismissed";
     return roles;
@@ -340,6 +343,18 @@ void MessageModel::updatePredictedTotalSec(const QString &messageId, qint64 pred
     m_messages[index].predictedTotalSec = predictedTotalSec;
     QModelIndex modelIndex = createIndex(index, 0);
     emit dataChanged(modelIndex, modelIndex, {PredictedTotalSecRole});
+}
+
+void MessageModel::updateTotalPausedMs(const QString &messageId, qint64 totalPausedMs)
+{
+    int index = findMessageIndex(messageId);
+    if (index < 0) {
+        return;
+    }
+
+    m_messages[index].totalPausedMs = totalPausedMs;
+    QModelIndex modelIndex = createIndex(index, 0);
+    emit dataChanged(modelIndex, modelIndex, {TotalPausedMsRole});
 }
 
 void MessageModel::updateTipDismissState(const QString &messageId, bool failedDismissed, bool errorDismissed)

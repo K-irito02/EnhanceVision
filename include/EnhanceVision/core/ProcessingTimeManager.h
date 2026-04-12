@@ -18,6 +18,7 @@ namespace EnhanceVision {
 
 class MessageModel;
 class TaskTimeEstimator;
+class SessionController;
 
 /**
  * @brief 任务时间信息结构
@@ -28,6 +29,8 @@ struct TaskTimeInfo {
     qint64 predictedTotalSec;    ///< 预测总时间（秒）
     qint64 elapsedSec;           ///< 已用时间（秒）
     qint64 remainingSec;         ///< 剩余时间（秒）
+    qint64 totalPausedMs;        ///< 累积暂停时间（毫秒）
+    qint64 lastPauseStartMs;     ///< 最后一次暂停开始时间（毫秒）
     bool isOvertime;             ///< 是否超时
 
     TaskTimeInfo()
@@ -35,6 +38,8 @@ struct TaskTimeInfo {
         , predictedTotalSec(0)
         , elapsedSec(0)
         , remainingSec(0)
+        , totalPausedMs(0)
+        , lastPauseStartMs(0)
         , isOvertime(false)
     {}
 };
@@ -58,6 +63,12 @@ public:
      * @param model 消息模型
      */
     void setMessageModel(MessageModel* model);
+
+    /**
+     * @brief 设置会话控制器引用
+     * @param controller 会话控制器
+     */
+    void setSessionController(SessionController* controller);
 
     /**
      * @brief 注册任务开始处理
@@ -144,10 +155,10 @@ private slots:
 
 private:
     MessageModel* m_messageModel = nullptr;
+    SessionController* m_sessionController = nullptr;
     QTimer* m_updateTimer = nullptr;
     QHash<QString, TaskTimeInfo> m_tasks;
     QSet<QString> m_pausedTasks;  ///< 暂停的任务ID集合
-    QHash<QString, qint64> m_pausedElapsedSec;  ///< 暂停时的已用时间
 };
 
 } // namespace EnhanceVision
