@@ -2876,8 +2876,8 @@ Do you want to replace it?</source>
         <location filename="../../build/msvc2022/Release/EnhanceVision/qml/pages/MainPage.qml" line="165"/>
         <location filename="../../qml/pages/MainPage.qml" line="165"/>
         <location filename="../../qml/pages/MainPage.qml" line="165"/>
-        <source>添加文件并选择处理模式来开始</source>
-        <translation>添加文件并选择处理模式来开始</translation>
+        <source>添加文件并选择处理模式来开始-支持拖拽添加</source>
+        <translation>添加文件并选择处理模式来开始-支持拖拽添加</translation>
     </message>
     <message>
         <location filename="../../build/msvc2022/Debug/EnhanceVision/qml/pages/MainPage.qml" line="192"/>
@@ -3686,8 +3686,8 @@ Do you want to replace it?</source>
         <location filename="../../build/msvc2022/Release/EnhanceVision/qml/components/MessageList.qml" line="465"/>
         <location filename="../../qml/components/MessageList.qml" line="465"/>
         <location filename="../../qml/components/MessageList.qml" line="465"/>
-        <source>添加文件并选择处理模式来开始</source>
-        <translation>添加文件并选择处理模式来开始</translation>
+        <source>添加文件并选择处理模式来开始-支持拖拽添加</source>
+        <translation>添加文件并选择处理模式来开始-支持拖拽添加</translation>
     </message>
 </context>
 <context>

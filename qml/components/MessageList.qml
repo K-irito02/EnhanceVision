@@ -459,7 +459,7 @@ Item {
 
                 Text {
                     Layout.alignment: Qt.AlignHCenter
-                    text: qsTr("添加文件并选择处理模式来开始")
+                    text: qsTr("添加文件并选择处理模式来开始-支持拖拽添加")
                     color: Theme.colors.mutedForeground
                     font.pixelSize: 14
                 }
