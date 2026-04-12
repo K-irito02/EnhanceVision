@@ -45,7 +45,8 @@
 
 1. **资源统一使用 QRC / Provider**
 2. **用户可见文本必须 `qsTr()`**
-3. **图标使用 `Theme.icon()` + `ColoredIcon`**
+3. **Theme SVG 图标必须统一走 `Theme.icon()` + `ColoredIcon`**：禁止在业务页面里直接拼接图标路径或重复注册同一套 SVG 资源
+4. **位图/品牌 Logo 仍然使用 `Image`**：应用 Logo、固定颜色图片、非主题着色资源不要混入 `ColoredIcon`
 
 ## 性能规范
 

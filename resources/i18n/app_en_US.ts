@@ -5453,8 +5453,8 @@ This operation will:
     <message>
         <location filename="../../build/msvc2022/Debug/EnhanceVision/qml/pages/SettingsPage.qml" line="1156"/>
         <location filename="../../build/msvc2022/EnhanceVision/qml/pages/SettingsPage.qml" line="1156"/>
-        <source>暂停后可手动选择处理哪些消息</source>
-        <translation type="unfinished"></translation>
+        <source>暂停后可手动选择处理消息的顺序</source>
+        <translation>Manual message processing order after pausing</translation>
     </message>
     <message>
         <location filename="../../build/msvc2022/Debug/EnhanceVision/qml/pages/SettingsPage.qml" line="1409"/>

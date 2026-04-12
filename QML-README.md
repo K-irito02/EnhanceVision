@@ -36,24 +36,43 @@ qml/
 │   ├── MainPage.qml        # 主页面
 │   └── SettingsPage.qml    # 设置页面
 ├── components/             # 组件（可复用的 UI 块）
+│   ├── mediaViewer/        # 媒体查看器共享内核
+│   │   ├── MediaThumbnailAdapter.qml    # 缩略图适配器
+│   │   ├── MediaThumbnailContextMenu.qml # 缩略图上下文菜单
+│   │   ├── MediaThumbnailDelegate.qml   # 缩略图委托
+│   │   ├── MediaViewerCanvas.qml        # 查看器画布
+│   │   ├── MediaViewerControls.qml      # 查看器控制栏
+│   │   ├── MediaViewerHelpers.js        # 辅助函数
+│   │   ├── MediaViewerShell.qml         # 查看器外壳
+│   │   └── MediaViewerThumbnailBar.qml  # 缩略图栏
 │   ├── Sidebar.qml         # 侧边栏
 │   ├── TitleBar.qml        # 标题栏
 │   ├── FileList.qml        # 文件列表
 │   ├── PreviewPane.qml     # 预览面板
 │   ├── ControlPanel.qml    # 控制面板
 │   ├── EmbeddedMediaViewer.qml  # 内嵌媒体查看器
+│   ├── MediaViewer.qml     # 媒体查看器
 │   ├── MediaViewerWindow.qml    # 独立媒体窗口
 │   ├── MinimizedWindowDock.qml  # 最小化停靠栏
+│   ├── MediaThumbnailStrip.qml  # 缩略图条
 │   ├── SessionList.qml     # 会话列表
 │   ├── SessionBatchBar.qml # 会话批量操作栏
 │   ├── MessageList.qml     # 消息列表
+│   ├── MessageItem.qml     # 消息项
 │   ├── Toast.qml           # 提示消息
 │   ├── Dialog.qml          # 对话框
+│   ├── DialogTitleBar.qml  # 对话框标题栏
+│   ├── Card.qml            # 卡片组件
 │   ├── FullShaderEffect.qml     # 完整 Shader 效果
+│   ├── MultiPassShaderEffect.qml # 多通道 Shader 效果
+│   ├── SeparableBlurEffect.qml  # 可分离模糊效果
 │   ├── OffscreenShaderRenderer.qml # 离屏渲染器
 │   ├── ShaderParamsPanel.qml    # Shader 参数面板
 │   ├── AIModelPanel.qml    # AI 模型面板
-│   └── AIParamsPanel.qml   # AI 参数面板
+│   ├── AIParamsPanel.qml   # AI 参数面板
+│   ├── ThumbnailStatusImage.qml # 缩略图状态图像
+│   ├── VideoControlBar.qml # 视频控制栏
+│   └── VideoPlaybackController.qml # 视频播放控制器
 ├── controls/               # 控件（基础交互元素）
 │   ├── IconButton.qml      # 图标按钮
 │   ├── Button.qml          # 按钮
@@ -62,6 +81,7 @@ qml/
 │   ├── TextField.qml       # 文本框
 │   ├── Switch.qml          # 开关
 │   ├── Tooltip.qml         # 工具提示
+│   ├── RichTooltip.qml     # 富文本工具提示
 │   ├── ColoredIcon.qml     # 彩色图标
 │   ├── ParamGroup.qml      # 参数组
 │   └── ParamSlider.qml     # 参数滑块
@@ -77,6 +97,9 @@ qml/
 │   ├── Shadows.qml
 │   ├── Hue.qml
 │   └── Vignette.qml
+├── stores/                 # 状态存储
+│   ├── AIModelConfigStore.qml # AI 模型配置存储
+│   └── qmldir              # QML 模块定义
 ├── styles/                 # 样式定义
 │   ├── Theme.qml           # 主题单例
 │   ├── Colors.qml          # 颜色定义
@@ -84,8 +107,17 @@ qml/
 │   └── qmldir              # QML 模块定义
 └── utils/                  # QML 工具
     ├── Helpers.js          # JS 辅助函数
-    └── NotificationManager.qml # 通知管理器
+    ├── NotificationManager.qml # 通知管理器
+    ├── ResponsiveUtils.qml # 响应式工具
+    ├── ShortcutManager.qml # 快捷键管理器
+    └── qmldir              # QML 模块定义
 ```
+
+## 资源与窗口约定
+
+- 主题 SVG 图标统一通过 `Theme.icon()` 获取，并由 `ColoredIcon` 完成主题着色和兜底
+- 位图、品牌 Logo、固定颜色图片继续使用 `Image`，不要混入主题图标链路
+- 重启后需要恢复的窗口几何、最大化状态和面板布局由 C++ 的 UI 状态控制器统一管理，QML 只负责消费结果
 
 ## 组件分类
 
@@ -106,8 +138,29 @@ qml/
 | `PreviewPane.qml` | 预览面板，显示当前选中文件 |
 | `ControlPanel.qml` | 控制面板，Shader 参数、AI 模型选择 |
 | `EmbeddedMediaViewer.qml` | 内嵌媒体查看器，支持全屏、拖拽脱离 |
+| `MediaViewer.qml` | 媒体查看器主组件 |
+| `MediaViewerWindow.qml` | 独立媒体窗口 |
 | `FullShaderEffect.qml` | 完整 Shader 效果，14 种参数 |
+| `MultiPassShaderEffect.qml` | 多通道 Shader 效果 |
 | `OffscreenShaderRenderer.qml` | 离屏渲染器，用于 GPU 导出 |
+| `SessionList.qml` | 会话列表，支持固定、重排序 |
+| `SessionBatchBar.qml` | 会话批量操作栏 |
+| `MessageList.qml` | 消息列表，显示处理状态 |
+| `MessageItem.qml` | 消息项，显示单个处理任务 |
+| `Dialog.qml` | 对话框组件 |
+| `Toast.qml` | 提示消息组件 |
+
+### mediaViewer 子组件
+
+| 组件 | 说明 |
+|------|------|
+| `MediaViewerCanvas.qml` | 媒体查看器画布，渲染媒体内容 |
+| `MediaViewerControls.qml` | 播放控制栏，播放/暂停、进度条 |
+| `MediaViewerThumbnailBar.qml` | 缩略图栏，显示视频帧缩略图 |
+| `MediaThumbnailAdapter.qml` | 缩略图适配器 |
+| `MediaThumbnailDelegate.qml` | 缩略图委托组件 |
+| `MediaThumbnailContextMenu.qml` | 缩略图右键菜单 |
+| `MediaViewerShell.qml` | 查看器外壳，包装核心功能 |
 
 ### Controls（控件）
 
@@ -120,7 +173,10 @@ qml/
 | `TextField.qml` | 文本输入框 |
 | `Switch.qml` | 开关 |
 | `Tooltip.qml` | 工具提示 |
+| `RichTooltip.qml` | 富文本工具提示 |
 | `ColoredIcon.qml` | 彩色图标，支持主题色 |
+| `ParamGroup.qml` | 参数组，分组显示相关参数 |
+| `ParamSlider.qml` | 参数滑块，带标签和数值显示 |
 
 ## 开发指南
 

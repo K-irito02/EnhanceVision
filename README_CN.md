@@ -13,10 +13,9 @@
 | **Shader 模式** | Qt RHI / GLSL | 14 种实时参数调整（曝光、亮度、对比度、饱和度、色相、伽马、色温、色调、高光、阴影、晕影、模糊、降噪、锐化） |
 | **AI 推理模式** | NCNN + Vulkan | Real-ESRGAN 超分辨率增强（4x） |
 
-### 并发调度系统
+### 任务管理
 
-- 多级优先级任务队列（Critical/High/Normal/Low）
-- AI 引擎池支持 2 个并发推理任务
+- 任务状态跟踪与协调
 - 死锁检测与自动恢复机制
 - 任务超时监控与重试策略
 - **增强的Vulkan同步机制**：确保GPU操作完全同步，防止崩溃
@@ -35,12 +34,14 @@
 - Qt Quick (QML) 声明式 UI
 - 深色/浅色主题
 - 中英双语
+- 主窗口几何状态通过统一的 UI 状态持久化在重启后恢复
 - 会话式工作流，支持固定、重排序、批量文件处理
 - 内嵌式媒体查看器，支持全屏、拖拽脱离、智能吸附
 - 媒体查看器共享内核（`qml/components/mediaViewer/`）：统一画布、控制栏、缩略图适配与上下文菜单
 - 查看器缩略图与消息卡片在文件陆续完成、删除与清理时保持实时同步
 - 缓存清理结果会明确展示残留文件与后续处理建议，避免模糊失败提示
 - 消息卡片运行状态统一由 C++ 派生，呼吸蓝框仅在真实处理中触发，避免暂停/完成后的动画残留
+- Theme SVG 图标统一通过 `Theme.icon()` 和 `ColoredIcon` 管理，位图和品牌 Logo 继续使用 `Image`
 
 ## 技术栈
 
@@ -63,6 +64,9 @@ EnhanceVision/
 │   ├── app/               # 应用层
 │   ├── controllers/       # 控制器层
 │   ├── core/              # 核心引擎
+│   │   ├── ai/           # AI 推理服务
+│   │   ├── inference/    # 推理后端
+│   │   └── video/        # 视频处理
 │   ├── models/            # QML 数据模型
 │   ├── providers/         # QML 图像提供者
 │   ├── services/          # 服务层
@@ -74,12 +78,12 @@ EnhanceVision/
 │   │   └── mediaViewer/  # 媒体查看器共享内核组件
 │   ├── controls/         # 自定义控件
 │   ├── shaders/          # ShaderEffect 封装
+│   ├── stores/           # 状态存储
 │   ├── utils/            # QML 工具与单例
 │   └── styles/           # 样式定义
 ├── resources/            # Qt 资源
 │   ├── shaders/          # GLSL Shader
 │   ├── icons/            # SVG 图标
-│   ├── models/           # AI 模型
 │   └── i18n/             # 翻译文件
 ├── tests/                # 测试
 ├── docs/                 # 文档

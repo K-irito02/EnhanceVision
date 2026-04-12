@@ -42,6 +42,9 @@ QtObject {
     readonly property var typography: Typography
 
     // ========== 图标路径辅助 ==========
+    readonly property string iconBasePath: "qrc:/qt/qml/EnhanceVision/resources/icons/"
+    readonly property string iconFallbackName: "help-circle"
+
     /**
      * @brief 获取图标资源路径
      * 统一使用单套 SVG 图标资源，配合 ColoredIcon 组件动态着色
@@ -50,7 +53,10 @@ QtObject {
      * @return 图标 URL
      */
     function icon(name) {
-        return "qrc:/qt/qml/EnhanceVision/resources/icons/" + name + ".svg"
+        if (!name || name === "") {
+            return ""
+        }
+        return iconBasePath + name + ".svg"
     }
     
     /**

@@ -48,24 +48,22 @@ namespace {
     void messageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
     {
         Q_UNUSED(context)
-        
+
+        if (type == QtDebugMsg || type == QtInfoMsg) {
+            return;
+        }
+
         if (!logFile || !logFile->isOpen()) {
             return;
         }
-        
+
         QTextStream out(logFile);
         out.setEncoding(QStringConverter::Utf8);
-        
+
         QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz");
         QString typeStr;
-        
+
         switch (type) {
-        case QtDebugMsg:
-            typeStr = "DEBUG";
-            break;
-        case QtInfoMsg:
-            typeStr = "INFO";
-            break;
         case QtWarningMsg:
             typeStr = "WARN";
             break;
@@ -75,12 +73,14 @@ namespace {
         case QtFatalMsg:
             typeStr = "FATAL";
             break;
+        default:
+            typeStr = "MSG";
+            break;
         }
-        
+
         out << QString("[%1] [%2] %3\n").arg(timestamp, typeStr, msg);
         out.flush();
-        
-        // 同时输出到控制台
+
         fprintf(stderr, "[%s] [%s] %s\n", 
                 timestamp.toLocal8Bit().constData(),
                 typeStr.toLocal8Bit().constData(),
@@ -192,15 +192,9 @@ int main(int argc, char *argv[])
     
     if (logFile->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         qInstallMessageHandler(messageHandler);
-        qInfo() << "Log file created:" << logFilePath;
     } else {
         qWarning() << "Failed to create log file:" << logFilePath;
     }
-
-    qInfo() << "========================================";
-    qInfo() << "EnhanceVision starting...";
-    qInfo() << "Qt version:" << qVersion();
-    qInfo() << "========================================";
 
     EnhanceVision::Application application;
     application.initialize();
@@ -209,7 +203,6 @@ int main(int argc, char *argv[])
     int result = app.exec();
     
     // 清理日志
-    qInfo() << "EnhanceVision exiting with code:" << result;
     if (logFile) {
         logFile->close();
         delete logFile;

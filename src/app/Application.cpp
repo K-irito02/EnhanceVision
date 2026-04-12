@@ -33,11 +33,13 @@
 #include <QQuickWindow>
 #include <QWindow>
 #include <QEvent>
+#include <QWidget>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QVector>
 #include <QPointer>
 #include <QTimer>
+#include <QScreen>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -46,6 +48,11 @@
 namespace EnhanceVision {
 
 namespace {
+
+constexpr auto kMainWindowLayoutKey = "main";
+constexpr int kDefaultMainWindowWidth = 1280;
+constexpr int kDefaultMainWindowHeight = 720;
+constexpr int kMinVisibleInset = 80;
 
 bool isEnglishLanguage(const QString& language)
 {
@@ -212,10 +219,17 @@ Application::Application(QObject *parent)
     , m_imageExportService(ImageExportService::instance())
 {
     m_fileController->setFileModel(m_fileModel.get());
+
+    m_mainWindowLayoutSaveTimer = new QTimer(this);
+    m_mainWindowLayoutSaveTimer->setSingleShot(true);
+    m_mainWindowLayoutSaveTimer->setInterval(250);
+    connect(m_mainWindowLayoutSaveTimer, &QTimer::timeout,
+            this, &Application::saveMainWindowLayoutNow);
 }
 
 Application::~Application()
 {
+    saveMainWindowLayoutNow();
     if (m_taskRecoveryController) {
         m_taskRecoveryController->persistSnapshotNow();
     }
@@ -228,6 +242,7 @@ Application::~Application()
 void Application::initialize()
 {
     m_mainWidget->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
+    m_mainWidget->installEventFilter(this);
 
     QQmlEngine *engine = m_mainWidget->engine();
     engine->addImageProvider(QStringLiteral("preview"), new PreviewProvider());
@@ -289,8 +304,7 @@ void Application::initialize()
 
 void Application::show()
 {
-    m_mainWidget->resize(1280, 720);
-    m_mainWidget->show();
+    applyMainWindowLayout();
     m_mainWidget->raise();
     m_mainWidget->activateWindow();
     m_mainWindowEverShown = true;
@@ -481,6 +495,135 @@ void Application::onLanguageChanged()
     if (m_mainWidget && m_mainWidget->engine()) {
         m_mainWidget->engine()->retranslate();
     }
+}
+
+bool Application::eventFilter(QObject* watched, QEvent* event)
+{
+    if (watched == m_mainWidget && m_mainWidget) {
+        switch (event->type()) {
+        case QEvent::Move:
+        case QEvent::Resize:
+        case QEvent::WindowStateChange:
+            scheduleMainWindowLayoutSave();
+            break;
+        case QEvent::Close:
+            saveMainWindowLayoutNow();
+            break;
+        default:
+            break;
+        }
+    }
+
+    return QObject::eventFilter(watched, event);
+}
+
+QRect Application::defaultMainWindowGeometry() const
+{
+    const QScreen* screen = m_mainWidget && m_mainWidget->screen()
+        ? m_mainWidget->screen()
+        : QGuiApplication::primaryScreen();
+    const QRect available = screen ? screen->availableGeometry() : QRect(0, 0, kDefaultMainWindowWidth, kDefaultMainWindowHeight);
+
+    const int width = std::min(kDefaultMainWindowWidth, available.width());
+    const int height = std::min(kDefaultMainWindowHeight, available.height());
+    const int x = available.x() + std::max(0, (available.width() - width) / 2);
+    const int y = available.y() + std::max(0, (available.height() - height) / 2);
+    return QRect(x, y, width, height);
+}
+
+QRect Application::sanitizeMainWindowGeometry(const QRect& geometry) const
+{
+    if (!geometry.isValid() || geometry.width() <= 0 || geometry.height() <= 0) {
+        return defaultMainWindowGeometry();
+    }
+
+    const QList<QScreen*> screens = QGuiApplication::screens();
+    if (screens.isEmpty()) {
+        return geometry;
+    }
+
+    QScreen* targetScreen = nullptr;
+    for (QScreen* screen : screens) {
+        if (screen->availableGeometry().intersects(geometry)) {
+            targetScreen = screen;
+            break;
+        }
+    }
+
+    if (!targetScreen) {
+        targetScreen = m_mainWidget && m_mainWidget->screen()
+            ? m_mainWidget->screen()
+            : QGuiApplication::primaryScreen();
+    }
+
+    if (!targetScreen) {
+        return geometry;
+    }
+
+    const QRect available = targetScreen->availableGeometry();
+    const int width = std::min(geometry.width(), available.width());
+    const int height = std::min(geometry.height(), available.height());
+    const int insetX = std::min(kMinVisibleInset, std::max(0, width / 2));
+    const int insetY = std::min(kMinVisibleInset, std::max(0, height / 2));
+    const int minX = available.left() - width + insetX;
+    const int maxX = available.right() - insetX + 1;
+    const int minY = available.top();
+    const int maxY = available.bottom() - insetY + 1;
+    const int x = std::clamp(geometry.x(), minX, maxX);
+    const int y = std::clamp(geometry.y(), minY, maxY);
+    return QRect(x, y, width, height);
+}
+
+void Application::applyMainWindowLayout()
+{
+    const auto* uiStateController = UIStateController::instance();
+    const QString layoutKey = QString::fromLatin1(kMainWindowLayoutKey);
+    QRect targetGeometry = defaultMainWindowGeometry();
+    bool openMaximized = false;
+
+    if (uiStateController->hasWindowLayout(layoutKey)) {
+        const auto layout = uiStateController->windowLayout(layoutKey);
+        if (layout.isValid()) {
+            targetGeometry = sanitizeMainWindowGeometry(layout.normalGeometry);
+            openMaximized = layout.maximized;
+        }
+    }
+
+    m_mainWidget->setGeometry(targetGeometry);
+    if (openMaximized) {
+        m_mainWidget->showMaximized();
+    } else {
+        m_mainWidget->show();
+    }
+}
+
+void Application::scheduleMainWindowLayoutSave()
+{
+    if (!m_mainWidget || !m_mainWindowEverShown || m_mainWidget->isMinimized()) {
+        return;
+    }
+
+    if (m_mainWindowLayoutSaveTimer) {
+        m_mainWindowLayoutSaveTimer->start();
+    }
+}
+
+void Application::saveMainWindowLayoutNow()
+{
+    if (!m_mainWidget || !m_mainWindowEverShown) {
+        return;
+    }
+
+    const bool maximized = m_mainWidget->isMaximized();
+    const QRect normalGeometry = maximized ? m_mainWidget->normalGeometry() : m_mainWidget->geometry();
+    if (!normalGeometry.isValid() || normalGeometry.width() <= 0 || normalGeometry.height() <= 0) {
+        return;
+    }
+
+    UIStateController::instance()->setWindowLayout(
+        QString::fromLatin1(kMainWindowLayoutKey),
+        normalGeometry,
+        maximized);
 }
 
 } // namespace EnhanceVision

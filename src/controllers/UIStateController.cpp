@@ -9,6 +9,7 @@
 #include <QDir>
 #include <QFile>
 #include <QJsonDocument>
+#include <QJsonValue>
 #include <QDebug>
 
 namespace EnhanceVision {
@@ -262,6 +263,41 @@ void UIStateController::setAIAutoTileMode(bool autoMode)
     } 
 }
 
+bool UIStateController::hasWindowLayout(const QString& key) const
+{
+    const auto it = m_windowLayouts.constFind(key);
+    return it != m_windowLayouts.constEnd() && it->isValid();
+}
+
+UIStateController::WindowLayout UIStateController::windowLayout(const QString& key) const
+{
+    const auto it = m_windowLayouts.constFind(key);
+    if (it == m_windowLayouts.constEnd()) {
+        return {};
+    }
+    return it.value();
+}
+
+void UIStateController::setWindowLayout(const QString& key, const QRect& normalGeometry, bool maximized)
+{
+    if (key.isEmpty() || !normalGeometry.isValid() || normalGeometry.width() <= 0 || normalGeometry.height() <= 0) {
+        return;
+    }
+
+    WindowLayout nextLayout;
+    nextLayout.normalGeometry = normalGeometry;
+    nextLayout.maximized = maximized;
+
+    const auto current = m_windowLayouts.value(key);
+    if (current.normalGeometry == nextLayout.normalGeometry && current.maximized == nextLayout.maximized) {
+        return;
+    }
+
+    m_windowLayouts.insert(key, nextLayout);
+    emit windowLayoutChanged(key);
+    saveState();
+}
+
 // ========== 自定义预设和类别 ==========
 
 QJsonArray UIStateController::getCustomCategories() const
@@ -353,6 +389,8 @@ void UIStateController::saveState()
     aiParams["autoTileMode"] = m_aiAutoTileMode;
     aiParams["modelParams"] = QJsonObject::fromVariantMap(m_aiModelParams);
     root["aiParams"] = aiParams;
+
+    saveWindowLayouts(root);
     
     // 写入文件
     QString filePath = getStateFilePath();
@@ -442,8 +480,58 @@ void UIStateController::loadState()
         m_aiAutoTileMode = aiParams["autoTileMode"].toBool(true);
         m_aiModelParams = aiParams["modelParams"].toObject().toVariantMap();
     }
+
+    loadWindowLayouts(root);
     
     qInfo() << "[UIStateController] State loaded from:" << filePath;
+}
+
+void UIStateController::loadWindowLayouts(const QJsonObject& root)
+{
+    m_windowLayouts.clear();
+
+    const QJsonObject windows = root.value("windows").toObject();
+    for (auto it = windows.begin(); it != windows.end(); ++it) {
+        const QJsonObject layoutObject = it->toObject();
+        const QJsonObject geometryObject = layoutObject.value("normalGeometry").toObject();
+
+        const QRect geometry(
+            geometryObject.value("x").toInt(),
+            geometryObject.value("y").toInt(),
+            geometryObject.value("width").toInt(),
+            geometryObject.value("height").toInt());
+
+        WindowLayout layout;
+        layout.normalGeometry = geometry;
+        layout.maximized = layoutObject.value("maximized").toBool(false);
+
+        if (layout.isValid()) {
+            m_windowLayouts.insert(it.key(), layout);
+        }
+    }
+}
+
+void UIStateController::saveWindowLayouts(QJsonObject& root) const
+{
+    QJsonObject windows;
+    for (auto it = m_windowLayouts.constBegin(); it != m_windowLayouts.constEnd(); ++it) {
+        if (!it->isValid()) {
+            continue;
+        }
+
+        QJsonObject geometryObject;
+        geometryObject["x"] = it->normalGeometry.x();
+        geometryObject["y"] = it->normalGeometry.y();
+        geometryObject["width"] = it->normalGeometry.width();
+        geometryObject["height"] = it->normalGeometry.height();
+
+        QJsonObject layoutObject;
+        layoutObject["normalGeometry"] = geometryObject;
+        layoutObject["maximized"] = it->maximized;
+        windows[it.key()] = layoutObject;
+    }
+
+    root["windows"] = windows;
 }
 
 } // namespace EnhanceVision

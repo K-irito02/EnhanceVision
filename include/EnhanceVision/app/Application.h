@@ -12,7 +12,9 @@
 #include <QTranslator>
 #include <QSharedPointer>
 #include <QPointer>
+#include <QRect>
 #include <QString>
+#include <QTimer>
 #include <memory>
 
 namespace EnhanceVision {
@@ -55,6 +57,12 @@ private:
     bool switchTranslator(const QString& language);
 
     void setupLifecycleGuard();
+    bool eventFilter(QObject* watched, QEvent* event) override;
+    QRect defaultMainWindowGeometry() const;
+    QRect sanitizeMainWindowGeometry(const QRect& geometry) const;
+    void applyMainWindowLayout();
+    void scheduleMainWindowLayoutSave();
+    void saveMainWindowLayoutNow();
 
     QQuickWidget *m_mainWidget;
     std::unique_ptr<FileModel> m_fileModel;
@@ -68,6 +76,7 @@ private:
     ImageExportService *m_imageExportService;
     QSharedPointer<QTranslator> m_translator;
     QSharedPointer<QTranslator> m_qtTranslator;
+    QTimer* m_mainWindowLayoutSaveTimer = nullptr;
 
     LifecycleSupervisor* m_lifecycleSupervisor = nullptr;
     bool m_mainWindowEverShown = false;

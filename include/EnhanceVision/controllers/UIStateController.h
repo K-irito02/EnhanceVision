@@ -10,6 +10,8 @@
 #include <QObject>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QHash>
+#include <QRect>
 #include <QString>
 #include <QVariantMap>
 
@@ -62,6 +64,16 @@ class UIStateController : public QObject
     Q_PROPERTY(bool aiAutoTileMode READ aiAutoTileMode WRITE setAIAutoTileMode NOTIFY aiAutoTileModeChanged)
 
 public:
+    struct WindowLayout {
+        QRect normalGeometry;
+        bool maximized = false;
+
+        [[nodiscard]] bool isValid() const
+        {
+            return normalGeometry.isValid() && normalGeometry.width() > 0 && normalGeometry.height() > 0;
+        }
+    };
+
     static UIStateController* instance();
     static void destroyInstance();
 
@@ -159,6 +171,11 @@ public:
     Q_INVOKABLE void saveState();
     Q_INVOKABLE void loadState();
 
+    // ========== 通用窗口布局 ==========
+    [[nodiscard]] bool hasWindowLayout(const QString& key) const;
+    [[nodiscard]] WindowLayout windowLayout(const QString& key) const;
+    void setWindowLayout(const QString& key, const QRect& normalGeometry, bool maximized);
+
 signals:
     void sidebarExpandedChanged();
     void sidebarWidthChanged();
@@ -175,6 +192,7 @@ signals:
     void customCategoriesChanged();
     void customPresetsChanged();
     void aiModelParamsChanged();
+    void windowLayoutChanged(const QString& key);
 
 private:
     explicit UIStateController(QObject* parent = nullptr);
@@ -185,6 +203,8 @@ private:
 
     QString getStateFilePath() const;
     void ensureStateDirectoryExists();
+    void loadWindowLayouts(const QJsonObject& root);
+    void saveWindowLayouts(QJsonObject& root) const;
 
     static UIStateController* s_instance;
 
@@ -225,6 +245,9 @@ private:
     // ========== 自定义预设和类别 ==========
     QJsonArray m_customCategories;
     QJsonArray m_customPresets;
+
+    // ========== 通用窗口布局 ==========
+    QHash<QString, WindowLayout> m_windowLayouts;
 };
 
 } // namespace EnhanceVision

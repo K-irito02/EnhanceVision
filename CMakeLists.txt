@@ -354,6 +354,12 @@ qt_add_translations(EnhanceVision
     LRELEASE_OPTIONS -compress
 )
 
+# Theme SVG 图标统一由 QML 模块资源管理，避免 qml.qrc 与 QML 模块双重注册。
+file(GLOB ENHANCEVISION_THEME_ICON_RESOURCES CONFIGURE_DEPENDS
+    RELATIVE "${CMAKE_SOURCE_DIR}"
+    "${CMAKE_SOURCE_DIR}/resources/icons/*.svg"
+)
+
 # QML 模块
 qt_add_qml_module(EnhanceVision
     URI EnhanceVision
@@ -431,83 +437,7 @@ qt_add_qml_module(EnhanceVision
         qml/styles/qmldir
         qml/utils/qmldir
         qml/stores/qmldir
-        resources/icons/home.svg
-        resources/icons/settings.svg
-        resources/icons/folder.svg
-        resources/icons/play.svg
-        resources/icons/pause.svg
-        resources/icons/upload.svg
-        resources/icons/download.svg
-        resources/icons/refresh.svg
-        resources/icons/trash.svg
-        resources/icons/image.svg
-        resources/icons/video.svg
-        resources/icons/chevron-left.svg
-        resources/icons/chevron-right.svg
-        resources/icons/check.svg
-        resources/icons/x.svg
-        resources/icons/sun.svg
-        resources/icons/moon.svg
-        resources/icons/plus.svg
-        resources/icons/panel-left.svg
-        resources/icons/globe.svg
-        resources/icons/minus.svg
-        resources/icons/square.svg
-        resources/icons/copy.svg
-        resources/icons/arrow-left.svg
-        resources/icons/pencil.svg
-        resources/icons/save.svg
-        resources/icons/x-circle.svg
-        resources/icons/zap.svg
-        resources/icons/sliders.svg
-        resources/icons/rotate-ccw.svg
-        resources/icons/send.svg
-        resources/icons/eye.svg
-        resources/icons/eye-off.svg
-        resources/icons/info.svg
-        resources/icons/alert-triangle.svg
-        resources/icons/check-circle.svg
-        resources/icons/message-square.svg
-        resources/icons/list.svg
-        resources/icons/sparkles.svg
-        resources/icons/file-plus.svg
-        resources/icons/folder-plus.svg
-        resources/icons/loader.svg
-        resources/icons/layout-grid.svg
-        resources/icons/monitor.svg
-        resources/icons/cpu.svg
-        resources/icons/help-circle.svg
-        resources/icons/eraser.svg
-        resources/icons/trash-2.svg
-        resources/icons/pin.svg
-        resources/icons/edit.svg
-        resources/icons/more-vertical.svg
-        resources/icons/check-square.svg
-        resources/icons/list-select.svg
-        resources/icons/chevron-down.svg
-        resources/icons/chevron-up.svg
-        resources/icons/maximize.svg
-        resources/icons/minimize-2.svg
-        resources/icons/volume-2.svg
-        resources/icons/volume-x.svg
-        resources/icons/skip-forward.svg
-        resources/icons/skip-back.svg
-        resources/icons/grid.svg
-        resources/icons/volume.svg
-        resources/icons/playback-speed.svg
-        resources/icons/playback-settings.svg
-        resources/icons/panel-right.svg
-        resources/icons/autoplay-on-open-on.svg
-        resources/icons/autoplay-on-open-off.svg
-        resources/icons/autoplay-on-switch-on.svg
-        resources/icons/autoplay-on-switch-off.svg
-        resources/icons/restore-position-on.svg
-        resources/icons/restore-position-off.svg
-        # ParamGroup 图标
-        resources/icons/adjust-basic.svg
-        resources/icons/detail-enhance.svg
-        resources/icons/light-shadow.svg
-        resources/icons/color-palette.svg
+        ${ENHANCEVISION_THEME_ICON_RESOURCES}
 )
 
 # 编译 Shader 到 QSB 格式

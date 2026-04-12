@@ -13,10 +13,9 @@ A desktop image processing and AI inference quality enhancement tool built with 
 | **Shader Mode** | Qt RHI / GLSL | 14 real-time parameter adjustments (exposure, brightness, contrast, saturation, hue, gamma, color temperature, tint, highlights, shadows, vignette, blur, denoise, sharpen) |
 | **AI Inference Mode** | NCNN + Vulkan | Real-ESRGAN super-resolution enhancement (4x) |
 
-### Concurrent Scheduling System
+### Task Management
 
-- Multi-level priority task queues (Critical/High/Normal/Low)
-- AI engine pool supporting 2 concurrent inference tasks
+- Task state tracking and coordination
 - Deadlock detection and automatic recovery mechanism
 - Task timeout monitoring and retry strategy
 - **Enhanced Vulkan synchronization**: Ensures fully synchronized GPU operations to prevent crashes
@@ -35,12 +34,14 @@ A desktop image processing and AI inference quality enhancement tool built with 
 - Qt Quick (QML) declarative UI
 - Dark/Light themes
 - Chinese/English bilingual support
+- Main window geometry is restored on restart through unified UI state persistence
 - Session-based workflow with pinning, reordering, and batch file processing
 - Embedded media viewer with fullscreen, drag-out, and smart docking support
 - Shared media viewer kernel (`qml/components/mediaViewer/`) for unified canvas, controls, thumbnail adaptation, and context menu behavior
 - Viewer thumbnails stay synchronized with message cards during incremental file completion and cleanup
 - Cache cleanup summaries show residual files and next-step guidance when disk removal is partially blocked
 - Message-card runtime state is unified in C++ derivation (including paused/recoverable), with declarative breathing-border animation that only runs during real processing
+- Theme SVG icons are centrally managed through `Theme.icon()` and `ColoredIcon`, while bitmaps and brand logos stay on `Image`
 
 ## Tech Stack
 
@@ -63,6 +64,9 @@ EnhanceVision/
 │   ├── app/               # Application layer
 │   ├── controllers/       # Controller layer
 │   ├── core/              # Core engine
+│   │   ├── ai/           # AI inference service
+│   │   ├── inference/    # Inference backends
+│   │   └── video/        # Video processing
 │   ├── models/            # QML data models
 │   ├── providers/         # QML image providers
 │   ├── services/          # Service layer
@@ -74,12 +78,12 @@ EnhanceVision/
 │   │   └── mediaViewer/  # Shared media viewer internals
 │   ├── controls/         # Custom controls
 │   ├── shaders/          # ShaderEffect wrappers
+│   ├── stores/           # State stores
 │   ├── utils/            # QML utils and singletons
 │   └── styles/           # Style definitions
 ├── resources/            # Qt resources
 │   ├── shaders/          # GLSL shaders
 │   ├── icons/            # SVG icons
-│   ├── models/           # AI models
 │   └── i18n/             # Translation files
 ├── tests/                # Tests
 ├── docs/                 # Documentation
