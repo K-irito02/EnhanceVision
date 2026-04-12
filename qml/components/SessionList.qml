@@ -470,22 +470,31 @@ Item {
                         root.isAnyEditing = false
                     }
                 }
+            }
 
-                IconButton {
-                    id: moreButton
-                    visible: root.expanded && delegateRoot.isHovered && !root.batchMode && !delegateRoot.isEditing
-                    iconName: "more-vertical"
-                    iconSize: 16
-                    btnSize: 28
-                    tooltip: qsTr("更多操作")
-                    Layout.alignment: Qt.AlignVCenter
-                    iconColor: delegateRoot.isActive ? Theme.colors.textOnPrimary : Theme.colors.icon
-                    
-                    onClicked: {
-                        contextMenu.sessionModel = model
-                        var globalPos = mapToGlobal(0, height)
-                        contextMenu.showAt(globalPos.x, globalPos.y)
-                    }
+            IconButton {
+                id: moreButton
+                visible: root.expanded && !root.batchMode && !delegateRoot.isEditing
+                opacity: delegateRoot.isHovered ? 1.0 : 0.0
+                anchors.right: parent.right
+                anchors.rightMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+                z: 10
+                iconName: "more-vertical"
+                iconSize: 16
+                btnSize: 28
+                tooltip: qsTr("更多操作")
+                iconOpacity: moreButton.hovered ? 1.0 : 0.0
+                iconColor: delegateRoot.isActive ? Theme.colors.textOnPrimary : Theme.colors.icon
+                
+                Behavior on opacity {
+                    NumberAnimation { duration: 150 }
+                }
+                
+                onClicked: {
+                    contextMenu.sessionModel = model
+                    var globalPos = mapToGlobal(0, height)
+                    contextMenu.showAt(globalPos.x, globalPos.y)
                 }
             }
 

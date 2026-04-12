@@ -8,6 +8,10 @@
 ## [Unreleased]
 
 ### Fixed
+- **会话标签更多操作按钮显示修复**：修复置顶会话标签的"更多操作"按钮在侧边栏缩放时不显示的问题
+  - 将 moreButton 从 RowLayout 移出，使用绝对定位确保按钮始终显示在固定位置
+  - 为 IconButton 组件添加 iconOpacity 属性，支持单独控制图标透明度
+  - 优化按钮显示逻辑：按钮背景在悬停会话标签时显示，图标只在悬停按钮时显示
 - 主窗口宿主迁移到原生 `QQuickWindow`，替换 `QQuickWidget + Frameless` 组合，修复 Windows 下左边缘拖拽缩放时右半区整体抖动、闪动的问题
 - 收敛主窗口生命周期链路的冗余 `qInfo()` 运行期信息日志，减少 `[INFO]` 噪声输出
 - 媒体查看器运行时告警治理：修复重构后 `MediaViewerControls/Canvas/ThumbnailBar` 的多项 QML 告警

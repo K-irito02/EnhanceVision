@@ -14,6 +14,7 @@ Button {
     property int btnSize: 32
     property bool danger: false
     property real iconRotation: 0  // 图标旋转角度
+    property real iconOpacity: 1.0  // 图标透明度
 
     width: btnSize
     height: btnSize
@@ -71,6 +72,7 @@ Button {
             source: root.iconName !== "" ? Theme.icon(root.iconName) : ""
             iconSize: root.iconSize
             rotation: root.iconRotation
+            opacity: root.iconOpacity
             color: {
                 if (root.danger && root.hovered) return Theme.colors.textOnDestructive
                 if (root.hovered) return root.iconHoverColor
@@ -79,6 +81,10 @@ Button {
 
             Behavior on color {
                 ColorAnimation { duration: Theme.animation.fast }
+            }
+            
+            Behavior on opacity {
+                NumberAnimation { duration: Theme.animation.fast }
             }
         }
 
