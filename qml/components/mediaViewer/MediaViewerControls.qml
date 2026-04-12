@@ -20,7 +20,7 @@ Rectangle {
     readonly property bool shouldCollapseSpeed: Utils.ResponsiveUtils.shouldCollapseSpeedButtons(width)
     readonly property bool shouldCollapseSettings: Utils.ResponsiveUtils.shouldCollapseSettings(width)
     readonly property bool shouldCollapseVolume: Utils.ResponsiveUtils.shouldCollapseVolumeSlider(width)
-    readonly property int displayPosition: {
+    readonly property int _playerPosition: {
         if (root.playbackController && root.playbackController._switchMode === 2 && SettingsController.videoRestorePosition) {
             return root.playbackController.frozenPosition || 0
         }
@@ -29,6 +29,8 @@ Rectangle {
         }
         return 0
     }
+
+    readonly property int displayPosition: seekSlider.pressed ? Math.round(seekSlider.value) : root._playerPosition
 
     height: 80
     color: Theme.colors.card
@@ -56,12 +58,38 @@ Rectangle {
             }
 
             Slider {
+                id: seekSlider
                 Layout.fillWidth: true
                 from: 0
                 to: root.videoPlayer && root.videoPlayer.duration > 0 ? root.videoPlayer.duration : 1
-                value: root.displayPosition
                 enabled: (!root.playbackController || !root.playbackController.isLoading) && root.videoPlayer && root.videoPlayer.duration > 0
-                onMoved: if (root.videoPlayer && (!root.playbackController || !root.playbackController.isLoading)) root.videoPlayer.position = value
+
+                property bool _wasPlaying: false
+
+                onPressedChanged: {
+                    if (!root.videoPlayer) return
+                    if (pressed) {
+                        _wasPlaying = root.videoPlayer.playbackState === MediaPlayer.PlayingState
+                        root.videoPlayer.pause()
+                    } else {
+                        if (root.playbackController && root.playbackController.isLoading) return
+                        root.videoPlayer.position = Math.round(value)
+                        if (_wasPlaying) {
+                            root.videoPlayer.play()
+                        }
+                    }
+                }
+
+                onMoved: {
+                    if (root.videoPlayer && (!root.playbackController || !root.playbackController.isLoading)) {
+                        root.videoPlayer.position = Math.round(value)
+                    }
+                }
+
+                Binding on value {
+                    value: root._playerPosition
+                    when: !seekSlider.pressed
+                }
             }
 
             Text {

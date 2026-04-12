@@ -1866,7 +1866,7 @@ Rectangle {
                                 spacing: 2
                                 Text { text: qsTr("EnhanceVision v0.1.0"); color: Theme.colors.foreground; font.pixelSize: 14; font.weight: Font.DemiBold }
                                 Text { text: qsTr("图像处理与AI推理画质增强工具"); color: Theme.colors.mutedForeground; font.pixelSize: 12 }
-                                Text { text: qsTr("Built with Qt6 + NCNN"); color: Theme.colors.mutedForeground; font.pixelSize: 11; opacity: 0.7 }
+                                Text { text: qsTr("Implemented based on technologies such as Qt6 + NCNN + Real - ESRGAN..."); color: Theme.colors.mutedForeground; font.pixelSize: 11; opacity: 0.7 }
                             }
                         }
                     }

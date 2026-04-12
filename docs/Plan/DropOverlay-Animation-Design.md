@@ -4,6 +4,8 @@
 
 当用户拖拽多媒体文件到应用窗口时，会显示一个全屏覆盖层，包含艺术字提示文本和雨滴下落溅射动画效果。该设计旨在提供视觉上吸引人的反馈，同时保持功能性和响应性。
 
+参考网站：https://ui.aceternity.com/components/background-beams-with-collision
+
 ---
 
 ## 一、场景描述

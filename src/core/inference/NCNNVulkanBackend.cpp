@@ -104,8 +104,6 @@ bool NCNNVulkanBackend::initialize(const BackendConfig& config)
         return true;
     }
     
-    qInfo() << "[NCNNVulkanBackend] Initializing with config";
-    
     m_config = config;
     m_gpuDeviceId = config.gpuDeviceId;
     
@@ -119,7 +117,6 @@ bool NCNNVulkanBackend::initialize(const BackendConfig& config)
     }
     
     m_isInitialized.store(true);
-    qInfo() << "[NCNNVulkanBackend] Initialization complete, GPU device:" << m_gpuDeviceId;
     
     return true;
 }
@@ -132,13 +129,9 @@ void NCNNVulkanBackend::shutdown()
         return;
     }
     
-    qInfo() << "[NCNNVulkanBackend] Shutting down";
-    
     unloadModel();
     releaseGpuResources();
     m_isInitialized.store(false);
-    
-    qInfo() << "[NCNNVulkanBackend] Shutdown complete";
 }
 
 bool NCNNVulkanBackend::initGpuResources()
@@ -146,7 +139,6 @@ bool NCNNVulkanBackend::initGpuResources()
 #ifdef NCNN_VULKAN_AVAILABLE
     try {
         if (m_vulkanInstanceCreated) {
-            qInfo() << "[NCNNVulkanBackend] Vulkan instance already created";
         } else {
             int ret = ncnn::create_gpu_instance();
             if (ret != 0) {
@@ -172,10 +164,6 @@ bool NCNNVulkanBackend::initGpuResources()
         (void)gpuInfo;
 
         m_gpuInitialized = true;
-
-        qInfo() << "[NCNNVulkanBackend] GPU resources initialized"
-                << "device:" << m_gpuDeviceId
-                << "name:" << QString::fromUtf8(gpuInfo.device_name());
 
         return true;
     } catch (const std::exception& e) {
@@ -244,7 +232,6 @@ bool NCNNVulkanBackend::loadModel(const ModelInfo& model)
 #ifdef NCNN_VULKAN_AVAILABLE
     if (m_gpuInitialized && m_vulkanInstanceCreated) {
         m_net.set_vulkan_device(m_gpuDeviceId);
-        qInfo() << "[NCNNVulkanBackend] Model will use GPU device:" << m_gpuDeviceId;
     }
 #endif
     
@@ -266,10 +253,7 @@ bool NCNNVulkanBackend::loadModel(const ModelInfo& model)
     m_currentModel.isLoaded = true;
     m_currentModel.layerCount = static_cast<int>(m_net.layers().size());
     m_modelLoaded = true;
-    
-    qInfo() << "[NCNNVulkanBackend] Model loaded on GPU:" << model.id
-            << "layers:" << m_currentModel.layerCount;
-    
+
     emit modelLoaded(true, model.id);
     return true;
 }

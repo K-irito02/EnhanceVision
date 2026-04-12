@@ -46,13 +46,11 @@ AIInferenceService::AIInferenceService(QObject* parent)
     , m_isProcessing(false)
     , m_lastProgressEmitMs(0)
 {
-    qInfo() << "[AIInferenceService] Instance created";
 }
 
 AIInferenceService::~AIInferenceService()
 {
     shutdown();
-    qInfo() << "[AIInferenceService] Instance destroyed";
 }
 
 bool AIInferenceService::initialize(ModelRegistry* modelRegistry, const AIServiceConfig& config)
@@ -64,15 +62,11 @@ bool AIInferenceService::initialize(ModelRegistry* modelRegistry, const AIServic
         return true;
     }
     
-    qInfo() << "[AIInferenceService] Initializing service...";
-    
     m_modelRegistry = modelRegistry;
     m_config = config;
     
-    // 创建任务队列
     m_taskQueue = std::make_unique<AITaskQueue>(this);
     
-    // 连接队列信号
     connect(m_taskQueue.get(), &AITaskQueue::taskEnqueued,
             this, [this](const QString& taskId) {
                 emit taskSubmitted(taskId);
@@ -94,7 +88,6 @@ bool AIInferenceService::initialize(ModelRegistry* modelRegistry, const AIServic
                 emit queueSizeChanged(size);
             });
     
-    // 创建并启动工作线程
     m_workerThread = std::make_unique<AIInferenceThread>(this);
     
     if (m_workerThread->worker()) {
@@ -106,7 +99,6 @@ bool AIInferenceService::initialize(ModelRegistry* modelRegistry, const AIServic
     
     m_initialized = true;
     
-    qInfo() << "[AIInferenceService] Service initialized successfully";
     emit serviceInitialized();
     
     return true;
@@ -120,15 +112,11 @@ void AIInferenceService::shutdown(int waitMs)
         return;
     }
     
-    qInfo() << "[AIInferenceService] Shutting down service...";
-    
-    // 取消所有任务
     if (m_taskQueue) {
         m_taskQueue->cancelAll(AICancelReason::SystemShutdown);
         m_taskQueue->shutdown();
     }
     
-    // 停止工作线程
     if (m_workerThread) {
         disconnectWorkerSignals();
         m_workerThread->stop(waitMs);
@@ -143,8 +131,6 @@ void AIInferenceService::shutdown(int waitMs)
     locker.unlock();
     
     emit serviceShutdown();
-    
-    qInfo() << "[AIInferenceService] Service shutdown complete";
 }
 
 bool AIInferenceService::isInitialized() const
@@ -170,22 +156,14 @@ bool AIInferenceService::submitTask(const AITaskRequest& request)
         return false;
     }
     
-    qInfo() << "[AIInferenceService] Submitting task:" << request.taskId
-            << "input:" << request.inputPath
-            << "model:" << request.modelId;
-    
-    // 记录任务状态
     {
         QMutexLocker locker(&m_mutex);
         m_taskStates[request.taskId.toStdString()] = AITaskState::Queued;
     }
     
-    // 入队
     bool success = m_taskQueue->enqueue(request);
     
-    if (success) {
-        qInfo() << "[AIInferenceService] Task submitted successfully:" << request.taskId;
-    } else {
+    if (!success) {
         QMutexLocker locker(&m_mutex);
         m_taskStates.erase(request.taskId.toStdString());
     }
@@ -195,9 +173,6 @@ bool AIInferenceService::submitTask(const AITaskRequest& request)
 
 bool AIInferenceService::cancelTask(const QString& taskId, AICancelReason reason)
 {
-    qInfo() << "[AIInferenceService] Cancelling task:" << taskId;
-    
-    // 检查是否是当前正在处理的任务
     {
         QMutexLocker locker(&m_mutex);
         if (m_currentTaskId == taskId && m_workerThread && m_workerThread->worker()) {
@@ -206,23 +181,17 @@ bool AIInferenceService::cancelTask(const QString& taskId, AICancelReason reason
         }
     }
     
-    // 尝试从队列中取消
     return m_taskQueue ? m_taskQueue->cancelByTaskId(taskId, reason) : false;
 }
 
 int AIInferenceService::cancelMessageTasks(const QString& messageId, AICancelReason reason)
 {
-    qInfo() << "[AIInferenceService] Cancelling tasks for message:" << messageId;
-    
     int count = 0;
     
-    // 取消当前任务（如果属于该消息）
     {
         QMutexLocker locker(&m_mutex);
-        // 需要从队列中查找当前任务的messageId
     }
     
-    // 取消队列中的任务
     if (m_taskQueue) {
         count = m_taskQueue->cancelByMessageId(messageId, reason);
     }
@@ -232,8 +201,6 @@ int AIInferenceService::cancelMessageTasks(const QString& messageId, AICancelRea
 
 int AIInferenceService::cancelSessionTasks(const QString& sessionId, AICancelReason reason)
 {
-    qInfo() << "[AIInferenceService] Cancelling tasks for session:" << sessionId;
-    
     int count = 0;
     
     if (m_taskQueue) {
@@ -245,11 +212,8 @@ int AIInferenceService::cancelSessionTasks(const QString& sessionId, AICancelRea
 
 int AIInferenceService::cancelAllTasks(AICancelReason reason)
 {
-    qInfo() << "[AIInferenceService] Cancelling all tasks";
-    
     int count = 0;
     
-    // 取消当前任务
     {
         QMutexLocker locker(&m_mutex);
         if (!m_currentTaskId.isEmpty() && m_workerThread && m_workerThread->worker()) {
@@ -258,7 +222,6 @@ int AIInferenceService::cancelAllTasks(AICancelReason reason)
         }
     }
     
-    // 取消队列中的任务
     if (m_taskQueue) {
         count += m_taskQueue->cancelAll(reason);
     }
@@ -360,24 +323,16 @@ int AIInferenceService::pendingTasksForMessage(const QString& messageId) const
 
 void AIInferenceService::preloadModel(const QString& modelId)
 {
-    qInfo() << "[AIInferenceService] Preloading model:" << modelId;
-    
-    // 在工作线程中预加载模型
     if (m_workerThread && m_workerThread->worker() && !isProcessing()) {
-        // TODO: 实现异步模型预加载
     }
 }
 
 void AIInferenceService::unloadModel()
 {
-    qInfo() << "[AIInferenceService] Unloading model";
-    
     if (isProcessing()) {
         qWarning() << "[AIInferenceService] Cannot unload model while processing";
         return;
     }
-    
-    // TODO: 实现模型卸载
 }
 
 QString AIInferenceService::currentModelId() const
@@ -395,16 +350,11 @@ ModelRegistry* AIInferenceService::modelRegistry() const
 
 void AIInferenceService::onWorkerStateChanged(const QString& taskId, AITaskState oldState, AITaskState newState)
 {
-    qInfo() << "[AIInferenceService] Worker state changed:" << taskId
-            << aiTaskStateToString(oldState) << "->" << aiTaskStateToString(newState);
-    
-    // 更新任务状态
     {
         QMutexLocker locker(&m_mutex);
         m_taskStates[taskId.toStdString()] = newState;
     }
     
-    // 更新处理状态
     bool isNowProcessing = (newState == AITaskState::Preparing || newState == AITaskState::Processing);
     bool wasProcessing = m_isProcessing.exchange(isNowProcessing);
     
@@ -412,10 +362,8 @@ void AIInferenceService::onWorkerStateChanged(const QString& taskId, AITaskState
         emit processingChanged(isNowProcessing);
     }
     
-    // 发出状态变化信号
     emit taskStateChanged(taskId, oldState, newState);
     
-    // 任务开始信号
     if (oldState == AITaskState::Queued && newState == AITaskState::Preparing) {
         emit taskStarted(taskId);
     }
@@ -441,11 +389,6 @@ void AIInferenceService::onWorkerProgressChanged(const AITaskProgress& progress)
 
 void AIInferenceService::onWorkerTaskCompleted(const AITaskResult& result)
 {
-    qInfo() << "[AIInferenceService] Worker task completed:" << result.taskId
-            << "success:" << result.success
-            << "elapsed:" << result.processingTimeMs << "ms";
-    
-    // 更新状态
     {
         QMutexLocker locker(&m_mutex);
         m_currentTaskId.clear();
@@ -459,7 +402,6 @@ void AIInferenceService::onWorkerTaskCompleted(const AITaskResult& result)
         }
     }
     
-    // 更新处理状态
     m_isProcessing.store(false);
     m_currentProgress.store(0.0);
     
@@ -467,7 +409,6 @@ void AIInferenceService::onWorkerTaskCompleted(const AITaskResult& result)
     emit currentTaskChanged(QString());
     emit progressChanged(0.0);
     
-    // 发出完成信号
     if (result.success) {
         emit taskCompleted(result.taskId, result.outputPath);
     } else if (result.errorType == AIErrorType::Cancelled) {
@@ -476,12 +417,10 @@ void AIInferenceService::onWorkerTaskCompleted(const AITaskResult& result)
         emit taskFailed(result.taskId, result.errorMessage, result.errorType);
     }
     
-    // 重置worker状态
     if (m_workerThread && m_workerThread->worker()) {
         m_workerThread->worker()->reset();
     }
     
-    // 处理下一个任务
     QMetaObject::invokeMethod(this, "processNextTask", Qt::QueuedConnection);
 }
 
@@ -496,34 +435,26 @@ void AIInferenceService::onWorkerError(const QString& taskId, const QString& err
 
 void AIInferenceService::processNextTask()
 {
-    // 检查是否正在处理
     if (m_isProcessing.load()) {
-        qInfo() << "[AIInferenceService] Already processing, skipping processNextTask";
         return;
     }
     
-    // 检查队列
     if (!m_taskQueue || m_taskQueue->isEmpty()) {
-        qInfo() << "[AIInferenceService] No tasks in queue";
         return;
     }
     
-    // 检查worker
     if (!m_workerThread || !m_workerThread->worker() || !m_workerThread->isRunning()) {
         qWarning() << "[AIInferenceService] Worker thread not available";
         return;
     }
     
-    // 取出下一个任务
-    auto taskOpt = m_taskQueue->dequeue(0);  // 非阻塞
+    auto taskOpt = m_taskQueue->dequeue(0);
     if (!taskOpt.has_value()) {
-        qInfo() << "[AIInferenceService] No available task to process";
         return;
     }
     
     AITaskItem task = std::move(taskOpt.value());
     
-    // 更新状态
     {
         QMutexLocker locker(&m_mutex);
         m_currentTaskId = task.request.taskId;
@@ -537,9 +468,6 @@ void AIInferenceService::processNextTask()
     emit currentTaskChanged(task.request.taskId);
     emit taskStarted(task.request.taskId);
     
-    qInfo() << "[AIInferenceService] Starting task:" << task.request.taskId;
-    
-    // 在工作线程中启动任务
     QMetaObject::invokeMethod(m_workerThread->worker(), "startTask",
                               Qt::QueuedConnection,
                               Q_ARG(EnhanceVision::AITaskRequest, task.request));

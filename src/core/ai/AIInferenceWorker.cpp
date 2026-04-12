@@ -80,9 +80,6 @@ double AIInferenceWorker::currentProgress() const
 
 void AIInferenceWorker::requestCancel(AICancelReason reason)
 {
-    qInfo() << "[AIInferenceWorker] Cancel requested for task:" << m_currentTaskId
-            << "reason:" << static_cast<int>(reason);
-    
     m_cancelReason = reason;
     m_cancelRequested.store(true);
 
@@ -93,8 +90,6 @@ void AIInferenceWorker::requestCancel(AICancelReason reason)
 
 void AIInferenceWorker::forceCancel()
 {
-    qInfo() << "[AIInferenceWorker] Force cancel requested for task:" << m_currentTaskId;
-    
     m_forceCancel.store(true);
     m_cancelRequested.store(true);
     m_cancelReason = AICancelReason::UserRequest;
@@ -131,8 +126,6 @@ void AIInferenceWorker::reset()
     
     // 通知等待的线程
     m_completionCondition.wakeAll();
-    
-    qInfo() << "[AIInferenceWorker] Worker reset";
 }
 
 bool AIInferenceWorker::waitForCompletion(int timeoutMs)
@@ -148,12 +141,6 @@ bool AIInferenceWorker::waitForCompletion(int timeoutMs)
 
 void AIInferenceWorker::startTask(const AITaskRequest& request)
 {
-    qInfo() << "[AIInferenceWorker] Starting task:" << request.taskId
-            << "input:" << request.inputPath
-            << "output:" << request.outputPath
-            << "model:" << request.modelId;
-    
-    // 设置当前任务
     {
         QMutexLocker locker(&m_mutex);
         m_currentTaskId = request.taskId;
@@ -162,14 +149,11 @@ void AIInferenceWorker::startTask(const AITaskRequest& request)
         m_cancelReason = AICancelReason::None;
     }
     
-    // 启动计时器
     m_taskTimer.start();
     
-    // 设置状态为准备中
     setState(AITaskState::Preparing);
     updateProgress(0.0, tr("Preparing..."));
     
-    // 检查取消
     if (checkCancellation()) {
         return;
     }
@@ -226,14 +210,10 @@ void AIInferenceWorker::updateProgress(double progress, const QString& stage)
 
 AITaskResult AIInferenceWorker::processImage(const AITaskRequest& request)
 {
-    qInfo() << "[AIInferenceWorker] Processing image:" << request.inputPath;
-    
-    // 检查取消
     if (checkCancellation()) {
         return AITaskResult::makeCancelled(request.taskId);
     }
     
-    // 加载输入图像
     updateProgress(0.05, tr("加载图像..."));
     
     QImage inputImage(request.inputPath);
@@ -333,22 +313,16 @@ AITaskResult AIInferenceWorker::processImage(const AITaskRequest& request)
     setState(AITaskState::Completed);
     
     qint64 elapsedMs = m_taskTimer.elapsed();
-    qInfo() << "[AIInferenceWorker] Image processing completed:" << request.taskId
-            << "elapsed:" << elapsedMs << "ms";
     
     return AITaskResult::makeSuccess(request.taskId, request.outputPath, elapsedMs);
 }
 
 AITaskResult AIInferenceWorker::processVideo(const AITaskRequest& request)
 {
-    qInfo() << "[AIInferenceWorker] Processing video:" << request.inputPath;
-    
-    // 检查取消
     if (checkCancellation()) {
         return AITaskResult::makeCancelled(request.taskId);
     }
     
-    // 加载模型
     updateProgress(0.05, tr("加载模型..."));
     
     QString modelError;
@@ -435,8 +409,6 @@ AITaskResult AIInferenceWorker::processVideo(const AITaskRequest& request)
     setState(AITaskState::Completed);
     
     qint64 elapsedMs = m_taskTimer.elapsed();
-    qInfo() << "[AIInferenceWorker] Video processing completed:" << request.taskId
-            << "elapsed:" << elapsedMs << "ms";
     
     return AITaskResult::makeSuccess(request.taskId, videoOutputPath.isEmpty() ? request.outputPath : videoOutputPath, elapsedMs);
 }
@@ -458,23 +430,17 @@ bool AIInferenceWorker::ensureModelLoaded(const QString& modelId, QString& error
         return true;
     }
     
-    // 加载模型
-    qInfo() << "[AIInferenceWorker] Loading model:" << modelId;
-    
     if (!m_engine->loadModel(modelId)) {
         errorOut = tr("模型加载失败: %1").arg(modelId);
         qWarning() << "[AIInferenceWorker]" << errorOut;
         return false;
     }
     
-    qInfo() << "[AIInferenceWorker] Model loaded successfully:" << modelId;
     return true;
 }
 
 void AIInferenceWorker::cleanupResources()
 {
-    qInfo() << "[AIInferenceWorker] Cleaning up resources";
-    
     if (m_engine) {
         m_engine->safeCleanup();
     }
@@ -483,7 +449,6 @@ void AIInferenceWorker::cleanupResources()
 bool AIInferenceWorker::checkCancellation()
 {
     if (m_cancelRequested.load() || m_forceCancel.load()) {
-        qInfo() << "[AIInferenceWorker] Cancellation detected for task:" << m_currentTaskId;
         setState(AITaskState::Cancelled);
         updateProgress(m_progress.load(), tr("Cancelled"));
         
@@ -519,7 +484,6 @@ AIInferenceThread::~AIInferenceThread()
 void AIInferenceThread::start()
 {
     if (!m_thread->isRunning()) {
-        qInfo() << "[AIInferenceThread] Starting worker thread";
         m_thread->start();
     }
 }
@@ -527,24 +491,17 @@ void AIInferenceThread::start()
 void AIInferenceThread::stop(int waitMs)
 {
     if (m_thread->isRunning()) {
-        qInfo() << "[AIInferenceThread] Stopping worker thread";
-        
-        // 请求取消当前任务
         if (m_worker) {
             m_worker->forceCancel();
         }
         
-        // 请求线程退出
         m_thread->quit();
         
-        // 等待线程结束
         if (!m_thread->wait(waitMs)) {
             qWarning() << "[AIInferenceThread] Thread did not stop in time, terminating";
             m_thread->terminate();
             m_thread->wait();
         }
-        
-        qInfo() << "[AIInferenceThread] Worker thread stopped";
     }
 }
 

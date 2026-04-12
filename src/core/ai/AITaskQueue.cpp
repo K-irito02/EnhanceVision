@@ -49,15 +49,10 @@ bool AITaskQueue::enqueue(const AITaskRequest& request)
         // 添加到队列
         m_queue.push_back(std::move(item));
         m_taskIndex[taskIdStd] = m_queue.size() - 1;
-        
-        qInfo() << "[AITaskQueue] Task enqueued:" << request.taskId
-                << "queueSize:" << m_queue.size();
     }
     
-    // 唤醒等待的消费者
     m_condition.wakeOne();
     
-    // 发出信号
     emit taskEnqueued(request.taskId);
     emit queueSizeChanged(static_cast<int>(m_queue.size()));
     
@@ -91,10 +86,6 @@ std::optional<AITaskItem> AITaskQueue::dequeue(int timeoutMs)
             m_queue.erase(it);
             rebuildIndex();
             
-            qInfo() << "[AITaskQueue] Task dequeued:" << item.request.taskId
-                    << "remainingSize:" << m_queue.size();
-            
-            // 更新状态
             item.state = AITaskState::Preparing;
             item.stateChangeTime = QDateTime::currentDateTime();
             
@@ -139,10 +130,7 @@ bool AITaskQueue::cancelByTaskId(const QString& taskId, AICancelReason reason)
     
     AITaskItem& item = m_queue[index];
     
-    // 只能取消等待中的任务
     if (item.state != AITaskState::Queued) {
-        qInfo() << "[AITaskQueue] Cannot cancel task in state:" 
-                << aiTaskStateToString(item.state) << "taskId:" << taskId;
         return false;
     }
     
@@ -150,8 +138,6 @@ bool AITaskQueue::cancelByTaskId(const QString& taskId, AICancelReason reason)
     item.state = AITaskState::Cancelled;
     item.cancelReason = reason;
     item.stateChangeTime = QDateTime::currentDateTime();
-    
-    qInfo() << "[AITaskQueue] Task cancelled:" << taskId << "reason:" << static_cast<int>(reason);
     
     locker.unlock();
     
@@ -180,13 +166,10 @@ int AITaskQueue::cancelByMessageId(const QString& messageId, AICancelReason reas
     
     locker.unlock();
     
-    // 发出信号
     for (const QString& taskId : taskIds) {
         emit taskStateChanged(taskId, AITaskState::Queued, AITaskState::Cancelled);
         emit taskCancelled(taskId, reason);
     }
-    
-    qInfo() << "[AITaskQueue] Cancelled" << cancelledCount << "tasks for message:" << messageId;
     
     return cancelledCount;
 }
@@ -210,13 +193,10 @@ int AITaskQueue::cancelBySessionId(const QString& sessionId, AICancelReason reas
     
     locker.unlock();
     
-    // 发出信号
     for (const QString& taskId : taskIds) {
         emit taskStateChanged(taskId, AITaskState::Queued, AITaskState::Cancelled);
         emit taskCancelled(taskId, reason);
     }
-    
-    qInfo() << "[AITaskQueue] Cancelled" << cancelledCount << "tasks for session:" << sessionId;
     
     return cancelledCount;
 }
@@ -240,13 +220,10 @@ int AITaskQueue::cancelAll(AICancelReason reason)
     
     locker.unlock();
     
-    // 发出信号
     for (const QString& taskId : taskIds) {
         emit taskStateChanged(taskId, AITaskState::Queued, AITaskState::Cancelled);
         emit taskCancelled(taskId, reason);
     }
-    
-    qInfo() << "[AITaskQueue] Cancelled all" << cancelledCount << "tasks";
     
     return cancelledCount;
 }
@@ -357,8 +334,6 @@ void AITaskQueue::clear()
     }
     
     emit queueSizeChanged(0);
-    
-    qInfo() << "[AITaskQueue] Queue cleared";
 }
 
 void AITaskQueue::shutdown()
@@ -368,13 +343,9 @@ void AITaskQueue::shutdown()
         m_shutdown = true;
     }
     
-    // 唤醒所有等待的线程
     m_condition.wakeAll();
     
-    // 清理队列
     clear();
-    
-    qInfo() << "[AITaskQueue] Queue shutdown";
 }
 
 bool AITaskQueue::isShutdown() const

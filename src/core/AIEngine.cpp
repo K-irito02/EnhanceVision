@@ -41,10 +41,6 @@ AIEngine::AIEngine(QObject *parent)
     : QObject(parent)
     , m_progressReporter(std::make_unique<ProgressReporter>(this))
 {
-    qInfo() << "[AIEngine] Initializing AI engine (CPU/Vulkan dual-mode)";
-
-    // 【修复】连接 ProgressReporter 的信号到 AIEngine 的信号
-    // 确保 CPU 模式下进度能正确传递到 UI
     connect(m_progressReporter.get(), &ProgressReporter::progressChanged,
             this, &AIEngine::progressChanged);
 
@@ -56,8 +52,6 @@ AIEngine::AIEngine(QObject *parent)
     m_opt.use_local_pool_allocator = false;
     m_opt.use_sgemm_convolution = false;
     m_opt.use_winograd_convolution = false;
-
-    qInfo() << "[AIEngine] Engine created, default mode: CPU (safe configuration)";
 
     QTimer::singleShot(0, this, &AIEngine::probeGpuAvailability);
 }
@@ -75,12 +69,9 @@ void AIEngine::probeGpuAvailability()
 {
 #ifdef NCNN_VULKAN_AVAILABLE
     try {
-        qInfo() << "[AIEngine] Probing Vulkan GPU availability at startup...";
-        
         ensureGpuInstanceCreated();
         
         if (!s_gpuInstanceCreated.load()) {
-            qInfo() << "[AIEngine] Vulkan GPU not available (create_gpu_instance failed)";
             m_gpuAvailable.store(false);
             emit gpuDeviceInfoChanged();
             return;
@@ -88,7 +79,6 @@ void AIEngine::probeGpuAvailability()
 
         int deviceCount = ncnn::get_gpu_count();
         if (deviceCount <= 0) {
-            qInfo() << "[AIEngine] No Vulkan GPU devices found";
             m_gpuAvailable.store(false);
             emit gpuDeviceInfoChanged();
             return;
@@ -99,21 +89,13 @@ void AIEngine::probeGpuAvailability()
         m_gpuDeviceId = 0;
         m_gpuAvailable.store(true);
 
-        qInfo() << "[AIEngine] Vulkan GPU available at startup:"
-                << "device:" << m_gpuDeviceName
-                << "count:" << deviceCount;
-
-        // 同步 GPU 信息到 TaskTimeEstimator
-        {
-            auto* estimator = TaskTimeEstimator::instance();
-            if (estimator) {
-                // GPU VRAM 估算：通过 heap budget 获取（如不可用则使用默认值）
-                qint64 vramMB = 0;
-                const ncnn::GpuInfo& info = ncnn::get_gpu_info(0);
-                vramMB = static_cast<qint64>(info.max_shared_memory_size() / (1024 * 1024));
-                if (vramMB <= 0) vramMB = 4096; // 默认 4GB
-                estimator->setGpuInfo(m_gpuDeviceName, vramMB, true);
-            }
+        auto* estimator = TaskTimeEstimator::instance();
+        if (estimator) {
+            qint64 vramMB = 0;
+            const ncnn::GpuInfo& info = ncnn::get_gpu_info(0);
+            vramMB = static_cast<qint64>(info.max_shared_memory_size() / (1024 * 1024));
+            if (vramMB <= 0) vramMB = 4096;
+            estimator->setGpuInfo(m_gpuDeviceName, vramMB, true);
         }
 
         emit gpuDeviceInfoChanged();
@@ -127,7 +109,6 @@ void AIEngine::probeGpuAvailability()
         emit gpuDeviceInfoChanged();
     }
 #else
-    qInfo() << "[AIEngine] Vulkan support not compiled in (NCNN_VULKAN_AVAILABLE undefined)";
     m_gpuAvailable.store(false);
     emit gpuDeviceInfoChanged();
 #endif
@@ -143,11 +124,6 @@ void AIEngine::setModelRegistry(ModelRegistry *registry)
 bool AIEngine::loadModel(const QString &modelId)
 {
     QMutexLocker locker(&m_mutex);
-    
-    qInfo() << "[AIEngine][loadModel] Starting, modelId:" << modelId
-            << "backendType:" << static_cast<int>(m_backendType)
-            << "isProcessing:" << m_isProcessing.load();
-    fflush(stdout);
     
     if (m_isProcessing.load()) {
         qWarning() << "[AIEngine][loadModel] rejected: inference in progress, modelId:" << modelId;
@@ -182,37 +158,20 @@ bool AIEngine::loadModel(const QString &modelId)
 
     if (m_currentModelId == modelId && m_currentModel.isLoaded) {
         if (m_modelLoadedBackendType != m_backendType) {
-            qInfo() << "[AIEngine][loadModel] Model loaded with different backend, forcing reload"
-                    << "loadedBackend:" << static_cast<int>(m_modelLoadedBackendType)
-                    << "currentBackend:" << static_cast<int>(m_backendType);
         } else {
-            qInfo() << "[AIEngine][loadModel] Model already loaded:" << modelId;
             return true;
         }
     }
 
-    qInfo() << "[AIEngine][loadModel] Clearing previous model, oldModelId:" << m_currentModelId;
-    fflush(stdout);
-    
     if (!m_currentModelId.isEmpty()) {
         m_net.clear();
         m_currentModel.isLoaded = false;
-        qInfo() << "[AIEngine][loadModel] Previous model cleared";
-        fflush(stdout);
     }
 
-    qInfo() << "[AIEngine][loadModel] Setting net options, use_vulkan_compute:" << m_opt.use_vulkan_compute;
-    fflush(stdout);
-    
     m_net.opt = m_opt;
 
 #ifdef NCNN_VULKAN_AVAILABLE
     if (m_backendType == BackendType::NCNN_Vulkan && m_gpuAvailable.load() && m_gpuDeviceId >= 0) {
-        qInfo() << "[AIEngine][loadModel] Setting Vulkan device:" << m_gpuDeviceId
-                << "gpuAvailable:" << m_gpuAvailable.load()
-                << "vulkanInstanceCreated:" << m_vulkanInstanceCreated;
-        fflush(stdout);
-        
         if (!s_gpuInstanceCreated.load()) {
             qWarning() << "[AIEngine][loadModel] Global Vulkan instance not created, cannot use GPU";
             emit processError(tr("Vulkan instance not created, GPU unavailable"));
@@ -220,31 +179,16 @@ bool AIEngine::loadModel(const QString &modelId)
         }
         
         m_net.set_vulkan_device(m_gpuDeviceId);
-        qInfo() << "[AIEngine][loadModel] Vulkan device set successfully:" << m_gpuDeviceId;
-        fflush(stdout);
-    } else {
-        qInfo() << "[AIEngine][loadModel] Not using Vulkan: backendType:" << static_cast<int>(m_backendType)
-                << "gpuAvailable:" << m_gpuAvailable.load()
-                << "gpuDeviceId:" << m_gpuDeviceId;
-        fflush(stdout);
     }
 #else
-    qInfo() << "[AIEngine][loadModel] NCNN_VULKAN_AVAILABLE not defined";
-    fflush(stdout);
 #endif
 
-    qInfo() << "[AIEngine][loadModel] Loading param file:" << info.paramPath;
-    fflush(stdout);
-    
     int ret = m_net.load_param(info.paramPath.toStdString().c_str());
     if (ret != 0) {
         qWarning() << "[AIEngine][loadModel] Failed to load param file, ret:" << ret;
         emit processError(tr("Failed to load model parameters: %1").arg(info.paramPath));
         return false;
     }
-    
-    qInfo() << "[AIEngine][loadModel] Param file loaded, loading bin file:" << info.binPath;
-    fflush(stdout);
 
     ret = m_net.load_model(info.binPath.toStdString().c_str());
     if (ret != 0) {
@@ -259,11 +203,6 @@ bool AIEngine::loadModel(const QString &modelId)
     m_currentModel.isLoaded = true;
     m_currentModel.layerCount = static_cast<int>(m_net.layers().size());
     m_modelLoadedBackendType = m_backendType;
-
-    qInfo() << "[AIEngine][loadModel] Model loaded successfully:" << modelId
-            << "layers:" << m_currentModel.layerCount
-            << "backendType:" << static_cast<int>(m_backendType);
-    fflush(stdout);
 
     emit modelLoaded(modelId);
     emit modelChanged();
@@ -302,12 +241,6 @@ QImage AIEngine::process(const QImage &input)
 {
     QMutexLocker inferenceLocker(&m_inferenceMutex);
     
-    qInfo() << "[AIEngine] process() called:"
-            << "inputSize:" << input.width() << "x" << input.height()
-            << "format:" << input.format()
-            << "modelId:" << m_currentModelId
-            << "modelLoaded:" << m_currentModel.isLoaded;
-
     if (m_currentModelId.isEmpty() || !m_currentModel.isLoaded) {
         if (!m_currentModelId.isEmpty() && m_currentModel.paramPath.isEmpty()) {
         } else {
@@ -377,8 +310,6 @@ QImage AIEngine::process(const QImage &input)
         int minDim = std::min(workInput.width(), workInput.height());
         if (tileSize > minDim) {
             tileSize = 0;
-            qInfo() << "[AIEngine] tileSize exceeds image dimension, disabling tiling for"
-                    << workInput.width() << "x" << workInput.height();
         }
     }
     
@@ -524,25 +455,19 @@ void AIEngine::processAsync(const QString &inputPath, const QString &outputPath)
 
 void AIEngine::cancelProcess()
 {
-    qInfo() << "[AIEngine] cancelProcess() called, isProcessing:" << m_isProcessing.load();
     m_cancelRequested = true;
-    // 注意：不要在这里设置 m_isProcessing = false
-    // 让后台线程在检测到取消后自己设置，确保推理真正停止
 }
 
 void AIEngine::resetCancelFlag()
 {
     m_cancelRequested = false;
     m_forceCancelled = false;
-    qInfo() << "[AIEngine] resetCancelFlag() called - cancel flags reset";
 }
 
 void AIEngine::forceCancel()
 {
     m_forceCancelled = true;
     m_cancelRequested = true;
-    // 注意：不要在这里设置 m_isProcessing = false
-    // 让后台线程在检测到取消后自己设置
     qWarning() << "[AIEngine] Force cancel requested";
 }
 
@@ -553,10 +478,6 @@ bool AIEngine::isForceCancelled() const
 
 void AIEngine::resetState()
 {
-    qInfo() << "[AIEngine] resetState() called"
-            << "currentModel:" << m_currentModelId
-            << "wasProcessing:" << m_isProcessing.load();
-    
     {
         QMutexLocker inferenceLocker(&m_inferenceMutex);
     }
@@ -585,8 +506,6 @@ void AIEngine::resetState()
 
 void AIEngine::safeCleanup()
 {
-    qInfo() << "[AIEngine] safeCleanup() called";
-    
     QElapsedTimer waitTimer;
     waitTimer.start();
     const int kMaxWaitMs = 2000;
@@ -613,8 +532,6 @@ void AIEngine::safeCleanup()
     if (m_progressReporter) {
         m_progressReporter->reset();
     }
-    
-    qInfo() << "[AIEngine] safeCleanup() completed";
 }
 
 // ========== OpenCV Inpainting (Qt 原生实现) ==========
@@ -773,7 +690,6 @@ bool AIEngine::setBackendType(BackendType type)
     }
 
     if (type == m_backendType) {
-        qInfo() << "[AIEngine] Already on backend:" << static_cast<int>(type);
         return true;
     }
 
@@ -815,7 +731,6 @@ bool AIEngine::setBackendType(BackendType type)
         applyBackendOptions(BackendType::NCNN_Vulkan);
         
         if (!currentModelId.isEmpty()) {
-            qInfo() << "[AIEngine] Reloading model for Vulkan backend:" << currentModelId;
             if (!loadModel(currentModelId)) {
                 qWarning() << "[AIEngine] Failed to reload model after backend switch to Vulkan";
                 m_backendType = BackendType::NCNN_CPU;
@@ -834,15 +749,12 @@ bool AIEngine::setBackendType(BackendType type)
             m_modelSyncComplete.store(true);
         }
         m_modelSyncCv.notify_all();
-        
-        qInfo() << "[AIEngine] Switched to Vulkan GPU backend successfully";
     } else {
         shutdownVulkan();
         m_backendType = BackendType::NCNN_CPU;
         applyBackendOptions(BackendType::NCNN_CPU);
         
         if (!currentModelId.isEmpty()) {
-            qInfo() << "[AIEngine] Reloading model for CPU backend:" << currentModelId;
             loadModel(currentModelId);
         }
         
@@ -851,8 +763,6 @@ bool AIEngine::setBackendType(BackendType type)
             m_modelSyncComplete.store(true);
         }
         m_modelSyncCv.notify_all();
-        
-        qInfo() << "[AIEngine] Switched to CPU backend";
     }
 #else
     if (type == BackendType::NCNN_Vulkan) {
@@ -870,8 +780,6 @@ bool AIEngine::initializeVulkan(int gpuDeviceId)
 {
 #ifdef NCNN_VULKAN_AVAILABLE
     try {
-        qInfo() << "[AIEngine] initializeVulkan() called, requested device:" << gpuDeviceId;
-        
         ensureGpuInstanceCreated();
         
         if (!s_gpuInstanceCreated.load()) {
@@ -896,13 +804,6 @@ bool AIEngine::initializeVulkan(int gpuDeviceId)
         m_gpuDeviceName = QString::fromUtf8(gpuInfo.device_name());
         m_gpuAvailable.store(true);
         m_vulkanInstanceCreated = true;
-
-        qInfo() << "[AIEngine] Vulkan initialized successfully"
-                << "device:" << m_gpuDeviceName
-                << "id:" << m_gpuDeviceId
-                << "apiVersion:" << (gpuInfo.api_version() >> 22) << "."
-                << ((gpuInfo.api_version() >> 12) & 0x3ff) << "."
-                << (gpuInfo.api_version() & 0xfff);
 
         {
             std::lock_guard<std::mutex> lock(m_gpuReadyMutex);
@@ -943,7 +844,6 @@ void AIEngine::shutdownVulkan()
     m_gpuAvailable.store(false);
     m_gpuDeviceName.clear();
     m_gpuDeviceId = -1;
-    qInfo() << "[AIEngine] Vulkan resources released (instance preserved for reuse)";
 }
 
 bool AIEngine::isVulkanReady() const
@@ -1294,18 +1194,12 @@ void AIEngine::clearInferenceCache()
 {
 #ifdef NCNN_VULKAN_AVAILABLE
     if (m_backendType == BackendType::NCNN_Vulkan && m_vulkanInstanceCreated) {
-        // NCNN Vulkan 缓存由内部管理，此处确保同步点
-        qInfo() << "[AIEngine] GPU cache sync point";
     }
 #endif
 }
 
 QImage AIEngine::processSingle(const QImage &input, const ModelInfo &model)
 {
-    qInfo() << "[AIEngine] processSingle() starting:"
-            << "inputSize:" << input.width() << "x" << input.height()
-            << "modelId:" << model.id;
-
     setProgress(0.02);
     setProgress(0.05);
 
@@ -2010,11 +1904,9 @@ void AIEngine::ensureGpuInstanceCreated()
 {
 #ifdef NCNN_VULKAN_AVAILABLE
     std::call_once(s_gpuInstanceOnceFlag, []() {
-        qInfo() << "[AIEngine] Creating global Vulkan GPU instance (once)";
         int ret = ncnn::create_gpu_instance();
         if (ret == 0) {
             s_gpuInstanceCreated.store(true);
-            qInfo() << "[AIEngine] Global Vulkan GPU instance created successfully";
         } else {
             qWarning() << "[AIEngine] Failed to create global Vulkan GPU instance, code:" << ret;
             s_gpuInstanceCreated.store(false);
@@ -2024,7 +1916,6 @@ void AIEngine::ensureGpuInstanceCreated()
     if (s_gpuInstanceCreated.load()) {
         std::lock_guard<std::mutex> lock(s_gpuInstanceMutex);
         s_gpuInstanceRefCount++;
-        qInfo() << "[AIEngine] GPU instance ref count incremented to:" << s_gpuInstanceRefCount.load();
     }
 #endif
 }
@@ -2036,7 +1927,6 @@ void AIEngine::releaseGpuInstanceRef()
         std::lock_guard<std::mutex> lock(s_gpuInstanceMutex);
         if (s_gpuInstanceRefCount > 0) {
             s_gpuInstanceRefCount--;
-            qInfo() << "[AIEngine] GPU instance ref count decremented to:" << s_gpuInstanceRefCount.load();
         }
     }
 #endif

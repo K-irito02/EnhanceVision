@@ -17,6 +17,12 @@
   - Created comprehensive design documentation and implementation notes
 
 ### Fixed
+- **视频进度条拖拽暂停优化**：拖拽进度条时视频自动暂停，松开后从目标位置恢复播放
+  - 修复拖拽期间视频继续播放导致拖拽失效的问题
+  - 修复进度条绑定冲突导致滑块跳动的问题
+  - 拆分 `_playerPosition` 和 `displayPosition`，拖拽时时间标签跟随滑块位置
+  - 使用 `Binding on value { when }` 条件绑定，拖拽期间断开播放器位置绑定
+  - 拖拽中支持 scrubbing 帧预览，释放时安全恢复播放状态
 - **会话标签更多操作按钮显示修复**：修复置顶会话标签的"更多操作"按钮在侧边栏缩放时不显示的问题
   - 将 moreButton 从 RowLayout 移出，使用绝对定位确保按钮始终显示在固定位置
   - 为 IconButton 组件添加 iconOpacity 属性，支持单独控制图标透明度

@@ -5552,8 +5552,8 @@ Do you want to replace it?</source>
         <location filename="../../build/msvc2022/Release/EnhanceVision/qml/pages/SettingsPage.qml" line="1869"/>
         <location filename="../../qml/pages/SettingsPage.qml" line="1869"/>
         <location filename="../../qml/pages/SettingsPage.qml" line="1869"/>
-        <source>Built with Qt6 + NCNN</source>
-        <translation>基于 Qt6 + NCNN 构建</translation>
+        <source>Implemented based on technologies such as Qt6 + NCNN + Real - ESRGAN...</source>
+        <translation>基于 Qt6 + NCNN + Real-ESRGAN ...等技术实现</translation>
     </message>
     <message>
         <location filename="../../build/msvc2022/Debug/EnhanceVision/qml/pages/SettingsPage.qml" line="1246"/>
