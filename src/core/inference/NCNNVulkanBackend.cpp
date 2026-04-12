@@ -22,15 +22,13 @@ namespace EnhanceVision {
 NCNNVulkanBackend::NCNNVulkanBackend(QObject* parent)
     : IInferenceBackend(parent)
 {
-    qInfo() << "[NCNNVulkanBackend] Initializing Vulkan GPU inference backend";
-    
     m_opt.num_threads = 0;
     m_opt.use_packing_layout = true;
-    m_opt.use_vulkan_compute = true;
+    m_opt.use_fp16_packed = true;
+    m_opt.use_fp16_storage = true;
+    m_opt.use_fp16_arithmetic = true;
     m_opt.lightmode = true;
     m_opt.use_local_pool_allocator = true;
-    
-    qInfo() << "[NCNNVulkanBackend] Backend created (GPU resources initialized on demand)";
 }
 
 NCNNVulkanBackend::~NCNNVulkanBackend()
@@ -83,9 +81,7 @@ NCNNVulkanBackend::VulkanDeviceInfo NCNNVulkanBackend::probeDevice()
 
         ncnn::destroy_gpu_instance();
 
-        qInfo() << "[NCNNVulkanBackend] Vulkan probe successful:"
-                << "device:" << result.deviceName
-                << "count:" << deviceCount;
+        // Vulkan probe successful: device=result.deviceName, count=deviceCount
     } catch (const std::exception& e) {
         result.errorReason = QString::fromStdString(e.what());
         qWarning() << "[NCNNVulkanBackend] Vulkan probe exception:" << e.what();

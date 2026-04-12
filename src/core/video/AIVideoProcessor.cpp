@@ -100,7 +100,6 @@ void AIVideoProcessor::processAsync(const QString& inputPath, const QString& out
 void AIVideoProcessor::cancel()
 {
     if (!m_impl->cancelled.load()) {
-        qInfo() << "[AIVideoProcessor] Cancel requested, waiting for current frame to complete...";
         m_impl->cancelled.store(true);
         
         // 等待当前帧处理完成（带超时），确保不会在帧处理中途中断导致资源泄漏
@@ -114,7 +113,7 @@ void AIVideoProcessor::cancel()
             );
             
             if (completed) {
-                qInfo() << "[AIVideoProcessor] Current frame completed before cancel";
+                // Current frame completed before cancel
             } else {
                 qWarning() << "[AIVideoProcessor] Timeout waiting for current frame during cancel";
             }
@@ -127,7 +126,6 @@ void AIVideoProcessor::cancel()
 void AIVideoProcessor::pause()
 {
     if (!m_impl->paused.load()) {
-        qInfo() << "[AIVideoProcessor] Pause requested";
         m_impl->paused.store(true);
         emit paused();
     }
@@ -136,7 +134,6 @@ void AIVideoProcessor::pause()
 void AIVideoProcessor::resume()
 {
     if (m_impl->paused.load()) {
-        qInfo() << "[AIVideoProcessor] Resume requested";
         m_impl->paused.store(false);
         m_impl->pauseCv.notify_all();
         emit resumed();
@@ -151,7 +148,6 @@ bool AIVideoProcessor::isPaused() const
 void AIVideoProcessor::waitForFinished(int timeoutMs)
 {
     if (m_processingFuture.isRunning()) {
-        qInfo() << "[AIVideoProcessor] Waiting for processing to finish, timeout:" << timeoutMs << "ms";
         
         // 使用事件循环等待，避免阻塞
         QElapsedTimer timer;
@@ -165,7 +161,7 @@ void AIVideoProcessor::waitForFinished(int timeoutMs)
         if (m_processingFuture.isRunning()) {
             qWarning() << "[AIVideoProcessor] Wait timeout, processing still running";
         } else {
-            qInfo() << "[AIVideoProcessor] Processing finished after" << timer.elapsed() << "ms";
+            // Processing finished after timer.elapsed() ms
         }
     }
 }
@@ -176,7 +172,7 @@ bool AIVideoProcessor::waitForCurrentFrame(int timeoutMs)
         return true;  // 没有正在处理的帧
     }
     
-    qInfo() << "[AIVideoProcessor] Waiting for current frame to complete, timeout:" << timeoutMs << "ms";
+    // Waiting for current frame to complete, timeout: timeoutMs ms
     
     std::unique_lock<std::mutex> lock(m_impl->frameCompleteMutex);
     bool completed = m_impl->frameCompleteCv.wait_for(
@@ -186,7 +182,7 @@ bool AIVideoProcessor::waitForCurrentFrame(int timeoutMs)
     );
     
     if (completed) {
-        qInfo() << "[AIVideoProcessor] Current frame completed";
+        // Current frame completed
     } else {
         qWarning() << "[AIVideoProcessor] Timeout waiting for current frame";
     }
@@ -219,7 +215,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
     m_impl->lastProgressEmitMs.store(0);
     setProcessing(true);
     
-    qInfo() << "[AIVideoProcessor] Processing video:" << inputPath << "to" << outputPath;
+    // Processing video: inputPath to outputPath
     
     if (m_progressReporter) {
         m_progressReporter->reset();
@@ -241,7 +237,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
             return;
         }
         
-        qInfo() << "[AIVideoProcessor] AI engine ready, model:" << m_impl->aiEngine->currentModelId();
+        // AI engine ready, model: m_impl->aiEngine->currentModelId()
     }
     
     VideoResourceGuard guard;
@@ -258,7 +254,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
     
     // 早期取消检测
     if (m_impl->cancelled.load()) {
-        qInfo() << "[AIVideoProcessor] Cancelled before input initialization";
+        // Cancelled before input initialization
         setProcessing(false);
         emitCompleted(false, QString(), tr("Video processing cancelled"));
         return;
@@ -269,11 +265,9 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
         return;
     }
     
-    // 调试信息：输出视频基本信息
+    // 输出视频基本信息
     auto* inputFmtCtx = guard.inputFormatContext();
-    if (inputFmtCtx) {
-        qInfo() << "[AIVideoProcessor] Input video info: streams=" << inputFmtCtx->nb_streams << ", duration=" << inputFmtCtx->duration / AV_TIME_BASE << "s";
-    }
+    // Video info: streams=inputFmtCtx->nb_streams, duration=inputFmtCtx->duration / AV_TIME_BASE s
     
     VideoCompatibilityAnalyzer compatibilityAnalyzer;
     compatibilityAnalyzer.setModelInfo(m_impl->modelInfo);
@@ -319,8 +313,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
         return;
     }
     
-    // 调试信息：输出解码器和尺寸信息
-    qInfo() << "[AIVideoProcessor] Decoder: " << srcW << "x" << srcH << "->" << outW << "x" << outH << ", tileSize=" << m_impl->modelInfo.tileSize;
+    // 解码器和尺寸信息: srcW x srcH -> outW x outH, tileSize=m_impl->modelInfo.tileSize
     
     QString effectiveOutputPath = outputPath;
     QFileInfo outInfo(outputPath);
@@ -333,7 +326,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
         return;
     }
     
-    qInfo() << "[AIVideoProcessor] Output initialized:" << effectiveOutputPath;
+    // Output initialized: effectiveOutputPath
     
     AVFrame* decFrame = av_frame_alloc();
     AVFrame* encFrame = av_frame_alloc();
@@ -348,7 +341,7 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
     int64_t failedFrames = 0;
     const int64_t totalFrames = guard.totalFrames();
     
-    qInfo() << "[AIVideoProcessor] Processing" << totalFrames << "frames";
+    // Processing totalFrames frames
     
     auto cleanupFrames = [&]() {
         if (decFrame) av_frame_free(&decFrame);
@@ -384,23 +377,21 @@ void AIVideoProcessor::processInternal(const QString& inputPath, const QString& 
             return;
         }
         
-        // 【修复】检查暂停标志，等待恢复
+        // 检查暂停标志，等待恢复
         if (m_impl->paused.load()) {
-            qInfo() << "[AIVideoProcessor] Paused at frame" << frameCount;
             std::unique_lock<std::mutex> lock(m_impl->pauseMutex);
             m_impl->pauseCv.wait(lock, [this]() {
                 return !m_impl->paused.load() || m_impl->cancelled.load();
             });
             // 恢复后再次检查取消标志
             if (m_impl->cancelled.load()) {
-                qInfo() << "[AIVideoProcessor] Cancelled while paused";
+                // Cancelled while paused
                 av_packet_unref(pkt);
                 cleanupFrames();
                 setProcessing(false);
                 emitCompleted(false, QString(), tr("Video processing cancelled"));
                 return;
             }
-            qInfo() << "[AIVideoProcessor] Resumed at frame" << frameCount;
         }
         
         if (pkt->stream_index == guard.audioStreamIndex() && encoderInitialized) {

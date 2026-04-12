@@ -37,7 +37,12 @@
 - 缓存清理结果改为可解释摘要，明确显示残留文件、占用空间、路径和后续处理建议
 - 设置页新增缓存清理相关文案的中英翻译，并移除不必要的成功调试输出
 
-### Added
+### Fixed
+- **Message Card Scroll Animation Optimization** - Fixed stuttering when new messages are added to the list
+  - Replaced manual NumberAnimation with Behavior on contentY for smoother transitions
+  - Added smart animation control to disable during user interaction and session switching
+  - Implemented 50ms delay to ensure ListView completes layout before scrolling
+  - Removed redundant animation code and simplified scroll functions
 - **Progress Prediction Optimization** - Complete overhaul of time prediction system for improved accuracy
   - Unified prediction source through TaskTimeEstimator with dynamic correction based on actual progress
   - Optimistic prediction strategy using 30-40% of previous estimates (based on real test data)

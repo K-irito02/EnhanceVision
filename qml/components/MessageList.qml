@@ -57,6 +57,9 @@ Item {
 
         model: root._hasRealModel ? messageModel : demoModel
         
+        // 是否启用滚动动画（用户交互或会话切换时禁用）
+        property bool smoothScrollEnabled: true
+        
         function scrollToBottom() {
             if (messageList.count > 0) {
                 messageList.positionViewAtEnd()
@@ -65,18 +68,17 @@ Item {
         
         function scrollToBottomAnimated() {
             if (messageList.count > 0) {
-                var targetY = Math.max(0, messageList.contentHeight - messageList.height)
-                if (Math.abs(messageList.contentY - targetY) > 5) {
-                    scrollAnimation.to = targetY
-                    scrollAnimation.restart()
-                }
+                smoothScrollEnabled = true
+                messageList.positionViewAtEnd()
             }
         }
         
         function scrollToBottomImmediate() {
             if (messageList.count > 0) {
-                scrollAnimation.stop()
+                smoothScrollEnabled = false
                 messageList.positionViewAtEnd()
+                // 延迟恢复动画，避免影响后续滚动
+                Qt.callLater(function() { smoothScrollEnabled = true })
             }
         }
         
@@ -85,17 +87,12 @@ Item {
                    (messageList.contentHeight - messageList.contentY - messageList.height) < 100
         }
         
-        NumberAnimation {
-            id: scrollAnimation
-            target: messageList
-            property: "contentY"
-            duration: 300
-            easing.type: Easing.OutCubic
-            
-            onRunningChanged: {
-                if (!running) {
-                    messageList.positionViewAtEnd()
-                }
+        // 使用 Behavior 实现平滑滚动，替代手动 NumberAnimation
+        Behavior on contentY {
+            enabled: messageList.smoothScrollEnabled && !messageList.moving && !messageList.flicking && !messageList.isSessionSwitching
+            NumberAnimation {
+                duration: 250
+                easing.type: Easing.OutCubic
             }
         }
 
@@ -481,6 +478,16 @@ Item {
         return defaultValue
     }
     
+    // 新消息添加后延迟滚动到底部的定时器
+    Timer {
+        id: scrollToBottomDelayTimer
+        interval: 50  // 等待 ListView 完成布局
+        repeat: false
+        onTriggered: {
+            messageList.scrollToBottomAnimated()
+        }
+    }
+    
     // 模型重置后恢复滚动位置的定时器
     Timer {
         id: restoreAfterResetTimer
@@ -615,7 +622,8 @@ Item {
         
         function onMessageAdded(messageId) {
             if (messageList.autoScrollEnabled || messageList.isNearBottom()) {
-                Qt.callLater(messageList.scrollToBottomAnimated)
+                // 延迟滚动，确保 ListView 完成新项目布局后再触发
+                scrollToBottomDelayTimer.restart()
             }
         }
         
