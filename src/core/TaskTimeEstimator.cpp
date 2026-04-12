@@ -42,14 +42,6 @@ void TaskTimeEstimator::initialize()
     // GPU 信息由 AIEngine::probeGpuAvailability() 完成后通过 setGpuInfo() 设置
     m_initialized = true;
 
-    qInfo() << "[TaskTimeEstimator] Initialized:"
-            << "CPU:" << m_hwInfo.cpuModel
-            << "cores:" << m_hwInfo.cpuCoreCount
-            << "threads:" << m_hwInfo.cpuThreadCount
-            << "freq:" << m_hwInfo.cpuFrequencyGHz << "GHz"
-            << "RAM:" << m_hwInfo.systemMemoryMB << "MB"
-            << "GPU:" << (m_hwInfo.gpuAvailable ? m_hwInfo.gpuModel : "N/A")
-            << "VRAM:" << m_hwInfo.gpuMemoryMB << "MB";
 }
 
 // ========== 硬件信息查询 ==========
@@ -66,11 +58,6 @@ void TaskTimeEstimator::setGpuInfo(const QString& gpuModel, qint64 gpuMemoryMB, 
     m_hwInfo.gpuModel = gpuModel;
     m_hwInfo.gpuMemoryMB = gpuMemoryMB;
     m_hwInfo.gpuAvailable = available;
-
-    qInfo() << "[TaskTimeEstimator] GPU info updated:"
-            << "model:" << gpuModel
-            << "VRAM:" << gpuMemoryMB << "MB"
-            << "available:" << available;
 
     emit gpuAvailableChanged();
 }
@@ -445,8 +432,6 @@ void TaskTimeEstimator::startTracking(const QString& taskId, double initialPredi
     
     m_trackers.insert(taskId, tracker);
     
-    qInfo() << "[TaskTimeEstimator] Started tracking task:" << taskId
-            << "initialPredictedSec:" << initialPredictedSec;
 }
 
 double TaskTimeEstimator::updateProgress(const QString& taskId, double progress)
@@ -509,8 +494,6 @@ void TaskTimeEstimator::pauseTracking(const QString& taskId)
     // 更新已用时间到暂停时刻
     tracker.elapsedSec = getEffectiveElapsedSec(tracker);
     
-    qInfo() << "[TaskTimeEstimator] Paused tracking task:" << taskId
-            << "elapsedSec:" << tracker.elapsedSec;
 }
 
 void TaskTimeEstimator::resumeTracking(const QString& taskId)
@@ -535,18 +518,13 @@ void TaskTimeEstimator::resumeTracking(const QString& taskId)
     tracker.isPaused = false;
     tracker.lastPauseStartMs = 0;
     
-    qInfo() << "[TaskTimeEstimator] Resumed tracking task:" << taskId
-            << "pausedDurationMs:" << pauseDuration
-            << "totalPausedMs:" << tracker.pausedTimeMs;
 }
 
 void TaskTimeEstimator::stopTracking(const QString& taskId)
 {
     QMutexLocker locker(&m_mutex);
     
-    if (m_trackers.remove(taskId) != 0) {
-        qInfo() << "[TaskTimeEstimator] Stopped tracking task:" << taskId;
-    }
+    m_trackers.remove(taskId);
 }
 
 QVariantMap TaskTimeEstimator::getTaskTimeInfo(const QString& taskId) const

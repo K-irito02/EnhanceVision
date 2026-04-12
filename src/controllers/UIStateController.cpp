@@ -399,7 +399,6 @@ void UIStateController::saveState()
         QJsonDocument doc(root);
         file.write(doc.toJson(QJsonDocument::Indented));
         file.close();
-        qInfo() << "[UIStateController] State saved to:" << filePath;
     } else {
         qWarning() << "[UIStateController] Failed to save state to:" << filePath;
     }
@@ -411,7 +410,6 @@ void UIStateController::loadState()
     QFile file(filePath);
     
     if (!file.exists()) {
-        qInfo() << "[UIStateController] State file not found, using defaults:" << filePath;
         return;
     }
     
@@ -482,8 +480,6 @@ void UIStateController::loadState()
     }
 
     loadWindowLayouts(root);
-    
-    qInfo() << "[UIStateController] State loaded from:" << filePath;
 }
 
 void UIStateController::loadWindowLayouts(const QJsonObject& root)

@@ -46,10 +46,11 @@ ThumbnailProvider::ThumbnailProvider()
 
 ThumbnailProvider::~ThumbnailProvider()
 {
+    prepareForShutdown();
+
     if (s_instance == this) {
         s_instance = nullptr;
     }
-    m_threadPool->waitForDone();
 }
 
 QString ThumbnailProvider::normalizeFilePath(const QString &path)
@@ -97,7 +98,6 @@ void ThumbnailProvider::initializePersistence()
 
     m_db = ThumbnailDatabase::instance();
     if (!m_db || !m_db->isInitialized()) {
-        qInfo() << "[ThumbnailProvider] Persistence not available (DB not initialized), using memory-only mode";
         m_persistenceEnabled = false;
         return;
     }
@@ -105,7 +105,6 @@ void ThumbnailProvider::initializePersistence()
     m_persistenceEnabled = true;
 
     QList<ThumbnailMeta> validEntries = m_db->getAllValid(kPersistenceLoadLimit, "access_count DESC");
-    int loadedCount = 0;
 
     for (const auto& meta : validEntries) {
         QImage diskImg = loadThumbnailFromDisk(meta.cacheKey);
@@ -119,13 +118,9 @@ void ThumbnailProvider::initializePersistence()
             if (!meta.filePath.isEmpty()) {
                 m_idToPath[meta.cacheKey] = meta.filePath;
             }
-
-            loadedCount++;
         }
     }
 
-    qInfo() << "[ThumbnailProvider] Persistence initialized:" << loadedCount
-            << "thumbnails loaded from disk cache";
 }
 
 int ThumbnailProvider::memoryCacheCount() const
@@ -142,6 +137,29 @@ qint64 ThumbnailProvider::memoryCacheSize() const
         totalBytes += it.value().image.sizeInBytes();
     }
     return totalBytes;
+}
+
+void ThumbnailProvider::prepareForShutdown(int timeoutMs)
+{
+    if (m_shutdownInProgress) {
+        return;
+    }
+
+    m_shutdownInProgress = true;
+
+    {
+        QMutexLocker locker(&m_mutex);
+        m_pendingRequests.clear();
+    }
+
+    if (!m_threadPool) {
+        return;
+    }
+
+    m_threadPool->clear();
+    if (!m_threadPool->waitForDone(timeoutMs)) {
+        qWarning() << "[ThumbnailProvider] Thumbnail worker shutdown timed out";
+    }
 }
 
 QImage ThumbnailProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize)
@@ -272,6 +290,10 @@ void ThumbnailProvider::generateThumbnailAsync(const QString &filePath, const QS
 {
     const QString key = normalizeKey(id);
 
+    if (m_shutdownInProgress) {
+        return;
+    }
+
     if (filePath.isEmpty()) {
         qWarning() << "[ThumbnailProvider] generateThumbnailAsync called with empty filePath for id:" << id;
         return;
@@ -389,8 +411,6 @@ void ThumbnailProvider::clearThumbnailsByPathPrefix(const QString &pathPrefix)
         m_db->clearByPathPrefix(normalizedPrefix);
     }
 
-    qInfo() << "[ThumbnailProvider] Cleared" << keysToRemove.size()
-            << "thumbnails for path prefix:" << normalizedPrefix;
 }
 
 ThumbnailProvider* ThumbnailProvider::instance()

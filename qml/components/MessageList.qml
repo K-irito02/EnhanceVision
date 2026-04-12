@@ -9,7 +9,7 @@ Item {
 
     property bool batchMode: false
     property var selectedIds: []
-    readonly property bool _hasRealModel: typeof messageModel !== "undefined"
+    readonly property bool _hasRealModel: typeof messageModel !== "undefined" && messageModel !== null
     
     property Item viewerContainer: null
     property var pendingViewer: null
@@ -121,15 +121,15 @@ Item {
             selectable: batchMode
             
             // 暂停模式相关属性
-            globalPauseEnabled: typeof processingController !== "undefined" ? processingController.isGlobalPauseEnabled() : false
+            globalPauseEnabled: (typeof processingController !== "undefined" && processingController) ? processingController.isGlobalPauseEnabled() : false
             pauseMode: typeof SettingsController !== "undefined" ? SettingsController.pauseMode : 1
             isActivated: _localIsActivated
             
             // 本地激活状态跟踪（响应信号更新）
-            property bool _localIsActivated: typeof processingController !== "undefined" ? processingController.isMessageActivated(model.id) : false
+            property bool _localIsActivated: (typeof processingController !== "undefined" && processingController) ? processingController.isMessageActivated(model.id) : false
             
             Connections {
-                target: typeof processingController !== "undefined" ? processingController : null
+                target: (typeof processingController !== "undefined" && processingController) ? processingController : null
                 function onMessageActivated(messageId) {
                     if (messageId === model.id) {
                         msgDelegate._localIsActivated = true

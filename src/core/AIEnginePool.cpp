@@ -10,7 +10,6 @@
 #include "EnhanceVision/core/inference/InferenceTypes.h"
 #include <QDebug>
 #include <QThread>
-#include <QElapsedTimer>
 
 namespace EnhanceVision {
 
@@ -59,9 +58,6 @@ AIEngine* AIEnginePool::acquire(const QString& taskId)
             m_slots[i].taskId = taskId;
             m_taskToSlot[taskId] = i;
             
-            qInfo() << "[AIEnginePool] Engine acquired for task:" << taskId
-                    << ", slot index:" << i;
-
             emit engineAcquired(taskId, i);
             return engine;
         }
@@ -72,7 +68,6 @@ AIEngine* AIEnginePool::acquire(const QString& taskId)
     for (int i = 0; i < m_slots.size(); ++i) {
         if (m_slots[i].state == EngineState::Draining) {
             hasDrainingEngine = true;
-            qInfo() << "[AIEnginePool] Engine at slot" << i << "is draining, will be available soon for task:" << taskId;
             break;
         }
     }
@@ -109,10 +104,6 @@ AIEngine* AIEnginePool::acquireWithBackend(const QString& taskId, BackendType ba
 
             engine->resetState();
 
-            qInfo() << "[AIEnginePool] Switching backend for slot" << i
-                    << "from" << static_cast<int>(m_slots[i].backendType)
-                    << "to" << static_cast<int>(backendType);
-
             if (!engine->setBackendType(backendType)) {
                 qWarning() << "[AIEnginePool] Failed to set backend type for slot" << i
                            << ", requested:" << static_cast<int>(backendType);
@@ -134,10 +125,6 @@ AIEngine* AIEnginePool::acquireWithBackend(const QString& taskId, BackendType ba
             m_slots[i].taskId = taskId;
             m_slots[i].backendType = backendType;
             m_taskToSlot[taskId] = i;
-
-            qInfo() << "[AIEnginePool] Engine acquired for task:" << taskId
-                    << ", slot index:" << i
-                    << ", backend:" << static_cast<int>(backendType);
 
             emit engineAcquired(taskId, i);
             return engine;
@@ -164,7 +151,6 @@ bool AIEnginePool::ensureEngineReady(int slotIndex)
     }
     
     if (slot.state == EngineState::Error) {
-        qInfo() << "[AIEnginePool] Attempting to recover engine in slot" << slotIndex;
         slot.engine->resetState();
     }
     
@@ -185,8 +171,6 @@ void AIEnginePool::release(const QString& taskId)
         AIEngine* engine = m_slots[idx].engine;
         
         if (engine && engine->isProcessing()) {
-            qInfo() << "[AIEnginePool] Async cancelling engine for task:" << taskId;
-            
             m_slots[idx].state = EngineState::Draining;
             
             connect(engine, &AIEngine::processingCancelled, this, [this, idx, taskId]() {
@@ -196,7 +180,6 @@ void AIEnginePool::release(const QString& taskId)
                 m_slots[idx].backendType = BackendType::NCNN_CPU;
                 m_slots[idx].wasUsed = true;
                 
-                qInfo() << "[AIEnginePool] Engine async released, task:" << taskId;
                 emit engineReleased(taskId, idx);
                 emit engineReady();
             }, Qt::QueuedConnection);
@@ -208,7 +191,6 @@ void AIEnginePool::release(const QString& taskId)
             m_slots[idx].backendType = BackendType::NCNN_CPU;
             m_slots[idx].wasUsed = true;
             
-            qInfo() << "[AIEnginePool] Task released:" << taskId << ", slot index:" << idx;
             emit engineReleased(taskId, idx);
         }
     }
@@ -357,8 +339,6 @@ void AIEnginePool::createEngines(int count)
 
 void AIEnginePool::destroyEngines()
 {
-    qInfo() << "[AIEnginePool] Destroying engines, slot count:" << m_slots.size();
-    
     for (auto& slot : m_slots) {
         if (slot.engine) {
             slot.engine->cancelProcess();
@@ -371,8 +351,6 @@ void AIEnginePool::destroyEngines()
     }
     m_slots.clear();
     m_taskToSlot.clear();
-    
-    qInfo() << "[AIEnginePool] All engines destroyed";
 }
 
 } // namespace EnhanceVision

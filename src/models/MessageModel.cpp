@@ -13,21 +13,9 @@
 #include <QDateTime>
 #include <QtMath>
 #include <QCoreApplication>
-#include <QElapsedTimer>
 #include <QFile>
 
 namespace EnhanceVision {
-
-namespace {
-constexpr qint64 kMessagePerfLogThresholdMs = 4;
-
-inline void logMessagePerfIfSlow(const char* tag, qint64 elapsedMs)
-{
-    if (elapsedMs >= kMessagePerfLogThresholdMs) {
-        qInfo() << "[Perf][MessageModel]" << tag << "cost:" << elapsedMs << "ms";
-    }
-}
-}
 
 MessageModel::MessageModel(QObject *parent)
     : QAbstractListModel(parent)
@@ -254,9 +242,6 @@ QString MessageModel::addMessage(int mode, const QVariantList &mediaFiles, const
 
 void MessageModel::updateStatus(const QString &messageId, int status)
 {
-    QElapsedTimer perfTimer;
-    perfTimer.start();
-
     int index = findMessageIndex(messageId);
     if (index < 0) {
         emit errorOccurred(tr("Message does not exist: %1").arg(messageId));
@@ -268,14 +253,10 @@ void MessageModel::updateStatus(const QString &messageId, int status)
     emit dataChanged(modelIndex, modelIndex, {StatusRole, StatusTextRole, StatusColorRole});
     emit statusUpdated(messageId, status);
 
-    logMessagePerfIfSlow("updateStatus", perfTimer.elapsed());
 }
 
 void MessageModel::updateProgress(const QString &messageId, int progress)
 {
-    QElapsedTimer perfTimer;
-    perfTimer.start();
-
     int index = findMessageIndex(messageId);
     if (index < 0) {
         emit errorOccurred(tr("Message does not exist: %1").arg(messageId));
@@ -286,7 +267,6 @@ void MessageModel::updateProgress(const QString &messageId, int progress)
     QModelIndex modelIndex = createIndex(index, 0);
     emit dataChanged(modelIndex, modelIndex, {ProgressRole});
 
-    logMessagePerfIfSlow("updateProgress", perfTimer.elapsed());
 }
 
 void MessageModel::updateErrorMessage(const QString &messageId, const QString &errorMessage)
@@ -751,9 +731,6 @@ QString MessageModel::getModeText(ProcessingMode mode) const
 void MessageModel::updateFileStatus(const QString &messageId, const QString &fileId,
                                      int status, const QString &resultPath)
 {
-    QElapsedTimer perfTimer;
-    perfTimer.start();
-
     int idx = findMessageIndex(messageId);
     if (idx < 0) {
         return;
@@ -785,7 +762,6 @@ void MessageModel::updateFileStatus(const QString &messageId, const QString &fil
 
             emit mediaFilePatched(messageId, fileId, status, resultPath);
             emitMessageFileStatsChanged(messageId, message);
-            logMessagePerfIfSlow("updateFileStatus", perfTimer.elapsed());
             return;
         }
     }
@@ -793,9 +769,6 @@ void MessageModel::updateFileStatus(const QString &messageId, const QString &fil
 
 void MessageModel::updateQueuePosition(const QString &messageId, int position)
 {
-    QElapsedTimer perfTimer;
-    perfTimer.start();
-
     int idx = findMessageIndex(messageId);
     if (idx < 0) {
         return;
@@ -805,7 +778,6 @@ void MessageModel::updateQueuePosition(const QString &messageId, int position)
         m_messages[idx].queuePosition = position;
         QModelIndex modelIndex = createIndex(idx, 0);
         emit dataChanged(modelIndex, modelIndex, {QueuePositionRole});
-        logMessagePerfIfSlow("updateQueuePosition", perfTimer.elapsed());
     }
 }
 

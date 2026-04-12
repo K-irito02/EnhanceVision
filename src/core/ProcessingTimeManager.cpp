@@ -7,7 +7,6 @@
 #include "EnhanceVision/core/ProcessingTimeManager.h"
 #include "EnhanceVision/core/TaskTimeEstimator.h"
 #include "EnhanceVision/models/MessageModel.h"
-#include <QDebug>
 #include <QtMath>
 
 namespace EnhanceVision {
@@ -20,13 +19,11 @@ ProcessingTimeManager::ProcessingTimeManager(QObject *parent)
             this, &ProcessingTimeManager::onTimerTick);
     m_updateTimer->start(1000);
     
-    qInfo() << "[ProcessingTimeManager] Initialized, timer started";
 }
 
 ProcessingTimeManager::~ProcessingTimeManager()
 {
     m_updateTimer->stop();
-    qInfo() << "[ProcessingTimeManager] Destroyed, timer stopped";
 }
 
 void ProcessingTimeManager::setMessageModel(MessageModel* model)
@@ -59,9 +56,6 @@ void ProcessingTimeManager::registerTask(const QString& messageId,
         m_messageModel->updateTimeInfo(messageId, info.elapsedSec, info.remainingSec, info.isOvertime);
     }
     
-    qInfo() << "[ProcessingTimeManager] Registered task:" << messageId
-            << "predictedTotalSec:" << predictedTotalSec
-            << "startTime:" << info.processingStartTime;
 }
 
 void ProcessingTimeManager::unregisterTask(const QString& messageId)
@@ -98,7 +92,6 @@ void ProcessingTimeManager::unregisterTask(const QString& messageId)
             const qint64 displayActualTotalSec = actualTotalSec > 0 ? actualTotalSec : (info.processingStartTime > 0 ? 1 : 0);
             if (displayActualTotalSec > 0) {
                 m_messageModel->updateActualTotalSec(messageId, displayActualTotalSec);
-                qInfo() << "[ProcessingTimeManager] Updated actualTotalSec for:" << messageId << "value:" << displayActualTotalSec;
             }
         }
         
@@ -108,8 +101,6 @@ void ProcessingTimeManager::unregisterTask(const QString& messageId)
         m_tasks.erase(it);
         m_pausedTasks.remove(messageId);
         m_pausedElapsedSec.remove(messageId);
-        
-        qInfo() << "[ProcessingTimeManager] Unregistered task:" << messageId;
     }
 }
 
@@ -133,7 +124,6 @@ void ProcessingTimeManager::clear()
     m_tasks.clear();
     m_pausedTasks.clear();
     m_pausedElapsedSec.clear();
-    qInfo() << "[ProcessingTimeManager] Cleared all tasks";
 }
 
 void ProcessingTimeManager::pauseTask(const QString& messageId)
@@ -155,9 +145,6 @@ void ProcessingTimeManager::pauseTask(const QString& messageId)
     
     // 同步到 TaskTimeEstimator
     TaskTimeEstimator::instance()->pauseTracking(messageId);
-    
-    qInfo() << "[ProcessingTimeManager] Paused task:" << messageId
-            << "elapsedSec:" << info.elapsedSec;
 }
 
 void ProcessingTimeManager::resumeTask(const QString& messageId)
@@ -187,9 +174,6 @@ void ProcessingTimeManager::resumeTask(const QString& messageId)
         m_messageModel->updateProcessingStartTime(messageId, info.processingStartTime);
         m_messageModel->updateTimeInfo(messageId, pausedElapsed, qMax<qint64>(0, info.predictedTotalSec - pausedElapsed), false);
     }
-    
-    qInfo() << "[ProcessingTimeManager] Resumed task:" << messageId
-            << "adjustedStartTime:" << info.processingStartTime;
 }
 
 bool ProcessingTimeManager::isTaskPaused(const QString& messageId) const

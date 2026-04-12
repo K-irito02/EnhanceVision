@@ -17,6 +17,7 @@
 #include <cstdio>
 #include <cstring>
 #include "EnhanceVision/app/Application.h"
+#include "EnhanceVision/core/LifecycleSupervisor.h"
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -196,11 +197,17 @@ int main(int argc, char *argv[])
         qWarning() << "Failed to create log file:" << logFilePath;
     }
 
-    EnhanceVision::Application application;
-    application.initialize();
-    application.show();
+    int result = 0;
+    {
+        EnhanceVision::Application application;
+        application.initialize();
+        application.show();
+        result = app.exec();
+    }
 
-    int result = app.exec();
+    if (auto* lifecycleSupervisor = EnhanceVision::LifecycleSupervisor::instanceIfExists()) {
+        lifecycleSupervisor->markTerminationComplete();
+    }
     
     // 清理日志
     if (logFile) {

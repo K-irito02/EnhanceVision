@@ -128,12 +128,13 @@ public:
      * 根据设置决定是否自动重新处理
      */
     void checkAndAutoRetryAllInterruptedTasks();
-    
+
     /**
      * @brief 立即保存会话数据（绕过防抖）
      * 用于任务完成后立即持久化，防止崩溃时数据丢失
      */
     void saveSessionsImmediately();
+    bool prepareForShutdown(int waitMs = 1500);
     
     /**
      * @brief 清空所有会话的消息（保留会话标签）

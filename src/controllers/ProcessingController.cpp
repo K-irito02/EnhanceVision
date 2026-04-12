@@ -28,6 +28,7 @@
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFile>
 #include <QThread>
 #include <QtConcurrent>
@@ -37,6 +38,45 @@ namespace EnhanceVision {
 
 namespace {
 constexpr qint64 kPerfLogThresholdMs = 8;
+
+QList<QSharedPointer<AIVideoProcessor>>& shutdownLeakedAiVideoProcessors()
+{
+    static QList<QSharedPointer<AIVideoProcessor>> leakedProcessors;
+    return leakedProcessors;
+}
+
+QList<QSharedPointer<VideoProcessor>>& shutdownLeakedVideoProcessors()
+{
+    static QList<QSharedPointer<VideoProcessor>> leakedProcessors;
+    return leakedProcessors;
+}
+
+QList<QSharedPointer<ImageProcessor>>& shutdownLeakedImageProcessors()
+{
+    static QList<QSharedPointer<ImageProcessor>> leakedProcessors;
+    return leakedProcessors;
+}
+
+void stashProcessorForShutdown(const QSharedPointer<AIVideoProcessor>& processor)
+{
+    if (processor) {
+        shutdownLeakedAiVideoProcessors().append(processor);
+    }
+}
+
+void stashProcessorForShutdown(const QSharedPointer<VideoProcessor>& processor)
+{
+    if (processor) {
+        shutdownLeakedVideoProcessors().append(processor);
+    }
+}
+
+void stashProcessorForShutdown(const QSharedPointer<ImageProcessor>& processor)
+{
+    if (processor) {
+        shutdownLeakedImageProcessors().append(processor);
+    }
+}
 
 }
 
@@ -102,9 +142,7 @@ ProcessingController::ProcessingController(QObject* parent)
 
 ProcessingController::~ProcessingController()
 {
-    cancelAllTasks();
-    // m_aiEngine 已废弃，使用 m_aiEnginePool 管理引擎
-    m_threadPool->waitForDone();
+    prepareForShutdown();
 }
 
 ProcessingModel* ProcessingController::processingModel() const
@@ -158,6 +196,24 @@ void ProcessingController::resumeQueue()
         emit queueResumed();
         processNextTask();
     }
+}
+
+bool ProcessingController::prepareForShutdown(int threadPoolWaitMs)
+{
+    if (m_shutdownInProgress) {
+        return waitForThreadPoolIdle(threadPoolWaitMs);
+    }
+
+    m_shutdownInProgress = true;
+    qWarning() << "[ProcessingController] Preparing for shutdown"
+               << "taskCount:" << m_tasks.size()
+               << "processingCount:" << m_currentProcessingCount;
+
+    forceCancelAllTasks();
+
+    const bool cleanupOk = waitForBackgroundCleanup(qMin(threadPoolWaitMs, 800));
+    const bool threadPoolOk = waitForThreadPoolIdle(threadPoolWaitMs);
+    return cleanupOk && threadPoolOk;
 }
 
 void ProcessingController::setMessageModel(MessageModel* messageModel)
@@ -837,6 +893,10 @@ void ProcessingController::clearCompletedTasks()
 
 void ProcessingController::processNextTask()
 {
+    if (m_shutdownInProgress) {
+        return;
+    }
+
     if (m_queueStatus != QueueStatus::Running) {
         return;
     }
@@ -3553,6 +3613,73 @@ void ProcessingController::releaseTaskResources(const QString& taskId)
     m_taskLifecycle[taskId] = TaskLifecycle::Dead;
 }
 
+void ProcessingController::finalizeTaskTermination(const QString& taskId)
+{
+    m_aiEnginePool->release(taskId);
+
+    if (m_orphanTimers.contains(taskId)) {
+        QTimer* oldTimer = m_orphanTimers.take(taskId);
+        if (oldTimer) {
+            oldTimer->stop();
+            oldTimer->deleteLater();
+        }
+    }
+
+    releaseTaskResources(taskId);
+
+    qInfo() << "[ProcessingController] terminateTask completed:" << taskId;
+}
+
+bool ProcessingController::waitForBackgroundCleanup(int timeoutMs)
+{
+    QElapsedTimer timer;
+    timer.start();
+
+    while (timer.elapsed() < timeoutMs) {
+        cleanupDyingProcessors();
+        if (m_dyingProcessors.isEmpty() && m_dyingVideoProcessors.isEmpty()) {
+            return true;
+        }
+
+        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+        QThread::msleep(10);
+    }
+
+    for (auto it = m_dyingProcessors.begin(); it != m_dyingProcessors.end(); ++it) {
+        if (it.value()) {
+            it.value()->waitForFinished(100);
+            if (it.value()->isProcessing()) {
+                stashProcessorForShutdown(it.value());
+            }
+        }
+    }
+
+    for (auto it = m_dyingVideoProcessors.begin(); it != m_dyingVideoProcessors.end(); ++it) {
+        if (it.value() && it.value()->isProcessing()) {
+            stashProcessorForShutdown(it.value());
+        }
+    }
+
+    m_dyingProcessors.clear();
+    m_dyingVideoProcessors.clear();
+
+    qWarning() << "[ProcessingController] Background processor cleanup timed out";
+    return false;
+}
+
+bool ProcessingController::waitForThreadPoolIdle(int timeoutMs)
+{
+    if (!m_threadPool) {
+        return true;
+    }
+
+    const bool drained = m_threadPool->waitForDone(timeoutMs);
+    if (!drained) {
+        qWarning() << "[ProcessingController] Thread pool wait timed out during shutdown";
+    }
+    return drained;
+}
+
 void ProcessingController::terminateTask(const QString& taskId, const QString& reason)
 {
     TaskLifecycle state = m_taskLifecycle.value(taskId, TaskLifecycle::Active);
@@ -3586,7 +3713,14 @@ void ProcessingController::terminateTask(const QString& taskId, const QString& r
             auto aiProc = m_activeAIVideoProcessors.take(taskId);
             if (aiProc) {
                 aiProc->cancel();  // 确保处理器被取消
-                m_dyingProcessors[taskId] = aiProc;
+                if (m_shutdownInProgress) {
+                    aiProc->waitForFinished(100);
+                    if (aiProc->isProcessing()) {
+                        stashProcessorForShutdown(aiProc);
+                    }
+                } else {
+                    m_dyingProcessors[taskId] = aiProc;
+                }
             }
         }
 
@@ -3594,13 +3728,28 @@ void ProcessingController::terminateTask(const QString& taskId, const QString& r
             auto vidProc = m_activeVideoProcessors.take(taskId);
             if (vidProc) {
                 vidProc->cancel();  // 确保处理器被取消
-                m_dyingVideoProcessors[taskId] = vidProc;
+                if (m_shutdownInProgress) {
+                    if (vidProc->isProcessing()) {
+                        stashProcessorForShutdown(vidProc);
+                    }
+                } else {
+                    m_dyingVideoProcessors[taskId] = vidProc;
+                }
             }
         }
 
         if (m_activeImageProcessors.contains(taskId)) {
             auto imgProcessor = m_activeImageProcessors.take(taskId);
-            if (imgProcessor) { imgProcessor->cancel(); }
+            if (imgProcessor) {
+                imgProcessor->cancel();
+                if (m_shutdownInProgress && imgProcessor->isProcessing()) {
+                    stashProcessorForShutdown(imgProcessor);
+                }
+            }
+        }
+
+        if (m_shutdownInProgress) {
+            finalizeTaskTermination(taskId);
         }
 
         return;
@@ -3623,7 +3772,14 @@ void ProcessingController::terminateTask(const QString& taskId, const QString& r
         auto processor = m_activeAIVideoProcessors.take(taskId);
         if (processor) {
             processor->cancel();
-            m_dyingProcessors[taskId] = processor;
+            if (m_shutdownInProgress) {
+                processor->waitForFinished(100);
+                if (processor->isProcessing()) {
+                    stashProcessorForShutdown(processor);
+                }
+            } else {
+                m_dyingProcessors[taskId] = processor;
+            }
         }
     }
 
@@ -3631,7 +3787,12 @@ void ProcessingController::terminateTask(const QString& taskId, const QString& r
 
     if (m_activeImageProcessors.contains(taskId)) {
         auto imgProcessor = m_activeImageProcessors.take(taskId);
-        if (imgProcessor) { imgProcessor->cancel(); }
+        if (imgProcessor) {
+            imgProcessor->cancel();
+            if (m_shutdownInProgress && imgProcessor->isProcessing()) {
+                stashProcessorForShutdown(imgProcessor);
+            }
+        }
     }
 
     TaskStateManager::instance()->unregisterActiveTask(taskId);
@@ -3642,20 +3803,13 @@ void ProcessingController::terminateTask(const QString& taskId, const QString& r
 
     m_taskLifecycle[taskId] = TaskLifecycle::Cleaning;
 
+    if (m_shutdownInProgress) {
+        finalizeTaskTermination(taskId);
+        return;
+    }
+
     QTimer::singleShot(0, this, [this, taskId]() {
-        m_aiEnginePool->release(taskId);
-
-        if (m_orphanTimers.contains(taskId)) {
-            QTimer* oldTimer = m_orphanTimers.take(taskId);
-            if (oldTimer) {
-                oldTimer->stop();
-                oldTimer->deleteLater();
-            }
-        }
-
-        releaseTaskResources(taskId);
-
-        qInfo() << "[ProcessingController] terminateTask completed:" << taskId;
+        finalizeTaskTermination(taskId);
     });
 }
 

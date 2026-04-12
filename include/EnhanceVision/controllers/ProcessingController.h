@@ -153,6 +153,7 @@ public:
     RecoverySnapshot buildRecoverySnapshot() const;
     bool restoreFromRecoverySnapshot(const RecoverySnapshot& snapshot);
     void removeStaleTasksForFile(const QString& messageId, const QString& fileId);
+    bool prepareForShutdown(int threadPoolWaitMs = 1200);
     
     Q_INVOKABLE void preloadModel(const QString& modelId);
     
@@ -323,7 +324,10 @@ private:
     
 
     QString generateTaskId();
+    void finalizeTaskTermination(const QString& taskId);
     void releaseTaskResources(const QString& taskId);
+    bool waitForBackgroundCleanup(int timeoutMs);
+    bool waitForThreadPoolIdle(int timeoutMs);
     void launchAiInference(AIEngine* engine, const QString& taskId, const QString& inputPath, 
                            const QString& outputPath, const Message& message);
     void launchAIVideoProcessor(AIEngine* engine, const QString& taskId,
@@ -395,6 +399,7 @@ private:
     };
     QHash<QString, QList<DeletionBatchItem>> m_deletionBatches;
     QTimer* m_batchProcessTimer = nullptr;
+    bool m_shutdownInProgress = false;
 };
 
 } // namespace EnhanceVision

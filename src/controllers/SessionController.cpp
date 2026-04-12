@@ -1333,6 +1333,35 @@ void SessionController::saveSessionsImmediately()
     }
 }
 
+bool SessionController::prepareForShutdown(int waitMs)
+{
+    m_autoSaveEnabled = false;
+    if (m_saveTimer) {
+        m_saveTimer->stop();
+    }
+    if (m_sessionNotifyTimer) {
+        m_sessionNotifyTimer->stop();
+    }
+    m_hasPendingSave = false;
+
+    if (m_saveInProgress) {
+        QElapsedTimer timer;
+        timer.start();
+        while (m_saveInProgress && timer.elapsed() < waitMs) {
+            QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+            QThread::msleep(10);
+        }
+
+        if (m_saveInProgress) {
+            qWarning() << "[SessionController] Timed out waiting for async save before shutdown";
+            return false;
+        }
+    }
+
+    saveSessionsImmediately();
+    return true;
+}
+
 QString SessionController::findTaskIdForFile(const QString& messageId, const QString& fileId) const
 {
     if (!m_processingController) {

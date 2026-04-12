@@ -187,7 +187,7 @@ C:\Users\<用户名>\Documents\EnhanceVision\output\
 
 **特点：**
 - 每次启动覆盖旧日志
-- 记录所有调试、信息、警告、错误输出
+- 默认只保留 warning/error/fatal；信息级与调试级输出仅在排障时短期开启
 - 包含时间戳和日志级别
 
 ---

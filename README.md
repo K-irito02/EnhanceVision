@@ -29,6 +29,7 @@ A desktop image processing and AI inference quality enhancement tool built with 
 - **GPU OOM auto-recovery**: Automatically degrades to tiled processing when VRAM is insufficient
 - **Stability optimization**: Trading latency for complete inference stability
 - Main window uses a native `QQuickWindow` host to reduce frameless resize flicker on Windows
+- Windows shutdown path now performs bounded cleanup before exit, so closing the main window no longer leaves a background process behind
 
 ### Modern UI
 
@@ -36,7 +37,6 @@ A desktop image processing and AI inference quality enhancement tool built with 
 - Dark/Light themes
 - Chinese/English bilingual support
 - Main window geometry is restored on restart through unified UI state persistence
-- The main window now uses a native `QQuickWindow` host, which reduces resize jitter and black-gap artifacts on Windows
 - Session-based workflow with pinning, reordering, and batch file processing
 - Embedded media viewer with fullscreen, drag-out, and smart docking support
 - Shared media viewer kernel (`qml/components/mediaViewer/`) for unified canvas, controls, thumbnail adaptation, and context menu behavior
@@ -44,6 +44,7 @@ A desktop image processing and AI inference quality enhancement tool built with 
 - Cache cleanup summaries show residual files and next-step guidance when disk removal is partially blocked
 - Message-card runtime state is unified in C++ derivation (including paused/recoverable), with declarative breathing-border animation that only runs during real processing
 - Theme SVG icons are centrally managed through `Theme.icon()` and `ColoredIcon`, while bitmaps and brand logos stay on `Image`
+- Runtime logs are kept lean by default; routine information/debug noise is removed from the common startup and shutdown paths
 
 ## Tech Stack
 

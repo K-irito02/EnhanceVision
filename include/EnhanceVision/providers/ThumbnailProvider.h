@@ -74,6 +74,7 @@ public:
     Q_INVOKABLE void initializePersistence();
     int memoryCacheCount() const;
     qint64 memoryCacheSize() const;
+    void prepareForShutdown(int timeoutMs = 500);
 
     static ThumbnailProvider* instance();
 
@@ -100,6 +101,7 @@ private:
     QThreadPool* m_threadPool;
     ThumbnailDatabase* m_db = nullptr;
     bool m_persistenceEnabled = false;
+    bool m_shutdownInProgress = false;
     static ThumbnailProvider* s_instance;
 
     static constexpr int kMaxMemoryCacheSize = 200;

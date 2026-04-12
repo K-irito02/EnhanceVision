@@ -59,6 +59,8 @@ private:
     bool switchTranslator(const QString& language);
 
     void setupLifecycleGuard();
+    void finalizeShutdown();
+    void destroyUi();
     bool eventFilter(QObject* watched, QEvent* event) override;
     QRect defaultMainWindowGeometry() const;
     QRect sanitizeMainWindowGeometry(const QRect& geometry) const;
@@ -78,12 +80,14 @@ private:
     std::unique_ptr<ProcessingController> m_processingController;
     std::unique_ptr<TaskRecoveryController> m_taskRecoveryController;
     ImageExportService *m_imageExportService;
+    ThumbnailProvider* m_thumbnailProvider = nullptr;
     QSharedPointer<QTranslator> m_translator;
     QSharedPointer<QTranslator> m_qtTranslator;
     QTimer* m_mainWindowLayoutSaveTimer = nullptr;
 
     LifecycleSupervisor* m_lifecycleSupervisor = nullptr;
     bool m_mainWindowEverShown = false;
+    bool m_shutdownFinalized = false;
 
 private slots:
     void onLanguageChanged();

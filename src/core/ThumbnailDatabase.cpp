@@ -82,27 +82,7 @@ bool ThumbnailDatabase::initialize(const QString& dataDirPath)
         return false;
     }
 
-    int count = 0;
-    qint64 diskSize = 0;
-
-    {
-        QSqlQuery countQuery(m_db);
-        if (countQuery.exec("SELECT COUNT(*) FROM thumbnails") && countQuery.next()) {
-            count = countQuery.value(0).toInt();
-        }
-    }
-
-    {
-        QSqlQuery sizeQuery(m_db);
-        if (sizeQuery.exec("SELECT SUM(file_size) FROM thumbnails WHERE status = 0 AND file_size > 0") && sizeQuery.next()) {
-            diskSize = sizeQuery.value(0).toLongLong();
-        }
-    }
-
     m_initialized = true;
-
-    qInfo() << "[ThumbnailDatabase] Initialized successfully at:" << m_dbPath
-            << "- entries:" << count << "- disk size:" << diskSize / 1024 << "KB";
 
     emit databaseInitialized(true);
     return true;
@@ -112,10 +92,18 @@ void ThumbnailDatabase::close()
 {
     QMutexLocker locker(&m_mutex);
 
+    if (!m_initialized && !m_db.isValid()) {
+        return;
+    }
+
+    const QString connectionName = m_db.connectionName();
     if (m_db.isOpen()) {
         m_db.close();
     }
-    QSqlDatabase::removeDatabase("thumbnail_db_conn");
+    m_db = QSqlDatabase();
+    if (!connectionName.isEmpty()) {
+        QSqlDatabase::removeDatabase(connectionName);
+    }
     m_initialized = false;
 }
 
@@ -413,7 +401,6 @@ int ThumbnailDatabase::clearAll()
     }
 
     emit metadataChanged();
-    qInfo() << "[ThumbnailDatabase] clearAll: removed" << removed << "entries";
     return removed;
 }
 
@@ -447,7 +434,6 @@ int ThumbnailDatabase::clearByPathPrefix(const QString& prefix)
     }
 
     emit metadataChanged();
-    qInfo() << "[ThumbnailDatabase] clearByPathPrefix: removed" << removed << "entries for prefix:" << prefix;
     return removed;
 }
 

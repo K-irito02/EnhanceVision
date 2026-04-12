@@ -44,6 +44,24 @@ Item {
         }
     }
 
+    function _isImageSource(source) {
+        if (!source || source === "") {
+            return false
+        }
+
+        var normalized = source.toString().split("?")[0].toLowerCase()
+        return normalized.startsWith("image://")
+            || normalized.endsWith(".png")
+            || normalized.endsWith(".jpg")
+            || normalized.endsWith(".jpeg")
+            || normalized.endsWith(".bmp")
+            || normalized.endsWith(".webp")
+            || normalized.endsWith(".gif")
+            || normalized.endsWith(".avif")
+            || normalized.endsWith(".tif")
+            || normalized.endsWith(".tiff")
+    }
+
     Timer {
         id: autoHideTimer
         interval: 2000
@@ -59,7 +77,9 @@ Item {
         id: imageShaderSource
         anchors.fill: parent
         visible: false
-        source: root.viewer && !root.viewer.isVideo ? root.viewer._getSource(root.viewer.currentSource) : ""
+        source: root.viewer && !root.viewer.isVideo && root._isImageSource(root.viewer.currentSource)
+                ? root.viewer._getSource(root.viewer.currentSource)
+                : ""
         fillMode: Image.PreserveAspectFit
         asynchronous: true
         smooth: true
@@ -88,12 +108,14 @@ Item {
 
     Loader {
         active: root.viewer && !root.viewer.isVideo && root.viewer.messageMode && root.viewer._hasDistinctResult
+                && root._isImageSource(root.viewer._resultSource)
+                && root._isImageSource(root.viewer._originalSource)
         anchors.fill: parent
         sourceComponent: Item {
             Image {
                 anchors.fill: parent
                 opacity: root.viewer.showOriginal ? 0.0 : 1.0
-                source: root.viewer._getSource(root.viewer._resultSource)
+                source: root._isImageSource(root.viewer._resultSource) ? root.viewer._getSource(root.viewer._resultSource) : ""
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
                 smooth: true
@@ -105,7 +127,7 @@ Item {
             Image {
                 anchors.fill: parent
                 opacity: root.viewer.showOriginal ? 1.0 : 0.0
-                source: root.viewer._getSource(root.viewer._originalSource)
+                source: root._isImageSource(root.viewer._originalSource) ? root.viewer._getSource(root.viewer._originalSource) : ""
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
                 smooth: true
@@ -119,7 +141,7 @@ Item {
     Image {
         anchors.fill: parent
         visible: root.viewer && !root.viewer.isVideo && !root.viewer.messageMode && root.viewer.currentSource !== "" && (root.viewer.showOriginal || !root.viewer.shaderEnabled)
-        source: root.viewer && !root.viewer.isVideo && !root.viewer.messageMode && root.viewer.currentSource !== ""
+        source: root.viewer && !root.viewer.isVideo && !root.viewer.messageMode && root.viewer.currentSource !== "" && root._isImageSource(root.viewer.currentSource)
                 ? root.viewer._getSource(root.viewer.currentSource)
                 : ""
         fillMode: Image.PreserveAspectFit
@@ -131,7 +153,7 @@ Item {
     Image {
         anchors.fill: parent
         visible: root.viewer && !root.viewer.isVideo && root.viewer.messageMode && !root.viewer._hasDistinctResult && root.viewer.currentSource !== ""
-        source: root.viewer && !root.viewer.isVideo && root.viewer.messageMode && !root.viewer._hasDistinctResult && root.viewer.currentSource !== ""
+        source: root.viewer && !root.viewer.isVideo && root.viewer.messageMode && !root.viewer._hasDistinctResult && root.viewer.currentSource !== "" && root._isImageSource(root.viewer.currentSource)
                 ? root.viewer._getSource(root.viewer.currentSource)
                 : ""
         fillMode: Image.PreserveAspectFit

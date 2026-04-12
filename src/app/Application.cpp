@@ -227,11 +227,7 @@ Application::Application(QObject *parent)
 
 Application::~Application()
 {
-    saveMainWindowLayoutNow();
-    if (m_taskRecoveryController) {
-        m_taskRecoveryController->persistSnapshotNow();
-    }
-    m_sessionController->saveSessions();
+    finalizeShutdown();
     ThumbnailDatabase::destroyInstance();
     SettingsController::destroyInstance();
 }
@@ -251,6 +247,7 @@ void Application::initialize()
     auto* thumbnailProvider = new ThumbnailProvider();
     engine->addImageProvider(QStringLiteral("thumbnail"), thumbnailProvider);
     thumbnailProvider->initializePersistence();
+    m_thumbnailProvider = thumbnailProvider;
 
     registerQmlTypes();
 
@@ -325,7 +322,75 @@ void Application::setupLifecycleGuard()
                 m_lifecycleSupervisor->requestShutdown(ExitReason::MainWindowClosed);
             }
         });
+
+        connect(app, &QCoreApplication::aboutToQuit, this, [this]() {
+            finalizeShutdown();
+        });
     }
+}
+
+void Application::finalizeShutdown()
+{
+    if (m_shutdownFinalized) {
+        return;
+    }
+    m_shutdownFinalized = true;
+
+    saveMainWindowLayoutNow();
+
+    if (m_taskRecoveryController) {
+        m_taskRecoveryController->persistSnapshotNow();
+    }
+
+    if (m_processingController) {
+        m_processingController->prepareForShutdown();
+    }
+
+    if (m_sessionController) {
+        m_sessionController->prepareForShutdown();
+    }
+
+    if (m_thumbnailProvider) {
+        m_thumbnailProvider->prepareForShutdown();
+    }
+
+    SettingsController::instance()->markAppExiting();
+    destroyUi();
+}
+
+void Application::destroyUi()
+{
+    if (!m_qmlEngine) {
+        m_rootObject.clear();
+        m_mainWindow.clear();
+        m_thumbnailProvider = nullptr;
+        return;
+    }
+
+    if (m_mainWindow) {
+        m_mainWindow->removeEventFilter(this);
+    }
+
+    const auto topLevelWindows = QGuiApplication::topLevelWindows();
+    for (QWindow* window : topLevelWindows) {
+        if (!window) {
+            continue;
+        }
+        window->hide();
+        window->close();
+        window->destroy();
+    }
+
+    // Synchronous QQmlApplicationEngine destruction can hang on Windows when
+    // hidden auxiliary QML windows still exist. At shutdown we only need the
+    // native windows gone; the process is exiting immediately afterwards, so
+    // detach the engine and let the OS reclaim it on process exit.
+    QQmlApplicationEngine* engine = m_qmlEngine;
+    m_qmlEngine = nullptr;
+    m_rootObject.clear();
+    m_mainWindow.clear();
+    m_thumbnailProvider = nullptr;
+    engine->setParent(nullptr);
 }
 
 void Application::registerQmlTypes()

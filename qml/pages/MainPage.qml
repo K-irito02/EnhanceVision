@@ -23,9 +23,9 @@ Rectangle {
 
     // ========== 属性定义 ==========
     property int processingMode: UIStateController.processingMode  // 0: Shader, 1: AI
-    property bool hasFiles: typeof fileModel !== "undefined" ? fileModel.count > 0 : pendingFilesModel.count > 0
-    property bool hasMessages: typeof messageModel !== "undefined" ? messageModel.count > 0 : true
-    property string currentSessionId: typeof sessionController !== "undefined" ? sessionController.activeSessionId : ""
+    property bool hasFiles: (typeof fileModel !== "undefined" && fileModel) ? fileModel.count > 0 : pendingFilesModel.count > 0
+    property bool hasMessages: (typeof messageModel !== "undefined" && messageModel) ? messageModel.count > 0 : true
+    property string currentSessionId: (typeof sessionController !== "undefined" && sessionController) ? sessionController.activeSessionId : ""
     // AI 放大倍数：由 App.qml 从 ControlPanel 透传，用于查看器窗口尺寸计算
     property int aiScaleFactor: 1
 
@@ -56,7 +56,7 @@ Rectangle {
     
     // ========== 会话切换监听 ==========
     Connections {
-        target: typeof sessionController !== "undefined" ? sessionController : null
+        target: (typeof sessionController !== "undefined" && sessionController) ? sessionController : null
         function onActiveSessionChanged() {
             // 会话切换时，关闭消息查看器并清理其最小化标签
             if (messageEmbeddedViewer.isOpen) {

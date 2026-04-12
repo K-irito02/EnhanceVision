@@ -6,7 +6,10 @@
 #include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QEventLoop>
+#include <QGuiApplication>
 #include <QDebug>
+#include <chrono>
+#include <thread>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -22,6 +25,11 @@ LifecycleSupervisor* LifecycleSupervisor::instance()
     if (!s_instance) {
         s_instance = new LifecycleSupervisor();
     }
+    return s_instance;
+}
+
+LifecycleSupervisor* LifecycleSupervisor::instanceIfExists()
+{
     return s_instance;
 }
 
@@ -120,6 +128,18 @@ void LifecycleSupervisor::forceTerminate()
 #else
     std::_Exit(1);
 #endif
+}
+
+void LifecycleSupervisor::disarmForceTerminate()
+{
+    const bool wasArmed = m_forceTerminateArmed.exchange(false);
+    m_forceTerminateGeneration.fetch_add(1);
+}
+
+void LifecycleSupervisor::markTerminationComplete()
+{
+    transitionTo(LifecycleState::Terminated);
+    disarmForceTerminate();
 }
 
 QString LifecycleSupervisor::stateToString(LifecycleState state)
@@ -237,6 +257,18 @@ void LifecycleSupervisor::transitionTo(LifecycleState newState)
     }
 }
 
+void LifecycleSupervisor::closeTopLevelWindows()
+{
+    const auto windows = QGuiApplication::topLevelWindows();
+    for (QWindow* window : windows) {
+        if (!window || window == m_mainWindow) {
+            continue;
+        }
+
+        window->close();
+    }
+}
+
 void LifecycleSupervisor::executeShutdownPipeline()
 {
     if (m_windowWatchdog) {
@@ -245,6 +277,8 @@ void LifecycleSupervisor::executeShutdownPipeline()
     if (m_processWatchdog) {
         m_processWatchdog->stop();
     }
+
+    closeTopLevelWindows();
 
     transitionTo(LifecycleState::CancellingTasks);
 
@@ -272,7 +306,7 @@ void LifecycleSupervisor::executeShutdownPipeline()
 
     transitionTo(LifecycleState::ForceExit);
 
-    startForceTerminateTimer(500);
+    armForceTerminate(2000);
 
     if (auto* app = QCoreApplication::instance()) {
         app->quit();
@@ -298,22 +332,27 @@ bool LifecycleSupervisor::executePhase(const QString& name, int timeoutMs, std::
     return result;
 }
 
-void LifecycleSupervisor::startForceTerminateTimer(int timeoutMs)
+void LifecycleSupervisor::armForceTerminate(int timeoutMs)
 {
-    if (m_forceTerminateTimer) {
-        m_forceTerminateTimer->stop();
-        delete m_forceTerminateTimer;
+    if (timeoutMs <= 0) {
+        return;
     }
 
-    m_forceTerminateTimer = new QTimer(this);
-    m_forceTerminateTimer->setSingleShot(true);
-    m_forceTerminateTimer->setInterval(timeoutMs);
-    connect(m_forceTerminateTimer, &QTimer::timeout, this, [this]() {
+    const std::uint64_t generation = m_forceTerminateGeneration.fetch_add(1) + 1;
+    m_forceTerminateArmed.store(true);
+
+    std::thread([this, generation, timeoutMs]() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(timeoutMs));
+        if (!m_forceTerminateArmed.load()) {
+            return;
+        }
+        if (m_forceTerminateGeneration.load() != generation) {
+            return;
+        }
+
         qCritical() << "[LifecycleSupervisor] Graceful shutdown timed out, forcing termination";
         forceTerminate();
-    });
-    m_forceTerminateTimer->start();
-
+    }).detach();
 }
 
 } // namespace EnhanceVision

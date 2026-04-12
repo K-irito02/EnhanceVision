@@ -233,6 +233,7 @@ Item {
         isOpen = false
         isMinimized = false
         embeddedOverlay.visible = false
+        dragPreviewWindow.hide()
         detachedWindow.hide()
         root.z = messageMode ? 1000 : 1001
         playbackController._resetState()
@@ -507,7 +508,7 @@ Item {
         onHeightChanged: Qt.callLater(updateExcludeRegions)
         onVisibleChanged: if (visible) Qt.callLater(updateExcludeRegions)
         onClosing: function(close) {
-            close.accepted = false
+            close.accepted = true
             root.close()
         }
 

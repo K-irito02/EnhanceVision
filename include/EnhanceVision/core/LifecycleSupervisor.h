@@ -6,6 +6,7 @@
 #include <QString>
 #include <functional>
 #include <atomic>
+#include <cstdint>
 
 class QWindow;
 class QThreadPool;
@@ -50,6 +51,7 @@ class LifecycleSupervisor : public QObject
 
 public:
     static LifecycleSupervisor* instance();
+    static LifecycleSupervisor* instanceIfExists();
 
     void setProcessingController(ProcessingController* controller);
     void setThreadPool(QThreadPool* pool);
@@ -59,6 +61,8 @@ public:
 
     void requestShutdown(ExitReason reason, const QString& detail = QString());
     void forceTerminate();
+    void disarmForceTerminate();
+    void markTerminationComplete();
 
     LifecycleState state() const { return m_state.load(); }
     ExitReason exitReason() const { return m_exitReason; }
@@ -85,8 +89,9 @@ private:
 
     void transitionTo(LifecycleState newState);
     void executeShutdownPipeline();
+    void closeTopLevelWindows();
     bool executePhase(const QString& name, int timeoutMs, std::function<bool()> phaseFunc);
-    void startForceTerminateTimer(int timeoutMs);
+    void armForceTerminate(int timeoutMs);
 
     static LifecycleSupervisor* s_instance;
 
@@ -100,10 +105,11 @@ private:
 
     QTimer* m_windowWatchdog = nullptr;
     QTimer* m_processWatchdog = nullptr;
-    QTimer* m_forceTerminateTimer = nullptr;
 
     bool m_windowEverShown = false;
     std::atomic<bool> m_shutdownRequested{false};
+    std::atomic<bool> m_forceTerminateArmed{false};
+    std::atomic<std::uint64_t> m_forceTerminateGeneration{0};
 };
 
 } // namespace EnhanceVision

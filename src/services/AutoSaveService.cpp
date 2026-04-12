@@ -9,7 +9,7 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QFile>
-#include <QtConcurrent>
+#include <QThreadPool>
 #include <QDebug>
 
 namespace EnhanceVision {
@@ -31,7 +31,6 @@ AutoSaveService* AutoSaveService::instance()
 
 void AutoSaveService::initialize()
 {
-    qInfo() << "[AutoSaveService] Initialized";
 }
 
 bool AutoSaveService::isAutoSaveEnabled() const
@@ -47,18 +46,15 @@ QString AutoSaveService::getDefaultSavePath() const
 void AutoSaveService::autoSaveResult(const QString& taskId, const QString& resultPath)
 {
     if (!isAutoSaveEnabled()) {
-        qInfo() << "[AutoSaveService] Auto-save is disabled, skipping";
         return;
     }
     
     QString savePath = getDefaultSavePath();
     if (savePath.isEmpty()) {
-        qInfo() << "[AutoSaveService] Default save path is empty, skipping";
         return;
     }
     
     if (resultPath.isEmpty()) {
-        qInfo() << "[AutoSaveService] Result path is empty, skipping";
         return;
     }
     
@@ -80,9 +76,7 @@ void AutoSaveService::autoSaveResult(const QString& taskId, const QString& resul
     
     QString destPath = generateUniquePath(savePath, resultPath);
     
-    qInfo() << "[AutoSaveService] Starting async save from:" << resultPath << "to:" << destPath;
-    
-    QtConcurrent::run([this, taskId, resultPath, destPath, savePath]() {
+    QThreadPool::globalInstance()->start([this, taskId, resultPath, destPath, savePath]() {
         bool success = false;
         QString error;
         
@@ -92,7 +86,6 @@ void AutoSaveService::autoSaveResult(const QString& taskId, const QString& resul
         } else {
             if (QFile::copy(resultPath, destPath)) {
                 success = true;
-                qInfo() << "[AutoSaveService] Successfully auto-saved:" << resultPath << "to:" << destPath;
             } else {
                 error = tr("File copy failed");
                 qWarning() << "[AutoSaveService] Failed to copy:" << resultPath << "to:" << destPath;
@@ -134,7 +127,6 @@ bool AutoSaveService::ensureDirectoryExists(const QString& path)
     QDir dir(path);
     if (!dir.exists()) {
         if (dir.mkpath(".")) {
-            qInfo() << "[AutoSaveService] Created directory:" << path;
             return true;
         } else {
             qWarning() << "[AutoSaveService] Failed to create directory:" << path;
