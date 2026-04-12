@@ -90,37 +90,14 @@ Rectangle {
                     _addDemoFiles(drop.urls)
             }
         }
-        
-        // 拖拽高亮覆盖层
-        Rectangle {
-            anchors.fill: parent
-            color: Theme.colors.primarySubtle
-            opacity: pageDropArea.containsDrag ? 0.3 : 0
-            z: 500
-            visible: opacity > 0
-            
-            Behavior on opacity { NumberAnimation { duration: 150 } }
-            
-            ColumnLayout {
-                anchors.centerIn: parent
-                spacing: 12
-                visible: pageDropArea.containsDrag
-                
-                ColoredIcon {
-                    Layout.alignment: Qt.AlignHCenter
-                    source: Theme.icon("upload")
-                    iconSize: 48
-                    color: Theme.colors.primary
-                }
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: qsTr("释放以添加文件")
-                    color: Theme.colors.primary
-                    font.pixelSize: 16
-                    font.weight: Font.DemiBold
-                }
-            }
-        }
+    }
+    
+    // ========== 拖拽艺术字覆盖层（最高层级） ==========
+    DropOverlay {
+        id: dropOverlay
+        anchors.fill: parent
+        active: pageDropArea.containsDrag
+        text: qsTr("释放以添加文件")
     }
     
     // ========== 主布局 ==========

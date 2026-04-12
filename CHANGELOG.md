@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+### Added
+- **DropOverlay Animation Enhancement** - Enhanced drag-and-drop visual feedback with artistic text and raindrop splash animation
+  - Implemented artistic text display with auto font detection (Chinese: White Whale Drunken Calligraphy, English: Huawen Xingkai)
+  - Created raindrop animation with 15 falling raindrops using Canvas-drawn tapered shapes
+  - Added splash effects with particle pool system (30 particles, slow-motion 1.3s animation)
+  - Implemented gradient background with theme adaptation and bottom collision line with glow effect
+  - Added complete animation state reset to ensure fresh start on each drag attempt
+  - Created comprehensive design documentation and implementation notes
+
 ### Fixed
 - **会话标签更多操作按钮显示修复**：修复置顶会话标签的"更多操作"按钮在侧边栏缩放时不显示的问题
   - 将 moreButton 从 RowLayout 移出，使用绝对定位确保按钮始终显示在固定位置

@@ -36,6 +36,7 @@ EnhanceVision/
 ├── qml/                   # QML 源码
 │   ├── pages/            # 页面
 │   ├── components/       # 可复用组件
+│   │   └── DropOverlay.qml # Drag overlay with raindrop animation
 │   ├── controls/         # 自定义控件
 │   ├── shaders/          # ShaderEffect 封装
 │   └── styles/           # 样式定义
@@ -43,8 +44,14 @@ EnhanceVision/
 │   ├── shaders/          # GLSL Shader
 │   ├── icons/            # SVG 图标
 │   ├── models/           # AI 模型
+│   ├── font/             # Font files
+│   │   ├── white-whale-drunken.ttf # Chinese calligraphy font
+│   │   └── huawen-xingkai.ttf      # English font
 │   └── i18n/             # 翻译文件
 ├── tests/                # 测试
 ├── docs/                 # 文档
+│   ├── Plan/            # 设计文档
+│   │   └── DropOverlay-Animation-Design.md
+│   └── Notes/           # 实现笔记
+│       └── dropoverlay-animation-implementation-notes.md
 └── third_party/          # 第三方库
-```

@@ -35,6 +35,7 @@
         <file>../qml/components/SeparableBlurEffect.qml</file>
         <file>../qml/components/VideoPlaybackController.qml</file>
         <file>../qml/components/VideoControlBar.qml</file>
+        <file>../qml/components/DropOverlay.qml</file>
         
         <!-- 自定义控件 -->
         <file>../qml/controls/Button.qml</file>

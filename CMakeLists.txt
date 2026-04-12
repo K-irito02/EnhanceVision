@@ -392,6 +392,7 @@ qt_add_qml_module(EnhanceVision
         qml/components/DialogTitleBar.qml
         qml/components/VideoPlaybackController.qml
         qml/components/VideoControlBar.qml
+        qml/components/DropOverlay.qml
         qml/components/FullShaderEffect.qml
         qml/components/OffscreenShaderRenderer.qml
         qml/components/mediaViewer/MediaViewerCanvas.qml
@@ -436,6 +437,8 @@ qt_add_qml_module(EnhanceVision
         qml/styles/qmldir
         qml/utils/qmldir
         qml/stores/qmldir
+        resources/font/华文行楷.ttf
+        resources/font/白舟鯨海酔侯書体.ttf
         ${ENHANCEVISION_THEME_ICON_RESOURCES}
 )
 
