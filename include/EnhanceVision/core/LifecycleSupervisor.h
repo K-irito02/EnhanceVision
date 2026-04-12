@@ -7,7 +7,7 @@
 #include <functional>
 #include <atomic>
 
-class QWidget;
+class QWindow;
 class QThreadPool;
 
 namespace EnhanceVision {
@@ -54,7 +54,7 @@ public:
     void setProcessingController(ProcessingController* controller);
     void setThreadPool(QThreadPool* pool);
 
-    void setupWindowWatchdog(QWidget* mainWindow);
+    void setupWindowWatchdog(QWindow* mainWindow);
     void setupProcessWatchdog();
 
     void requestShutdown(ExitReason reason, const QString& detail = QString());
@@ -94,7 +94,7 @@ private:
     ExitReason m_exitReason{ExitReason::Normal};
     QString m_exitDetail;
 
-    QWidget* m_mainWindow = nullptr;
+    QWindow* m_mainWindow = nullptr;
     ProcessingController* m_processingController = nullptr;
     QThreadPool* m_threadPool = nullptr;
 

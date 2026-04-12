@@ -27,13 +27,11 @@
 #include <QQmlEngine>
 #include <QQmlContext>
 #include <QCoreApplication>
-#include <QApplication>
 #include <QGuiApplication>
 #include <QLibraryInfo>
 #include <QQuickWindow>
 #include <QWindow>
 #include <QEvent>
-#include <QWidget>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QVector>
@@ -207,7 +205,7 @@ private:
 
 Application::Application(QObject *parent)
     : QObject(parent)
-    , m_mainWidget(new QQuickWidget)
+    , m_qmlEngine(new QQmlApplicationEngine(this))
     , m_fileModel(std::make_unique<FileModel>(this))
     , m_messageModel(std::make_unique<MessageModel>(this))
     , m_sessionModel(std::make_unique<SessionModel>(this))
@@ -235,16 +233,12 @@ Application::~Application()
     }
     m_sessionController->saveSessions();
     ThumbnailDatabase::destroyInstance();
-    delete m_mainWidget;
     SettingsController::destroyInstance();
 }
 
 void Application::initialize()
 {
-    m_mainWidget->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
-    m_mainWidget->installEventFilter(this);
-
-    QQmlEngine *engine = m_mainWidget->engine();
+    QQmlEngine *engine = m_qmlEngine;
     engine->addImageProvider(QStringLiteral("preview"), new PreviewProvider());
 
     QString dataDir = SettingsController::instance()->effectiveDataPath();
@@ -260,15 +254,9 @@ void Application::initialize()
 
     registerQmlTypes();
 
-    m_mainWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
-
     setupQmlContext(thumbnailProvider);
 
     setupTranslator();
-
-    WindowHelper::instance()->setWindow(m_mainWidget);
-
-    setupLifecycleGuard();
 
     SettingsController::instance()->checkAndHandleCrashRecovery();
 
@@ -283,44 +271,56 @@ void Application::initialize()
     m_sessionController->restoreThumbnails();
     m_taskRecoveryController->initializeStartupRecovery();
 
-    m_mainWidget->setSource(QUrl(QStringLiteral("qrc:/qt/qml/EnhanceVision/qml/main.qml")));
+    const QUrl mainQmlUrl(QStringLiteral("qrc:/qt/qml/EnhanceVision/qml/main.qml"));
+    m_qmlEngine->load(mainQmlUrl);
 
-    if (auto* quickWindow = m_mainWidget->quickWindow()) {
-        new FrameTimeProbe(quickWindow, m_mainWidget);
+    if (m_qmlEngine->rootObjects().isEmpty()) {
+        qCritical() << "[Application] QQmlApplicationEngine load failed:" << mainQmlUrl;
+        QMetaObject::invokeMethod(QCoreApplication::instance(), []() {
+            QCoreApplication::exit(1);
+        }, Qt::QueuedConnection);
+        return;
     }
 
-    if (m_mainWidget->status() == QQuickWidget::Error) {
-        const auto errors = m_mainWidget->errors();
-        for (const auto &error : errors) {
-            qCritical() << "QML Error:" << error.toString();
-        }
-        if (m_lifecycleSupervisor) {
-            m_lifecycleSupervisor->requestShutdown(
-                ExitReason::QmlLoadError,
-                QStringLiteral("QQuickWidget load failed"));
-        }
+    m_rootObject = m_qmlEngine->rootObjects().constFirst();
+    m_mainWindow = qobject_cast<QQuickWindow*>(m_rootObject);
+    if (!m_mainWindow) {
+        qCritical() << "[Application] Root object is not a QQuickWindow";
+        QMetaObject::invokeMethod(QCoreApplication::instance(), []() {
+            QCoreApplication::exit(1);
+        }, Qt::QueuedConnection);
+        return;
     }
+
+    m_mainWindow->installEventFilter(this);
+    WindowHelper::instance()->setWindow(m_mainWindow);
+    m_imageExportService->setQmlEngine(m_rootObject);
+
+    setupLifecycleGuard();
+    new FrameTimeProbe(m_mainWindow, m_mainWindow);
 }
 
 void Application::show()
 {
     applyMainWindowLayout();
-    m_mainWidget->raise();
-    m_mainWidget->activateWindow();
-    m_mainWindowEverShown = true;
+    if (m_mainWindow) {
+        m_mainWindow->raise();
+        m_mainWindow->requestActivate();
+        m_mainWindowEverShown = true;
+    }
 }
 
 void Application::setupLifecycleGuard()
 {
     m_lifecycleSupervisor = LifecycleSupervisor::instance();
     m_lifecycleSupervisor->setProcessingController(m_processingController.get());
-    m_lifecycleSupervisor->setupWindowWatchdog(m_mainWidget);
+    m_lifecycleSupervisor->setupWindowWatchdog(m_mainWindow);
     m_lifecycleSupervisor->setupProcessWatchdog();
 
-    if (auto* app = qobject_cast<QApplication*>(QCoreApplication::instance())) {
+    if (auto* app = qobject_cast<QGuiApplication*>(QCoreApplication::instance())) {
         app->setQuitOnLastWindowClosed(true);
 
-        connect(app, &QApplication::lastWindowClosed, this, [this]() {
+        connect(app, &QGuiApplication::lastWindowClosed, this, [this]() {
             if (m_lifecycleSupervisor) {
                 m_lifecycleSupervisor->requestShutdown(ExitReason::MainWindowClosed);
             }
@@ -372,7 +372,7 @@ void Application::registerQmlTypes()
 
 void Application::setupQmlContext(ThumbnailProvider* thumbnailProvider)
 {
-    QQmlContext *context = m_mainWidget->rootContext();
+    QQmlContext *context = m_qmlEngine->rootContext();
 
     // 设置控制器之间的连接
     m_processingController->setFileController(m_fileController.get());
@@ -412,10 +412,7 @@ void Application::setupQmlContext(ThumbnailProvider* thumbnailProvider)
     // 初始化并注册 TaskTimeEstimator
     TaskTimeEstimator::instance()->initialize();
     context->setContextProperty("taskTimeEstimator", TaskTimeEstimator::instance());
-    
-    // 设置 ImageExportService 的 QML 根对象引用
-    m_imageExportService->setQmlEngine(m_mainWidget->rootObject());
-    
+
     // 连接 ProcessingController 和 ImageExportService
     connect(m_processingController.get(), &ProcessingController::requestShaderExport,
             m_imageExportService, &ImageExportService::requestExport);
@@ -492,14 +489,14 @@ void Application::onLanguageChanged()
     QString language = SettingsController::instance()->language();
     switchTranslator(language);
 
-    if (m_mainWidget && m_mainWidget->engine()) {
-        m_mainWidget->engine()->retranslate();
+    if (m_qmlEngine) {
+        m_qmlEngine->retranslate();
     }
 }
 
 bool Application::eventFilter(QObject* watched, QEvent* event)
 {
-    if (watched == m_mainWidget && m_mainWidget) {
+    if (watched == m_mainWindow && m_mainWindow) {
         switch (event->type()) {
         case QEvent::Move:
         case QEvent::Resize:
@@ -519,8 +516,8 @@ bool Application::eventFilter(QObject* watched, QEvent* event)
 
 QRect Application::defaultMainWindowGeometry() const
 {
-    const QScreen* screen = m_mainWidget && m_mainWidget->screen()
-        ? m_mainWidget->screen()
+    const QScreen* screen = m_mainWindow && m_mainWindow->screen()
+        ? m_mainWindow->screen()
         : QGuiApplication::primaryScreen();
     const QRect available = screen ? screen->availableGeometry() : QRect(0, 0, kDefaultMainWindowWidth, kDefaultMainWindowHeight);
 
@@ -551,8 +548,8 @@ QRect Application::sanitizeMainWindowGeometry(const QRect& geometry) const
     }
 
     if (!targetScreen) {
-        targetScreen = m_mainWidget && m_mainWidget->screen()
-            ? m_mainWidget->screen()
+        targetScreen = m_mainWindow && m_mainWindow->screen()
+            ? m_mainWindow->screen()
             : QGuiApplication::primaryScreen();
     }
 
@@ -589,17 +586,21 @@ void Application::applyMainWindowLayout()
         }
     }
 
-    m_mainWidget->setGeometry(targetGeometry);
+    if (!m_mainWindow) {
+        return;
+    }
+
+    m_mainWindow->setGeometry(targetGeometry);
     if (openMaximized) {
-        m_mainWidget->showMaximized();
+        m_mainWindow->showMaximized();
     } else {
-        m_mainWidget->show();
+        m_mainWindow->show();
     }
 }
 
 void Application::scheduleMainWindowLayoutSave()
 {
-    if (!m_mainWidget || !m_mainWindowEverShown || m_mainWidget->isMinimized()) {
+    if (!m_mainWindow || !m_mainWindowEverShown || m_mainWindow->visibility() == QWindow::Minimized) {
         return;
     }
 
@@ -610,14 +611,19 @@ void Application::scheduleMainWindowLayoutSave()
 
 void Application::saveMainWindowLayoutNow()
 {
-    if (!m_mainWidget || !m_mainWindowEverShown) {
+    if (!m_mainWindow || !m_mainWindowEverShown) {
         return;
     }
 
-    const bool maximized = m_mainWidget->isMaximized();
-    const QRect normalGeometry = maximized ? m_mainWidget->normalGeometry() : m_mainWidget->geometry();
+    const bool maximized = m_mainWindow->windowStates().testFlag(Qt::WindowMaximized);
+    QRect normalGeometry = maximized
+        ? WindowHelper::instance()->normalGeometry()
+        : m_mainWindow->geometry();
     if (!normalGeometry.isValid() || normalGeometry.width() <= 0 || normalGeometry.height() <= 0) {
-        return;
+        normalGeometry = m_mainWindow->geometry();
+        if (!normalGeometry.isValid() || normalGeometry.width() <= 0 || normalGeometry.height() <= 0) {
+            return;
+        }
     }
 
     UIStateController::instance()->setWindowLayout(

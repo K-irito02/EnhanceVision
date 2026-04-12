@@ -8,6 +8,8 @@
 ## [Unreleased]
 
 ### Fixed
+- 主窗口宿主迁移到原生 `QQuickWindow`，替换 `QQuickWidget + Frameless` 组合，修复 Windows 下左边缘拖拽缩放时右半区整体抖动、闪动的问题
+- 收敛主窗口生命周期链路的冗余 `qInfo()` 运行期信息日志，减少 `[INFO]` 噪声输出
 - 媒体查看器运行时告警治理：修复重构后 `MediaViewerControls/Canvas/ThumbnailBar` 的多项 QML 告警
   - 修复 `ResponsiveUtils is not defined`（单例改为限定名访问）
   - 修复 `MenuItem` 注入 `Menu` 时的 C++ 参数类型错误（`insertMenu` -> `insertItem`）

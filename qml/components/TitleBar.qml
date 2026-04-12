@@ -46,11 +46,11 @@ Rectangle {
     }
     
     Component.onCompleted: {
-        updateExcludeRegions()
+        Qt.callLater(updateExcludeRegions)
     }
     
     onWidthChanged: {
-        updateExcludeRegions()
+        Qt.callLater(updateExcludeRegions)
     }
     
     // ========== 底部分隔线 ==========

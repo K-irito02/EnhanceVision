@@ -1,6 +1,6 @@
 /**
  * @file MainWindow.h
- * @brief 主窗口类（QQuickWidget 容器）
+ * @brief 预留主窗口类
  * @author Qt客户端开发工程师
  */
 

@@ -1,7 +1,7 @@
 #include "EnhanceVision/core/LifecycleSupervisor.h"
 #include "EnhanceVision/controllers/ProcessingController.h"
 #include "EnhanceVision/controllers/SettingsController.h"
-#include <QWidget>
+#include <QWindow>
 #include <QThreadPool>
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -28,12 +28,10 @@ LifecycleSupervisor* LifecycleSupervisor::instance()
 LifecycleSupervisor::LifecycleSupervisor(QObject* parent)
     : QObject(parent)
 {
-    qInfo() << "[LifecycleSupervisor] Created";
 }
 
 LifecycleSupervisor::~LifecycleSupervisor()
 {
-    qInfo() << "[LifecycleSupervisor] Destroying, final state:" << stateToString(m_state.load());
     s_instance = nullptr;
 }
 
@@ -47,7 +45,7 @@ void LifecycleSupervisor::setThreadPool(QThreadPool* pool)
     m_threadPool = pool;
 }
 
-void LifecycleSupervisor::setupWindowWatchdog(QWidget* mainWindow)
+void LifecycleSupervisor::setupWindowWatchdog(QWindow* mainWindow)
 {
     if (!mainWindow) {
         qWarning() << "[LifecycleSupervisor] Cannot setup window watchdog: mainWindow is null";
@@ -57,7 +55,7 @@ void LifecycleSupervisor::setupWindowWatchdog(QWidget* mainWindow)
     m_mainWindow = mainWindow;
     m_windowEverShown = false;
 
-    connect(mainWindow, &QWidget::destroyed, this, [this]() {
+    connect(mainWindow, &QObject::destroyed, this, [this]() {
         qWarning() << "[LifecycleSupervisor] Main window destroyed";
         m_mainWindow = nullptr;
         if (!isShuttingDown()) {
@@ -69,7 +67,6 @@ void LifecycleSupervisor::setupWindowWatchdog(QWidget* mainWindow)
     m_windowWatchdog->setInterval(300);
     connect(m_windowWatchdog, &QTimer::timeout, this, &LifecycleSupervisor::onWindowWatchdogTimeout);
     m_windowWatchdog->start();
-    qInfo() << "[LifecycleSupervisor] Window watchdog started (interval: 300ms)";
 }
 
 void LifecycleSupervisor::setupProcessWatchdog()
@@ -78,13 +75,11 @@ void LifecycleSupervisor::setupProcessWatchdog()
     m_processWatchdog->setInterval(1000);
     connect(m_processWatchdog, &QTimer::timeout, this, &LifecycleSupervisor::onProcessWatchdogTimeout);
     m_processWatchdog->start();
-    qInfo() << "[LifecycleSupervisor] Process watchdog started (interval: 1000ms)";
 }
 
 void LifecycleSupervisor::requestShutdown(ExitReason reason, const QString& detail)
 {
     if (m_shutdownRequested.exchange(true)) {
-        qInfo() << "[LifecycleSupervisor] Shutdown already requested, ignoring duplicate request";
         return;
     }
 
@@ -197,7 +192,6 @@ void LifecycleSupervisor::onWindowWatchdogTimeout()
     // 检测窗口是否曾经显示过（通过 isVisible 判断）
     if (!m_windowEverShown && m_mainWindow->isVisible()) {
         m_windowEverShown = true;
-        qInfo() << "[LifecycleSupervisor] Main window shown detected";
     }
 
     // 只有窗口曾经显示过后才进行后续检查
@@ -205,7 +199,7 @@ void LifecycleSupervisor::onWindowWatchdogTimeout()
         return;
     }
 
-    if (m_mainWindow->isHidden()) {
+    if (m_mainWindow->visibility() == QWindow::Hidden) {
         qWarning() << "[LifecycleSupervisor] Main window hidden unexpectedly";
         requestShutdown(ExitReason::MainWindowHidden, QStringLiteral("window hidden"));
         return;
@@ -239,16 +233,12 @@ void LifecycleSupervisor::transitionTo(LifecycleState newState)
 {
     LifecycleState oldState = m_state.exchange(newState);
     if (oldState != newState) {
-        qInfo() << "[LifecycleSupervisor] State transition:" << stateToString(oldState) << "->" << stateToString(newState);
         emit stateChanged(newState, oldState);
     }
 }
 
 void LifecycleSupervisor::executeShutdownPipeline()
 {
-    qInfo() << "[LifecycleSupervisor] Starting shutdown pipeline";
-    qInfo() << "[LifecycleSupervisor] Exit reason:" << exitReasonToString(m_exitReason);
-
     if (m_windowWatchdog) {
         m_windowWatchdog->stop();
     }
@@ -258,7 +248,6 @@ void LifecycleSupervisor::executeShutdownPipeline()
 
     transitionTo(LifecycleState::CancellingTasks);
 
-    qInfo() << "[LifecycleSupervisor] Phase 1: Cancelling tasks";
     if (!executePhase(QStringLiteral("CancelTasks"), 2000, [this]() {
         emit cancelAllTasksRequested();
         if (m_processingController) {
@@ -274,7 +263,6 @@ void LifecycleSupervisor::executeShutdownPipeline()
 
     transitionTo(LifecycleState::ReleasingResources);
 
-    qInfo() << "[LifecycleSupervisor] Phase 2: Releasing resources";
     if (!executePhase(QStringLiteral("ReleaseResources"), 1000, [this]() {
         emit releaseResourcesRequested();
         return true;
@@ -284,7 +272,6 @@ void LifecycleSupervisor::executeShutdownPipeline()
 
     transitionTo(LifecycleState::ForceExit);
 
-    qInfo() << "[LifecycleSupervisor] Phase 3: Force exit";
     startForceTerminateTimer(500);
 
     if (auto* app = QCoreApplication::instance()) {
@@ -297,8 +284,6 @@ bool LifecycleSupervisor::executePhase(const QString& name, int timeoutMs, std::
     QElapsedTimer timer;
     timer.start();
 
-    qInfo() << "[LifecycleSupervisor] Executing phase:" << name << "timeout:" << timeoutMs << "ms";
-
     bool result = false;
     try {
         result = phaseFunc();
@@ -309,9 +294,6 @@ bool LifecycleSupervisor::executePhase(const QString& name, int timeoutMs, std::
         qWarning() << "[LifecycleSupervisor] Unknown exception in phase" << name;
         return false;
     }
-
-    qint64 elapsed = timer.elapsed();
-    qInfo() << "[LifecycleSupervisor] Phase" << name << "completed in" << elapsed << "ms, result:" << result;
 
     return result;
 }
@@ -332,7 +314,6 @@ void LifecycleSupervisor::startForceTerminateTimer(int timeoutMs)
     });
     m_forceTerminateTimer->start();
 
-    qInfo() << "[LifecycleSupervisor] Force terminate timer started (" << timeoutMs << "ms)";
 }
 
 } // namespace EnhanceVision

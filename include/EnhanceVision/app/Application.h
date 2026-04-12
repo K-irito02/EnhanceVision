@@ -8,14 +8,16 @@
 #define ENHANCEVISION_APPLICATION_H
 
 #include <QObject>
-#include <QQuickWidget>
+#include <QPointer>
+#include <QQmlApplicationEngine>
 #include <QTranslator>
 #include <QSharedPointer>
-#include <QPointer>
 #include <QRect>
 #include <QString>
 #include <QTimer>
 #include <memory>
+
+class QQuickWindow;
 
 namespace EnhanceVision {
 
@@ -64,7 +66,9 @@ private:
     void scheduleMainWindowLayoutSave();
     void saveMainWindowLayoutNow();
 
-    QQuickWidget *m_mainWidget;
+    QQmlApplicationEngine* m_qmlEngine;
+    QPointer<QQuickWindow> m_mainWindow;
+    QPointer<QObject> m_rootObject;
     std::unique_ptr<FileModel> m_fileModel;
     std::unique_ptr<MessageModel> m_messageModel;
     std::unique_ptr<SessionModel> m_sessionModel;

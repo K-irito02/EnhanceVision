@@ -42,7 +42,6 @@ find_package(Qt6 REQUIRED COMPONENTS
     Gui
     Widgets
     Quick
-    QuickWidgets
     QuickControls2
     Concurrent
     Multimedia
@@ -467,7 +466,6 @@ target_link_libraries(EnhanceVision PRIVATE
     Qt6::Gui
     Qt6::Widgets
     Qt6::Quick
-    Qt6::QuickWidgets
     Qt6::QuickControls2
     Qt6::Concurrent
     Qt6::Multimedia

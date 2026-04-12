@@ -28,6 +28,7 @@ A desktop image processing and AI inference quality enhancement tool built with 
 - **Algorithm consistency**: CPU video export uses the same algorithm as GPU preview
 - **GPU OOM auto-recovery**: Automatically degrades to tiled processing when VRAM is insufficient
 - **Stability optimization**: Trading latency for complete inference stability
+- Main window uses a native `QQuickWindow` host to reduce frameless resize flicker on Windows
 
 ### Modern UI
 
@@ -35,6 +36,7 @@ A desktop image processing and AI inference quality enhancement tool built with 
 - Dark/Light themes
 - Chinese/English bilingual support
 - Main window geometry is restored on restart through unified UI state persistence
+- The main window now uses a native `QQuickWindow` host, which reduces resize jitter and black-gap artifacts on Windows
 - Session-based workflow with pinning, reordering, and batch file processing
 - Embedded media viewer with fullscreen, drag-out, and smart docking support
 - Shared media viewer kernel (`qml/components/mediaViewer/`) for unified canvas, controls, thumbnail adaptation, and context menu behavior

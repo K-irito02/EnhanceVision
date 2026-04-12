@@ -5,19 +5,13 @@
  */
 
 #include "EnhanceVision/utils/SubWindowHelper.h"
+#include "FramelessWindowUtils.h"
 #include <QEvent>
-#include <QWindowStateChangeEvent>
-#include <QGuiApplication>
-#include <QScreen>
 #include <QCursor>
-#include <QDebug>
 #include <QCoreApplication>
 
 #ifdef Q_OS_WIN
 #include <windowsx.h>
-#include <dwmapi.h>
-#pragma comment(lib, "dwmapi.lib")
-#pragma comment(lib, "user32.lib")
 
 namespace EnhanceVision {
 class SubWindowHelper;
@@ -26,63 +20,10 @@ class SubWindowHelper;
 static QHash<HWND, EnhanceVision::SubWindowHelper*> g_windowHelpers;
 static QHash<HWND, WNDPROC> g_originalWndProcs;
 
-static bool isWindowMaximizedOrFullscreen(HWND hwnd)
-{
-    if (IsZoomed(hwnd))
-        return true;
-
-    RECT wr;
-    GetWindowRect(hwnd, &wr);
-
-    HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-    MONITORINFO mi = {};
-    mi.cbSize = sizeof(mi);
-    GetMonitorInfo(monitor, &mi);
-
-    return wr.left <= mi.rcMonitor.left && wr.top <= mi.rcMonitor.top &&
-           wr.right >= mi.rcMonitor.right && wr.bottom >= mi.rcMonitor.bottom;
-}
-
-static bool isWindowSnappedToEdge(HWND hwnd)
-{
-    if (IsZoomed(hwnd))
-        return true;
-
-    RECT wr;
-    GetWindowRect(hwnd, &wr);
-
-    HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-    MONITORINFO mi = {};
-    mi.cbSize = sizeof(mi);
-    GetMonitorInfo(monitor, &mi);
-
-    if (wr.left <= mi.rcMonitor.left && wr.top <= mi.rcMonitor.top &&
-        wr.right >= mi.rcMonitor.right && wr.bottom >= mi.rcMonitor.bottom)
-        return true;
-
-    RECT wa = mi.rcWork;
-    LONG workW = wa.right - wa.left;
-    LONG workH = wa.bottom - wa.top;
-    LONG winW = wr.right - wr.left;
-    LONG winH = wr.bottom - wr.top;
-
-    bool fillsWidth = (wr.left == wa.left && wr.right == wa.right) || (winW >= workW);
-    bool fillsHeight = (wr.top == wa.top && wr.bottom == wa.bottom) || (winH >= workH);
-
-    return fillsWidth || fillsHeight;
-}
-
-static void updateWindowFrame(HWND hwnd, bool removeMargins, bool squareCorners)
-{
-    MARGINS margins = removeMargins ? MARGINS{0, 0, 0, 0} : MARGINS{1, 1, 1, 1};
-    DwmExtendFrameIntoClientArea(hwnd, &margins);
-
-    DWM_WINDOW_CORNER_PREFERENCE pref = squareCorners ? DWMWCP_DONOTROUND : DWMWCP_ROUND;
-    DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &pref, sizeof(pref));
-}
-
 static LRESULT CALLBACK SubWindowWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+    using namespace EnhanceVision::FramelessWindowUtils;
+
     auto it = g_windowHelpers.find(hwnd);
     if (it == g_windowHelpers.end()) {
         return DefWindowProc(hwnd, msg, wParam, lParam);
@@ -135,46 +76,19 @@ static LRESULT CALLBACK SubWindowWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
         int titleBarHeight = helper->windowTitleBarHeight();
         int margin = helper->windowResizeMargin();
 
-        if (localY >= 0 && localY < titleBarHeight) {
-            bool inExcludeRegion = false;
-            const QVector<QRect>& excludeRegions = helper->excludeRegions();
-            for (const QRect& region : excludeRegions) {
-                if (region.contains(localX, localY)) {
-                    inExcludeRegion = true;
-                    break;
-                }
-            }
-
-            if (!inExcludeRegion) {
-                if (!helper->isWindowMaximized() && !helper->isWindowFullScreen()) {
-                    bool onLeft = localX < margin;
-                    bool onRight = localX >= windowWidth - margin;
-                    bool onTop = localY < margin;
-                    
-                    if (onTop && onLeft) return HTTOPLEFT;
-                    if (onTop && onRight) return HTTOPRIGHT;
-                    if (onTop) return HTTOP;
-                    if (onLeft) return HTLEFT;
-                    if (onRight) return HTRIGHT;
-                }
-                return HTCAPTION;
-            }
-        }
-        
-        if (!helper->isWindowMaximized() && !helper->isWindowFullScreen()) {
-            bool onLeft = localX < margin;
-            bool onRight = localX >= windowWidth - margin;
-            bool onTop = localY < margin;
-            bool onBottom = localY >= windowHeight - margin;
-
-            if (onTop && onLeft) return HTTOPLEFT;
-            if (onTop && onRight) return HTTOPRIGHT;
-            if (onBottom && onLeft) return HTBOTTOMLEFT;
-            if (onBottom && onRight) return HTBOTTOMRIGHT;
-            if (onLeft) return HTLEFT;
-            if (onRight) return HTRIGHT;
-            if (onTop) return HTTOP;
-            if (onBottom) return HTBOTTOM;
+        const auto result = hitTestFramelessWindow({
+            .localX = localX,
+            .localY = localY,
+            .windowWidth = windowWidth,
+            .windowHeight = windowHeight,
+            .titleBarHeight = titleBarHeight,
+            .resizeMargin = margin,
+            .isMaximized = helper->isWindowMaximized(),
+            .isFullScreen = helper->isWindowFullScreen(),
+            .excludeRegions = &helper->excludeRegions()
+        });
+        if (result.has_value()) {
+            return *result;
         }
         break;
     }
@@ -195,19 +109,17 @@ static LRESULT CALLBACK SubWindowWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
                 GetMonitorInfo(monitor, &mi);
                 params->rgrc[0] = mi.rcWork;
             }
-            return 0;
+            return WVR_REDRAW;
         }
         break;
     }
+    case WM_ERASEBKGND: {
+        return 1;
+    }
     case WM_SIZE: {
         if (IsWindowVisible(hwnd)) {
-            if (wParam == SIZE_MAXIMIZED) {
-                updateWindowFrame(hwnd, true, true);
-            } else if (wParam == SIZE_RESTORED) {
-                bool maxOrFull = isWindowMaximizedOrFullscreen(hwnd);
-                bool snapped = isWindowSnappedToEdge(hwnd);
-                updateWindowFrame(hwnd, maxOrFull || snapped, maxOrFull);
-            }
+            Q_UNUSED(wParam)
+            updateWindowFrameForCurrentState(hwnd);
         }
         break;
     }
@@ -368,23 +280,7 @@ void SubWindowHelper::setupWindowFrame()
     if (!m_window) return;
 
     HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
-
-    DWM_WINDOW_CORNER_PREFERENCE preference = DWMWCP_ROUND;
-    DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &preference, sizeof(preference));
-
-    BOOL disableTransitions = TRUE;
-    DwmSetWindowAttribute(hwnd, DWMWA_TRANSITIONS_FORCEDISABLED, &disableTransitions, sizeof(disableTransitions));
-
-    MARGINS margins = { 1, 1, 1, 1 };
-    DwmExtendFrameIntoClientArea(hwnd, &margins);
-
-    DWORD style = ::GetWindowLongPtr(hwnd, GWL_STYLE);
-    ::SetWindowLongPtr(hwnd, GWL_STYLE, style | WS_THICKFRAME | WS_MAXIMIZEBOX | WS_MINIMIZEBOX);
-
-    RECT rect;
-    GetWindowRect(hwnd, &rect);
-    SetWindowPos(hwnd, nullptr, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,
-                 SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER);
+    FramelessWindowUtils::setupFramelessWindow(hwnd);
 #endif
 }
 
@@ -593,9 +489,7 @@ void SubWindowHelper::updateFrameForState()
 #ifdef Q_OS_WIN
     if (!m_window) return;
     HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
-    bool maxOrFull = isWindowMaximizedOrFullscreen(hwnd);
-    bool snapped = isWindowSnappedToEdge(hwnd);
-    updateWindowFrame(hwnd, maxOrFull || snapped, maxOrFull);
+    FramelessWindowUtils::updateWindowFrameForCurrentState(hwnd);
 #endif
 }
 

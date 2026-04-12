@@ -5,82 +5,106 @@
  */
 
 #include "EnhanceVision/utils/WindowHelper.h"
-#include <QEvent>
-#include <QWindowStateChangeEvent>
-#include <QGuiApplication>
-#include <QScreen>
-#include <QMouseEvent>
-#include <QWindow>
-#include <QTimer>
-#include <QCursor>
+#include "FramelessWindowUtils.h"
 #include <QCoreApplication>
-#include <QApplication>
-#include <QWidget>
+#include <QCursor>
+#include <QEvent>
+#include <QGuiApplication>
+#include <QQuickWindow>
+#include <QTimer>
+
+namespace EnhanceVision {
 
 #ifdef Q_OS_WIN
 #include <windowsx.h>
-#include <dwmapi.h>
-#include <windows.h>
-#pragma comment(lib, "dwmapi.lib")
-#pragma comment(lib, "user32.lib")
 
-static bool isWindowMaximizedOrFullscreen(HWND hwnd)
-{
-    if (IsZoomed(hwnd))
-        return true;
-
-    RECT wr;
-    GetWindowRect(hwnd, &wr);
-
-    HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-    MONITORINFO mi = {};
-    mi.cbSize = sizeof(mi);
-    GetMonitorInfo(monitor, &mi);
-
-    return wr.left <= mi.rcMonitor.left && wr.top <= mi.rcMonitor.top &&
-           wr.right >= mi.rcMonitor.right && wr.bottom >= mi.rcMonitor.bottom;
+namespace {
+WNDPROC g_originalWindowProc = nullptr;
+WindowHelper* g_windowHelper = nullptr;
 }
 
-static bool isWindowSnappedToEdge(HWND hwnd)
+LRESULT CALLBACK WindowHelperWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-    if (IsZoomed(hwnd))
-        return true;
+    using namespace FramelessWindowUtils;
 
-    RECT wr;
-    GetWindowRect(hwnd, &wr);
+    if (!g_windowHelper) {
+        return g_originalWindowProc
+            ? CallWindowProc(g_originalWindowProc, hwnd, msg, wParam, lParam)
+            : DefWindowProc(hwnd, msg, wParam, lParam);
+    }
 
-    HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-    MONITORINFO mi = {};
-    mi.cbSize = sizeof(mi);
-    GetMonitorInfo(monitor, &mi);
+    switch (msg) {
+    case WM_ENTERSIZEMOVE:
+        g_windowHelper->setResizing(true);
+        break;
+    case WM_EXITSIZEMOVE:
+        g_windowHelper->setResizing(false);
+        g_windowHelper->updateNormalGeometry();
+        break;
+    case WM_NCHITTEST: {
+        RECT windowRect;
+        GetWindowRect(hwnd, &windowRect);
 
-    if (wr.left <= mi.rcMonitor.left && wr.top <= mi.rcMonitor.top &&
-        wr.right >= mi.rcMonitor.right && wr.bottom >= mi.rcMonitor.bottom)
-        return true;
+        const int localX = GET_X_LPARAM(lParam) - windowRect.left;
+        const int localY = GET_Y_LPARAM(lParam) - windowRect.top;
+        const int windowWidth = windowRect.right - windowRect.left;
+        const int windowHeight = windowRect.bottom - windowRect.top;
 
-    RECT wa = mi.rcWork;
-    LONG workW = wa.right - wa.left;
-    LONG workH = wa.bottom - wa.top;
-    LONG winW = wr.right - wr.left;
-    LONG winH = wr.bottom - wr.top;
+        const auto result = hitTestFramelessWindow({
+            .localX = localX,
+            .localY = localY,
+            .windowWidth = windowWidth,
+            .windowHeight = windowHeight,
+            .titleBarHeight = g_windowHelper->m_titleBarHeight,
+            .resizeMargin = g_windowHelper->m_resizeMargin,
+            .isMaximized = g_windowHelper->m_isMaximized,
+            .isFullScreen = false,
+            .excludeRegions = &g_windowHelper->m_excludeRegions
+        });
+        if (result.has_value()) {
+            return *result;
+        }
+        break;
+    }
+    case WM_GETMINMAXINFO: {
+        auto* minMaxInfo = reinterpret_cast<MINMAXINFO*>(lParam);
+        minMaxInfo->ptMinTrackSize.x = g_windowHelper->m_minWidth;
+        minMaxInfo->ptMinTrackSize.y = g_windowHelper->m_minHeight;
+        return 0;
+    }
+    case WM_NCCALCSIZE:
+        if (wParam == TRUE) {
+            if (IsZoomed(hwnd)) {
+                auto* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(lParam);
+                HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+                MONITORINFO monitorInfo = {};
+                monitorInfo.cbSize = sizeof(monitorInfo);
+                GetMonitorInfo(monitor, &monitorInfo);
+                params->rgrc[0] = monitorInfo.rcWork;
+            }
+            // Force full repaint during interactive resize. This avoids preserved
+            // client-bit reuse artifacts (black gap / detached content) when
+            // resizing from left/top edges where move+resize happens together.
+            return WVR_REDRAW;
+        }
+        break;
+    case WM_ERASEBKGND:
+        // Qt Quick owns painting. Prevent GDI background erase flicker.
+        return 1;
+    case WM_SIZE:
+        if (IsWindowVisible(hwnd)) {
+            g_windowHelper->updateFrameForState();
+        }
+        break;
+    default:
+        break;
+    }
 
-    bool fillsWidth = (wr.left == wa.left && wr.right == wa.right) || (winW >= workW);
-    bool fillsHeight = (wr.top == wa.top && wr.bottom == wa.bottom) || (winH >= workH);
-
-    return fillsWidth || fillsHeight;
-}
-
-static void updateWindowFrame(HWND hwnd, bool removeMargins, bool squareCorners)
-{
-    MARGINS margins = removeMargins ? MARGINS{0, 0, 0, 0} : MARGINS{1, 1, 1, 1};
-    DwmExtendFrameIntoClientArea(hwnd, &margins);
-
-    DWM_WINDOW_CORNER_PREFERENCE pref = squareCorners ? DWMWCP_DONOTROUND : DWMWCP_ROUND;
-    DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &pref, sizeof(pref));
+    return g_originalWindowProc
+        ? CallWindowProc(g_originalWindowProc, hwnd, msg, wParam, lParam)
+        : DefWindowProc(hwnd, msg, wParam, lParam);
 }
 #endif
-
-namespace EnhanceVision {
 
 WindowHelper* WindowHelper::instance()
 {
@@ -93,38 +117,36 @@ WindowHelper::WindowHelper(QObject* parent)
 {
 }
 
-void WindowHelper::setWindow(QQuickWidget* window)
+void WindowHelper::setWindow(QQuickWindow* window)
 {
+    if (m_window == window) {
+        return;
+    }
+
     if (m_window) {
         m_window->removeEventFilter(this);
-        QGuiApplication::instance()->removeNativeEventFilter(this);
-    }
-    m_window = window;
-    if (m_window) {
-        m_window->installEventFilter(this);
-        QGuiApplication::instance()->installNativeEventFilter(this);
-        
 #ifdef Q_OS_WIN
-        HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
-        
-        DWM_WINDOW_CORNER_PREFERENCE preference = DWMWCP_ROUND;
-        DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &preference, sizeof(preference));
-        
-        BOOL disableTransitions = TRUE;
-        DwmSetWindowAttribute(hwnd, DWMWA_TRANSITIONS_FORCEDISABLED, &disableTransitions, sizeof(disableTransitions));
-        
-        MARGINS margins = { 1, 1, 1, 1 };
-        DwmExtendFrameIntoClientArea(hwnd, &margins);
-        
-        DWORD style = ::GetWindowLongPtr(hwnd, GWL_STYLE);
-        ::SetWindowLongPtr(hwnd, GWL_STYLE, style | WS_THICKFRAME | WS_MAXIMIZEBOX | WS_MINIMIZEBOX);
-        
-        RECT rect;
-        GetWindowRect(hwnd, &rect);
-        SetWindowPos(hwnd, nullptr, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,
-                     SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER);
+        HWND oldHwnd = reinterpret_cast<HWND>(m_window->winId());
+        if (g_windowHelper == this) {
+            g_windowHelper = nullptr;
+        }
+        if (g_originalWindowProc) {
+            SetWindowLongPtr(oldHwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(g_originalWindowProc));
+            g_originalWindowProc = nullptr;
+        }
 #endif
     }
+
+    m_window = window;
+
+    if (!m_window) {
+        return;
+    }
+
+    m_window->installEventFilter(this);
+    updateMaximizedState();
+    updateNormalGeometry();
+    setupWindowFrame();
 }
 
 void WindowHelper::setResizeMargin(int margin)
@@ -138,195 +160,76 @@ void WindowHelper::setResizeMargin(int margin)
 bool WindowHelper::eventFilter(QObject* watched, QEvent* event)
 {
     if (watched == m_window) {
-        if (event->type() == QEvent::WindowStateChange) {
-            bool wasMaximized = m_isMaximized;
-            m_isMaximized = m_window->isMaximized();
-            
-            if (wasMaximized != m_isMaximized) {
-                emit maximizedChanged();
-            }
-
+        switch (event->type()) {
+        case QEvent::WindowStateChange:
+            updateMaximizedState();
             QTimer::singleShot(0, this, &WindowHelper::updateFrameForState);
-        }
-        
-        if (event->type() == QEvent::Resize) {
-            if (!m_isResizing) {
-                m_isResizing = true;
-                emit resizingChanged();
-                emit resizeStarted();
-            }
+            break;
+        case QEvent::Show:
+            setupWindowFrame();
+            updateNormalGeometry();
             QTimer::singleShot(0, this, &WindowHelper::updateFrameForState);
-        }
-        
-        if (event->type() == QEvent::Move) {
-            if (!m_isResizing) {
-                m_isResizing = true;
-                emit resizingChanged();
-                emit resizeStarted();
-            }
-            QTimer::singleShot(0, this, &WindowHelper::updateFrameForState);
-        }
-        
-        if (event->type() == QEvent::Expose) {
-            if (m_isResizing) {
-                m_isResizing = false;
-                emit resizingChanged();
-                emit resizeFinished();
-            }
+            break;
+        case QEvent::Move:
+        case QEvent::Resize:
+            updateNormalGeometry();
+            break;
+        default:
+            break;
         }
     }
+
     return QObject::eventFilter(watched, event);
-}
-
-bool WindowHelper::nativeEventFilter(const QByteArray& eventType, void* message, qintptr* result)
-{
-#ifdef Q_OS_WIN
-    if (eventType == "windows_generic_MSG" || eventType == "windows_dispatcher_MSG") {
-        MSG* msg = static_cast<MSG*>(message);
-        
-        if (msg->message == WM_NCHITTEST && m_window) {
-            HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
-            if (msg->hwnd != hwnd) {
-                return false;
-            }
-            
-            RECT windowRect;
-            GetWindowRect(hwnd, &windowRect);
-            
-            int x = GET_X_LPARAM(msg->lParam);
-            int y = GET_Y_LPARAM(msg->lParam);
-            
-            int localX = x - windowRect.left;
-            int localY = y - windowRect.top;
-            int windowWidth = windowRect.right - windowRect.left;
-            int windowHeight = windowRect.bottom - windowRect.top;
-            
-            int margin = m_resizeMargin;
-            
-            bool onLeft = localX < margin;
-            bool onRight = localX >= windowWidth - margin;
-            bool onTop = localY < margin;
-            bool onBottom = localY >= windowHeight - margin;
-            
-            if (!m_isMaximized) {
-                if (onTop && onLeft) {
-                    *result = HTTOPLEFT;
-                    return true;
-                }
-                if (onTop && onRight) {
-                    *result = HTTOPRIGHT;
-                    return true;
-                }
-                if (onBottom && onLeft) {
-                    *result = HTBOTTOMLEFT;
-                    return true;
-                }
-                if (onBottom && onRight) {
-                    *result = HTBOTTOMRIGHT;
-                    return true;
-                }
-                if (onLeft) {
-                    *result = HTLEFT;
-                    return true;
-                }
-                if (onRight) {
-                    *result = HTRIGHT;
-                    return true;
-                }
-                if (onTop) {
-                    *result = HTTOP;
-                    return true;
-                }
-                if (onBottom) {
-                    *result = HTBOTTOM;
-                    return true;
-                }
-            }
-            
-            if (localY >= 0 && localY < 48) {
-                for (const QRect& region : m_excludeRegions) {
-                    if (region.contains(localX, localY)) {
-                        return false;
-                    }
-                }
-                *result = HTCAPTION;
-                return true;
-            }
-        }
-        
-        if (msg->message == WM_GETMINMAXINFO && m_window) {
-            HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
-            if (msg->hwnd == hwnd) {
-                MINMAXINFO* minMaxInfo = reinterpret_cast<MINMAXINFO*>(msg->lParam);
-                minMaxInfo->ptMinTrackSize.x = m_minWidth;
-                minMaxInfo->ptMinTrackSize.y = m_minHeight;
-                *result = 0;
-                return true;
-            }
-        }
-
-        if (msg->message == WM_ENTERSIZEMOVE && m_window) {
-            if (!m_isResizing) {
-                m_isResizing = true;
-                emit resizingChanged();
-                emit resizeStarted();
-            }
-        }
-        
-        if (msg->message == WM_EXITSIZEMOVE && m_window) {
-            if (m_isResizing) {
-                m_isResizing = false;
-                emit resizingChanged();
-                emit resizeFinished();
-            }
-        }
-    }
-#else
-    Q_UNUSED(eventType)
-    Q_UNUSED(message)
-    Q_UNUSED(result)
-#endif
-    return false;
 }
 
 void WindowHelper::minimize()
 {
-    if (m_window) {
-#ifdef Q_OS_WIN
-        HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
-        ShowWindow(hwnd, SW_MINIMIZE);
-#else
-        m_window->showMinimized();
-#endif
+    if (!m_window) {
+        return;
     }
+
+#ifdef Q_OS_WIN
+    HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
+    ShowWindow(hwnd, SW_MINIMIZE);
+#else
+    m_window->showMinimized();
+#endif
 }
 
 void WindowHelper::maximize()
 {
-    if (m_window && !m_isMaximized) {
-#ifdef Q_OS_WIN
-        HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
-        ShowWindow(hwnd, SW_MAXIMIZE);
-#else
-        m_window->showMaximized();
-#endif
-        m_isMaximized = true;
-        emit maximizedChanged();
+    if (!m_window || m_isMaximized) {
+        return;
     }
+
+    updateNormalGeometry();
+
+#ifdef Q_OS_WIN
+    HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
+    ShowWindow(hwnd, SW_MAXIMIZE);
+#else
+    m_window->showMaximized();
+#endif
+
+    m_isMaximized = true;
+    emit maximizedChanged();
 }
 
 void WindowHelper::restore()
 {
-    if (m_window && m_isMaximized) {
-#ifdef Q_OS_WIN
-        HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
-        ShowWindow(hwnd, SW_RESTORE);
-#else
-        m_window->showNormal();
-#endif
-        m_isMaximized = false;
-        emit maximizedChanged();
+    if (!m_window || !m_isMaximized) {
+        return;
     }
+
+#ifdef Q_OS_WIN
+    HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
+    ShowWindow(hwnd, SW_RESTORE);
+#else
+    m_window->showNormal();
+#endif
+
+    m_isMaximized = false;
+    emit maximizedChanged();
 }
 
 void WindowHelper::toggleMaximize()
@@ -352,60 +255,59 @@ bool WindowHelper::isMaximized() const
 
 void WindowHelper::prepareRestoreAndMove(int mouseX, int mouseY, int areaWidth, int areaHeight)
 {
-    if (m_window && m_isMaximized) {
-#ifdef Q_OS_WIN
-        HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
-        
-        QRect maxGeom = m_window->geometry();
-        QRect normalGeom = m_window->normalGeometry();
-        
-        if (normalGeom.width() <= 0 || normalGeom.height() <= 0) {
-            normalGeom.setWidth(m_minWidth);
-            normalGeom.setHeight(m_minHeight);
-        }
-        
-        qreal xRatio = static_cast<qreal>(mouseX) / areaWidth;
-        
-        int newWindowX = static_cast<int>(normalGeom.width() * xRatio);
-        int newWindowY = mouseY;
-        
-        normalGeom.moveTopLeft(QPoint(maxGeom.left() + mouseX - newWindowX, maxGeom.top() + mouseY - newWindowY));
-        
-        m_isMaximized = false;
-        emit maximizedChanged();
-        
-        ShowWindow(hwnd, SW_RESTORE);
-        m_window->setGeometry(normalGeom);
-        
-        QCoreApplication::processEvents();
-        
-        QPoint cursorPos = QCursor::pos();
-        int lParam = MAKELPARAM(cursorPos.x(), cursorPos.y());
-        
-        ReleaseCapture();
-        SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, lParam);
-#else
-        Q_UNUSED(mouseX)
-        Q_UNUSED(mouseY)
-        Q_UNUSED(areaWidth)
-        Q_UNUSED(areaHeight)
-#endif
+    Q_UNUSED(areaHeight)
+
+    if (!m_window || !m_isMaximized) {
+        return;
     }
+
+#ifdef Q_OS_WIN
+    HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
+    QRect maximizedGeometry = m_window->geometry();
+    QRect normalGeometry = m_normalGeometry;
+
+    if (normalGeometry.width() <= 0 || normalGeometry.height() <= 0) {
+        normalGeometry.setSize(QSize(m_minWidth, m_minHeight));
+    }
+
+    const qreal xRatio = static_cast<qreal>(mouseX) / areaWidth;
+    const int newWindowX = static_cast<int>(normalGeometry.width() * xRatio);
+    const int newWindowY = mouseY;
+
+    normalGeometry.moveTopLeft(QPoint(maximizedGeometry.left() + mouseX - newWindowX,
+                                      maximizedGeometry.top() + mouseY - newWindowY));
+
+    m_isMaximized = false;
+    emit maximizedChanged();
+
+    ShowWindow(hwnd, SW_RESTORE);
+    m_window->setGeometry(normalGeometry);
+    QCoreApplication::processEvents();
+
+    const QPoint cursorPos = QCursor::pos();
+    const int lParam = MAKELPARAM(cursorPos.x(), cursorPos.y());
+    ReleaseCapture();
+    SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, lParam);
+#else
+    Q_UNUSED(mouseX)
+    Q_UNUSED(mouseY)
+    Q_UNUSED(areaWidth)
+#endif
 }
 
 void WindowHelper::startSystemMove()
 {
-    if (m_window) {
-#ifdef Q_OS_WIN
-        HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
-        ReleaseCapture();
-        SendMessage(hwnd, WM_SYSCOMMAND, SC_MOVE + HTCAPTION, 0);
-#else
-        if (m_window->windowHandle()) {
-            m_window->windowHandle()->startSystemMove();
-        }
-#endif
+    if (!m_window) {
+        return;
     }
+
+#ifdef Q_OS_WIN
+    HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
+    ReleaseCapture();
+    SendMessage(hwnd, WM_SYSCOMMAND, SC_MOVE + HTCAPTION, 0);
+#else
+    m_window->startSystemMove();
+#endif
 }
 
 void WindowHelper::clearExcludeRegions()
@@ -428,15 +330,83 @@ void WindowHelper::restoreOverrideCursor()
     QGuiApplication::restoreOverrideCursor();
 }
 
+void WindowHelper::setupWindowFrame()
+{
+#ifdef Q_OS_WIN
+    if (!m_window) {
+        return;
+    }
+
+    HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
+    FramelessWindowUtils::setupFramelessWindow(hwnd);
+
+    if (g_windowHelper == this && g_originalWindowProc) {
+        return;
+    }
+
+    if (g_originalWindowProc && g_windowHelper) {
+        HWND previousHwnd = reinterpret_cast<HWND>(g_windowHelper->m_window ? g_windowHelper->m_window->winId() : 0);
+        if (previousHwnd) {
+            SetWindowLongPtr(previousHwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(g_originalWindowProc));
+        }
+    }
+
+    g_windowHelper = this;
+    g_originalWindowProc = reinterpret_cast<WNDPROC>(
+        SetWindowLongPtr(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(WindowHelperWndProc)));
+#endif
+}
+
 void WindowHelper::updateFrameForState()
 {
 #ifdef Q_OS_WIN
-    if (!m_window) return;
+    if (!m_window) {
+        return;
+    }
+
     HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
-    bool maxOrFull = isWindowMaximizedOrFullscreen(hwnd);
-    bool snapped = isWindowSnappedToEdge(hwnd);
-    updateWindowFrame(hwnd, maxOrFull || snapped, maxOrFull);
+    FramelessWindowUtils::updateWindowFrameForCurrentState(hwnd);
 #endif
+}
+
+void WindowHelper::updateMaximizedState()
+{
+    if (!m_window) {
+        return;
+    }
+
+    const bool wasMaximized = m_isMaximized;
+    m_isMaximized = m_window->windowStates().testFlag(Qt::WindowMaximized);
+    if (wasMaximized != m_isMaximized) {
+        emit maximizedChanged();
+    }
+}
+
+void WindowHelper::updateNormalGeometry()
+{
+    if (!m_window || m_isMaximized || m_isResizing) {
+        return;
+    }
+
+    const QRect geometry = m_window->geometry();
+    if (geometry.isValid() && geometry.width() > 0 && geometry.height() > 0) {
+        m_normalGeometry = geometry;
+    }
+}
+
+void WindowHelper::setResizing(bool resizing)
+{
+    if (m_isResizing == resizing) {
+        return;
+    }
+
+    m_isResizing = resizing;
+    emit resizingChanged();
+    if (m_isResizing) {
+        emit resizeStarted();
+    } else {
+        emit resizeFinished();
+    }
 }
 
 } // namespace EnhanceVision
