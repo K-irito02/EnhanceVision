@@ -9,6 +9,7 @@
 #include "EnhanceVision/controllers/SettingsController.h"
 #include "EnhanceVision/controllers/TaskRecoveryController.h"
 #include "EnhanceVision/controllers/SessionPruneUtils.h"
+#include "EnhanceVision/controllers/MessageStatusResolver.h"
 #include "EnhanceVision/models/MessageModel.h"
 #include "EnhanceVision/core/TaskCoordinator.h"
 #include "EnhanceVision/core/TaskStateManager.h"
@@ -53,6 +54,72 @@ int countTasksForTargets(const QList<QueueTask>& tasks, const QList<PruneTarget>
         }
     }
     return cancelledTaskCount;
+}
+
+QString normalizePathForRemap(const QString& path)
+{
+    const QString trimmed = path.trimmed();
+    if (trimmed.isEmpty()) {
+        return {};
+    }
+    return QDir::cleanPath(QDir::fromNativeSeparators(trimmed));
+}
+
+bool pathEqualsOrChildOf(const QString& candidate, const QString& base)
+{
+    if (candidate.isEmpty() || base.isEmpty()) {
+        return false;
+    }
+
+#ifdef Q_OS_WIN
+    const Qt::CaseSensitivity sensitivity = Qt::CaseInsensitive;
+#else
+    const Qt::CaseSensitivity sensitivity = Qt::CaseSensitive;
+#endif
+
+    if (QString::compare(candidate, base, sensitivity) == 0) {
+        return true;
+    }
+
+    const QString normalizedBase = base.endsWith(QLatin1Char('/'))
+        ? base
+        : base + QLatin1Char('/');
+    return candidate.startsWith(normalizedBase, sensitivity);
+}
+
+bool remapPathPrefix(QString& path, const QString& oldRootPath, const QString& newRootPath)
+{
+    const QString normalizedPath = normalizePathForRemap(path);
+    if (normalizedPath.isEmpty() || !pathEqualsOrChildOf(normalizedPath, oldRootPath)) {
+        return false;
+    }
+
+    QString relative = normalizedPath.mid(oldRootPath.size());
+    if (relative.startsWith(QLatin1Char('/'))) {
+        relative.remove(0, 1);
+    }
+
+    QString remapped = newRootPath;
+    if (!relative.isEmpty()) {
+        remapped = QDir(newRootPath).filePath(relative);
+        remapped = normalizePathForRemap(remapped);
+    }
+
+    if (remapped.isEmpty() || remapped == normalizedPath) {
+        return false;
+    }
+
+    path = remapped;
+    return true;
+}
+
+void recomputeMessageStatusAfterRemap(Message& message)
+{
+    const MessageStatusSummary summary = summarizeMessageMediaFiles(message.mediaFiles);
+    message.status = deriveMessageStatus(summary, false);
+    if (message.status != ProcessingStatus::Failed) {
+        message.errorMessage.clear();
+    }
 }
 
 } // namespace
@@ -1496,6 +1563,102 @@ void SessionController::clearAllShaderVideoMessages()
 void SessionController::clearMediaFilesByModeAndType(int mode, int mediaType)
 {
     pruneMediaFilesByModeAndType(mode, mediaType, QStringLiteral("legacy-clear"));
+}
+
+int SessionController::remapStorageRootPaths(const QString& oldRootPath, const QString& newRootPath)
+{
+    const QString normalizedOldRoot = normalizePathForRemap(oldRootPath);
+    const QString normalizedNewRoot = normalizePathForRemap(newRootPath);
+    if (normalizedOldRoot.isEmpty() || normalizedNewRoot.isEmpty() || normalizedOldRoot == normalizedNewRoot) {
+        return 0;
+    }
+
+    int changedPathCount = 0;
+    int repairedCompletedCount = 0;
+    QSet<QString> changedSessionIds;
+
+    QList<Session>& sessions = m_sessionModel->sessionsRef();
+    for (Session& session : sessions) {
+        bool sessionChanged = false;
+
+        auto remapMediaFilePaths = [&](MediaFile& file) -> bool {
+            bool changed = false;
+            changed |= remapPathPrefix(file.filePath, normalizedOldRoot, normalizedNewRoot);
+            changed |= remapPathPrefix(file.originalPath, normalizedOldRoot, normalizedNewRoot);
+            changed |= remapPathPrefix(file.resultPath, normalizedOldRoot, normalizedNewRoot);
+            if (changed) {
+                ++changedPathCount;
+            }
+            return changed;
+        };
+
+        for (MediaFile& pendingFile : session.pendingFiles) {
+            if (remapMediaFilePaths(pendingFile)) {
+                sessionChanged = true;
+            }
+        }
+
+        for (Message& message : session.messages) {
+            bool messageChanged = false;
+            bool statusNeedsRecompute = false;
+
+            for (MediaFile& mediaFile : message.mediaFiles) {
+                if (remapMediaFilePaths(mediaFile)) {
+                    messageChanged = true;
+                }
+
+                if (mediaFile.status == ProcessingStatus::Failed && !mediaFile.resultPath.isEmpty()) {
+                    QFileInfo migratedResult(mediaFile.resultPath);
+                    if (migratedResult.exists() &&
+                        migratedResult.isFile() &&
+                        migratedResult.size() > 0 &&
+                        pathEqualsOrChildOf(normalizePathForRemap(mediaFile.resultPath), normalizedNewRoot)) {
+                        mediaFile.status = ProcessingStatus::Completed;
+                        ++repairedCompletedCount;
+                        messageChanged = true;
+                        statusNeedsRecompute = true;
+                    }
+                }
+            }
+
+            if (statusNeedsRecompute) {
+                recomputeMessageStatusAfterRemap(message);
+            }
+
+            if (messageChanged) {
+                sessionChanged = true;
+            }
+        }
+
+        if (sessionChanged) {
+            session.modifiedAt = QDateTime::currentDateTime();
+            changedSessionIds.insert(session.id);
+        }
+    }
+
+    if (changedSessionIds.isEmpty()) {
+        return 0;
+    }
+
+    rebuildSessionMessageIndex();
+    for (const QString& sessionId : changedSessionIds) {
+        m_sessionModel->notifySessionDataChanged(sessionId);
+    }
+
+    reloadActiveSessionMessages();
+    saveSessionsImmediately();
+
+    if (m_taskRecoveryController) {
+        m_taskRecoveryController->syncPendingRecoveryFromSessions();
+        m_taskRecoveryController->persistSnapshotNow();
+    }
+
+    qInfo() << "[SessionController] remapStorageRootPaths changedPaths=" << changedPathCount
+            << " repairedCompletedStatuses=" << repairedCompletedCount
+            << " oldRoot=" << normalizedOldRoot
+            << " newRoot=" << normalizedNewRoot;
+
+    return changedPathCount;
 }
 
 QVariantMap SessionController::pruneMediaFilesByModeAndType(int mode, int mediaType, const QString& reason)

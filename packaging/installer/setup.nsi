@@ -34,7 +34,7 @@
 ; ----------------------------------------------------------------------------
 Name "${APP_NAME} ${APP_VERSION}"
 OutFile "..\output\EnhanceVision-v${APP_VERSION}-windows-x64-installer.exe"
-InstallDir "$PROGRAMFILES64\${APP_NAME}"
+InstallDir "$LOCALAPPDATA\Programs\${APP_NAME}"
 InstallDirRegKey HKLM "${APP_REGISTRY_KEY}" "Install_Dir"
 RequestExecutionLevel admin
 
@@ -60,8 +60,7 @@ SetCompressorDictSize 64
 ; 页面定义
 ; ----------------------------------------------------------------------------
 !insertmacro MUI_PAGE_LICENSE "$(LicenseFile)"
-!insertmacro MUI_PAGE_DIRECTORY
-Page custom DataDirectoryPage
+Page custom DataDirectoryPage DataDirectoryPageLeave
 !insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
@@ -92,12 +91,21 @@ LangString ErrorDiskSpace ${LANG_SIMPCHINESE} "磁盘空间不足！至少需要
 LangString ErrorVCRuntime ${LANG_SIMPCHINESE} "未检测到 Visual C++ 运行库，将自动安装。"
 LangString WarningVulkan ${LANG_SIMPCHINESE} "未检测到 Vulkan 支持。AI 增强功能将使用 CPU 模式，性能可能较慢。建议更新显卡驱动以获得最佳体验。"
 LangString DataDirTitle ${LANG_SIMPCHINESE} "数据存储位置"
-LangString DataDirText ${LANG_SIMPCHINESE} "请选择数据存储目录（用于保存 AI 模型缓存、处理结果等）："
-LangString DataDirDefault ${LANG_SIMPCHINESE} "使用默认位置（推荐）"
-LangString DataDirCustom ${LANG_SIMPCHINESE} "自定义位置："
+LangString DataDirText ${LANG_SIMPCHINESE} "请设置安装目录和默认导出路径。应用数据目录将自动创建于安装目录下。"
+LangString InstallDirLabel ${LANG_SIMPCHINESE} "安装目录"
+LangString InstallDirHint ${LANG_SIMPCHINESE} "程序文件安装位置"
+LangString AppDataDirLabel ${LANG_SIMPCHINESE} "应用数据目录（跟随安装目录）"
+LangString AppDataDirHint ${LANG_SIMPCHINESE} "用于保存处理结果、缩略图、日志等数据"
+LangString ExportDirLabel ${LANG_SIMPCHINESE} "默认导出路径"
+LangString ExportDirHint ${LANG_SIMPCHINESE} "处理后文件的默认保存位置"
+LangString InstallDirProtectedWarn ${LANG_SIMPCHINESE} "当前安装目录位于受保护目录，程序可以继续安装，但建议改为普通可写目录以减少权限问题。$\r$\n$\r$\n当前目录：$INSTDIR$\r$\n应用数据目录将自动使用：$DataDirPath"
 LangString DataDirBrowse ${LANG_SIMPCHINESE} "浏览..."
-LangString SectionMain ${LANG_SIMPCHINESE} "主程序（必需）"
-LangString SectionMainDesc ${LANG_SIMPCHINESE} "安装 EnhanceVision 主程序和核心组件"
+LangString InvalidDirEmpty ${LANG_SIMPCHINESE} "目录不能为空。"
+LangString InvalidDirProtected ${LANG_SIMPCHINESE} "所选目录位于 Windows 受保护目录下，请改为普通可写目录。"
+LangString InvalidDirNotAbsolute ${LANG_SIMPCHINESE} "所选目录必须是绝对路径。"
+LangString InvalidDirCreateFailed ${LANG_SIMPCHINESE} "无法创建或写入所选目录，请检查权限后重试。"
+ LangString SectionMain ${LANG_SIMPCHINESE} "主程序（必需）"
+ LangString SectionMainDesc ${LANG_SIMPCHINESE} "安装 EnhanceVision 主程序和核心组件"
 LangString SectionShortcuts ${LANG_SIMPCHINESE} "开始菜单快捷方式"
 LangString SectionShortcutsDesc ${LANG_SIMPCHINESE} "在开始菜单创建程序组"
 LangString SectionDesktop ${LANG_SIMPCHINESE} "桌面快捷方式"
@@ -116,10 +124,21 @@ LangString ErrorDiskSpace ${LANG_ENGLISH} "Insufficient disk space! At least ${M
 LangString ErrorVCRuntime ${LANG_ENGLISH} "Visual C++ runtime not detected. It will be installed automatically."
 LangString WarningVulkan ${LANG_ENGLISH} "Vulkan support not detected. AI enhancement will use CPU mode, which may be slower. It is recommended to update your graphics driver for the best experience."
 LangString DataDirTitle ${LANG_ENGLISH} "Data Storage Location"
-LangString DataDirText ${LANG_ENGLISH} "Select the data storage directory (for AI model cache, processing results, etc.):"
-LangString DataDirDefault ${LANG_ENGLISH} "Use default location (Recommended)"
-LangString DataDirCustom ${LANG_ENGLISH} "Custom location:"
+LangString DataDirText ${LANG_ENGLISH} "Set the install directory and default export path. The application data directory will be created automatically under the install directory."
+LangString InstallDirLabel ${LANG_ENGLISH} "Install Directory"
+LangString InstallDirHint ${LANG_ENGLISH} "Program files location"
+LangString AppDataDirLabel ${LANG_ENGLISH} "Application Data Directory (follows install directory)"
+LangString AppDataDirHint ${LANG_ENGLISH} "Stores processing results, thumbnails, logs and other data"
+LangString ExportDirLabel ${LANG_ENGLISH} "Default Export Path"
+LangString ExportDirHint ${LANG_ENGLISH} "Default save location for processed files"
+LangString InstallDirProtectedWarn ${LANG_ENGLISH} "The selected install directory is in a protected location. Installation can continue, but using a regular writable directory is recommended to reduce permission issues.$\r$\n$\r$\nCurrent install directory: $INSTDIR$\r$\nApplication data directory will use: $DataDirPath"
 LangString DataDirBrowse ${LANG_ENGLISH} "Browse..."
+LangString InvalidDirEmpty ${LANG_ENGLISH} "The directory cannot be empty."
+LangString InvalidDirProtected ${LANG_ENGLISH} "The selected directory is inside a Windows protected directory. Choose a regular writable directory instead."
+LangString InvalidDirNotAbsolute ${LANG_ENGLISH} "The selected directory must be an absolute path."
+LangString InvalidDirCreateFailed ${LANG_ENGLISH} "The selected directory cannot be created or written. Check permissions and try again."
+LangString InvalidInstallDirProtected ${LANG_ENGLISH} "The install directory cannot be inside Windows protected directories when application data is stored alongside the app. Choose a regular writable directory."
+LangString InvalidInstallDirProtected ${LANG_SIMPCHINESE} "当应用数据与程序同路径存放时，安装目录不能位于 Windows 受保护目录下，请选择普通可写目录。"
 LangString SectionMain ${LANG_ENGLISH} "Main Program (Required)"
 LangString SectionMainDesc ${LANG_ENGLISH} "Install EnhanceVision main program and core components"
 LangString SectionShortcuts ${LANG_ENGLISH} "Start Menu Shortcuts"
@@ -134,10 +153,18 @@ LangString PrevVersionDetected ${LANG_ENGLISH} "Detected EnhanceVision $Previous
 ; 全局变量
 ; ----------------------------------------------------------------------------
 Var DataDirPath
-Var UseDefaultDataDir
+Var ExportDirPath
 Var PreviousVersion
 Var VulkanSupported
 Var VCRuntimeInstalled
+Var PreviousDataDirPath
+Var PreviousExportDirPath
+Var ExportDirInputHandle
+Var DataDirDisplayHandle
+Var DataDirPathIniSafe
+Var ExportDirPathIniSafe
+Var PreviousDataDirPathIniSafe
+Var InstallDirInputHandle
 
 ; ----------------------------------------------------------------------------
 ; 安装初始化
@@ -152,6 +179,7 @@ Function .onInit
 
     Call CheckDiskSpace
     Call CheckPreviousVersion
+    Call InitializeDirectoryDefaults
     Call CheckVCRuntime
     Call CheckVulkanSupport
 FunctionEnd
@@ -162,6 +190,8 @@ FunctionEnd
 Function DataDirectoryPage
     !insertmacro MUI_HEADER_TEXT "$(DataDirTitle)" "$(DataDirText)"
 
+    Call SyncDataDirWithInstallDir
+
     nsDialogs::Create 1018
     Pop $0
 
@@ -169,47 +199,91 @@ Function DataDirectoryPage
         Abort
     ${EndIf}
 
-    ${NSD_CreateRadioButton} 20 20 100% 12u "$(DataDirDefault)"
-    Pop $1
-    ${NSD_AddStyle} $1 ${WS_GROUP}
-    ${NSD_OnClick} $1 OnSelectDefaultDataDir
-    ${NSD_Check} $1
+    ${NSD_CreateLabel} 20 14 100% 12u "$(InstallDirLabel)"
+    Pop $0
 
-    ${NSD_CreateLabel} 40 40 100% 12u "$INSTDIR\data"
-    Pop $2
+    ${NSD_CreateDirRequest} 20 30 300 13u "$INSTDIR"
+    Pop $InstallDirInputHandle
 
-    ${NSD_CreateRadioButton} 20 70 100% 12u "$(DataDirCustom)"
-    Pop $3
-    ${NSD_OnClick} $3 OnSelectCustomDataDir
+    ${NSD_CreateBrowseButton} 330 30 50 13u "$(DataDirBrowse)"
+    Pop $0
+    ${NSD_OnClick} $0 OnBrowseInstallDir
 
-    ${NSD_CreateDirRequest} 40 90 280 12u "$INSTDIR\data"
-    Pop $4
+    ${NSD_CreateLabel} 20 50 100% 24u "$(InstallDirHint)"
+    Pop $0
 
-    ${NSD_CreateBrowseButton} 330 90 50 12u "$(DataDirBrowse)"
-    Pop $5
-    ${NSD_OnClick} $5 OnBrowseDataDir
+    ${NSD_CreateLabel} 20 80 100% 12u "$(AppDataDirLabel)"
+    Pop $0
 
-    StrCpy $UseDefaultDataDir 1
-    StrCpy $DataDirPath "$INSTDIR\data"
+    ${NSD_CreateText} 20 96 360 13u "$DataDirPath"
+    Pop $DataDirDisplayHandle
+    EnableWindow $DataDirDisplayHandle 0
+
+    ${NSD_CreateLabel} 20 116 100% 24u "$(AppDataDirHint)"
+    Pop $0
+
+    ${NSD_CreateLabel} 20 146 100% 12u "$(ExportDirLabel)"
+    Pop $0
+
+    ${NSD_CreateDirRequest} 20 162 300 13u "$ExportDirPath"
+    Pop $ExportDirInputHandle
+
+    ${NSD_CreateBrowseButton} 330 162 50 13u "$(DataDirBrowse)"
+    Pop $0
+    ${NSD_OnClick} $0 OnBrowseExportDir
+
+    ${NSD_CreateLabel} 20 182 100% 24u "$(ExportDirHint)"
+    Pop $0
 
     nsDialogs::Show
 FunctionEnd
 
-Function OnSelectDefaultDataDir
-    StrCpy $UseDefaultDataDir 1
-    StrCpy $DataDirPath "$INSTDIR\data"
-FunctionEnd
-
-Function OnSelectCustomDataDir
-    StrCpy $UseDefaultDataDir 0
-FunctionEnd
-
-Function OnBrowseDataDir
-    nsDialogs::SelectFolderDialog "" ""
+Function OnBrowseInstallDir
+    nsDialogs::SelectFolderDialog "" "$INSTDIR"
     Pop $0
     ${If} $0 != error
-        ${NSD_SetText} $4 "$0\EnhanceVision"
-        StrCpy $DataDirPath "$0\EnhanceVision"
+        StrCpy $INSTDIR "$0"
+        ${NSD_SetText} $InstallDirInputHandle "$INSTDIR"
+        Call SyncDataDirWithInstallDir
+    ${EndIf}
+FunctionEnd
+
+Function OnBrowseExportDir
+    nsDialogs::SelectFolderDialog "" "$ExportDirPath"
+    Pop $0
+    ${If} $0 != error
+        StrCpy $ExportDirPath "$0"
+        ${NSD_SetText} $ExportDirInputHandle "$ExportDirPath"
+    ${EndIf}
+FunctionEnd
+
+Function DataDirectoryPageLeave
+    ${NSD_GetText} $InstallDirInputHandle $INSTDIR
+
+    Push "$INSTDIR"
+    Call ValidateInstallDirectory
+    Pop $0
+    ${If} $0 != ""
+        MessageBox MB_OK|MB_ICONSTOP $0
+        Abort
+    ${EndIf}
+
+    Call SyncDataDirWithInstallDir
+    ${NSD_GetText} $ExportDirInputHandle $ExportDirPath
+
+    Push $ExportDirPath
+    Call ValidateDirectorySelection
+    Pop $0
+    ${If} $0 != ""
+        MessageBox MB_OK|MB_ICONSTOP $0
+        Abort
+    ${EndIf}
+
+    Push "$INSTDIR"
+    Call IsProtectedInstallDirectory
+    Pop $0
+    ${If} $0 == "1"
+        MessageBox MB_OK|MB_ICONEXCLAMATION "$(InstallDirProtectedWarn)"
     ${EndIf}
 FunctionEnd
 
@@ -233,6 +307,419 @@ Function CheckPreviousVersion
 
         continue:
     ${EndIf}
+FunctionEnd
+
+Function InitializeDirectoryDefaults
+    SetShellVarContext current
+
+    Push "$INSTDIR"
+    Call ResolveDataDirFromInstallDir
+    Pop $DataDirPath
+    Call ResolveDefaultExportDir
+    Pop $ExportDirPath
+    StrCpy $PreviousDataDirPath ""
+    StrCpy $PreviousExportDirPath ""
+
+    IfFileExists "$LOCALAPPDATA\EnhanceVision\settings.ini" 0 done
+    ReadINIStr $0 "$LOCALAPPDATA\EnhanceVision\settings.ini" "behavior" "customDataPath"
+    ${If} $0 != ""
+        Push $0
+        Call FromIniSafePath
+        Pop $0
+        StrCpy $PreviousDataDirPath "$0"
+    ${EndIf}
+
+    ReadINIStr $0 "$LOCALAPPDATA\EnhanceVision\settings.ini" "behavior" "defaultSavePath"
+    ${If} $0 != ""
+        Push $0
+        Call FromIniSafePath
+        Pop $0
+        StrCpy $ExportDirPath "$0"
+        StrCpy $PreviousExportDirPath "$0"
+    ${EndIf}
+
+    ${If} $PreviousDataDirPath == ""
+        StrCpy $PreviousDataDirPath "$LOCALAPPDATA\EnhanceVision\EnhanceVision"
+    ${EndIf}
+
+    done:
+FunctionEnd
+
+Function ResolveDefaultExportDir
+    ; Prefer D: when available, otherwise fallback to C:.
+    ; This avoids assumptions about optional drives such as E:.
+    IfFileExists "D:\\" 0 +3
+    StrCpy $0 "D:\EnhanceVision\Exports"
+    Goto done
+
+    IfFileExists "C:\\" 0 +3
+    StrCpy $0 "C:\EnhanceVision\Exports"
+    Goto done
+
+    StrCpy $0 "$PROFILE\Pictures\EnhanceVision"
+
+    done:
+    Push $0
+FunctionEnd
+
+Function SyncDataDirWithInstallDir
+    Push "$INSTDIR"
+    Call ResolveDataDirFromInstallDir
+    Pop $DataDirPath
+    ${If} $DataDirDisplayHandle != ""
+        ${NSD_SetText} $DataDirDisplayHandle "$DataDirPath"
+    ${EndIf}
+FunctionEnd
+
+Function ResolveDataDirFromInstallDir
+    Exch $0
+
+    StrCpy $1 "$0\data"
+    StrCpy $R0 $0
+    System::Call 'kernel32::CharUpperBuff(t r0, i ${NSIS_MAX_STRLEN})'
+
+    StrCpy $2 $R0 2
+    StrCpy $3 $2 1 1
+    ${If} $3 != ":"
+        StrCpy $0 "$1"
+        Goto done
+    ${EndIf}
+
+    StrCpy $R1 "$2\PROGRAM FILES"
+    StrLen $4 $R1
+    StrCpy $5 $R0 $4
+    ${If} $5 == $R1
+        StrCpy $0 "$2\EnhanceVision\data"
+        Goto done
+    ${EndIf}
+
+    StrCpy $R1 "$2\PROGRAM FILES (X86)"
+    StrLen $4 $R1
+    StrCpy $5 $R0 $4
+    ${If} $5 == $R1
+        StrCpy $0 "$2\EnhanceVision\data"
+        Goto done
+    ${EndIf}
+
+    StrCpy $R1 "$2\WINDOWS"
+    StrLen $4 $R1
+    StrCpy $5 $R0 $4
+    ${If} $5 == $R1
+        StrCpy $0 "$2\EnhanceVision\data"
+        Goto done
+    ${EndIf}
+
+    StrCpy $0 "$1"
+
+    done:
+    Exch $0
+FunctionEnd
+
+Function ToIniSafePath
+    Exch $0
+    StrCpy $1 ""
+
+    loop:
+        StrCpy $2 $0 1
+        ${If} $2 == ""
+            Goto done
+        ${EndIf}
+        ${If} $2 == "\"
+            StrCpy $2 "/"
+        ${EndIf}
+        StrCpy $1 "$1$2"
+        StrCpy $0 $0 "" 1
+        Goto loop
+
+    done:
+    StrCpy $0 $1
+    Exch $0
+FunctionEnd
+
+Function FromIniSafePath
+    Exch $0
+    StrCpy $1 ""
+
+    loop:
+        StrCpy $2 $0 1
+        ${If} $2 == ""
+            Goto done
+        ${EndIf}
+        ${If} $2 == "/"
+            StrCpy $2 "\"
+        ${EndIf}
+        StrCpy $1 "$1$2"
+        StrCpy $0 $0 "" 1
+        Goto loop
+
+    done:
+    StrCpy $0 $1
+    Exch $0
+FunctionEnd
+
+Function IsProtectedInstallDirectory
+    Exch $0
+    StrCpy $R0 $0
+    System::Call 'kernel32::CharUpperBuff(t r0, i ${NSIS_MAX_STRLEN})'
+
+    StrCpy $1 $R0 2
+    StrCpy $2 $1 1 1
+    ${If} $2 != ":"
+        StrCpy $0 "0"
+        Goto done
+    ${EndIf}
+
+    StrCpy $R1 "$1\PROGRAM FILES"
+    StrLen $3 $R1
+    StrCpy $4 $R0 $3
+    ${If} $4 == $R1
+        StrCpy $0 "1"
+        Goto done
+    ${EndIf}
+
+    StrCpy $R1 "$1\PROGRAM FILES (X86)"
+    StrLen $3 $R1
+    StrCpy $4 $R0 $3
+    ${If} $4 == $R1
+        StrCpy $0 "1"
+        Goto done
+    ${EndIf}
+
+    StrCpy $R1 "$1\WINDOWS"
+    StrLen $3 $R1
+    StrCpy $4 $R0 $3
+    ${If} $4 == $R1
+        StrCpy $0 "1"
+        Goto done
+    ${EndIf}
+
+    StrCpy $0 "0"
+    done:
+    Exch $0
+FunctionEnd
+
+Function ValidateDirectorySelection
+    Exch $0
+
+    ${If} $0 == ""
+        StrCpy $0 "$(InvalidDirEmpty)"
+        Goto done
+    ${EndIf}
+
+    StrCpy $1 $0 2
+    ${If} $1 != "\\"
+        StrCpy $1 $0 3
+        ${If} $1 == ""
+            StrCpy $0 "$(InvalidDirNotAbsolute)"
+            Goto done
+        ${EndIf}
+        StrCpy $2 $1 1 1
+        ${If} $2 != ":"
+            StrCpy $0 "$(InvalidDirNotAbsolute)"
+            Goto done
+        ${EndIf}
+    ${EndIf}
+
+    StrCpy $R0 $0
+    System::Call 'kernel32::CharUpperBuff(t r0, i ${NSIS_MAX_STRLEN})'
+
+    StrCpy $R1 $PROGRAMFILES64
+    System::Call 'kernel32::CharUpperBuff(t r1, i ${NSIS_MAX_STRLEN})'
+    StrLen $1 $R1
+    StrCpy $2 $R0 $1
+    ${If} $2 == $R1
+        StrCpy $0 "$(InvalidDirProtected)"
+        Goto done
+    ${EndIf}
+
+    StrCpy $R1 $PROGRAMFILES32
+    System::Call 'kernel32::CharUpperBuff(t r1, i ${NSIS_MAX_STRLEN})'
+    StrLen $1 $R1
+    StrCpy $2 $R0 $1
+    ${If} $2 == $R1
+        StrCpy $0 "$(InvalidDirProtected)"
+        Goto done
+    ${EndIf}
+
+    StrCpy $R1 $WINDIR
+    System::Call 'kernel32::CharUpperBuff(t r1, i ${NSIS_MAX_STRLEN})'
+    StrLen $1 $R1
+    StrCpy $2 $R0 $1
+    ${If} $2 == $R1
+        StrCpy $0 "$(InvalidDirProtected)"
+        Goto done
+    ${EndIf}
+
+    StrCpy $3 $R0 2
+    StrCpy $4 $3 1 1
+    ${If} $4 == ":"
+        StrCpy $R1 "$3\PROGRAM FILES"
+        StrLen $1 $R1
+        StrCpy $2 $R0 $1
+        ${If} $2 == $R1
+            StrCpy $0 "$(InvalidDirProtected)"
+            Goto done
+        ${EndIf}
+
+        StrCpy $R1 "$3\PROGRAM FILES (X86)"
+        StrLen $1 $R1
+        StrCpy $2 $R0 $1
+        ${If} $2 == $R1
+            StrCpy $0 "$(InvalidDirProtected)"
+            Goto done
+        ${EndIf}
+
+        StrCpy $R1 "$3\WINDOWS"
+        StrLen $1 $R1
+        StrCpy $2 $R0 $1
+        ${If} $2 == $R1
+            StrCpy $0 "$(InvalidDirProtected)"
+            Goto done
+        ${EndIf}
+    ${EndIf}
+
+    CreateDirectory "$0"
+    IfFileExists "$0\NUL" 0 create_failed
+
+    ClearErrors
+    FileOpen $1 "$0\.enhancevision_write_test.tmp" w
+    IfErrors create_failed
+    FileClose $1
+    Delete "$0\.enhancevision_write_test.tmp"
+    StrCpy $0 ""
+    Goto done
+
+    create_failed:
+    StrCpy $0 "$(InvalidDirCreateFailed)"
+
+    done:
+    Exch $0
+FunctionEnd
+
+Function .onVerifyInstDir
+    Push "$INSTDIR"
+    Call ValidateInstallDirectory
+    Pop $0
+    ${If} $0 != ""
+        MessageBox MB_OK|MB_ICONSTOP $0
+        Abort
+    ${EndIf}
+FunctionEnd
+
+Function ValidateInstallDirectory
+    Exch $0
+
+    ${If} $0 == ""
+        StrCpy $0 "$(InvalidDirEmpty)"
+        Goto done
+    ${EndIf}
+
+    StrCpy $1 $0 2
+    ${If} $1 != "\\"
+        StrCpy $1 $0 3
+        ${If} $1 == ""
+            StrCpy $0 "$(InvalidDirNotAbsolute)"
+            Goto done
+        ${EndIf}
+        StrCpy $2 $1 1 1
+        ${If} $2 != ":"
+            StrCpy $0 "$(InvalidDirNotAbsolute)"
+            Goto done
+        ${EndIf}
+    ${EndIf}
+
+    CreateDirectory "$0"
+    IfFileExists "$0\NUL" 0 create_failed
+
+    ClearErrors
+    FileOpen $1 "$0\.enhancevision_install_write_test.tmp" w
+    IfErrors create_failed
+    FileClose $1
+    Delete "$0\.enhancevision_install_write_test.tmp"
+    StrCpy $0 ""
+    Goto done
+
+    create_failed:
+    StrCpy $0 "$(InvalidDirCreateFailed)"
+
+    done:
+    Exch $0
+FunctionEnd
+
+Function MigrateLeafDirectory
+    Exch $1
+    Exch
+    Exch $0
+
+    ${If} $0 == ""
+        Goto done
+    ${EndIf}
+    ${If} $1 == ""
+        Goto done
+    ${EndIf}
+    ${If} $0 == $1
+        Goto done
+    ${EndIf}
+    IfFileExists "$0\NUL" 0 done
+
+    CreateDirectory "$1"
+    CopyFiles /SILENT "$0\*.*" "$1"
+    RMDir /r "$0"
+
+    done:
+    Pop $0
+    Pop $1
+FunctionEnd
+
+Function MigrateRuntimeData
+    ${If} $PreviousDataDirPath == ""
+        Return
+    ${EndIf}
+    ${If} $PreviousDataDirPath == $DataDirPath
+        Return
+    ${EndIf}
+    IfFileExists "$PreviousDataDirPath\NUL" 0 done
+
+    CreateDirectory "$DataDirPath"
+
+    Push "$PreviousDataDirPath\ai\images"
+    Push "$DataDirPath\ai\images"
+    Call MigrateLeafDirectory
+
+    Push "$PreviousDataDirPath\ai\videos"
+    Push "$DataDirPath\ai\videos"
+    Call MigrateLeafDirectory
+
+    Push "$PreviousDataDirPath\shader\images"
+    Push "$DataDirPath\shader\images"
+    Call MigrateLeafDirectory
+
+    Push "$PreviousDataDirPath\shader\videos"
+    Push "$DataDirPath\shader\videos"
+    Call MigrateLeafDirectory
+
+    Push "$PreviousDataDirPath\thumbnails"
+    Push "$DataDirPath\thumbnails"
+    Call MigrateLeafDirectory
+
+    Push "$PreviousDataDirPath\system"
+    Push "$DataDirPath\system"
+    Call MigrateLeafDirectory
+
+    Push "$PreviousDataDirPath\logs"
+    Push "$DataDirPath\logs"
+    Call MigrateLeafDirectory
+
+    CopyFiles /SILENT "$PreviousDataDirPath\thumbnail_meta.db*" "$DataDirPath"
+    Delete "$PreviousDataDirPath\thumbnail_meta.db"
+    Delete "$PreviousDataDirPath\thumbnail_meta.db-shm"
+    Delete "$PreviousDataDirPath\thumbnail_meta.db-wal"
+
+    RMDir "$PreviousDataDirPath\ai"
+    RMDir "$PreviousDataDirPath\shader"
+    RMDir "$PreviousDataDirPath"
+
+    done:
 FunctionEnd
 
 Function CheckVCRuntime
@@ -274,6 +761,7 @@ Section "$(SectionMain)" SecMain
         CopyFiles "$LOCALAPPDATA\EnhanceVision\settings.ini" "$TEMP\EnhanceVision_backup\"
     ${EndIf}
 
+    SetShellVarContext current
     SetOutPath $INSTDIR
 
     File /r /x "start.vbs" "..\output\EnhanceVision-v${APP_VERSION}-windows-x64\*.*"
@@ -287,10 +775,33 @@ Section "$(SectionMain)" SecMain
         RMDir /r "$TEMP\vc_redist"
     ${EndIf}
 
-    CreateDirectory "$DataDirPath"
-    SetShellVarContext current
     CreateDirectory "$LOCALAPPDATA\EnhanceVision"
-    WriteINIStr "$LOCALAPPDATA\EnhanceVision\settings.ini" "behavior" "customDataPath" "$DataDirPath"
+    ${If} $PreviousVersion != ""
+        IfFileExists "$TEMP\EnhanceVision_backup\settings.ini" 0 +2
+        CopyFiles /SILENT "$TEMP\EnhanceVision_backup\settings.ini" "$LOCALAPPDATA\EnhanceVision\"
+    ${EndIf}
+
+    CreateDirectory "$DataDirPath"
+    CreateDirectory "$ExportDirPath"
+
+    Push "$DataDirPath"
+    Call ToIniSafePath
+    Pop $DataDirPathIniSafe
+    Push "$ExportDirPath"
+    Call ToIniSafePath
+    Pop $ExportDirPathIniSafe
+    Push "$PreviousDataDirPath"
+    Call ToIniSafePath
+    Pop $PreviousDataDirPathIniSafe
+
+    WriteINIStr "$LOCALAPPDATA\EnhanceVision\settings.ini" "behavior" "customDataPath" "$DataDirPathIniSafe"
+    ${If} $PreviousDataDirPath != ""
+    ${AndIf} $PreviousDataDirPath != $DataDirPath
+        WriteINIStr "$LOCALAPPDATA\EnhanceVision\settings.ini" "behavior" "previousDataPath" "$PreviousDataDirPathIniSafe"
+    ${Else}
+        WriteINIStr "$LOCALAPPDATA\EnhanceVision\settings.ini" "behavior" "previousDataPath" ""
+    ${EndIf}
+    WriteINIStr "$LOCALAPPDATA\EnhanceVision\settings.ini" "behavior" "defaultSavePath" "$ExportDirPathIniSafe"
 
     ${If} $LANGUAGE == 2052
         WriteINIStr "$LOCALAPPDATA\EnhanceVision\settings.ini" "appearance" "language" "zh_CN"
@@ -299,8 +810,7 @@ Section "$(SectionMain)" SecMain
     ${EndIf}
 
     ${If} $PreviousVersion != ""
-        IfFileExists "$TEMP\EnhanceVision_backup\settings.ini" 0 +3
-        CopyFiles "$TEMP\EnhanceVision_backup\settings.ini" "$LOCALAPPDATA\EnhanceVision\"
+        Call MigrateRuntimeData
         RMDir /r "$TEMP\EnhanceVision_backup"
     ${EndIf}
 
@@ -309,6 +819,7 @@ Section "$(SectionMain)" SecMain
     WriteRegStr HKLM "${APP_REGISTRY_KEY}" "Install_Dir" "$INSTDIR"
     WriteRegStr HKLM "${APP_REGISTRY_KEY}" "Version" "${APP_VERSION}"
     WriteRegStr HKLM "${APP_REGISTRY_KEY}" "DataDir" "$DataDirPath"
+    WriteRegStr HKLM "${APP_REGISTRY_KEY}" "ExportDir" "$ExportDirPath"
 
     WriteRegStr HKLM "${APP_UNINSTALL_KEY}" "DisplayName" "${APP_NAME}"
     WriteRegStr HKLM "${APP_UNINSTALL_KEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
@@ -367,3 +878,4 @@ Function un.onInit
     MessageBox MB_OKCANCEL|MB_ICONQUESTION "$(UninstallConfirm)" IDOK +2
     Abort
 FunctionEnd
+

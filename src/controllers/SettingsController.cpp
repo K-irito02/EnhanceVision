@@ -11,9 +11,12 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QDirIterator>
+#include <QFile>
 #include <QFileInfo>
 #include <QCoreApplication>
 #include <QThread>
+#include <QDateTime>
+#include <QRegularExpression>
 
 namespace EnhanceVision {
 
@@ -104,6 +107,290 @@ void enrichDiskCleanupSummary(QVariantMap& summary, const QStringList& paths, bo
     summary[QStringLiteral("success")] = baseSuccess && !hasResidualData;
 }
 
+QString translatedStorageMessage(const char* text)
+{
+    return QCoreApplication::translate("SettingsController", text);
+}
+
+QString applicationConfigRootPath()
+{
+#ifdef Q_OS_WIN
+    QString localAppData = qEnvironmentVariable("LOCALAPPDATA").trimmed();
+    if (!localAppData.isEmpty()) {
+        return QDir(localAppData).filePath(QStringLiteral("EnhanceVision"));
+    }
+#endif
+    QString configPath = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
+    if (configPath.isEmpty()) {
+        configPath = QDir::tempPath();
+    }
+    return QDir(configPath).filePath(QStringLiteral("EnhanceVision"));
+}
+
+QString normalizeDirectoryPathImpl(const QString& path)
+{
+    const QString trimmed = path.trimmed();
+    if (trimmed.isEmpty()) {
+        return {};
+    }
+
+    return QDir::cleanPath(QDir::fromNativeSeparators(trimmed));
+}
+
+bool isStrictAbsolutePath(const QString& normalizedPath)
+{
+    if (normalizedPath.isEmpty()) {
+        return false;
+    }
+
+#ifdef Q_OS_WIN
+    // Accept drive absolute (e.g. E:/foo) and UNC (e.g. //server/share).
+    static const QRegularExpression driveAbsolutePattern(
+        QStringLiteral("^[A-Za-z]:/.*$"),
+        QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression uncPattern(QStringLiteral("^//[^/]+/[^/]+.*$"));
+    return driveAbsolutePattern.match(normalizedPath).hasMatch()
+        || uncPattern.match(normalizedPath).hasMatch();
+#else
+    return normalizedPath.startsWith(QLatin1Char('/'));
+#endif
+}
+
+QString normalizedAppDir(const QString& applicationDirPath)
+{
+    return normalizeDirectoryPathImpl(applicationDirPath);
+}
+
+bool pathEqualsOrIsChildOf(const QString& candidate, const QString& base)
+{
+    if (candidate.isEmpty() || base.isEmpty()) {
+        return false;
+    }
+
+#ifdef Q_OS_WIN
+    const Qt::CaseSensitivity sensitivity = Qt::CaseInsensitive;
+#else
+    const Qt::CaseSensitivity sensitivity = Qt::CaseSensitive;
+#endif
+
+    if (QString::compare(candidate, base, sensitivity) == 0) {
+        return true;
+    }
+
+    const QString normalizedBase = base.endsWith(QLatin1Char('/'))
+        ? base
+        : base + QLatin1Char('/');
+    return candidate.startsWith(normalizedBase, sensitivity);
+}
+
+QString nearestExistingAncestorPath(const QString& path)
+{
+    QString current = normalizeDirectoryPathImpl(path);
+    while (!current.isEmpty()) {
+        QFileInfo info(current);
+        if (info.exists()) {
+            return current;
+        }
+
+        const QString parent = QFileInfo(current).dir().absolutePath();
+        const QString normalizedParent = normalizeDirectoryPathImpl(parent);
+        if (normalizedParent == current) {
+            break;
+        }
+        current = normalizedParent;
+    }
+
+    return {};
+}
+
+bool isProtectedDirectoryPath(const QString& path, const QString& applicationDirPath, QString* reason)
+{
+    const QString normalizedPath = normalizeDirectoryPathImpl(path);
+    Q_UNUSED(applicationDirPath)
+
+#ifdef Q_OS_WIN
+    // Block Windows protected roots both by environment variables and by generic
+    // drive-root names (e.g. E:/Program Files), so non-system drives are covered.
+    const QStringList blockedRoots = {
+        normalizeDirectoryPathImpl(qEnvironmentVariable("ProgramFiles")),
+        normalizeDirectoryPathImpl(qEnvironmentVariable("ProgramFiles(x86)")),
+        normalizeDirectoryPathImpl(qEnvironmentVariable("ProgramW6432")),
+        normalizeDirectoryPathImpl(qEnvironmentVariable("SystemRoot")),
+        normalizeDirectoryPathImpl(qEnvironmentVariable("windir"))
+    };
+
+    for (const QString& blockedRoot : blockedRoots) {
+        if (!blockedRoot.isEmpty() && pathEqualsOrIsChildOf(normalizedPath, blockedRoot)) {
+            if (reason) {
+                *reason = translatedStorageMessage("该目录属于 Windows 受保护目录，请改为普通可写目录");
+            }
+            return true;
+        }
+    }
+
+    const QRegularExpression driveProtectedPattern(
+        QStringLiteral("^[A-Za-z]:/(Program Files( \\(x86\\))?|Windows)(/|$)"),
+        QRegularExpression::CaseInsensitiveOption);
+    if (driveProtectedPattern.match(normalizedPath).hasMatch()) {
+        if (reason) {
+            *reason = translatedStorageMessage("该目录属于 Windows 受保护目录，请改为普通可写目录");
+        }
+        return true;
+    }
+#endif
+
+    return false;
+}
+
+bool isDirectoryPathUsable(const QString& path, const QString& applicationDirPath, QString* reason)
+{
+    const QString normalizedPath = normalizeDirectoryPathImpl(path);
+    if (normalizedPath.isEmpty()) {
+        if (reason) {
+            *reason = translatedStorageMessage("目录为空");
+        }
+        return false;
+    }
+
+    if (!QDir::isAbsolutePath(normalizedPath) || !isStrictAbsolutePath(normalizedPath)) {
+        if (reason) {
+            *reason = translatedStorageMessage("目录必须是绝对路径");
+        }
+        return false;
+    }
+
+    if (isProtectedDirectoryPath(normalizedPath, applicationDirPath, reason)) {
+        return false;
+    }
+
+    QFileInfo info(normalizedPath);
+    if (info.exists()) {
+        if (!info.isDir()) {
+            if (reason) {
+                *reason = translatedStorageMessage("路径已存在但不是目录");
+            }
+            return false;
+        }
+        if (!info.isWritable()) {
+            if (reason) {
+                *reason = translatedStorageMessage("目录不可写");
+            }
+            return false;
+        }
+        return true;
+    }
+
+    const QString ancestor = nearestExistingAncestorPath(normalizedPath);
+    if (ancestor.isEmpty()) {
+        if (reason) {
+            *reason = translatedStorageMessage("无法找到可访问的父目录");
+        }
+        return false;
+    }
+
+    QFileInfo ancestorInfo(ancestor);
+    if (!ancestorInfo.isDir() || !ancestorInfo.isWritable()) {
+        if (reason) {
+            *reason = translatedStorageMessage("父目录不可写");
+        }
+        return false;
+    }
+
+    return true;
+}
+
+bool hasAnyDataRecursively(const QString& path)
+{
+    QDir dir(path);
+    if (!dir.exists()) {
+        return false;
+    }
+
+    QDirIterator it(path, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+    return it.hasNext();
+}
+
+QString uniqueMigrationSuffix()
+{
+    return QDateTime::currentDateTimeUtc().toString(QStringLiteral("yyyyMMddHHmmsszzz"));
+}
+
+QString uniqueConflictFilePath(const QString& destinationFilePath)
+{
+    QFileInfo info(destinationFilePath);
+    const QString directoryPath = info.dir().absolutePath();
+    const QString baseName = info.completeBaseName();
+    const QString suffix = info.suffix();
+
+    QString candidate;
+    int counter = 1;
+    do {
+        const QString serial = QStringLiteral("%1_%2")
+            .arg(uniqueMigrationSuffix())
+            .arg(counter++);
+        const QString fileName = suffix.isEmpty()
+            ? QStringLiteral("%1_legacy_%2").arg(baseName, serial)
+            : QStringLiteral("%1_legacy_%2.%3").arg(baseName, serial, suffix);
+        candidate = QDir(directoryPath).filePath(fileName);
+    } while (QFileInfo::exists(candidate));
+
+    return candidate;
+}
+
+bool copyFileConflictAware(const QString& sourceFilePath, const QString& destinationFilePath)
+{
+    QFileInfo sourceInfo(sourceFilePath);
+    if (!sourceInfo.exists() || !sourceInfo.isFile()) {
+        return false;
+    }
+
+    QFileInfo destinationInfo(destinationFilePath);
+    QDir destinationDir = destinationInfo.dir();
+    if (!destinationDir.exists() && !destinationDir.mkpath(QStringLiteral("."))) {
+        return false;
+    }
+
+    QString targetPath = destinationFilePath;
+    if (QFileInfo::exists(targetPath)) {
+        QFileInfo existingInfo(targetPath);
+        if (existingInfo.size() == sourceInfo.size()) {
+            return true;
+        }
+        targetPath = uniqueConflictFilePath(destinationFilePath);
+    }
+
+    return QFile::copy(sourceFilePath, targetPath);
+}
+
+bool copyDirectoryRecursivelyConflictAware(const QString& sourceDirectoryPath, const QString& destinationDirectoryPath)
+{
+    QDir sourceDir(sourceDirectoryPath);
+    if (!sourceDir.exists()) {
+        return true;
+    }
+
+    QDir destinationDir(destinationDirectoryPath);
+    if (!destinationDir.exists() && !destinationDir.mkpath(QStringLiteral("."))) {
+        return false;
+    }
+
+    const QFileInfoList entries = sourceDir.entryInfoList(
+        QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden);
+    for (const QFileInfo& entry : entries) {
+        const QString sourcePath = entry.absoluteFilePath();
+        const QString destinationPath = destinationDir.filePath(entry.fileName());
+        if (entry.isDir()) {
+            if (!copyDirectoryRecursivelyConflictAware(sourcePath, destinationPath)) {
+                return false;
+            }
+        } else if (!copyFileConflictAware(sourcePath, destinationPath)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 } // namespace
 
 SettingsController* SettingsController::s_instance = nullptr;
@@ -114,6 +401,7 @@ SettingsController::SettingsController(QObject* parent)
     , m_theme("dark")
     , m_language("zh_CN")
     , m_sidebarExpanded(true)
+    , m_defaultSavePath(defaultConfiguredSavePath())
     , m_autoSaveResult(false)
     , m_volume(80)
     , m_autoReprocessShaderEnabled(true)
@@ -126,6 +414,7 @@ SettingsController::SettingsController(QObject* parent)
     , m_videoRestorePosition(true)
     , m_pauseMode(1)  // 默认模式二：顺序暂停
     , m_customDataPath()
+    , m_previousDataPath()
     , m_aiImageSize(0)
     , m_aiVideoSize(0)
     , m_shaderImageSize(0)
@@ -136,12 +425,7 @@ SettingsController::SettingsController(QObject* parent)
     , m_shaderImageFileCount(0)
     , m_shaderVideoFileCount(0)
 {
-    QString configPath = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
-    QString settingsFile = QDir(configPath).filePath("settings.ini");
-    m_settings = new QSettings(settingsFile, QSettings::IniFormat, this);
-
-    QString picturesPath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
-    m_defaultSavePath = QDir(picturesPath).filePath("EnhanceVision");
+    m_settings = new QSettings(settingsFilePath(), QSettings::IniFormat, this);
 
     loadSettings();
     refreshDataSize();
@@ -166,6 +450,96 @@ void SettingsController::destroyInstance()
         delete s_instance;
         s_instance = nullptr;
     }
+}
+
+QString SettingsController::settingsFilePath()
+{
+    return QDir(applicationConfigRootPath()).filePath(QStringLiteral("settings.ini"));
+}
+
+QString SettingsController::defaultConfiguredDataPath()
+{
+    return QDir(applicationConfigRootPath()).filePath(QStringLiteral("data"));
+}
+
+QString SettingsController::defaultConfiguredSavePath()
+{
+    QString picturesPath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+    if (picturesPath.isEmpty()) {
+        picturesPath = QDir::homePath();
+    }
+    return QDir(picturesPath).filePath(QStringLiteral("EnhanceVision"));
+}
+
+QString SettingsController::normalizeDirectoryPath(const QString& path)
+{
+    return normalizeDirectoryPathImpl(path);
+}
+
+QString SettingsController::resolveEffectiveDataPath(const QString& configuredPath,
+                                                     bool* fallbackActive,
+                                                     QString* fallbackReason,
+                                                     const QString& applicationDirPath)
+{
+    const QString normalizedConfiguredPath = normalizeDirectoryPathImpl(configuredPath);
+    if (normalizedConfiguredPath.isEmpty()) {
+        if (fallbackActive) {
+            *fallbackActive = false;
+        }
+        if (fallbackReason) {
+            fallbackReason->clear();
+        }
+        return defaultConfiguredDataPath();
+    }
+
+    QString validationReason;
+    if (isDirectoryPathUsable(normalizedConfiguredPath, applicationDirPath, &validationReason)) {
+        if (fallbackActive) {
+            *fallbackActive = false;
+        }
+        if (fallbackReason) {
+            fallbackReason->clear();
+        }
+        return normalizedConfiguredPath;
+    }
+
+    if (fallbackActive) {
+        *fallbackActive = true;
+    }
+    if (fallbackReason) {
+        *fallbackReason = validationReason;
+    }
+    return defaultConfiguredDataPath();
+}
+
+QString SettingsController::resolveEffectiveSavePath(const QString& configuredPath,
+                                                     bool* fallbackActive,
+                                                     QString* fallbackReason,
+                                                     const QString& applicationDirPath)
+{
+    const QString normalizedConfiguredPath = normalizeDirectoryPathImpl(configuredPath);
+    const QString candidate = normalizedConfiguredPath.isEmpty()
+        ? defaultConfiguredSavePath()
+        : normalizedConfiguredPath;
+
+    QString validationReason;
+    if (isDirectoryPathUsable(candidate, applicationDirPath, &validationReason)) {
+        if (fallbackActive) {
+            *fallbackActive = false;
+        }
+        if (fallbackReason) {
+            fallbackReason->clear();
+        }
+        return candidate;
+    }
+
+    if (fallbackActive) {
+        *fallbackActive = true;
+    }
+    if (fallbackReason) {
+        *fallbackReason = validationReason;
+    }
+    return defaultConfiguredSavePath();
 }
 
 QString SettingsController::theme() const
@@ -214,15 +588,17 @@ void SettingsController::setSidebarExpanded(bool expanded)
 
 QString SettingsController::defaultSavePath() const
 {
-    return m_defaultSavePath;
+    return m_effectiveDefaultSavePath;
 }
 
 void SettingsController::setDefaultSavePath(const QString& path)
 {
-    if (m_defaultSavePath != path) {
-        m_defaultSavePath = path;
-        emit defaultSavePathChanged();
+    const QString normalizedPath = normalizeDirectoryPath(path);
+    if (m_defaultSavePath != normalizedPath) {
+        m_defaultSavePath = normalizedPath;
+        refreshResolvedStoragePaths();
         emit settingsChanged();
+        saveSettings();
     }
 }
 
@@ -449,14 +825,60 @@ QString SettingsController::customDataPath() const
 
 void SettingsController::setCustomDataPath(const QString& path)
 {
-    QString normalizedPath = path.trimmed();
+    const QString normalizedPath = normalizeDirectoryPath(path);
     if (m_customDataPath != normalizedPath) {
+        const QString oldEffectiveDataPath = m_effectiveDataPath;
         m_customDataPath = normalizedPath;
+        refreshResolvedStoragePaths();
+        if (!oldEffectiveDataPath.isEmpty() && oldEffectiveDataPath != m_effectiveDataPath) {
+            m_previousDataPath = oldEffectiveDataPath;
+        }
         emit customDataPathChanged();
+        emit storagePathStateChanged();
         emit settingsChanged();
         saveSettings();
         refreshDataSize();
     }
+}
+
+QString SettingsController::effectiveDefaultSavePath() const
+{
+    return m_effectiveDefaultSavePath;
+}
+
+QString SettingsController::previousDataPath() const
+{
+    return m_previousDataPath;
+}
+
+bool SettingsController::previousDataPathExists() const
+{
+    return m_previousDataPathExists;
+}
+
+bool SettingsController::previousDataPathHasData() const
+{
+    return m_previousDataPathHasData;
+}
+
+bool SettingsController::dataPathFallbackActive() const
+{
+    return m_dataPathFallbackActive;
+}
+
+QString SettingsController::dataPathFallbackReason() const
+{
+    return m_dataPathFallbackReason;
+}
+
+bool SettingsController::defaultSavePathFallbackActive() const
+{
+    return m_defaultSavePathFallbackActive;
+}
+
+QString SettingsController::defaultSavePathFallbackReason() const
+{
+    return m_defaultSavePathFallbackReason;
 }
 
 qint64 SettingsController::aiImageSize() const
@@ -536,10 +958,61 @@ int SettingsController::shaderVideoFileCount() const
 
 QString SettingsController::effectiveDataPath() const
 {
-    if (!m_customDataPath.isEmpty()) {
-        return m_customDataPath;
+    return m_effectiveDataPath;
+}
+
+void SettingsController::refreshResolvedStoragePaths()
+{
+    const QString applicationDirPath = QCoreApplication::applicationDirPath();
+
+    bool nextDataFallbackActive = false;
+    QString nextDataFallbackReason;
+    const QString nextEffectiveDataPath = resolveEffectiveDataPath(
+        m_customDataPath,
+        &nextDataFallbackActive,
+        &nextDataFallbackReason,
+        applicationDirPath);
+
+    bool nextSaveFallbackActive = false;
+    QString nextSaveFallbackReason;
+    const QString nextEffectiveSavePath = resolveEffectiveSavePath(
+        m_defaultSavePath,
+        &nextSaveFallbackActive,
+        &nextSaveFallbackReason,
+        applicationDirPath);
+
+    const bool nextPreviousDataPathExists = !m_previousDataPath.isEmpty() && QDir(m_previousDataPath).exists();
+    const bool nextPreviousDataPathHasData = nextPreviousDataPathExists
+        && normalizeDirectoryPath(m_previousDataPath) != normalizeDirectoryPath(nextEffectiveDataPath)
+        && hasAnyDataRecursively(m_previousDataPath);
+
+    const bool storageStateChanged =
+        m_effectiveDataPath != nextEffectiveDataPath ||
+        m_effectiveDefaultSavePath != nextEffectiveSavePath ||
+        m_previousDataPathExists != nextPreviousDataPathExists ||
+        m_previousDataPathHasData != nextPreviousDataPathHasData ||
+        m_dataPathFallbackActive != nextDataFallbackActive ||
+        m_dataPathFallbackReason != nextDataFallbackReason ||
+        m_defaultSavePathFallbackActive != nextSaveFallbackActive ||
+        m_defaultSavePathFallbackReason != nextSaveFallbackReason;
+
+    const bool effectiveSavePathChanged = m_effectiveDefaultSavePath != nextEffectiveSavePath;
+
+    m_effectiveDataPath = nextEffectiveDataPath;
+    m_effectiveDefaultSavePath = nextEffectiveSavePath;
+    m_previousDataPathExists = nextPreviousDataPathExists;
+    m_previousDataPathHasData = nextPreviousDataPathHasData;
+    m_dataPathFallbackActive = nextDataFallbackActive;
+    m_dataPathFallbackReason = nextDataFallbackReason;
+    m_defaultSavePathFallbackActive = nextSaveFallbackActive;
+    m_defaultSavePathFallbackReason = nextSaveFallbackReason;
+
+    if (effectiveSavePathChanged) {
+        emit defaultSavePathChanged();
     }
-    return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    if (storageStateChanged) {
+        emit storagePathStateChanged();
+    }
 }
 
 qint64 SettingsController::calculateDirectorySize(const QString& path) const
@@ -638,13 +1111,80 @@ QString SettingsController::getShaderVideoPath() const
     return effectiveDataPath() + "/shader/videos";
 }
 
+bool SettingsController::migratePreviousDataPathData()
+{
+    const QString legacyPath = normalizeDirectoryPath(m_previousDataPath);
+    const QString currentPath = normalizeDirectoryPath(effectiveDataPath());
+    if (legacyPath.isEmpty() || currentPath.isEmpty() || legacyPath == currentPath) {
+        return false;
+    }
+
+    QDir legacyDir(legacyPath);
+    if (!legacyDir.exists()) {
+        return false;
+    }
+
+    QDir currentDir(currentPath);
+    if (!currentDir.exists() && !currentDir.mkpath(QStringLiteral("."))) {
+        return false;
+    }
+
+    if (!copyDirectoryRecursivelyConflictAware(legacyPath, currentPath)) {
+        return false;
+    }
+
+    // 同步改写会话中持久化的结果路径，避免迁移后仍指向旧目录导致“处理失败”误判。
+    if (m_sessionController) {
+        m_sessionController->remapStorageRootPaths(legacyPath, currentPath);
+    }
+
+    // 保证缩略图相关缓存在本次会话刷新，避免 UI 对旧路径状态产生冲突感知。
+    if (auto* provider = ThumbnailProvider::instance()) {
+        provider->clearAll();
+    }
+    if (auto* db = ThumbnailDatabase::instance(); db && db->isInitialized()) {
+        db->close();
+        db->initialize(currentPath);
+    }
+
+    if (!legacyDir.removeRecursively()) {
+        return false;
+    }
+
+    m_previousDataPath.clear();
+    saveSettings();
+    refreshDataSize();
+    emit storagePathStateChanged();
+    return true;
+}
+
+bool SettingsController::clearPreviousDataPathData()
+{
+    const QString legacyPath = normalizeDirectoryPath(m_previousDataPath);
+    if (legacyPath.isEmpty()) {
+        return false;
+    }
+
+    QDir legacyDir(legacyPath);
+    if (legacyDir.exists() && !legacyDir.removeRecursively()) {
+        return false;
+    }
+
+    m_previousDataPath.clear();
+    saveSettings();
+    refreshDataSize();
+    emit storagePathStateChanged();
+    return true;
+}
+
 QString SettingsController::getLogPath() const
 {
-    return QCoreApplication::applicationDirPath() + "/logs";
+    return QDir(effectiveDataPath()).filePath(QStringLiteral("logs"));
 }
 
 void SettingsController::refreshDataSize()
 {
+    refreshResolvedStoragePaths();
     m_aiImageSize = calculateDirectorySize(getAIImagePath());
     m_aiVideoSize = calculateDirectorySize(getAIVideoPath());
     m_shaderImageSize = calculateDirectorySize(getShaderImagePath());
@@ -903,6 +1443,7 @@ void SettingsController::saveSettings()
     m_settings->setValue("behavior/defaultSavePath", m_defaultSavePath);
     m_settings->setValue("behavior/autoSave", m_autoSaveResult);
     m_settings->setValue("behavior/customDataPath", m_customDataPath);
+    m_settings->setValue("behavior/previousDataPath", m_previousDataPath);
     m_settings->setValue("audio/volume", m_volume);
     m_settings->setValue("reprocess/shaderEnabled", m_autoReprocessShaderEnabled);
     m_settings->setValue("reprocess/aiEnabled", m_autoReprocessAIEnabled);
@@ -920,9 +1461,13 @@ void SettingsController::loadSettings()
     m_theme = m_settings->value("appearance/theme", "dark").toString();
     m_language = m_settings->value("appearance/language", "zh_CN").toString();
     m_sidebarExpanded = m_settings->value("sidebar/expanded", true).toBool();
-    m_defaultSavePath = m_settings->value("behavior/defaultSavePath", m_defaultSavePath).toString();
+    m_defaultSavePath = normalizeDirectoryPath(
+        m_settings->value("behavior/defaultSavePath", defaultConfiguredSavePath()).toString());
     m_autoSaveResult = m_settings->value("behavior/autoSave", false).toBool();
-    m_customDataPath = m_settings->value("behavior/customDataPath", QString()).toString();
+    m_customDataPath = normalizeDirectoryPath(
+        m_settings->value("behavior/customDataPath", QString()).toString());
+    m_previousDataPath = normalizeDirectoryPath(
+        m_settings->value("behavior/previousDataPath", QString()).toString());
     m_volume = m_settings->value("audio/volume", 80).toInt();
     m_autoReprocessShaderEnabled = m_settings->value("reprocess/shaderEnabled", true).toBool();
     m_autoReprocessAIEnabled = m_settings->value("reprocess/aiEnabled", true).toBool();
@@ -940,6 +1485,7 @@ void SettingsController::loadSettings()
         m_settings->setValue("system/prevAutoReprocessAI", m_autoReprocessAIEnabled);
     }
     m_settings->sync();
+    refreshResolvedStoragePaths();
 }
 
 void SettingsController::resetToDefaults()
@@ -947,9 +1493,9 @@ void SettingsController::resetToDefaults()
     m_theme = "dark";
     m_language = "zh_CN";
     m_sidebarExpanded = true;
-    QString picturesPath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
-    m_defaultSavePath = QDir(picturesPath).filePath("EnhanceVision");
+    m_defaultSavePath = defaultConfiguredSavePath();
     m_customDataPath.clear();
+    m_previousDataPath.clear();
 
     m_autoSaveResult = false;
     m_volume = 80;
@@ -961,11 +1507,11 @@ void SettingsController::resetToDefaults()
     m_videoAutoPlayOnSwitch = true;
     m_videoRestorePosition = true;
     m_pauseMode = 1;  // 默认模式二
+    refreshResolvedStoragePaths();
 
     emit themeChanged();
     emit languageChanged();
     emit sidebarExpandedChanged();
-    emit defaultSavePathChanged();
     emit autoSaveResultChanged();
     emit volumeChanged();
     emit autoReprocessShaderEnabledChanged();
@@ -977,7 +1523,9 @@ void SettingsController::resetToDefaults()
     emit videoRestorePositionChanged();
     emit pauseModeChanged();
     emit customDataPathChanged();
+    emit storagePathStateChanged();
     emit settingsChanged();
+    saveSettings();
 }
 
 QString SettingsController::getSetting(const QString& key, const QString& defaultValue)
@@ -989,7 +1537,24 @@ QString SettingsController::getSetting(const QString& key, const QString& defaul
 void SettingsController::setSetting(const QString& key, const QString& value)
 {
     if (!m_settings) return;
+
+    if (key == QStringLiteral("behavior/customDataPath")) {
+        setCustomDataPath(value);
+        return;
+    }
+    if (key == QStringLiteral("behavior/defaultSavePath")) {
+        setDefaultSavePath(value);
+        return;
+    }
+    if (key == QStringLiteral("behavior/previousDataPath")) {
+        m_previousDataPath = normalizeDirectoryPath(value);
+        refreshResolvedStoragePaths();
+        saveSettings();
+        return;
+    }
+
     m_settings->setValue(key, value);
+    m_settings->sync();
     emit settingsChanged();
 }
 

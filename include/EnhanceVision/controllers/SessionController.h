@@ -172,6 +172,7 @@ public:
      */
     Q_INVOKABLE void clearMediaFilesByModeAndType(int mode, int mediaType);
     Q_INVOKABLE QVariantMap pruneMediaFilesByModeAndType(int mode, int mediaType, const QString& reason = QString());
+    Q_INVOKABLE int remapStorageRootPaths(const QString& oldRootPath, const QString& newRootPath);
     
     /**
      * @brief 删除所有会话（包括会话标签和消息）

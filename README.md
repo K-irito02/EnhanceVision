@@ -45,6 +45,8 @@ A desktop image processing and AI inference quality enhancement tool built with 
 - Message-card runtime state is unified in C++ derivation (including paused/recoverable), with declarative breathing-border animation that only runs during real processing
 - Theme SVG icons are centrally managed through `Theme.icon()` and `ColoredIcon`, while bitmaps and brand logos stay on `Image`
 - Runtime logs are kept lean by default; routine information/debug noise is removed from the common startup and shutdown paths
+- First launch now inherits the installer-selected language when `settings.ini` has not been written yet
+- Windows drag-and-drop remains available even when the app is launched elevated from the installer finish page
 
 ## Tech Stack
 
@@ -179,6 +181,12 @@ cmake --build build/msvc2022/Release --config Release -j 8
 2. Double-click to run the installer
 3. Follow the setup wizard
 4. Launch EnhanceVision from Start Menu
+
+Installer notes:
+- The installer configures install directory and default export path on the same page
+- Application runtime data is stored under `InstallDir\data`
+- If the install directory is inside a protected path such as `Program Files`, the installer warns instead of forcing a path change
+- On first launch, the UI language follows the installer language choice when no saved language exists yet
 
 #### Portable Version
 1. Download the ZIP file

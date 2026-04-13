@@ -40,6 +40,15 @@ class SettingsController : public QObject
     Q_PROPERTY(int pauseMode READ pauseMode WRITE setPauseMode NOTIFY pauseModeChanged)
 
     Q_PROPERTY(QString customDataPath READ customDataPath WRITE setCustomDataPath NOTIFY customDataPathChanged)
+    Q_PROPERTY(QString previousDataPath READ previousDataPath NOTIFY storagePathStateChanged)
+    Q_PROPERTY(bool previousDataPathExists READ previousDataPathExists NOTIFY storagePathStateChanged)
+    Q_PROPERTY(bool previousDataPathHasData READ previousDataPathHasData NOTIFY storagePathStateChanged)
+    Q_PROPERTY(QString effectiveDataPath READ effectiveDataPath NOTIFY storagePathStateChanged)
+    Q_PROPERTY(QString effectiveDefaultSavePath READ effectiveDefaultSavePath NOTIFY storagePathStateChanged)
+    Q_PROPERTY(bool dataPathFallbackActive READ dataPathFallbackActive NOTIFY storagePathStateChanged)
+    Q_PROPERTY(QString dataPathFallbackReason READ dataPathFallbackReason NOTIFY storagePathStateChanged)
+    Q_PROPERTY(bool defaultSavePathFallbackActive READ defaultSavePathFallbackActive NOTIFY storagePathStateChanged)
+    Q_PROPERTY(QString defaultSavePathFallbackReason READ defaultSavePathFallbackReason NOTIFY storagePathStateChanged)
     Q_PROPERTY(qint64 aiImageSize READ aiImageSize NOTIFY dataSizeChanged)
     Q_PROPERTY(qint64 aiVideoSize READ aiVideoSize NOTIFY dataSizeChanged)
     Q_PROPERTY(qint64 shaderImageSize READ shaderImageSize NOTIFY dataSizeChanged)
@@ -110,6 +119,14 @@ public:
 
     QString customDataPath() const;
     void setCustomDataPath(const QString& path);
+    QString effectiveDefaultSavePath() const;
+    QString previousDataPath() const;
+    bool previousDataPathExists() const;
+    bool previousDataPathHasData() const;
+    bool dataPathFallbackActive() const;
+    QString dataPathFallbackReason() const;
+    bool defaultSavePathFallbackActive() const;
+    QString defaultSavePathFallbackReason() const;
 
     qint64 aiImageSize() const;
     qint64 aiVideoSize() const;
@@ -151,8 +168,23 @@ public:
     Q_INVOKABLE QString getAIVideoPath() const;
     Q_INVOKABLE QString getShaderImagePath() const;
     Q_INVOKABLE QString getShaderVideoPath() const;
-    
+    Q_INVOKABLE bool migratePreviousDataPathData();
+    Q_INVOKABLE bool clearPreviousDataPathData();
+
     void setSessionController(SessionController* controller);
+
+    static QString settingsFilePath();
+    static QString defaultConfiguredDataPath();
+    static QString defaultConfiguredSavePath();
+    static QString normalizeDirectoryPath(const QString& path);
+    static QString resolveEffectiveDataPath(const QString& configuredPath,
+                                           bool* fallbackActive = nullptr,
+                                           QString* fallbackReason = nullptr,
+                                           const QString& applicationDirPath = QString());
+    static QString resolveEffectiveSavePath(const QString& configuredPath,
+                                           bool* fallbackActive = nullptr,
+                                           QString* fallbackReason = nullptr,
+                                           const QString& applicationDirPath = QString());
 
 signals:
     void themeChanged();
@@ -174,6 +206,7 @@ signals:
     void videoRestorePositionChanged();
     void pauseModeChanged();
     void customDataPathChanged();
+    void storagePathStateChanged();
     void dataSizeChanged();
     void lastCacheClearSummaryChanged();
 
@@ -188,6 +221,7 @@ private:
     int countFilesInDirectory(const QString& path) const;
     bool clearDirectory(const QString& path);
     QString getLogPath() const;
+    void refreshResolvedStoragePaths();
 
     static SettingsController* s_instance;
 
@@ -208,6 +242,15 @@ private:
     bool m_videoRestorePosition;
     int m_pauseMode;  ///< 暂停模式: 0=单任务暂停, 1=顺序暂停, 2=自由选择
     QString m_customDataPath;
+    QString m_previousDataPath;
+    QString m_effectiveDataPath;
+    QString m_effectiveDefaultSavePath;
+    bool m_previousDataPathExists = false;
+    bool m_previousDataPathHasData = false;
+    bool m_dataPathFallbackActive = false;
+    QString m_dataPathFallbackReason;
+    bool m_defaultSavePathFallbackActive = false;
+    QString m_defaultSavePathFallbackReason;
 
     qint64 m_aiImageSize;
     qint64 m_aiVideoSize;

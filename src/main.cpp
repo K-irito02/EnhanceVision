@@ -12,16 +12,20 @@
 #include <QDir>
 #include <QDebug>
 #include <QIcon>
+#include <QLocale>
+#include <QSettings>
 #include <QStandardPaths>
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include "EnhanceVision/app/Application.h"
+#include "EnhanceVision/controllers/SettingsController.h"
 #include "EnhanceVision/core/LifecycleSupervisor.h"
 
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <processthreadsapi.h>
+#include <shellapi.h>
 #endif
 
 namespace {
@@ -33,17 +37,80 @@ namespace {
 
     QString ensureLogDirectory()
     {
-        QString basePath = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
-        if (basePath.isEmpty()) {
-            basePath = QDir::tempPath() + "/EnhanceVision";
-        }
+        QSettings settings(EnhanceVision::SettingsController::settingsFilePath(), QSettings::IniFormat);
+        const QString configuredDataPath = settings.value(QStringLiteral("behavior/customDataPath"), QString()).toString();
+
+        bool fallbackActive = false;
+        QString fallbackReason;
+        QString basePath = EnhanceVision::SettingsController::resolveEffectiveDataPath(
+            configuredDataPath,
+            &fallbackActive,
+            &fallbackReason,
+            QCoreApplication::applicationDirPath());
 
         QDir logDir(QDir(basePath).filePath("logs"));
         if (!logDir.exists()) {
             logDir.mkpath(".");
         }
 
+        if (fallbackActive) {
+            qWarning() << "[main] Falling back to default data directory for logs:" << fallbackReason
+                       << "configured path:" << configuredDataPath
+                       << "effective path:" << basePath;
+        }
+
         return logDir.absolutePath();
+    }
+
+    QString readStartupLanguage()
+    {
+        QSettings settings(EnhanceVision::SettingsController::settingsFilePath(), QSettings::IniFormat);
+        const QString configuredLanguage = settings
+            .value(QStringLiteral("appearance/language"), QString())
+            .toString()
+            .trimmed();
+
+        const auto normalizeLanguage = [](const QString& value) -> QString {
+            const QString lowered = value.toLower();
+            if (lowered.startsWith(QStringLiteral("en"))) {
+                return QStringLiteral("en_US");
+            }
+            if (lowered.startsWith(QStringLiteral("zh"))) {
+                return QStringLiteral("zh_CN");
+            }
+            return {};
+        };
+
+        QString language = normalizeLanguage(configuredLanguage);
+        if (!language.isEmpty()) {
+            return language;
+        }
+
+#ifdef Q_OS_WIN
+        // Fallback to installer-selected language for first run when settings are
+        // absent or malformed.
+        auto resolveInstallerLanguage = [](const QString& rootPath) -> QString {
+            QSettings registry(rootPath, QSettings::NativeFormat);
+            const int installerLangId = registry.value(QStringLiteral("Installer Language"), 0).toInt();
+            if (installerLangId == 1033) {
+                return QStringLiteral("en_US");
+            }
+            if (installerLangId == 2052) {
+                return QStringLiteral("zh_CN");
+            }
+            return {};
+        };
+
+        language = resolveInstallerLanguage(QStringLiteral("HKEY_LOCAL_MACHINE\\Software\\EnhanceVision"));
+        if (language.isEmpty()) {
+            language = resolveInstallerLanguage(QStringLiteral("HKEY_CURRENT_USER\\Software\\EnhanceVision"));
+        }
+        if (!language.isEmpty()) {
+            return language;
+        }
+#endif
+
+        return QStringLiteral("zh_CN");
     }
 
     void messageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
@@ -89,6 +156,29 @@ namespace {
     }
 
 #ifdef Q_OS_WIN
+    void enableCrossIntegrityDropMessages()
+    {
+        // When launched from elevated installer, the process can run elevated.
+        // Allow drag/drop messages from normal-integrity Explorer windows.
+        HMODULE user32 = GetModuleHandleW(L"user32.dll");
+        if (!user32) {
+            return;
+        }
+
+        using ChangeWindowMessageFilterFn = BOOL (WINAPI*)(UINT, DWORD);
+        auto* changeFilter = reinterpret_cast<ChangeWindowMessageFilterFn>(
+            GetProcAddress(user32, "ChangeWindowMessageFilter"));
+        if (!changeFilter) {
+            return;
+        }
+
+        constexpr DWORD kMsgFilterAdd = 1; // MSGFLT_ADD
+        constexpr UINT kWmCopyGlobalData = 0x0049;
+        changeFilter(WM_DROPFILES, kMsgFilterAdd);
+        changeFilter(WM_COPYDATA, kMsgFilterAdd);
+        changeFilter(kWmCopyGlobalData, kMsgFilterAdd);
+    }
+
     void writeCrashLog(const char* message)
     {
         // 输出到 stderr
@@ -170,12 +260,14 @@ int main(int argc, char *argv[])
 #ifdef Q_OS_WIN
     // 设置 SEH 异常处理器，捕获崩溃并强制终止进程
     SetUnhandledExceptionFilter(SehExceptionHandler);
+    enableCrossIntegrityDropMessages();
 #endif
 
     QApplication app(argc, argv);
     QApplication::setApplicationName("EnhanceVision");
     QApplication::setApplicationVersion("0.1.0");
     QApplication::setOrganizationName("EnhanceVision");
+    QLocale::setDefault(QLocale(readStartupLanguage()));
     
     QApplication::setWindowIcon(QIcon(":/icons/app_icon.png"));
     

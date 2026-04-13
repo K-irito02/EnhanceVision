@@ -102,8 +102,11 @@ QString FileUtils::generateUniqueFileName(const QString &dirPath, const QString 
 
 QString FileUtils::getDefaultSavePath()
 {
-    QString documentsPath = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-    QString savePath = QDir(documentsPath).filePath("EnhanceVision/output");
+    QString picturesPath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+    if (picturesPath.isEmpty()) {
+        picturesPath = QDir::homePath();
+    }
+    QString savePath = QDir(picturesPath).filePath("EnhanceVision");
     ensureDirectory(savePath);
     return savePath;
 }
