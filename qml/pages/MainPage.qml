@@ -647,12 +647,31 @@ Rectangle {
 
         for (var i = 0; i < urls.length; i++) {
             var url = urls[i]
-            if (!url || !url.toLocalFile) {
+            if (!url) {
                 console.debug("[MainPage] Ignore invalid dropped item at index", i)
                 continue
             }
 
-            var localPath = url.toLocalFile()
+            var localPath = ""
+            if (url.toLocalFile) {
+                localPath = url.toLocalFile()
+            } else {
+                var urlText = (typeof url === "string") ? url : (url.toString ? url.toString() : String(url))
+                if (!urlText || urlText.trim() === "") {
+                    console.debug("[MainPage] Ignore empty dropped URL text", url)
+                    continue
+                }
+
+                if (/^[a-zA-Z]:[\\/]/.test(urlText) || /^\\\\/.test(urlText)) {
+                    localPath = urlText
+                } else if (/^file:\/\//i.test(urlText)) {
+                    localPath = urlText
+                } else {
+                    console.debug("[MainPage] Ignore non-local dropped URL text", urlText)
+                    continue
+                }
+            }
+
             if (!localPath || localPath.trim() === "") {
                 console.debug("[MainPage] Ignore non-local/empty dropped URL", url)
                 continue
