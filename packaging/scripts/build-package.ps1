@@ -95,8 +95,12 @@ if ($LASTEXITCODE -ne 0) { throw "Package verification failed" }
 
 # 4. Create installer
 Write-Host "`n[4/6] Creating installer..." -ForegroundColor Yellow
+$installerExe = "packaging\output\EnhanceVision-v$Version-windows-x64-installer.exe"
+Remove-Item -Force $installerExe -ErrorAction SilentlyContinue
+
 & "E:\Program Files (x86)\NSIS\makensis.exe" /INPUTCHARSET UTF8 packaging\installer\setup.nsi
 if ($LASTEXITCODE -ne 0) { throw "Installer creation failed" }
+if (-not (Test-Path $installerExe)) { throw "Installer output missing: $installerExe" }
 
 # 5. Create portable version
 Write-Host "`n[5/6] Creating portable version..." -ForegroundColor Yellow
@@ -113,18 +117,21 @@ Remove-Item "$portableDir\start.vbs" -ErrorAction SilentlyContinue
 
 # 6. Calculate checksums
 Write-Host "`n[6/6] Calculating checksums..." -ForegroundColor Yellow
-$installerExe = "packaging\output\EnhanceVision-v$Version-windows-x64-installer.exe"
 if (Test-Path $installerExe) {
     $installerHash = Get-FileHash $installerExe -Algorithm SHA256
     $installerSize = (Get-Item $installerExe).Length / 1MB
     Write-Host "  Installer: $([math]::Round($installerSize, 2)) MB" -ForegroundColor Cyan
     Write-Host "  SHA256: $($installerHash.Hash)" -ForegroundColor Gray
+    "$($installerHash.Hash) *$(Split-Path -Leaf $installerExe)" | Out-File -FilePath "$installerExe.sha256" -Encoding ASCII
+    Write-Host "  Checksum file: $installerExe.sha256" -ForegroundColor DarkGray
 }
 
 $portableHash = Get-FileHash $zipFile -Algorithm SHA256
 $portableSize = (Get-Item $zipFile).Length / 1MB
 Write-Host "  Portable: $([math]::Round($portableSize, 2)) MB" -ForegroundColor Cyan
 Write-Host "  SHA256: $($portableHash.Hash)" -ForegroundColor Gray
+"$($portableHash.Hash) *$(Split-Path -Leaf $zipFile)" | Out-File -FilePath "$zipFile.sha256" -Encoding ASCII
+Write-Host "  Checksum file: $zipFile.sha256" -ForegroundColor DarkGray
 
 Write-Host "`n=== Packaging Complete ===" -ForegroundColor Green
 Write-Host "Installer: $installerExe"

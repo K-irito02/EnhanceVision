@@ -36,20 +36,22 @@ The goal was to eliminate mismatches between installer-selected paths and runtim
 
 ### Elevated launch drag-and-drop compatibility
 
-- On Windows, when the app is launched from an elevated installer finish page, Explorer drag-and-drop can be blocked by UIPI
-- `main.cpp` now enables the required message filters for:
-  - `WM_DROPFILES`
-  - `WM_COPYDATA`
-  - `WM_COPYGLOBALDATA`
+- On Windows, when the app is launched from an elevated installer finish page, Explorer drag-and-drop can be blocked by UIPI (User Interface Privilege Isolation)
+- **Initial approach**: `main.cpp` enabled message filters (`WM_DROPFILES`, `WM_COPYDATA`, `WM_COPYGLOBALDATA`) using `ChangeWindowMessageFilter`
+- **Problem**: The initial approach was insufficient on Windows 8+ due to enhanced UIPI restrictions
+- **Final solution**: Modified NSIS installer to launch the application with normal user privileges instead of elevated privileges
+  - Added `LaunchAppAsUser` function in `setup.nsi` that uses `ExecShell` to launch the app
+  - This ensures the application runs with the same integrity level as Windows Explorer, allowing drag-and-drop to work correctly
+  - The `enableCrossIntegrityDropMessages()` function in `main.cpp` is retained as a fallback for edge cases
 
 ## Files Touched
 
 | File | Purpose |
 |------|---------|
-| `packaging/installer/setup.nsi` | Installer storage page, language persistence, path formatting, protected-dir warning |
+| `packaging/installer/setup.nsi` | Installer storage page, language persistence, path formatting, protected-dir warning, normal-user launch function |
 | `src/controllers/SettingsController.cpp` | Unified storage resolution, legacy migrate/cleanup, runtime path fallback |
 | `src/controllers/SessionController.cpp` | Remap persisted storage-root paths after legacy migration |
-| `src/main.cpp` | Startup language fallback, runtime log path init, elevated drag/drop compatibility |
+| `src/main.cpp` | Startup language fallback, runtime log path init, elevated drag/drop compatibility (fallback) |
 | `qml/pages/SettingsPage.qml` | Storage UI, migrate/cleanup buttons, bilingual tooltip content |
 | `docs/ApplicationData/StorageDirectory.md` | Updated storage design and actual runtime behavior |
 

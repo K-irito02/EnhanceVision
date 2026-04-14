@@ -46,7 +46,7 @@ A desktop image processing and AI inference quality enhancement tool built with 
 - Theme SVG icons are centrally managed through `Theme.icon()` and `ColoredIcon`, while bitmaps and brand logos stay on `Image`
 - Runtime logs are kept lean by default; routine information/debug noise is removed from the common startup and shutdown paths
 - First launch now inherits the installer-selected language when `settings.ini` has not been written yet
-- Windows drag-and-drop remains available even when the app is launched elevated from the installer finish page
+- Windows drag-and-drop works correctly when launched from the installer finish page (app runs with normal user privileges)
 
 ## Tech Stack
 

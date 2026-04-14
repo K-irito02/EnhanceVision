@@ -51,7 +51,8 @@ SetCompressorDictSize 64
 !define MUI_LANGDLL_REGISTRY_KEY "${APP_REGISTRY_KEY}"
 !define MUI_LANGDLL_REGISTRY_VALUENAME "Installer Language"
 
-!define MUI_FINISHPAGE_RUN "$INSTDIR\EnhanceVision.exe"
+!define MUI_FINISHPAGE_RUN
+!define MUI_FINISHPAGE_RUN_FUNCTION "LaunchAppAsUser"
 !define MUI_FINISHPAGE_RUN_TEXT "$(FinishRunText)"
 !define MUI_FINISHPAGE_LINK "$(FinishLinkText)"
 !define MUI_FINISHPAGE_LINK_LOCATION "${APP_URL}"
@@ -113,6 +114,12 @@ LangString SectionDesktopDesc ${LANG_SIMPCHINESE} "在桌面创建快捷方式"
 LangString UninstallConfirm ${LANG_SIMPCHINESE} "确定要卸载 EnhanceVision 吗？"
 LangString UninstallKeepData ${LANG_SIMPCHINESE} "是否保留用户数据？"
 LangString PrevVersionDetected ${LANG_SIMPCHINESE} "检测到已安装 EnhanceVision $PreviousVersion$\r$\n$\r$\n是否覆盖安装？（用户数据将被保留）"
+LangString LegacyDataTitle ${LANG_SIMPCHINESE} "检测到旧版本用户数据"
+LangString LegacyDataHint ${LANG_SIMPCHINESE} "请选择本次升级如何处理旧用户数据。若保留旧目录，首次启动将继续显示原有会话、消息和界面状态。"
+LangString LegacyDataPaths ${LANG_SIMPCHINESE} "旧应用数据目录：$PreviousDataDirPath$\r$\n本次安装目标数据目录：$DataDirPath"
+LangString LegacyActionKeep ${LANG_SIMPCHINESE} "保留现有数据并继续使用旧目录（推荐）"
+LangString LegacyActionMigrate ${LANG_SIMPCHINESE} "迁移旧数据到本次安装的数据目录"
+LangString LegacyActionDelete ${LANG_SIMPCHINESE} "删除旧数据并以新目录全新开始"
 
 ; ----------------------------------------------------------------------------
 ; 语言字符串 - 英文
@@ -148,6 +155,12 @@ LangString SectionDesktopDesc ${LANG_ENGLISH} "Create shortcut on Desktop"
 LangString UninstallConfirm ${LANG_ENGLISH} "Are you sure you want to uninstall EnhanceVision?"
 LangString UninstallKeepData ${LANG_ENGLISH} "Do you want to keep user data?"
 LangString PrevVersionDetected ${LANG_ENGLISH} "Detected EnhanceVision $PreviousVersion$\r$\n$\r$\nOverwrite installation? (User data will be preserved)"
+LangString LegacyDataTitle ${LANG_ENGLISH} "Legacy user data detected"
+LangString LegacyDataHint ${LANG_ENGLISH} "Choose how this upgrade should handle existing user data. Keeping the old directory preserves sessions, messages, and window state on first launch."
+LangString LegacyDataPaths ${LANG_ENGLISH} "Old application data directory: $PreviousDataDirPath$\r$\nTarget data directory for this install: $DataDirPath"
+LangString LegacyActionKeep ${LANG_ENGLISH} "Keep existing data and continue using the old directory (Recommended)"
+LangString LegacyActionMigrate ${LANG_ENGLISH} "Migrate old data to the target data directory for this install"
+LangString LegacyActionDelete ${LANG_ENGLISH} "Delete old data and start fresh with the new directory"
 
 ; ----------------------------------------------------------------------------
 ; 全局变量
@@ -159,12 +172,31 @@ Var VulkanSupported
 Var VCRuntimeInstalled
 Var PreviousDataDirPath
 Var PreviousExportDirPath
+Var LegacySessionsPath
+Var LegacyUiStatePath
+Var HasLegacyState
+Var UpgradeAction
 Var ExportDirInputHandle
 Var DataDirDisplayHandle
 Var DataDirPathIniSafe
 Var ExportDirPathIniSafe
 Var PreviousDataDirPathIniSafe
+Var LegacySessionsPathIniSafe
+Var LegacyUiStatePathIniSafe
+Var KeepLegacyDataHandle
+Var MigrateLegacyDataHandle
+Var DeleteLegacyDataHandle
+Var LegacyDataPathsHandle
 Var InstallDirInputHandle
+
+; ----------------------------------------------------------------------------
+; 以普通用户权限启动应用程序
+; ----------------------------------------------------------------------------
+Function LaunchAppAsUser
+    ; 使用 ExecShell 以普通用户权限启动应用程序
+    ; 这解决了从提升权限的安装程序启动应用导致的拖拽被禁止问题
+    ExecShell "" "$INSTDIR\EnhanceVision.exe"
+FunctionEnd
 
 ; ----------------------------------------------------------------------------
 ; 安装初始化
@@ -235,6 +267,36 @@ Function DataDirectoryPage
     ${NSD_CreateLabel} 20 182 100% 24u "$(ExportDirHint)"
     Pop $0
 
+    ${If} $HasLegacyState == "1"
+        ${NSD_CreateLabel} 20 214 100% 12u "$(LegacyDataTitle)"
+        Pop $0
+
+        ${NSD_CreateLabel} 20 230 100% 28u "$(LegacyDataHint)"
+        Pop $0
+
+        ${NSD_CreateLabel} 20 260 100% 24u "$(LegacyDataPaths)"
+        Pop $LegacyDataPathsHandle
+
+        ${NSD_CreateRadioButton} 20 292 360 12u "$(LegacyActionKeep)"
+        Pop $KeepLegacyDataHandle
+        ${NSD_Check} $KeepLegacyDataHandle
+
+        ${If} $PreviousDataDirPath != $DataDirPath
+            ${NSD_CreateRadioButton} 20 312 360 12u "$(LegacyActionMigrate)"
+            Pop $MigrateLegacyDataHandle
+        ${Else}
+            StrCpy $MigrateLegacyDataHandle ""
+        ${EndIf}
+
+        ${NSD_CreateRadioButton} 20 332 360 12u "$(LegacyActionDelete)"
+        Pop $DeleteLegacyDataHandle
+    ${Else}
+        StrCpy $KeepLegacyDataHandle ""
+        StrCpy $MigrateLegacyDataHandle ""
+        StrCpy $DeleteLegacyDataHandle ""
+        StrCpy $LegacyDataPathsHandle ""
+    ${EndIf}
+
     nsDialogs::Show
 FunctionEnd
 
@@ -279,6 +341,23 @@ Function DataDirectoryPageLeave
         Abort
     ${EndIf}
 
+    ${If} $HasLegacyState == "1"
+        StrCpy $UpgradeAction "keep"
+        ${If} $DeleteLegacyDataHandle != ""
+            ${NSD_GetState} $DeleteLegacyDataHandle $0
+            ${If} $0 == ${BST_CHECKED}
+                StrCpy $UpgradeAction "delete"
+            ${EndIf}
+        ${EndIf}
+        ${If} $UpgradeAction == "keep"
+        ${AndIf} $MigrateLegacyDataHandle != ""
+            ${NSD_GetState} $MigrateLegacyDataHandle $0
+            ${If} $0 == ${BST_CHECKED}
+                StrCpy $UpgradeAction "migrate"
+            ${EndIf}
+        ${EndIf}
+    ${EndIf}
+
     Push "$INSTDIR"
     Call IsProtectedInstallDirectory
     Pop $0
@@ -319,6 +398,10 @@ Function InitializeDirectoryDefaults
     Pop $ExportDirPath
     StrCpy $PreviousDataDirPath ""
     StrCpy $PreviousExportDirPath ""
+    StrCpy $LegacySessionsPath "$APPDATA\EnhanceVision\EnhanceVision\sessions.json"
+    StrCpy $LegacyUiStatePath "$LOCALAPPDATA\EnhanceVision\ui_state.json"
+    StrCpy $HasLegacyState "0"
+    StrCpy $UpgradeAction "keep"
 
     IfFileExists "$LOCALAPPDATA\EnhanceVision\settings.ini" 0 done
     ReadINIStr $0 "$LOCALAPPDATA\EnhanceVision\settings.ini" "behavior" "customDataPath"
@@ -339,8 +422,31 @@ Function InitializeDirectoryDefaults
     ${EndIf}
 
     ${If} $PreviousDataDirPath == ""
-        StrCpy $PreviousDataDirPath "$LOCALAPPDATA\EnhanceVision\EnhanceVision"
+        ReadRegStr $0 HKLM "${APP_REGISTRY_KEY}" "DataDir"
+        ${If} $0 != ""
+            StrCpy $PreviousDataDirPath "$0"
+        ${EndIf}
     ${EndIf}
+
+    ${If} $PreviousDataDirPath == ""
+        StrCpy $PreviousDataDirPath "$LOCALAPPDATA\EnhanceVision\data"
+    ${EndIf}
+
+    ${If} $PreviousDataDirPath != ""
+        IfFileExists "$PreviousDataDirPath\NUL" previous_data_checked
+    ${EndIf}
+
+    IfFileExists "$LOCALAPPDATA\EnhanceVision\EnhanceVision\NUL" 0 previous_data_checked
+    StrCpy $PreviousDataDirPath "$LOCALAPPDATA\EnhanceVision\EnhanceVision"
+
+    previous_data_checked:
+
+    IfFileExists "$PreviousDataDirPath\NUL" has_legacy_state
+    IfFileExists "$LegacySessionsPath" has_legacy_state
+    Goto done
+
+    has_legacy_state:
+    StrCpy $HasLegacyState "1"
 
     done:
 FunctionEnd
@@ -368,6 +474,9 @@ Function SyncDataDirWithInstallDir
     Pop $DataDirPath
     ${If} $DataDirDisplayHandle != ""
         ${NSD_SetText} $DataDirDisplayHandle "$DataDirPath"
+    ${EndIf}
+    ${If} $LegacyDataPathsHandle != ""
+        ${NSD_SetText} $LegacyDataPathsHandle "$(LegacyDataPaths)"
     ${EndIf}
 FunctionEnd
 
@@ -455,6 +564,29 @@ Function FromIniSafePath
     done:
     StrCpy $0 $1
     Exch $0
+FunctionEnd
+
+Function WriteInstallMaintenanceIntent
+    ${If} $HasLegacyState != "1"
+        Delete "$LOCALAPPDATA\EnhanceVision\install_maintenance.json"
+        Return
+    ${EndIf}
+
+    FileOpen $0 "$LOCALAPPDATA\EnhanceVision\install_maintenance.json" w
+    ${If} $0 == ""
+        Return
+    ${EndIf}
+
+    FileWrite $0 "{$\r$\n"
+    FileWrite $0 "  $\"version$\": 1,$\r$\n"
+    FileWrite $0 "  $\"action$\": $\"$UpgradeAction$\",$\r$\n"
+    FileWrite $0 "  $\"previousVersion$\": $\"$PreviousVersion$\",$\r$\n"
+    FileWrite $0 "  $\"oldDataPath$\": $\"$PreviousDataDirPathIniSafe$\",$\r$\n"
+    FileWrite $0 "  $\"targetDataPath$\": $\"$DataDirPathIniSafe$\",$\r$\n"
+    FileWrite $0 "  $\"legacySessionsPath$\": $\"$LegacySessionsPathIniSafe$\",$\r$\n"
+    FileWrite $0 "  $\"legacyUiStatePath$\": $\"$LegacyUiStatePathIniSafe$\"$\r$\n"
+    FileWrite $0 "}$\r$\n"
+    FileClose $0
 FunctionEnd
 
 Function IsProtectedInstallDirectory
@@ -646,82 +778,6 @@ Function ValidateInstallDirectory
     Exch $0
 FunctionEnd
 
-Function MigrateLeafDirectory
-    Exch $1
-    Exch
-    Exch $0
-
-    ${If} $0 == ""
-        Goto done
-    ${EndIf}
-    ${If} $1 == ""
-        Goto done
-    ${EndIf}
-    ${If} $0 == $1
-        Goto done
-    ${EndIf}
-    IfFileExists "$0\NUL" 0 done
-
-    CreateDirectory "$1"
-    CopyFiles /SILENT "$0\*.*" "$1"
-    RMDir /r "$0"
-
-    done:
-    Pop $0
-    Pop $1
-FunctionEnd
-
-Function MigrateRuntimeData
-    ${If} $PreviousDataDirPath == ""
-        Return
-    ${EndIf}
-    ${If} $PreviousDataDirPath == $DataDirPath
-        Return
-    ${EndIf}
-    IfFileExists "$PreviousDataDirPath\NUL" 0 done
-
-    CreateDirectory "$DataDirPath"
-
-    Push "$PreviousDataDirPath\ai\images"
-    Push "$DataDirPath\ai\images"
-    Call MigrateLeafDirectory
-
-    Push "$PreviousDataDirPath\ai\videos"
-    Push "$DataDirPath\ai\videos"
-    Call MigrateLeafDirectory
-
-    Push "$PreviousDataDirPath\shader\images"
-    Push "$DataDirPath\shader\images"
-    Call MigrateLeafDirectory
-
-    Push "$PreviousDataDirPath\shader\videos"
-    Push "$DataDirPath\shader\videos"
-    Call MigrateLeafDirectory
-
-    Push "$PreviousDataDirPath\thumbnails"
-    Push "$DataDirPath\thumbnails"
-    Call MigrateLeafDirectory
-
-    Push "$PreviousDataDirPath\system"
-    Push "$DataDirPath\system"
-    Call MigrateLeafDirectory
-
-    Push "$PreviousDataDirPath\logs"
-    Push "$DataDirPath\logs"
-    Call MigrateLeafDirectory
-
-    CopyFiles /SILENT "$PreviousDataDirPath\thumbnail_meta.db*" "$DataDirPath"
-    Delete "$PreviousDataDirPath\thumbnail_meta.db"
-    Delete "$PreviousDataDirPath\thumbnail_meta.db-shm"
-    Delete "$PreviousDataDirPath\thumbnail_meta.db-wal"
-
-    RMDir "$PreviousDataDirPath\ai"
-    RMDir "$PreviousDataDirPath\shader"
-    RMDir "$PreviousDataDirPath"
-
-    done:
-FunctionEnd
-
 Function CheckVCRuntime
     StrCpy $VCRuntimeInstalled 0
 
@@ -777,6 +833,7 @@ Section "$(SectionMain)" SecMain
 
     CreateDirectory "$LOCALAPPDATA\EnhanceVision"
     ${If} $PreviousVersion != ""
+    ${AndIf} $UpgradeAction != "delete"
         IfFileExists "$TEMP\EnhanceVision_backup\settings.ini" 0 +2
         CopyFiles /SILENT "$TEMP\EnhanceVision_backup\settings.ini" "$LOCALAPPDATA\EnhanceVision\"
     ${EndIf}
@@ -793,14 +850,14 @@ Section "$(SectionMain)" SecMain
     Push "$PreviousDataDirPath"
     Call ToIniSafePath
     Pop $PreviousDataDirPathIniSafe
+    Push "$LegacySessionsPath"
+    Call ToIniSafePath
+    Pop $LegacySessionsPathIniSafe
+    Push "$LegacyUiStatePath"
+    Call ToIniSafePath
+    Pop $LegacyUiStatePathIniSafe
 
     WriteINIStr "$LOCALAPPDATA\EnhanceVision\settings.ini" "behavior" "customDataPath" "$DataDirPathIniSafe"
-    ${If} $PreviousDataDirPath != ""
-    ${AndIf} $PreviousDataDirPath != $DataDirPath
-        WriteINIStr "$LOCALAPPDATA\EnhanceVision\settings.ini" "behavior" "previousDataPath" "$PreviousDataDirPathIniSafe"
-    ${Else}
-        WriteINIStr "$LOCALAPPDATA\EnhanceVision\settings.ini" "behavior" "previousDataPath" ""
-    ${EndIf}
     WriteINIStr "$LOCALAPPDATA\EnhanceVision\settings.ini" "behavior" "defaultSavePath" "$ExportDirPathIniSafe"
 
     ${If} $LANGUAGE == 2052
@@ -809,8 +866,9 @@ Section "$(SectionMain)" SecMain
         WriteINIStr "$LOCALAPPDATA\EnhanceVision\settings.ini" "appearance" "language" "en_US"
     ${EndIf}
 
+    Call WriteInstallMaintenanceIntent
+
     ${If} $PreviousVersion != ""
-        Call MigrateRuntimeData
         RMDir /r "$TEMP\EnhanceVision_backup"
     ${EndIf}
 
