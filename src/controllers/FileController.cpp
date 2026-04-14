@@ -73,10 +73,39 @@ QStringList FileController::supportedVideoFormats() const
 
 void FileController::addFiles(const QList<QUrl>& fileUrls)
 {
-    QStringList filePaths;
-    for (const auto& url : fileUrls) {
-        filePaths << url.toLocalFile();
+    if (!m_fileModel) {
+        emit errorOccurred(tr("文件模型未初始化"));
+        return;
     }
+
+    QStringList filePaths;
+    filePaths.reserve(fileUrls.size());
+    for (const auto& url : fileUrls) {
+        if (!url.isValid()) {
+            qWarning() << "[FileController] Ignore invalid dropped URL";
+            continue;
+        }
+
+        if (!url.isLocalFile()) {
+            qWarning() << "[FileController] Ignore non-local dropped URL:" << url;
+            continue;
+        }
+
+        const QString localPath = url.toLocalFile().trimmed();
+        if (localPath.isEmpty()) {
+            qWarning() << "[FileController] Ignore empty dropped local path";
+            continue;
+        }
+
+        filePaths << localPath;
+    }
+
+    filePaths.removeDuplicates();
+    if (filePaths.isEmpty()) {
+        qWarning() << "[FileController] No valid local files from dropped URLs";
+        return;
+    }
+
     int addedCount = m_fileModel->addFiles(filePaths);
     if (addedCount > 0) {
         QStringList addedIds;

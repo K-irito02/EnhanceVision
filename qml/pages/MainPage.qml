@@ -84,10 +84,14 @@ Rectangle {
         
         onDropped: function(drop) {
             if (drop.hasUrls) {
+                var localUrls = _sanitizeLocalDropUrls(drop.urls)
+                if (localUrls.length === 0)
+                    return
+
                 if (typeof fileController !== "undefined")
-                    fileController.addFiles(drop.urls)
+                    fileController.addFiles(localUrls)
                 else
-                    _addDemoFiles(drop.urls)
+                    _addDemoFiles(localUrls)
             }
         }
     }
@@ -612,10 +616,14 @@ Rectangle {
         ]
         
         onAccepted: {
+            var localUrls = _sanitizeLocalDropUrls(fileDialog.selectedFiles)
+            if (localUrls.length === 0)
+                return
+
             if (typeof fileController !== "undefined") {
-                fileController.addFiles(fileDialog.selectedFiles)
+                fileController.addFiles(localUrls)
             } else {
-                _addDemoFiles(fileDialog.selectedFiles)
+                _addDemoFiles(localUrls)
             }
         }
     }
@@ -630,6 +638,33 @@ Rectangle {
             p = p.parent
         }
         return defaultValue
+    }
+
+    function _sanitizeLocalDropUrls(urls) {
+        var cleaned = []
+        if (!urls)
+            return cleaned
+
+        for (var i = 0; i < urls.length; i++) {
+            var url = urls[i]
+            if (!url || !url.toLocalFile) {
+                console.debug("[MainPage] Ignore invalid dropped item at index", i)
+                continue
+            }
+
+            var localPath = url.toLocalFile()
+            if (!localPath || localPath.trim() === "") {
+                console.debug("[MainPage] Ignore non-local/empty dropped URL", url)
+                continue
+            }
+
+            cleaned.push(url)
+        }
+
+        if (cleaned.length !== urls.length) {
+            console.debug("[MainPage] Dropped URL cleanup:", urls.length, "->", cleaned.length)
+        }
+        return cleaned
     }
     
     function _sendForProcessing() {

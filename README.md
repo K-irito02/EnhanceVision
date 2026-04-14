@@ -47,6 +47,7 @@ A desktop image processing and AI inference quality enhancement tool built with 
 - Runtime logs are kept lean by default; routine information/debug noise is removed from the common startup and shutdown paths
 - First launch now inherits the installer-selected language when `settings.ini` has not been written yet
 - Windows drag-and-drop now remains available for installed builds, including installer-finish launches and regular shortcut starts
+- If the app is accidentally launched elevated, startup now attempts an automatic non-elevated relaunch to preserve drag-and-drop behavior
 
 ## Tech Stack
 
@@ -190,6 +191,7 @@ Installer notes:
 - If the install directory is inside a protected path such as `Program Files`, the installer warns instead of forcing a path change
 - On first launch, the UI language follows the installer language choice when no saved language exists yet
 - Installed builds should accept Explorer drag-and-drop on first launch; include this as a release verification step after installation
+- Include one manual admin-launch check in release validation: app should relaunch non-elevated (or show a clear warning if relaunch fails)
 - Packaging now emits companion `*.sha256` checksum files for installer and portable archives; verify them before distribution
 
 #### Portable Version

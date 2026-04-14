@@ -327,6 +327,7 @@ void Application::initialize()
     m_mainWindow->installEventFilter(this);
     configureWindowsDragAndDrop();
     WindowHelper::instance()->setWindow(m_mainWindow);
+    configureWindowsDragAndDrop();
     m_imageExportService->setQmlEngine(m_rootObject);
 
     setupLifecycleGuard();
@@ -616,6 +617,9 @@ bool Application::eventFilter(QObject* watched, QEvent* event)
         case QEvent::Resize:
         case QEvent::WindowStateChange:
             scheduleMainWindowLayoutSave();
+            break;
+        case QEvent::Show:
+            configureWindowsDragAndDrop();
             break;
         case QEvent::Close:
             saveMainWindowLayoutNow();
