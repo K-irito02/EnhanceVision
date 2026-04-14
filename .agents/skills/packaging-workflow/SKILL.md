@@ -39,6 +39,15 @@ The VC++ redistributable is optional. If the file is not present, the installer 
 1. Build Release → 2. Copy release tree → 3. Run windeployqt → 4. Verify → 5. NSIS installer → 6. Portable ZIP → 7. Checksums
 ```
 
+## Upgrade Validation Focus
+
+When installer storage logic changes, validate these before declaring packaging complete:
+
+1. Upgrade install can keep old data, migrate old data, or delete old data.
+2. First launch after upgrade shows the correct effective data directory in Settings.
+3. Cache statistics, sessions, persisted UI state, and recovery data all match the selected effective data directory.
+4. Finish-page elevated launch still preserves drag-and-drop compatibility on Windows.
+
 ## Quick Start
 
 ```powershell
@@ -112,6 +121,8 @@ Remove-Item "$packageDir\start.vbs" -ErrorAction SilentlyContinue
 Get-FileHash "packaging\output\EnhanceVision-v$Version-windows-x64-installer.exe" -Algorithm SHA256
 Get-FileHash "packaging\output\EnhanceVision-v$Version-windows-x64-portable.zip" -Algorithm SHA256
 ```
+
+The packaging script should also emit `*.sha256` companion files for both artifacts so distribution checks can be automated.
 
 ## Files to Exclude from Package
 

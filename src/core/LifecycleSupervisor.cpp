@@ -97,7 +97,7 @@ void LifecycleSupervisor::requestShutdown(ExitReason reason, const QString& deta
     QString reasonStr = exitReasonToString(reason);
     QString fullReason = detail.isEmpty() ? reasonStr : QString("%1 | %2").arg(reasonStr, detail);
 
-    qWarning() << "[LifecycleSupervisor] Shutdown requested:" << fullReason;
+    qInfo() << "[LifecycleSupervisor] Shutdown requested:" << fullReason;
 
     bool isNormalExit = (reason == ExitReason::Normal ||
                          reason == ExitReason::MainWindowClosed ||

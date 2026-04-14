@@ -21,6 +21,7 @@
 #include "EnhanceVision/app/Application.h"
 #include "EnhanceVision/controllers/SettingsController.h"
 #include "EnhanceVision/core/LifecycleSupervisor.h"
+#include "EnhanceVision/services/InstallMaintenanceService.h"
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -268,6 +269,12 @@ int main(int argc, char *argv[])
     QApplication::setApplicationVersion("0.1.0");
     QApplication::setOrganizationName("EnhanceVision");
     QLocale::setDefault(QLocale(readStartupLanguage()));
+
+    QString installMaintenanceError;
+    if (!EnhanceVision::InstallMaintenanceService::applyPendingIntent(&installMaintenanceError) &&
+        !installMaintenanceError.isEmpty()) {
+        qWarning() << "[main] Install maintenance failed:" << installMaintenanceError;
+    }
     
     QApplication::setWindowIcon(QIcon(":/icons/app_icon.png"));
     

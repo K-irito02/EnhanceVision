@@ -53,8 +53,6 @@ public:
     void beginTaskSwitch(const QString& oldTaskId, const QString& newTaskId) {
         QMutexLocker locker(&m_mutex);
         m_currentSwitch = {oldTaskId, newTaskId, QDateTime::currentMSecsSinceEpoch()};
-        qInfo() << "[TaskSwitchSynchronizer] Begin switch from" << oldTaskId 
-                << "to" << newTaskId;
     }
     
     void endTaskSwitch(const QString& taskId) {

@@ -182,6 +182,7 @@ qt_add_executable(EnhanceVision
     src/utils/WindowHelper.cpp
     src/utils/SubWindowHelper.cpp
     src/utils/ProgressValidator.cpp
+    src/utils/StoragePaths.cpp
     src/controllers/SettingsController.cpp
     src/controllers/SessionController.cpp
     src/controllers/SessionPruneUtils.cpp
@@ -195,6 +196,7 @@ qt_add_executable(EnhanceVision
     src/controllers/UIStateController.cpp
     src/services/ImageExportService.cpp
     src/services/AutoSaveService.cpp
+    src/services/InstallMaintenanceService.cpp
     include/EnhanceVision/app/Application.h
     include/EnhanceVision/app/MainWindow.h
     include/EnhanceVision/core/AIEngine.h
@@ -241,6 +243,7 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/utils/WindowHelper.h
     include/EnhanceVision/utils/SubWindowHelper.h
     include/EnhanceVision/utils/ProgressValidator.h
+    include/EnhanceVision/utils/StoragePaths.h
     include/EnhanceVision/controllers/SettingsController.h
     include/EnhanceVision/controllers/SessionController.h
     include/EnhanceVision/controllers/SessionPruneUtils.h
@@ -253,6 +256,7 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/controllers/UIStateController.h
     include/EnhanceVision/services/ImageExportService.h
     include/EnhanceVision/services/AutoSaveService.h
+    include/EnhanceVision/services/InstallMaintenanceService.h
     resources/qml.qrc
 )
 
@@ -277,11 +281,26 @@ if(BUILD_TESTING)
         include/EnhanceVision/models/DataTypes.h
     )
 
+    qt_add_executable(EnhanceVisionInstallMaintenanceServiceTest
+        tests/InstallMaintenanceServiceTest.cpp
+        src/services/InstallMaintenanceService.cpp
+        src/utils/StoragePaths.cpp
+        src/controllers/MessageStatusResolver.cpp
+        include/EnhanceVision/services/InstallMaintenanceService.h
+        include/EnhanceVision/utils/StoragePaths.h
+        include/EnhanceVision/controllers/MessageStatusResolver.h
+        include/EnhanceVision/models/DataTypes.h
+    )
+
     target_include_directories(EnhanceVisionSessionPruneUtilsTest PRIVATE
         "${CMAKE_SOURCE_DIR}/include"
     )
 
     target_include_directories(EnhanceVisionMessageStatusResolverTest PRIVATE
+        "${CMAKE_SOURCE_DIR}/include"
+    )
+
+    target_include_directories(EnhanceVisionInstallMaintenanceServiceTest PRIVATE
         "${CMAKE_SOURCE_DIR}/include"
     )
 
@@ -292,6 +311,12 @@ if(BUILD_TESTING)
     )
 
     target_link_libraries(EnhanceVisionMessageStatusResolverTest PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Test
+    )
+
+    target_link_libraries(EnhanceVisionInstallMaintenanceServiceTest PRIVATE
         Qt6::Core
         Qt6::Gui
         Qt6::Test
@@ -313,6 +338,14 @@ if(BUILD_TESTING)
                 "$<TARGET_FILE:Qt6::Test>"
                 "$<TARGET_FILE_DIR:EnhanceVisionMessageStatusResolverTest>"
         )
+
+        add_custom_command(TARGET EnhanceVisionInstallMaintenanceServiceTest POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:Qt6::Core>"
+                "$<TARGET_FILE:Qt6::Gui>"
+                "$<TARGET_FILE:Qt6::Test>"
+                "$<TARGET_FILE_DIR:EnhanceVisionInstallMaintenanceServiceTest>"
+        )
     endif()
 
     add_test(
@@ -323,6 +356,11 @@ if(BUILD_TESTING)
     add_test(
         NAME EnhanceVisionMessageStatusResolverTest
         COMMAND EnhanceVisionMessageStatusResolverTest
+    )
+
+    add_test(
+        NAME EnhanceVisionInstallMaintenanceServiceTest
+        COMMAND EnhanceVisionInstallMaintenanceServiceTest
     )
 endif()
 

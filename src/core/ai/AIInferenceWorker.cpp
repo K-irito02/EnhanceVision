@@ -181,9 +181,6 @@ void AIInferenceWorker::setState(AITaskState newState)
     AITaskState oldState = m_state.exchange(newState);
     
     if (oldState != newState) {
-        qInfo() << "[AIInferenceWorker] State changed:" 
-                << aiTaskStateToString(oldState) << "->" << aiTaskStateToString(newState)
-                << "task:" << m_currentTaskId;
         
         emit stateChanged(m_currentTaskId, oldState, newState);
     }

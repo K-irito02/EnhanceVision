@@ -104,6 +104,8 @@ public:
     bool updateMessageActualTotalSec(const QString& messageId, qint64 actualTotalSec);
     
     void rebuildSessionMessageIndex();
+    static QString sessionsFilePath();
+    static QString sessionsDirectoryPath();
     
     /**
      * @brief 确保有活动会话（用于发送消息时）
@@ -231,8 +233,7 @@ private:
     
     void onMessageCountChanged();
     
-    QString sessionsFilePath() const;
-    void ensureDataDirectory() const;
+    static void ensureDataDirectory();
     
     QJsonObject sessionToJson(const Session& session) const;
     Session jsonToSession(const QJsonObject& json) const;

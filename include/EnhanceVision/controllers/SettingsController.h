@@ -40,9 +40,6 @@ class SettingsController : public QObject
     Q_PROPERTY(int pauseMode READ pauseMode WRITE setPauseMode NOTIFY pauseModeChanged)
 
     Q_PROPERTY(QString customDataPath READ customDataPath WRITE setCustomDataPath NOTIFY customDataPathChanged)
-    Q_PROPERTY(QString previousDataPath READ previousDataPath NOTIFY storagePathStateChanged)
-    Q_PROPERTY(bool previousDataPathExists READ previousDataPathExists NOTIFY storagePathStateChanged)
-    Q_PROPERTY(bool previousDataPathHasData READ previousDataPathHasData NOTIFY storagePathStateChanged)
     Q_PROPERTY(QString effectiveDataPath READ effectiveDataPath NOTIFY storagePathStateChanged)
     Q_PROPERTY(QString effectiveDefaultSavePath READ effectiveDefaultSavePath NOTIFY storagePathStateChanged)
     Q_PROPERTY(bool dataPathFallbackActive READ dataPathFallbackActive NOTIFY storagePathStateChanged)
@@ -119,10 +116,8 @@ public:
 
     QString customDataPath() const;
     void setCustomDataPath(const QString& path);
+    Q_INVOKABLE bool changeCustomDataPath(const QString& path);
     QString effectiveDefaultSavePath() const;
-    QString previousDataPath() const;
-    bool previousDataPathExists() const;
-    bool previousDataPathHasData() const;
     bool dataPathFallbackActive() const;
     QString dataPathFallbackReason() const;
     bool defaultSavePathFallbackActive() const;
@@ -168,11 +163,10 @@ public:
     Q_INVOKABLE QString getAIVideoPath() const;
     Q_INVOKABLE QString getShaderImagePath() const;
     Q_INVOKABLE QString getShaderVideoPath() const;
-    Q_INVOKABLE bool migratePreviousDataPathData();
-    Q_INVOKABLE bool clearPreviousDataPathData();
 
     void setSessionController(SessionController* controller);
 
+    static QString configRootPath();
     static QString settingsFilePath();
     static QString defaultConfiguredDataPath();
     static QString defaultConfiguredSavePath();
@@ -242,11 +236,8 @@ private:
     bool m_videoRestorePosition;
     int m_pauseMode;  ///< 暂停模式: 0=单任务暂停, 1=顺序暂停, 2=自由选择
     QString m_customDataPath;
-    QString m_previousDataPath;
     QString m_effectiveDataPath;
     QString m_effectiveDefaultSavePath;
-    bool m_previousDataPathExists = false;
-    bool m_previousDataPathHasData = false;
     bool m_dataPathFallbackActive = false;
     QString m_dataPathFallbackReason;
     bool m_defaultSavePathFallbackActive = false;

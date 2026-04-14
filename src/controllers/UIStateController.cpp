@@ -5,6 +5,7 @@
  */
 
 #include "EnhanceVision/controllers/UIStateController.h"
+#include "EnhanceVision/utils/StoragePaths.h"
 #include <QStandardPaths>
 #include <QDir>
 #include <QFile>
@@ -68,16 +69,14 @@ void UIStateController::destroyInstance()
     }
 }
 
-QString UIStateController::getStateFilePath() const
+QString UIStateController::stateFilePath()
 {
-    QString configPath = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
-    return QDir(configPath).filePath("ui_state.json");
+    return StoragePaths::uiStateFilePath();
 }
 
 void UIStateController::ensureStateDirectoryExists()
 {
-    QString configPath = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
-    QDir dir(configPath);
+    QDir dir(StoragePaths::configRootPath());
     if (!dir.exists()) {
         dir.mkpath(".");
     }
@@ -393,7 +392,7 @@ void UIStateController::saveState()
     saveWindowLayouts(root);
     
     // 写入文件
-    QString filePath = getStateFilePath();
+    QString filePath = stateFilePath();
     QFile file(filePath);
     if (file.open(QIODevice::WriteOnly)) {
         QJsonDocument doc(root);
@@ -406,7 +405,7 @@ void UIStateController::saveState()
 
 void UIStateController::loadState()
 {
-    QString filePath = getStateFilePath();
+    QString filePath = stateFilePath();
     QFile file(filePath);
     
     if (!file.exists()) {

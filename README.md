@@ -185,8 +185,11 @@ cmake --build build/msvc2022/Release --config Release -j 8
 Installer notes:
 - The installer configures install directory and default export path on the same page
 - Application runtime data is stored under `InstallDir\data`
+- Upgrade installs can keep using the old data directory, migrate existing data into the new directory, or delete old data and start clean
+- On first launch after upgrade, cache statistics and session content follow the effective data directory selected by the installer maintenance flow
 - If the install directory is inside a protected path such as `Program Files`, the installer warns instead of forcing a path change
 - On first launch, the UI language follows the installer language choice when no saved language exists yet
+- Packaging now emits companion `*.sha256` checksum files for installer and portable archives; verify them before distribution
 
 #### Portable Version
 1. Download the ZIP file

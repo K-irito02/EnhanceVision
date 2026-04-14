@@ -196,7 +196,6 @@ void NCNNVulkanBackend::releaseGpuResources()
     }
 #endif
     m_gpuInitialized = false;
-    qInfo() << "[NCNNVulkanBackend] GPU resources released";
 }
 
 bool NCNNVulkanBackend::loadModel(const ModelInfo& model)

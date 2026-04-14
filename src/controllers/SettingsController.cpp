@@ -6,6 +6,8 @@
 
 #include "EnhanceVision/controllers/SettingsController.h"
 #include "EnhanceVision/controllers/SessionController.h"
+#include "EnhanceVision/services/InstallMaintenanceService.h"
+#include "EnhanceVision/utils/StoragePaths.h"
 #include "EnhanceVision/providers/ThumbnailProvider.h"
 #include "EnhanceVision/core/ThumbnailDatabase.h"
 #include <QStandardPaths>
@@ -114,27 +116,12 @@ QString translatedStorageMessage(const char* text)
 
 QString applicationConfigRootPath()
 {
-#ifdef Q_OS_WIN
-    QString localAppData = qEnvironmentVariable("LOCALAPPDATA").trimmed();
-    if (!localAppData.isEmpty()) {
-        return QDir(localAppData).filePath(QStringLiteral("EnhanceVision"));
-    }
-#endif
-    QString configPath = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
-    if (configPath.isEmpty()) {
-        configPath = QDir::tempPath();
-    }
-    return QDir(configPath).filePath(QStringLiteral("EnhanceVision"));
+    return StoragePaths::configRootPath();
 }
 
 QString normalizeDirectoryPathImpl(const QString& path)
 {
-    const QString trimmed = path.trimmed();
-    if (trimmed.isEmpty()) {
-        return {};
-    }
-
-    return QDir::cleanPath(QDir::fromNativeSeparators(trimmed));
+    return StoragePaths::normalizeDirectoryPath(path);
 }
 
 bool isStrictAbsolutePath(const QString& normalizedPath)
@@ -414,7 +401,6 @@ SettingsController::SettingsController(QObject* parent)
     , m_videoRestorePosition(true)
     , m_pauseMode(1)  // 默认模式二：顺序暂停
     , m_customDataPath()
-    , m_previousDataPath()
     , m_aiImageSize(0)
     , m_aiVideoSize(0)
     , m_shaderImageSize(0)
@@ -455,6 +441,11 @@ void SettingsController::destroyInstance()
 QString SettingsController::settingsFilePath()
 {
     return QDir(applicationConfigRootPath()).filePath(QStringLiteral("settings.ini"));
+}
+
+QString SettingsController::configRootPath()
+{
+    return applicationConfigRootPath();
 }
 
 QString SettingsController::defaultConfiguredDataPath()
@@ -825,40 +816,63 @@ QString SettingsController::customDataPath() const
 
 void SettingsController::setCustomDataPath(const QString& path)
 {
+    changeCustomDataPath(path);
+}
+
+bool SettingsController::changeCustomDataPath(const QString& path)
+{
     const QString normalizedPath = normalizeDirectoryPath(path);
-    if (m_customDataPath != normalizedPath) {
-        const QString oldEffectiveDataPath = m_effectiveDataPath;
-        m_customDataPath = normalizedPath;
-        refreshResolvedStoragePaths();
-        if (!oldEffectiveDataPath.isEmpty() && oldEffectiveDataPath != m_effectiveDataPath) {
-            m_previousDataPath = oldEffectiveDataPath;
-        }
-        emit customDataPathChanged();
-        emit storagePathStateChanged();
-        emit settingsChanged();
-        saveSettings();
-        refreshDataSize();
+    if (m_customDataPath == normalizedPath) {
+        return true;
     }
+
+    const QString previousConfiguredPath = m_customDataPath;
+    const QString previousEffectiveDataPath = m_effectiveDataPath;
+
+    m_customDataPath = normalizedPath;
+    refreshResolvedStoragePaths();
+    const QString nextEffectiveDataPath = m_effectiveDataPath;
+
+    if (!previousEffectiveDataPath.isEmpty() &&
+        !nextEffectiveDataPath.isEmpty() &&
+        previousEffectiveDataPath != nextEffectiveDataPath) {
+        QString migrationError;
+        if (!InstallMaintenanceService::migrateRuntimeData(
+                previousEffectiveDataPath,
+                nextEffectiveDataPath,
+                &migrationError)) {
+            qWarning() << "[SettingsController] Failed to migrate runtime data path:"
+                       << previousEffectiveDataPath << "->" << nextEffectiveDataPath
+                       << migrationError;
+            m_customDataPath = previousConfiguredPath;
+            refreshResolvedStoragePaths();
+            return false;
+        }
+
+        if (m_sessionController) {
+            m_sessionController->remapStorageRootPaths(previousEffectiveDataPath, nextEffectiveDataPath);
+        }
+
+        if (auto* provider = ThumbnailProvider::instance()) {
+            provider->clearAll();
+        }
+        if (auto* db = ThumbnailDatabase::instance(); db && db->isInitialized()) {
+            db->close();
+            db->initialize(nextEffectiveDataPath);
+        }
+    }
+
+    emit customDataPathChanged();
+    emit storagePathStateChanged();
+    emit settingsChanged();
+    saveSettings();
+    refreshDataSize();
+    return true;
 }
 
 QString SettingsController::effectiveDefaultSavePath() const
 {
     return m_effectiveDefaultSavePath;
-}
-
-QString SettingsController::previousDataPath() const
-{
-    return m_previousDataPath;
-}
-
-bool SettingsController::previousDataPathExists() const
-{
-    return m_previousDataPathExists;
-}
-
-bool SettingsController::previousDataPathHasData() const
-{
-    return m_previousDataPathHasData;
 }
 
 bool SettingsController::dataPathFallbackActive() const
@@ -981,16 +995,9 @@ void SettingsController::refreshResolvedStoragePaths()
         &nextSaveFallbackReason,
         applicationDirPath);
 
-    const bool nextPreviousDataPathExists = !m_previousDataPath.isEmpty() && QDir(m_previousDataPath).exists();
-    const bool nextPreviousDataPathHasData = nextPreviousDataPathExists
-        && normalizeDirectoryPath(m_previousDataPath) != normalizeDirectoryPath(nextEffectiveDataPath)
-        && hasAnyDataRecursively(m_previousDataPath);
-
     const bool storageStateChanged =
         m_effectiveDataPath != nextEffectiveDataPath ||
         m_effectiveDefaultSavePath != nextEffectiveSavePath ||
-        m_previousDataPathExists != nextPreviousDataPathExists ||
-        m_previousDataPathHasData != nextPreviousDataPathHasData ||
         m_dataPathFallbackActive != nextDataFallbackActive ||
         m_dataPathFallbackReason != nextDataFallbackReason ||
         m_defaultSavePathFallbackActive != nextSaveFallbackActive ||
@@ -1000,8 +1007,6 @@ void SettingsController::refreshResolvedStoragePaths()
 
     m_effectiveDataPath = nextEffectiveDataPath;
     m_effectiveDefaultSavePath = nextEffectiveSavePath;
-    m_previousDataPathExists = nextPreviousDataPathExists;
-    m_previousDataPathHasData = nextPreviousDataPathHasData;
     m_dataPathFallbackActive = nextDataFallbackActive;
     m_dataPathFallbackReason = nextDataFallbackReason;
     m_defaultSavePathFallbackActive = nextSaveFallbackActive;
@@ -1109,72 +1114,6 @@ QString SettingsController::getShaderImagePath() const
 QString SettingsController::getShaderVideoPath() const
 {
     return effectiveDataPath() + "/shader/videos";
-}
-
-bool SettingsController::migratePreviousDataPathData()
-{
-    const QString legacyPath = normalizeDirectoryPath(m_previousDataPath);
-    const QString currentPath = normalizeDirectoryPath(effectiveDataPath());
-    if (legacyPath.isEmpty() || currentPath.isEmpty() || legacyPath == currentPath) {
-        return false;
-    }
-
-    QDir legacyDir(legacyPath);
-    if (!legacyDir.exists()) {
-        return false;
-    }
-
-    QDir currentDir(currentPath);
-    if (!currentDir.exists() && !currentDir.mkpath(QStringLiteral("."))) {
-        return false;
-    }
-
-    if (!copyDirectoryRecursivelyConflictAware(legacyPath, currentPath)) {
-        return false;
-    }
-
-    // 同步改写会话中持久化的结果路径，避免迁移后仍指向旧目录导致“处理失败”误判。
-    if (m_sessionController) {
-        m_sessionController->remapStorageRootPaths(legacyPath, currentPath);
-    }
-
-    // 保证缩略图相关缓存在本次会话刷新，避免 UI 对旧路径状态产生冲突感知。
-    if (auto* provider = ThumbnailProvider::instance()) {
-        provider->clearAll();
-    }
-    if (auto* db = ThumbnailDatabase::instance(); db && db->isInitialized()) {
-        db->close();
-        db->initialize(currentPath);
-    }
-
-    if (!legacyDir.removeRecursively()) {
-        return false;
-    }
-
-    m_previousDataPath.clear();
-    saveSettings();
-    refreshDataSize();
-    emit storagePathStateChanged();
-    return true;
-}
-
-bool SettingsController::clearPreviousDataPathData()
-{
-    const QString legacyPath = normalizeDirectoryPath(m_previousDataPath);
-    if (legacyPath.isEmpty()) {
-        return false;
-    }
-
-    QDir legacyDir(legacyPath);
-    if (legacyDir.exists() && !legacyDir.removeRecursively()) {
-        return false;
-    }
-
-    m_previousDataPath.clear();
-    saveSettings();
-    refreshDataSize();
-    emit storagePathStateChanged();
-    return true;
 }
 
 QString SettingsController::getLogPath() const
@@ -1443,7 +1382,7 @@ void SettingsController::saveSettings()
     m_settings->setValue("behavior/defaultSavePath", m_defaultSavePath);
     m_settings->setValue("behavior/autoSave", m_autoSaveResult);
     m_settings->setValue("behavior/customDataPath", m_customDataPath);
-    m_settings->setValue("behavior/previousDataPath", m_previousDataPath);
+    m_settings->remove(QStringLiteral("behavior/previousDataPath"));
     m_settings->setValue("audio/volume", m_volume);
     m_settings->setValue("reprocess/shaderEnabled", m_autoReprocessShaderEnabled);
     m_settings->setValue("reprocess/aiEnabled", m_autoReprocessAIEnabled);
@@ -1466,8 +1405,6 @@ void SettingsController::loadSettings()
     m_autoSaveResult = m_settings->value("behavior/autoSave", false).toBool();
     m_customDataPath = normalizeDirectoryPath(
         m_settings->value("behavior/customDataPath", QString()).toString());
-    m_previousDataPath = normalizeDirectoryPath(
-        m_settings->value("behavior/previousDataPath", QString()).toString());
     m_volume = m_settings->value("audio/volume", 80).toInt();
     m_autoReprocessShaderEnabled = m_settings->value("reprocess/shaderEnabled", true).toBool();
     m_autoReprocessAIEnabled = m_settings->value("reprocess/aiEnabled", true).toBool();
@@ -1495,7 +1432,6 @@ void SettingsController::resetToDefaults()
     m_sidebarExpanded = true;
     m_defaultSavePath = defaultConfiguredSavePath();
     m_customDataPath.clear();
-    m_previousDataPath.clear();
 
     m_autoSaveResult = false;
     m_volume = 80;
@@ -1544,12 +1480,6 @@ void SettingsController::setSetting(const QString& key, const QString& value)
     }
     if (key == QStringLiteral("behavior/defaultSavePath")) {
         setDefaultSavePath(value);
-        return;
-    }
-    if (key == QStringLiteral("behavior/previousDataPath")) {
-        m_previousDataPath = normalizeDirectoryPath(value);
-        refreshResolvedStoragePaths();
-        saveSettings();
         return;
     }
 

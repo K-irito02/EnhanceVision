@@ -21,13 +21,11 @@ namespace EnhanceVision {
 NCNNCPUBackend::NCNNCPUBackend(QObject* parent)
     : IInferenceBackend(parent)
 {
-    qInfo() << "[NCNNCPUBackend] Initializing CPU-only inference backend";
     
     m_opt.num_threads = std::max(1, QThread::idealThreadCount() - 1);
     m_opt.use_packing_layout = true;
     m_opt.use_vulkan_compute = false;
     
-    qInfo() << "[NCNNCPUBackend] CPU threads:" << m_opt.num_threads;
 }
 
 NCNNCPUBackend::~NCNNCPUBackend()
@@ -44,7 +42,6 @@ bool NCNNCPUBackend::initialize(const BackendConfig& config)
         return true;
     }
     
-    qInfo() << "[NCNNCPUBackend] Initializing with config";
     
     m_config = config;
     
@@ -53,7 +50,6 @@ bool NCNNCPUBackend::initialize(const BackendConfig& config)
     }
     
     m_isInitialized.store(true);
-    qInfo() << "[NCNNCPUBackend] Initialization complete";
     
     return true;
 }
@@ -66,12 +62,10 @@ void NCNNCPUBackend::shutdown()
         return;
     }
     
-    qInfo() << "[NCNNCPUBackend] Shutting down";
     
     unloadModel();
     m_isInitialized.store(false);
     
-    qInfo() << "[NCNNCPUBackend] Shutdown complete";
 }
 
 bool NCNNCPUBackend::loadModel(const ModelInfo& model)
@@ -123,8 +117,6 @@ bool NCNNCPUBackend::loadModel(const ModelInfo& model)
     m_currentModel.layerCount = static_cast<int>(m_net.layers().size());
     m_modelLoaded = true;
     
-    qInfo() << "[NCNNCPUBackend] Model loaded:" << model.id
-            << "layers:" << m_currentModel.layerCount;
     
     emit modelLoaded(true, model.id);
     return true;

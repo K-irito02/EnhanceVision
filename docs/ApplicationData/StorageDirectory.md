@@ -5,10 +5,25 @@
 ## 设计原则
 
 - 安装目录用于放置程序文件与随安装部署的静态资源
-- 小型配置数据继续留在 Windows 用户配置区
+- 小型持久化元数据统一收敛到单一配置根目录
 - 大体积、可迁移、用户明确关心的运行时数据统一放在“应用数据目录”
 - “默认导出路径”独立配置，仅决定后续导出/自动保存的输出位置
 - 路径仅在真实需要写入时懒创建，避免无用途的僵尸子目录
+
+## 配置根目录
+
+当前版本将用户态元数据统一收敛到：
+
+- `%LOCALAPPDATA%\EnhanceVision`
+
+该目录下固定包含：
+
+| 数据 | 路径 |
+|------|------|
+| 设置文件 | `%LOCALAPPDATA%\EnhanceVision\settings.ini` |
+| UI 状态 | `%LOCALAPPDATA%\EnhanceVision\ui_state.json` |
+| 会话数据 | `%LOCALAPPDATA%\EnhanceVision\sessions.json` |
+| 安装维护意图 | `%LOCALAPPDATA%\EnhanceVision\install_maintenance.json` |
 
 ## 配置键
 
@@ -56,13 +71,13 @@
 
 ## 固定留在 Windows 配置区的数据
 
-以下数据不跟随“应用数据目录”迁移，仍保留在系统配置区：
+以下数据不再散落在多个 `QStandardPaths` 目录，而是统一保留在配置根目录中：
 
 | 数据 | 路径 |
 |------|------|
 | `settings.ini` | `%LOCALAPPDATA%\EnhanceVision\settings.ini` |
 | `ui_state.json` | `%LOCALAPPDATA%\EnhanceVision\ui_state.json` |
-| `sessions.json` | `%APPDATA%\EnhanceVision\EnhanceVision\EnhanceVision\EnhanceVision\sessions.json` |
+| `sessions.json` | `%LOCALAPPDATA%\EnhanceVision\sessions.json` |
 
 ## 迁移到应用数据目录的数据
 
@@ -80,27 +95,40 @@
 | 运行日志 | `{effectiveDataPath}/logs/runtime_output.log` |
 | 崩溃日志 | `{effectiveDataPath}/logs/crash.log` |
 
-## 设置页与旧数据处理
+## 安装器升级维护
 
-设置页“数据存储”区域展示以下运行时状态：
+当安装器检测到旧版本用户数据时，会在升级页提供三种互斥动作：
+
+- 保留现有数据并继续使用旧目录
+- 迁移旧数据到本次安装的数据目录
+- 删除旧数据并以新目录全新开始
+
+安装器本身不再直接执行业务层迁移，而是只写入一次性维护意图文件。应用在首启阶段先消费该意图，再初始化日志、缩略图库、UI 状态和会话恢复链路。
+
+### 首启维护覆盖范围
+
+- 运行时数据目录：`ai/`、`shader/`、`thumbnails/`、`thumbnail_meta.db*`、`logs/`、`system/`
+- 配置根目录元数据：`sessions.json`、`ui_state.json`
+- `settings.ini` 中的 `behavior/customDataPath`
+
+## 设置页与运行期目录变更
+
+设置页“数据存储”区域仅展示并维护当前生效目录状态：
 
 - 当前生效的应用数据目录
 - 当前生效的默认导出路径
 - 目录回退状态与回退原因
-- 是否检测到旧应用数据目录
 
-当 `previousDataPath` 真实存在且有数据时，设置页才显示：
+设置页不再提供“迁移/清理旧数据目录”按钮。
 
-- `迁移`：把旧目录数据迁移到当前目录，冲突文件自动以 `_legacy_<timestamp>` 后缀避让
-- `清理`：删除旧目录中的全部旧数据，不影响当前目录
+若用户在运行期修改“应用数据目录”，应用会立即执行受控迁移：
 
-### 迁移保护
+- 迁移运行时数据到新目录
+- 重写已加载会话中的结果路径
+- 刷新缩略图缓存与数据库持久化状态
+- 失败时回滚到旧配置，不进入半迁移状态
 
-迁移不仅复制文件，还会执行以下一致性处理：
-
-- 重写会话中持久化的结果路径，避免会话仍指向旧目录
-- 清空并重建缩略图缓存/数据库状态，避免 UI 仍引用旧路径
-- 成功后才删除旧目录
+设置页“缓存管理”的统计与清理范围始终跟随当前真实生效的 `effectiveDataPath()`，不会再因为升级场景的旧目录探测偏差而落到空目录。
 
 ## 日志与启动语言
 

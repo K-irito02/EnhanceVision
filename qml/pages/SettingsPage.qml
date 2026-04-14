@@ -16,13 +16,6 @@ Rectangle {
     color: Theme.colors.background
     property var pauseModeSwitchBlockers: []
     property bool pauseModeBlockerDialogVisible: false
-    property string legacyDataActionMessage: ""
-    property bool legacyDataActionSuccess: true
-    property bool englishUi: (SettingsController.language || "").indexOf("en") === 0
-
-    function localize(zhText, enText) {
-        return englishUi ? enText : zhText
-    }
 
     function nativePathForDisplay(path) {
         var normalized = path || ""
@@ -237,7 +230,7 @@ Rectangle {
         currentFolder: "file:///" + SettingsController.effectiveDataPath
         onAccepted: {
             var path = selectedFolder.toString().replace("file:///", "")
-            SettingsController.customDataPath = path
+            SettingsController.changeCustomDataPath(path)
         }
     }
 
@@ -281,40 +274,6 @@ Rectangle {
                 success = SettingsController.clearThumbnailCache()
             } else if (clearType === "all") {
                 success = SettingsController.clearAllCache()
-            }
-        }
-    }
-
-    Dialog {
-        id: legacyDataConfirmDialog
-        anchors.fill: parent
-        property string actionType: ""
-
-        function showLegacyDialog(type, title, message) {
-            actionType = type
-            showDialog(title, message, Dialog.DialogType.Warning)
-        }
-
-        onPrimaryButtonClicked: {
-            var ok = false
-            if (actionType === "migrate") {
-                ok = SettingsController.migratePreviousDataPathData()
-                root.legacyDataActionSuccess = ok
-                root.legacyDataActionMessage = ok ? root.localize(
-                    "旧应用数据目录迁移成功，旧目录已自动删除。",
-                    "Legacy application data was migrated successfully and the old directory was removed.")
-                    : root.localize(
-                        "迁移失败。请确认旧目录可访问且未被占用，然后重试。",
-                        "Migration failed. Ensure the old directory is accessible and not in use, then retry.")
-            } else if (actionType === "cleanup") {
-                ok = SettingsController.clearPreviousDataPathData()
-                root.legacyDataActionSuccess = ok
-                root.legacyDataActionMessage = ok ? root.localize(
-                    "旧应用数据目录已清理完成。",
-                    "Legacy application data was cleaned successfully.")
-                    : root.localize(
-                        "清理失败。请确认旧目录未被占用并具备权限。",
-                        "Cleanup failed. Ensure the old directory is not in use and permissions are sufficient.")
             }
         }
     }
@@ -901,152 +860,12 @@ Rectangle {
                                     onClicked: customDataPathDialog.open()
                                 }
 
-                                Button {
-                                    id: migrateLegacyDataButton
-                                    text: root.localize("迁移", "Migrate")
-                                    variant: "secondary"
-                                    size: "sm"
-                                    useCustomBackgroundColors: true
-                                    customBackgroundColor: Theme.isDark
-                                                           ? Qt.rgba(251 / 255, 191 / 255, 36 / 255, 0.18)
-                                                           : Qt.rgba(251 / 255, 191 / 255, 36 / 255, 0.14)
-                                    customHoverBackgroundColor: Theme.isDark
-                                                                ? Qt.rgba(251 / 255, 191 / 255, 36 / 255, 0.24)
-                                                                : Qt.rgba(251 / 255, 191 / 255, 36 / 255, 0.2)
-                                    customPressedBackgroundColor: Theme.isDark
-                                                                  ? Qt.rgba(251 / 255, 191 / 255, 36 / 255, 0.3)
-                                                                  : Qt.rgba(251 / 255, 191 / 255, 36 / 255, 0.26)
-                                    useCustomTextColor: true
-                                    customTextColor: Theme.colors.warning
-                                    useCustomBorderColor: true
-                                    customBorderColor: Theme.isDark
-                                                       ? Qt.rgba(251 / 255, 191 / 255, 36 / 255, 0.32)
-                                                       : Qt.rgba(251 / 255, 191 / 255, 36 / 255, 0.24)
-                                    onClicked: legacyDataConfirmDialog.showLegacyDialog(
-                                        "migrate",
-                                        root.localize("确认迁移旧应用数据", "Confirm Legacy Data Migration"),
-                                        root.localize(
-                                            "将把旧配置目录中的应用数据迁移到当前应用数据目录。\n\n旧目录：%1\n当前目录：%2\n\n迁移过程中若发现同名文件，将自动保留当前文件，并对旧文件使用“_legacy_时间戳”后缀避免冲突。\n迁移成功后会自动删除旧目录。",
-                                            "Legacy application data from the old configuration directory will be migrated to the current application data directory.\n\nOld directory: %1\nCurrent directory: %2\n\nIf file name conflicts are found, current files are kept and legacy files are copied with a \"_legacy_timestamp\" suffix.\nThe old directory is deleted automatically after successful migration.")
-                                            .arg(root.nativePathForDisplay(SettingsController.previousDataPath))
-                                            .arg(root.nativePathForDisplay(SettingsController.effectiveDataPath)))
-                                    visible: SettingsController.previousDataPathHasData
-                                }
-
-                                Tooltip {
-                                    id: migrateLegacyDataTooltip
-                                    text: root.localize(
-                                        "迁移旧配置文件中的应用数据到当前目录，自动处理同名冲突并在成功后删除旧目录。",
-                                        "Migrate legacy application data to the current directory, handle name conflicts automatically, and remove the old directory on success.")
-                                }
-
-                                Timer {
-                                    id: migrateLegacyDataTooltipTimer
-                                    interval: Theme.tooltip.delay
-                                    repeat: false
-                                    onTriggered: {
-                                        if (migrateLegacyDataButton.hovered) {
-                                            migrateLegacyDataTooltip.show(migrateLegacyDataButton)
-                                        }
-                                    }
-                                }
-
-                                Button {
-                                    id: cleanupLegacyDataButton
-                                    text: root.localize("清理", "Cleanup")
-                                    variant: "secondary"
-                                    size: "sm"
-                                    useCustomBackgroundColors: true
-                                    customBackgroundColor: Theme.isDark
-                                                           ? Qt.rgba(239 / 255, 68 / 255, 68 / 255, 0.2)
-                                                           : Qt.rgba(239 / 255, 68 / 255, 68 / 255, 0.14)
-                                    customHoverBackgroundColor: Theme.isDark
-                                                                ? Qt.rgba(239 / 255, 68 / 255, 68 / 255, 0.28)
-                                                                : Qt.rgba(239 / 255, 68 / 255, 68 / 255, 0.2)
-                                    customPressedBackgroundColor: Theme.isDark
-                                                                  ? Qt.rgba(239 / 255, 68 / 255, 68 / 255, 0.34)
-                                                                  : Qt.rgba(239 / 255, 68 / 255, 68 / 255, 0.26)
-                                    useCustomTextColor: true
-                                    customTextColor: Theme.colors.destructive
-                                    useCustomBorderColor: true
-                                    customBorderColor: Theme.isDark
-                                                       ? Qt.rgba(239 / 255, 68 / 255, 68 / 255, 0.35)
-                                                       : Qt.rgba(239 / 255, 68 / 255, 68 / 255, 0.25)
-                                    onClicked: legacyDataConfirmDialog.showLegacyDialog(
-                                        "cleanup",
-                                        root.localize("确认清理旧应用数据", "Confirm Legacy Data Cleanup"),
-                                        root.localize(
-                                            "将删除旧配置目录中的所有应用数据。\n\n旧目录：%1\n\n该操作不可恢复，不影响当前应用数据目录。",
-                                            "All data in the legacy configuration directory will be removed.\n\nOld directory: %1\n\nThis action cannot be undone and will not affect the current application data directory.")
-                                            .arg(root.nativePathForDisplay(SettingsController.previousDataPath))
-                                            )
-                                    visible: SettingsController.previousDataPathHasData
-                                }
-
-                                Tooltip {
-                                    id: cleanupLegacyDataTooltip
-                                    text: root.localize(
-                                        "删除旧配置目录中的全部应用数据，不影响当前目录。",
-                                        "Delete all data in the legacy directory without affecting the current directory.")
-                                }
-
-                                Timer {
-                                    id: cleanupLegacyDataTooltipTimer
-                                    interval: Theme.tooltip.delay
-                                    repeat: false
-                                    onTriggered: {
-                                        if (cleanupLegacyDataButton.hovered) {
-                                            cleanupLegacyDataTooltip.show(cleanupLegacyDataButton)
-                                        }
-                                    }
-                                }
-                            }
-
-                            Connections {
-                                target: migrateLegacyDataButton
-                                function onHoveredChanged() {
-                                    if (migrateLegacyDataButton.hovered) {
-                                        migrateLegacyDataTooltipTimer.start()
-                                    } else {
-                                        migrateLegacyDataTooltipTimer.stop()
-                                        migrateLegacyDataTooltip.close()
-                                    }
-                                }
-                            }
-
-                            Connections {
-                                target: cleanupLegacyDataButton
-                                function onHoveredChanged() {
-                                    if (cleanupLegacyDataButton.hovered) {
-                                        cleanupLegacyDataTooltipTimer.start()
-                                    } else {
-                                        cleanupLegacyDataTooltipTimer.stop()
-                                        cleanupLegacyDataTooltip.close()
-                                    }
-                                }
                             }
 
                             Text {
                                 text: qsTr("存储 AI/Shader 处理结果等应用数据")
                                 color: Theme.colors.mutedForeground
                                 font.pixelSize: 11
-                            }
-
-                            Text {
-                                visible: SettingsController.previousDataPathHasData
-                                text: root.localize("检测到旧应用数据目录：%1", "Legacy application data directory detected: %1")
-                                    .arg(root.nativePathForDisplay(SettingsController.previousDataPath))
-                                color: Theme.colors.mutedForeground
-                                font.pixelSize: 11
-                                wrapMode: Text.Wrap
-                            }
-
-                            Text {
-                                visible: root.legacyDataActionMessage !== ""
-                                text: root.legacyDataActionMessage
-                                color: root.legacyDataActionSuccess ? Theme.colors.success : Theme.colors.destructive
-                                font.pixelSize: 11
-                                wrapMode: Text.Wrap
                             }
 
                             Rectangle {

@@ -76,6 +76,7 @@ public:
 
     static UIStateController* instance();
     static void destroyInstance();
+    static QString stateFilePath();
 
     // ========== 侧边栏状态 ==========
     bool sidebarExpanded() const;
@@ -201,7 +202,6 @@ private:
     UIStateController(const UIStateController&) = delete;
     UIStateController& operator=(const UIStateController&) = delete;
 
-    QString getStateFilePath() const;
     void ensureStateDirectoryExists();
     void loadWindowLayouts(const QJsonObject& root);
     void saveWindowLayouts(QJsonObject& root) const;

@@ -46,7 +46,6 @@ std::unique_ptr<IInferenceBackend> InferenceBackendFactory::create(BackendType t
     if (it != reg.end()) {
         auto backend = it.value()();
         if (backend) {
-            qInfo() << "[InferenceBackendFactory] Created backend:" << backendTypeName(actualType);
             return backend;
         }
     }
@@ -54,7 +53,6 @@ std::unique_ptr<IInferenceBackend> InferenceBackendFactory::create(BackendType t
     qWarning() << "[InferenceBackendFactory] Failed to create backend:" << backendTypeName(actualType);
     
     if (type == BackendType::Auto && actualType != BackendType::NCNN_CPU) {
-        qInfo() << "[InferenceBackendFactory] Falling back to NCNN_CPU";
         return create(BackendType::NCNN_CPU);
     }
     
@@ -136,7 +134,6 @@ bool InferenceBackendFactory::registerBackend(BackendType type, BackendCreator c
     auto& reg = registry();
     reg[type] = std::move(creator);
     
-    qInfo() << "[InferenceBackendFactory] Registered backend:" << backendTypeName(type);
     return true;
 }
 

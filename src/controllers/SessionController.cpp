@@ -14,10 +14,10 @@
 #include "EnhanceVision/core/TaskCoordinator.h"
 #include "EnhanceVision/core/TaskStateManager.h"
 #include "EnhanceVision/providers/ThumbnailProvider.h"
+#include "EnhanceVision/utils/StoragePaths.h"
 #include "EnhanceVision/utils/ImageUtils.h"
 #include <QUuid>
 #include <QDebug>
-#include <QStandardPaths>
 #include <QDir>
 #include <QFile>
 #include <QJsonDocument>
@@ -807,7 +807,7 @@ void SessionController::saveSessions()
 
     ensureDataDirectory();
 
-    QString filePath = sessionsFilePath();
+    QString filePath = SessionController::sessionsFilePath();
 
     QJsonObject root;
     root["version"] = 1;
@@ -863,7 +863,7 @@ void SessionController::saveSessions()
 
 void SessionController::loadSessions()
 {
-    QString filePath = sessionsFilePath();
+    QString filePath = SessionController::sessionsFilePath();
     QFile file(filePath);
     
     if (!file.exists()) {
@@ -998,17 +998,19 @@ void SessionController::reloadActiveSessionMessages()
     loadSessionMessages(m_activeSessionId);
 }
 
-QString SessionController::sessionsFilePath() const
+QString SessionController::sessionsDirectoryPath()
 {
-    QString dataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    return QDir(dataPath).filePath("EnhanceVision/sessions.json");
+    return StoragePaths::sessionsDirectoryPath();
 }
 
-void SessionController::ensureDataDirectory() const
+QString SessionController::sessionsFilePath()
 {
-    QString dataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    QString dirPath = QDir(dataPath).filePath("EnhanceVision");
-    QDir dir(dirPath);
+    return StoragePaths::sessionsFilePath();
+}
+
+void SessionController::ensureDataDirectory()
+{
+    QDir dir(sessionsDirectoryPath());
     if (!dir.exists()) {
         dir.mkpath(".");
     }
@@ -1400,7 +1402,7 @@ void SessionController::saveSessionsImmediately()
 
     ensureDataDirectory();
 
-    QString filePath = sessionsFilePath();
+    QString filePath = SessionController::sessionsFilePath();
 
     QJsonObject root;
     root["version"] = 1;
@@ -1653,10 +1655,6 @@ int SessionController::remapStorageRootPaths(const QString& oldRootPath, const Q
         m_taskRecoveryController->persistSnapshotNow();
     }
 
-    qInfo() << "[SessionController] remapStorageRootPaths changedPaths=" << changedPathCount
-            << " repairedCompletedStatuses=" << repairedCompletedCount
-            << " oldRoot=" << normalizedOldRoot
-            << " newRoot=" << normalizedNewRoot;
 
     return changedPathCount;
 }
