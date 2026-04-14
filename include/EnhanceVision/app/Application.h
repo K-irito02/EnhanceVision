@@ -57,6 +57,7 @@ private:
     void setupQmlContext(ThumbnailProvider* thumbnailProvider);
     void setupTranslator();
     bool switchTranslator(const QString& language);
+    void configureWindowsDragAndDrop();
 
     void setupLifecycleGuard();
     void finalizeShutdown();

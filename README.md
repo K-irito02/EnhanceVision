@@ -46,7 +46,7 @@ A desktop image processing and AI inference quality enhancement tool built with 
 - Theme SVG icons are centrally managed through `Theme.icon()` and `ColoredIcon`, while bitmaps and brand logos stay on `Image`
 - Runtime logs are kept lean by default; routine information/debug noise is removed from the common startup and shutdown paths
 - First launch now inherits the installer-selected language when `settings.ini` has not been written yet
-- Windows drag-and-drop works correctly when launched from the installer finish page (app runs with normal user privileges)
+- Windows drag-and-drop now remains available for installed builds, including installer-finish launches and regular shortcut starts
 
 ## Tech Stack
 
@@ -189,6 +189,7 @@ Installer notes:
 - On first launch after upgrade, cache statistics and session content follow the effective data directory selected by the installer maintenance flow
 - If the install directory is inside a protected path such as `Program Files`, the installer warns instead of forcing a path change
 - On first launch, the UI language follows the installer language choice when no saved language exists yet
+- Installed builds should accept Explorer drag-and-drop on first launch; include this as a release verification step after installation
 - Packaging now emits companion `*.sha256` checksum files for installer and portable archives; verify them before distribution
 
 #### Portable Version
