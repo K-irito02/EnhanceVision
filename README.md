@@ -1,5 +1,9 @@
 # EnhanceVision
 
+**[中文](#中文) | [English](#english)**
+
+---
+
 <h2 id="中文">🎉 EnhanceVision v0.1.0 - 首次发布！</h2>
 
 ### 这是什么软件？
