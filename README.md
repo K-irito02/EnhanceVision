@@ -1,14 +1,10 @@
-# EnhanceVision
-
 **[中文](#中文) | [English](#english)**
 
 ---
 
-<h2 id="中文">🎉 EnhanceVision v0.1.0 - 首次发布！</h2>
-
 ### 这是什么软件？
 
-EnhanceVision 是一款**图像处理与AI推理画质增强工具**。简单来说，它能调整你图片和视频的图像参数，也支持使用AI推理自动提升画质，使图片变得更清晰。
+EnhanceVision 是一款**图像处理与 Real-ESRGAN 画质增强工具**。简单来说，它能调整你图片和视频的图像参数，也支持使用AI推理自动提升画质，使图片变得更清晰。
 
 ### 它能做什么？
 
@@ -177,11 +173,9 @@ EnhanceVision 是一款**图像处理与AI推理画质增强工具**。简单来
 ---
 ---
 
-<h2 id="english">🎉 EnhanceVision v0.1.0 - First Release!</h2>
-
 ### What is this software?
 
-EnhanceVision is an **image processing and AI-powered quality enhancement tool**. Simply put, it allows you to adjust image parameters for pictures and videos, and also supports using AI inference to automatically improve image quality, making your images clearer.
+EnhanceVision is an **image processing and AI-powered（Real-ESRGAN） quality enhancement tool**. Simply put, it allows you to adjust image parameters for pictures and videos, and also supports using AI inference to automatically improve image quality, making your images clearer.
 
 ### What can it do?
 
