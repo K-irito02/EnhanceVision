@@ -53,5 +53,6 @@ EnhanceVision/
 │   ├── Plan/            # 设计文档
 │   │   └── DropOverlay-Animation-Design.md
 │   └── Notes/           # 实现笔记
-│       └── dropoverlay-animation-implementation-notes.md
+│       ├── dropoverlay-animation-implementation-notes.md
+│       └── file-format-unification-and-loading-fix-notes.md
 └── third_party/          # 第三方库

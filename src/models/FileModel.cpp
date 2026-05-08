@@ -1,12 +1,7 @@
-/**
- * @file FileModel.cpp
- * @brief 文件列表模型实现
- * @author Qt客户端开发工程师
- */
-
 #include "EnhanceVision/models/FileModel.h"
 #include "EnhanceVision/providers/ThumbnailProvider.h"
 #include "EnhanceVision/utils/ImageUtils.h"
+#include "EnhanceVision/utils/SupportedFormats.h"
 #include <QUuid>
 #include <QFileInfo>
 #include <QDir>
@@ -14,8 +9,6 @@
 #include <QMetaObject>
 
 namespace EnhanceVision {
-
-const qint64 FileModel::kMaxFileSize = 2LL * 1024 * 1024 * 1024;
 
 class ThumbnailGenerationTask : public QRunnable
 {
@@ -28,13 +21,13 @@ public:
     {
         setAutoDelete(true);
     }
-    
+
     void run() override
     {
         const QSize thumbnailSize(200, 200);
         QImage thumbnail;
         QSize resolution;
-        
+
         if (m_type == MediaType::Image) {
             thumbnail = ImageUtils::generateThumbnail(m_filePath, thumbnailSize);
             QImage image = ImageUtils::loadImage(m_filePath);
@@ -44,16 +37,16 @@ public:
         } else {
             thumbnail = ImageUtils::generateVideoThumbnail(m_filePath, thumbnailSize);
         }
-        
+
         if (!thumbnail.isNull() && m_model) {
-            QMetaObject::invokeMethod(m_model, "updateFileThumbnail", 
+            QMetaObject::invokeMethod(m_model, "updateFileThumbnail",
                 Qt::QueuedConnection,
                 Q_ARG(QString, m_fileId),
                 Q_ARG(QVariant, QVariant::fromValue(thumbnail)),
                 Q_ARG(QVariant, QVariant::fromValue(resolution)));
         }
     }
-    
+
 private:
     QString m_fileId;
     QString m_filePath;
@@ -101,7 +94,6 @@ QVariant FileModel::data(const QModelIndex &index, int role) const
     case MediaTypeRole:
         return static_cast<int>(file.type);
     case ThumbnailRole:
-        // 返回 ThumbnailProvider URL，QML Image.source 可直接使用
         return file.filePath.isEmpty() ? QString()
             : QStringLiteral("image://thumbnail/") + file.filePath;
     case DurationRole:
@@ -145,11 +137,6 @@ bool FileModel::addFile(const QString &filePath)
 
     if (!isFormatSupported(filePath)) {
         emit errorOccurred(tr("不支持的文件格式: %1").arg(filePath));
-        return false;
-    }
-
-    if (!isSizeValid(filePath)) {
-        emit errorOccurred(tr("File size exceeds limit (max 2GB): %1").arg(filePath));
         return false;
     }
 
@@ -218,21 +205,7 @@ void FileModel::clear()
 
 bool FileModel::isFormatSupported(const QString &filePath) const
 {
-    QFileInfo fileInfo(filePath);
-    QString suffix = fileInfo.suffix().toLower();
-
-    // 支持的图片格式
-    static const QStringList imageFormats = {"jpg", "jpeg", "png", "bmp", "webp", "tiff", "tif"};
-    // 支持的视频格式
-    static const QStringList videoFormats = {"mp4", "avi", "mkv", "mov", "flv"};
-
-    return imageFormats.contains(suffix) || videoFormats.contains(suffix);
-}
-
-bool FileModel::isSizeValid(const QString &filePath) const
-{
-    QFileInfo fileInfo(filePath);
-    return fileInfo.size() <= kMaxFileSize;
+    return SupportedFormats::isFormatSupported(filePath);
 }
 
 MediaFile FileModel::fileAt(int index) const
@@ -250,15 +223,7 @@ QString FileModel::generateId() const
 
 MediaType FileModel::getMediaType(const QString &filePath) const
 {
-    QFileInfo fileInfo(filePath);
-    QString suffix = fileInfo.suffix().toLower();
-
-    static const QStringList imageFormats = {"jpg", "jpeg", "png", "bmp", "webp", "tiff", "tif"};
-
-    if (imageFormats.contains(suffix)) {
-        return MediaType::Image;
-    }
-    return MediaType::Video;
+    return SupportedFormats::isImageFile(filePath) ? MediaType::Image : MediaType::Video;
 }
 
 QString FileModel::formatFileSize(qint64 size) const
@@ -277,26 +242,26 @@ QString FileModel::formatFileSize(qint64 size) const
 void FileModel::updateFileThumbnail(const QString &fileId, const QVariant &thumbnailVariant, const QVariant &resolutionVariant)
 {
     m_pendingThumbnails.remove(fileId);
-    
+
     int index = findFileIndexById(fileId);
     if (index < 0) {
         return;
     }
-    
+
     QImage thumbnail = thumbnailVariant.value<QImage>();
     QSize resolution = resolutionVariant.toSize();
-    
+
     m_files[index].thumbnail = thumbnail;
     if (resolution.isValid()) {
         m_files[index].resolution = resolution;
     }
-    
+
     if (!thumbnail.isNull()) {
         if (auto* provider = ThumbnailProvider::instance()) {
             provider->setThumbnail(m_files[index].filePath, thumbnail);
         }
     }
-    
+
     QModelIndex modelIndex = createIndex(index, 0);
     emit dataChanged(modelIndex, modelIndex, {ThumbnailRole, ResolutionRole});
     emit thumbnailGenerated(fileId);

@@ -65,6 +65,19 @@ QtObject {
     
     property int _delayedAction: 0  // 0=无，1=普通播放，2=源结切换播放
 
+    property Timer _safetyTimer: Timer {
+        interval: 5000
+        repeat: false
+        onTriggered: {
+            if (controller._switchMode === 2) {
+                console.warn("[VideoPlaybackController] Safety timeout: source/result switch took too long, resetting")
+                controller._switchMode = 0
+                controller._delayedAction = 0
+                controller._handled = false
+            }
+        }
+    }
+
     // ========== 公共方法 ==========
 
     /**
@@ -88,23 +101,20 @@ QtObject {
      */
     function prepareSourceResultSwitch() {
         if (!mediaPlayer) return
-        
-        // 保存当前状态
+
         var currentPos = mediaPlayer.position
         var duration = mediaPlayer.duration
-        
-        // 检查视频是否已播放完毕（位置接近或等于时长）
+
         var isAtEnd = duration > 0 && currentPos >= duration - 100
-        
-        // 如果视频已播放完毕，从头开始；否则保存当前位置
+
         _savedPosition = isAtEnd ? 0 : currentPos
         _savedPlaybackRate = mediaPlayer.playbackRate
         _switchMode = 2
         _handled = false
         _pendingSource = ""
-        
-        // 冻结进度条显示（避免从00:00跳跃）
+
         frozenPosition = _savedPosition
+        _safetyTimer.restart()
     }
 
     /**
@@ -145,14 +155,14 @@ QtObject {
 
             var needSeek = SettingsController.videoRestorePosition && _savedPosition > 0
             var targetPos = 0
-            
+
             if (needSeek) {
                 targetPos = Math.min(_savedPosition, mediaPlayer.duration > 0 ? mediaPlayer.duration : _savedPosition)
             }
 
             if (SettingsController.videoAutoPlayOnSwitch) {
                 mediaPlayer.play()
-                
+
                 if (needSeek) {
                     Qt.callLater(function() {
                         if (mediaPlayer) {
@@ -170,6 +180,7 @@ QtObject {
             }
 
             _switchMode = 0
+            _safetyTimer.stop()
         } else if (_delayedAction === 1) {
             if (SettingsController.videoAutoPlay) {
                 Qt.callLater(function() {
@@ -212,5 +223,6 @@ QtObject {
         frozenPosition = 0
         _delayTimer.stop()
         _playTimer.stop()
+        _safetyTimer.stop()
     }
 }

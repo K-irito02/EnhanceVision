@@ -94,8 +94,6 @@ signals:
 
 private:
     FileModel* m_fileModel;
-    QStringList m_supportedImageFormats;
-    QStringList m_supportedVideoFormats;
 };
 
 } // namespace EnhanceVision

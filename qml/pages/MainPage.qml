@@ -590,6 +590,15 @@ Rectangle {
         function onDataChanged(topLeft, bottomRight, roles) { _syncPendingViewerWindow() }
         function onModelReset() { _syncPendingViewerWindow() }
     }
+
+    // 监听 fileController 错误信号，显示错误提示
+    Connections {
+        target: typeof fileController !== "undefined" ? fileController : null
+        enabled: typeof fileController !== "undefined"
+        function onErrorOccurred(message) {
+            NotificationManager.showError(message)
+        }
+    }
     
     // 监听 pendingFilesModel 变化（demo 模式）
     Connections {
@@ -609,9 +618,9 @@ Rectangle {
         title: qsTr("选择媒体文件")
         fileMode: FileDialog.OpenFiles
         nameFilters: [
-            qsTr("所有支持的文件 (*.jpg *.jpeg *.png *.bmp *.webp *.tiff *.tif *.mp4 *.avi *.mkv *.mov *.flv)"),
-            qsTr("图片文件 (*.jpg *.jpeg *.png *.bmp *.webp *.tiff *.tif)"),
-            qsTr("视频文件 (*.mp4 *.avi *.mkv *.mov *.flv)"),
+            qsTr("所有支持的文件 (*.jpg *.jpeg *.png *.bmp *.webp *.tiff *.tif *.gif *.ico *.svg *.mp4 *.avi *.mkv *.mov *.flv *.wmv *.webm *.m4v *.mpg *.mpeg *.ts *.mts *.m2ts *.3gp)"),
+            qsTr("图片文件 (*.jpg *.jpeg *.png *.bmp *.webp *.tiff *.tif *.gif *.ico *.svg)"),
+            qsTr("视频文件 (*.mp4 *.avi *.mkv *.mov *.flv *.wmv *.webm *.m4v *.mpg *.mpeg *.ts *.mts *.m2ts *.3gp)"),
             qsTr("所有文件 (*.*)")
         ]
         
@@ -823,11 +832,11 @@ Rectangle {
         for (var i = 0; i < urls.length; i++) {
             var url = urls[i]
             var path = url.toString()
-            
+
             var localPath = url.toLocalFile ? url.toLocalFile() : path
             var name = localPath.split(/[/\\]/).pop()
-            var isVideo = /\.(mp4|avi|mkv|mov|flv)$/i.test(name)
-            
+            var isVideo = /\.(mp4|avi|mkv|mov|flv|wmv|webm|m4v|mpg|mpeg|ts|mts|m2ts|3gp)$/i.test(name)
+
             pendingFilesModel.append({
                 "filePath": localPath,
                 "fileName": name,

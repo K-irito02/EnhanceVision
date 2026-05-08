@@ -5,6 +5,7 @@
  */
 
 #include "EnhanceVision/utils/ImageUtils.h"
+#include "EnhanceVision/utils/SupportedFormats.h"
 #include <QFileInfo>
 #include <QImageReader>
 
@@ -232,31 +233,12 @@ QImage ImageUtils::loadImage(const QString &path)
 
 bool ImageUtils::isImageFile(const QString &filePath)
 {
-    QFileInfo fileInfo(filePath);
-    QString suffix = fileInfo.suffix().toLower();
-    
-    static const QStringList imageExtensions = {
-        QStringLiteral("jpg"), QStringLiteral("jpeg"), 
-        QStringLiteral("png"), QStringLiteral("bmp"), 
-        QStringLiteral("webp"), QStringLiteral("tiff"),
-        QStringLiteral("tif")
-    };
-    
-    return imageExtensions.contains(suffix);
+    return SupportedFormats::isImageFile(filePath);
 }
 
 bool ImageUtils::isVideoFile(const QString &filePath)
 {
-    QFileInfo fileInfo(filePath);
-    QString suffix = fileInfo.suffix().toLower();
-    
-    static const QStringList videoExtensions = {
-        QStringLiteral("mp4"), QStringLiteral("avi"), 
-        QStringLiteral("mkv"), QStringLiteral("mov"), 
-        QStringLiteral("flv")
-    };
-    
-    return videoExtensions.contains(suffix);
+    return SupportedFormats::isVideoFile(filePath);
 }
 
 QImage ImageUtils::applyShaderEffects(const QImage &image,

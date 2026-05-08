@@ -179,6 +179,7 @@ qt_add_executable(EnhanceVision
     src/providers/ThumbnailProvider.cpp
     src/utils/FileUtils.cpp
     src/utils/ImageUtils.cpp
+    src/utils/SupportedFormats.cpp
     src/utils/WindowHelper.cpp
     src/utils/SubWindowHelper.cpp
     src/utils/ProgressValidator.cpp
@@ -240,6 +241,7 @@ qt_add_executable(EnhanceVision
     include/EnhanceVision/providers/ThumbnailProvider.h
     include/EnhanceVision/utils/FileUtils.h
     include/EnhanceVision/utils/ImageUtils.h
+    include/EnhanceVision/utils/SupportedFormats.h
     include/EnhanceVision/utils/WindowHelper.h
     include/EnhanceVision/utils/SubWindowHelper.h
     include/EnhanceVision/utils/ProgressValidator.h

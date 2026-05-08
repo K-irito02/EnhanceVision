@@ -8,6 +8,7 @@
 #include "EnhanceVision/controllers/SettingsController.h"
 #include "EnhanceVision/utils/FileUtils.h"
 #include "EnhanceVision/utils/ImageUtils.h"
+#include "EnhanceVision/utils/SupportedFormats.h"
 #include <QUuid>
 #include <QFileInfo>
 #include <QDir>
@@ -20,9 +21,6 @@ FileController::FileController(QObject* parent)
     : QObject(parent)
     , m_fileModel(nullptr)
 {
-    // 初始化支持的文件格式
-    m_supportedImageFormats << "jpg" << "jpeg" << "png" << "bmp" << "webp" << "tiff" << "tif";
-    m_supportedVideoFormats << "mp4" << "avi" << "mkv" << "mov" << "flv" << "wmv";
 }
 
 void FileController::setFileModel(FileModel* model)
@@ -63,12 +61,12 @@ int FileController::fileCount() const
 
 QStringList FileController::supportedImageFormats() const
 {
-    return m_supportedImageFormats;
+    return SupportedFormats::imageExtensions();
 }
 
 QStringList FileController::supportedVideoFormats() const
 {
-    return m_supportedVideoFormats;
+    return SupportedFormats::videoExtensions();
 }
 
 void FileController::addFiles(const QList<QUrl>& fileUrls)
@@ -208,37 +206,16 @@ void FileController::deselectAllFiles()
 
 bool FileController::isFileSupported(const QString& filePath) const
 {
-    QFileInfo fileInfo(filePath);
-    QString suffix = fileInfo.suffix().toLower();
-    return m_supportedImageFormats.contains(suffix) || m_supportedVideoFormats.contains(suffix);
+    return SupportedFormats::isFormatSupported(filePath);
 }
 
 QString FileController::getFileDialogFilter() const
 {
     QStringList filters;
-
-    QString imageFilter = tr("图片文件");
-    QStringList imagePatterns;
-    for (const auto& fmt : m_supportedImageFormats) {
-        imagePatterns << QString("*.%1").arg(fmt);
-    }
-    imageFilter += QString(" (%1)").arg(imagePatterns.join(" "));
-    filters << imageFilter;
-
-    QString videoFilter = tr("视频文件");
-    QStringList videoPatterns;
-    for (const auto& fmt : m_supportedVideoFormats) {
-        videoPatterns << QString("*.%1").arg(fmt);
-    }
-    videoFilter += QString(" (%1)").arg(videoPatterns.join(" "));
-    filters << videoFilter;
-
-    QString allFilter = tr("所有支持的文件");
-    allFilter += QString(" (%1 %2)").arg(imagePatterns.join(" "), videoPatterns.join(" "));
-    filters.prepend(allFilter);
-
-    filters << tr("所有文件 (*.*)");
-
+    filters << SupportedFormats::allSupportedFileDialogFilter();
+    filters << SupportedFormats::imageFileDialogFilter();
+    filters << SupportedFormats::videoFileDialogFilter();
+    filters << SupportedFormats::allFilesDialogFilter();
     return filters.join(";;");
 }
 
