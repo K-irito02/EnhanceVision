@@ -85,6 +85,13 @@ private:
     void reportStageProgress(VideoProcessingStage stage, double stageProgress);
     QString stageToString(VideoProcessingStage stage) const;
 
+    struct EncoderInfo {
+        const AVCodec* codec = nullptr;
+        bool isHardware = false;
+        QString codecName;
+    };
+    EncoderInfo findAvailableEncoder() const;
+
     bool m_isProcessing;
     std::atomic<bool> m_cancelled{false};
     std::atomic<bool> m_paused{false};

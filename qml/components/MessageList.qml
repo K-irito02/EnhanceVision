@@ -23,6 +23,33 @@ Item {
     property bool isLastMessageFullyVisible: true
     readonly property bool canOverlayLastMessage: !isLastMessageFullyVisible
 
+    property string _pendingDeleteMessageId: ""
+    property var _pendingDeleteMessageIds: []
+
+    DeleteConfirmDialog {
+        id: deleteConfirmDialog
+        anchors.fill: parent
+
+        onConfirmed: function(options) {
+            if (_pendingDeleteMessageIds.length > 1) {
+                if (root._hasRealModel) {
+                    messageModel.removeSelectedMessagesWithOptions(options)
+                }
+            } else if (_pendingDeleteMessageId !== "") {
+                if (root._hasRealModel) {
+                    messageModel.removeMessageWithOptions(_pendingDeleteMessageId, options)
+                }
+            }
+            _pendingDeleteMessageId = ""
+            _pendingDeleteMessageIds = []
+        }
+
+        onCancelled: {
+            _pendingDeleteMessageId = ""
+            _pendingDeleteMessageIds = []
+        }
+    }
+
     ListView {
         id: messageList
         anchors.fill: parent
@@ -392,10 +419,13 @@ Item {
                 root._handleDownload(model.id, model.status)
             }
             onDeleteClicked: {
-                if (root._hasRealModel)
-                    messageModel.removeMessage(model.id)
-                else
+                if (root._hasRealModel) {
+                    root._pendingDeleteMessageId = model.id
+                    root._pendingDeleteMessageIds = [model.id]
+                    deleteConfirmDialog.showSingle(model.id)
+                } else {
                     demoModel.remove(msgDelegate.index)
+                }
             }
             onViewMediaFile: function(idx) {
                 root._openViewer(model.id, idx, model.status)

@@ -1,0 +1,13 @@
+- [x] H.264 编码器 preset 改为 "fast"，CRF 改为 23，thread_count 不再限制为 8
+- [x] max_b_frames 改为 0 减少编码延迟
+- [x] 硬件编码器自动检测（h264_nvenc → h264_qsv → h264_amf → libx264 回退）
+- [x] 硬件编码器使用合适的参数配置
+- [x] 移除 applyShader 返回后不必要的 convertToFormat(RGB32) 调用
+- [x] sws_getContext 使用 SWS_FAST_BILINEAR 替代 SWS_BILINEAR
+- [x] neighborPixels 缓冲区跨帧复用，不再每帧分配释放
+- [x] Gamma LUT 预计算，替代逐像素 std::pow()
+- [x] 像素内循环预计算 kInv255 常量，乘法替代除法
+- [x] 无效果参数时跳过处理
+- [ ] 大图片（>200万像素）使用 QtConcurrent 并行处理行（跳过 - 已在后台线程运行，收益有限）
+- [x] 构建通过，无编译错误和警告
+- [ ] 原有功能回归验证：Shader 模式处理图片和视频仍正常工作

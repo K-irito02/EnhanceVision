@@ -426,6 +426,7 @@ qt_add_qml_module(EnhanceVision
         qml/components/MessageList.qml
         qml/components/Toast.qml
         qml/components/Dialog.qml
+        qml/components/DeleteConfirmDialog.qml
         qml/components/ShaderParamsPanel.qml
         qml/components/AIModelPanel.qml
         qml/components/AIParamsPanel.qml

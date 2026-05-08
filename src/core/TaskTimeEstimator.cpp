@@ -336,26 +336,26 @@ double TaskTimeEstimator::estimateMessageTotalTime(int mode, bool useGpu,
 double TaskTimeEstimator::estimateShaderTime(int width, int height, bool isVideo,
                                               double durationSec, double fps) const
 {
-    // 基于 Analyze-Inference.md:
-    // Shader 图片：加载~30ms + 预处理~12ms + 色彩调整~125ms + 效果处理~300ms + 保存~60ms ≈ 0.5s
-    // Shader 视频：单帧 ~25-100ms × 帧数 + 初始化~500ms + 收尾~300ms
-
     const qint64 pixels = static_cast<qint64>(width) * height;
-    const double pixelFactor = pixels / (1920.0 * 1080.0); // 相对于1080p的像素比
+    const double pixelFactor = pixels / (1920.0 * 1080.0);
+
+    const int threads = qMax(1, m_hwInfo.cpuThreadCount);
+    const double parallelSpeedup = qMin(static_cast<double>(threads), 8.0);
+    const double freqRatio = 3.3 / qMax(0.5, m_hwInfo.cpuFrequencyGHz);
+
+    const double basePerFrameSec = 0.10;
+    const double perFrameSec = basePerFrameSec * qSqrt(pixelFactor) * freqRatio / parallelSpeedup;
 
     if (!isVideo) {
-        // 图片处理：基础 0.5s，按像素比例缩放
-        return qMax(0.1, 0.5 * qSqrt(pixelFactor));
+        return qMax(0.1, perFrameSec * 10);
     }
 
-    // 视频处理
     if (durationSec <= 0 || fps <= 0) {
         durationSec = 10.0;
         fps = 30.0;
     }
     const int frameCount = qMax(1, static_cast<int>(durationSec * fps));
-    const double perFrameSec = 0.06 * qSqrt(pixelFactor); // ~60ms/帧 @ 1080p
-    const double setupSec = 0.8;
+    const double setupSec = 1.0;
 
     return setupSec + frameCount * perFrameSec;
 }
@@ -576,37 +576,29 @@ bool TaskTimeEstimator::isTaskPaused(const QString& taskId) const
 
 double TaskTimeEstimator::calculateCorrectedRemainingTime(TaskTimeTracker& tracker) const
 {
-    // 进度太小时，不进行修正，使用初始预测
     if (tracker.progress < 0.05) {
         return tracker.currentPredictedSec - tracker.elapsedSec;
     }
     
-    // 进度接近完成时，不再修正
     if (tracker.progress >= 0.95) {
         return qMax(0.0, tracker.currentPredictedSec - tracker.elapsedSec);
     }
     
-    // 【乐观预测策略】
-    // 使用乐观预测时，我们希望：
-    // 1. 初始预测偏低（乐观）
-    // 2. 超时后显示超时状态，但不大幅增加预测时间
-    // 3. 只在实际速度比预测更快时才减少预测时间
-    
-    // 基于实际进度计算预期总时间
     double actualBasedTotal = tracker.elapsedSec / tracker.progress;
     
-    // 检查是否已经超时（实际速度比预测慢）
     bool isSlowerThanPredicted = actualBasedTotal > tracker.initialPredictedSec;
     
     if (isSlowerThanPredicted) {
-        // 超时情况：保持初始预测不变，让超时状态显示
-        // 只做轻微修正，避免预测时间跳动太大
-        double maxCorrection = tracker.initialPredictedSec * 1.2; // 最多增加20%
+        double maxCorrection = tracker.initialPredictedSec * 5.0;
         double correctedTotal = qMin(actualBasedTotal, maxCorrection);
         
-        // 如果已经修正过且新值更大，保持之前的修正值（避免来回跳动）
-        if (tracker.correctionCount > 0 && correctedTotal < tracker.currentPredictedSec) {
-            correctedTotal = tracker.currentPredictedSec;
+        if (tracker.correctionCount > 0) {
+            double alpha = 0.3;
+            correctedTotal = tracker.currentPredictedSec * (1.0 - alpha) + correctedTotal * alpha;
+        }
+        
+        if (tracker.correctionCount > 0 && correctedTotal < tracker.currentPredictedSec * 0.9) {
+            correctedTotal = tracker.currentPredictedSec * 0.9;
         }
         
         tracker.currentPredictedSec = correctedTotal;
@@ -616,22 +608,17 @@ double TaskTimeEstimator::calculateCorrectedRemainingTime(TaskTimeTracker& track
         return correctedTotal - tracker.elapsedSec;
     }
     
-    // 实际速度比预测快：可以减少预测时间
-    // 使用加权平均，但偏向保守（不要减太多）
-    double actualWeight = tracker.progress * 0.5;  // 降低实际权重
+    double actualWeight = tracker.progress * 0.5;
     double initialWeight = 1.0 - actualWeight;
     
     double correctedTotal = (tracker.initialPredictedSec * initialWeight) + (actualBasedTotal * actualWeight);
     
-    // 限制修正幅度：不低于初始预测的 0.5 倍（不要减太多）
     correctedTotal = qMax(tracker.initialPredictedSec * 0.5, correctedTotal);
     
-    // 更新修正后的预测时间
     tracker.currentPredictedSec = correctedTotal;
     tracker.correctionFactor = correctedTotal / tracker.initialPredictedSec;
     tracker.correctionCount++;
     
-    // 计算剩余时间
     double remainingSec = correctedTotal - tracker.elapsedSec;
     
     return remainingSec;

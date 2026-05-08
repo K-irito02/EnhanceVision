@@ -116,6 +116,10 @@ ImageProcessor::ImageProcessor(QObject *parent)
     , m_cancelled(false)
     , m_reporter(nullptr)
 {
+    for (int i = 0; i < 256; ++i) {
+        m_gammaLUT[i] = static_cast<uint8_t>(i);
+    }
+    m_gammaLUTValue = 1.0f;
 }
 
 ImageProcessor::~ImageProcessor()
@@ -147,6 +151,28 @@ QString ImageProcessor::stageToString(ProcessingStage stage) const
 void ImageProcessor::reportProgress(int progress, const QString& status)
 {
     emit progressChanged(progress, status);
+}
+
+void ImageProcessor::updateGammaLUT(float gamma)
+{
+    if (qFuzzyCompare(gamma, m_gammaLUTValue)) return;
+    m_gammaLUTValue = gamma;
+    float invGamma = 1.0f / gamma;
+    for (int i = 0; i < 256; ++i) {
+        m_gammaLUT[i] = static_cast<uint8_t>(qBound(0, qRound(std::pow(i / 255.0f, invGamma) * 255.0f), 255));
+    }
+}
+
+void ImageProcessor::ensureNeighborBuffers(int width, int height)
+{
+    int requiredSize = width * height;
+    if (requiredSize == m_lastBufferSize) return;
+    m_lastBufferSize = requiredSize;
+    m_neighborPixels.resize(9);
+    for (int i = 0; i < 9; ++i) {
+        m_neighborPixels[i].resize(static_cast<size_t>(requiredSize));
+    }
+    m_originalPixels.resize(static_cast<size_t>(requiredSize));
 }
 
 void ImageProcessor::reportStageProgress(ProcessingStage stage, double stageProgress)
@@ -193,151 +219,174 @@ QImage ImageProcessor::applyShader(const QImage& input, const ShaderParams& para
         return QImage();
     }
 
-    QImage result = input.convertToFormat(QImage::Format_RGB32);
-    
+    bool hasAnyEffect = std::abs(params.exposure) > 0.001f || std::abs(params.brightness) > 0.001f ||
+        std::abs(params.contrast - 1.0f) > 0.001f || std::abs(params.saturation - 1.0f) > 0.001f ||
+        std::abs(params.hue) > 0.001f || std::abs(params.gamma - 1.0f) > 0.001f ||
+        std::abs(params.temperature) > 0.001f || std::abs(params.tint) > 0.001f ||
+        std::abs(params.highlights) > 0.001f || std::abs(params.shadows) > 0.001f ||
+        params.vignette > 0.001f || params.blur > 0.001f || params.denoise > 0.001f || params.sharpness > 0.001f;
+
+    QImage result;
+    if (input.format() == QImage::Format_RGB32) {
+        result = input.copy();
+    } else {
+        result = input.convertToFormat(QImage::Format_RGB32);
+    }
+    if (!hasAnyEffect) return result;
+
+    result.detach();
+    updateGammaLUT(params.gamma);
+
     int width = result.width();
     int height = result.height();
-    
+
     bool needDenoise = params.denoise > 0.001f;
     bool needSharpness = params.sharpness > 0.001f;
     bool needNeighbors = needDenoise || needSharpness;
     bool needBlur = params.blur > 0.001f;
 
-    std::vector<std::vector<QRgb>> neighborPixels;
-    std::vector<QRgb> originalPixels;
-    
+    constexpr float kInv255 = 1.0f / 255.0f;
+
+    int numThreads = qMax(1, QThread::idealThreadCount());
+    int rowsPerThread = qMax(1, height / numThreads);
+
+    QVector<QPair<int,int>> rowRanges;
+    rowRanges.reserve(numThreads);
+    for (int start = 0; start < height; start += rowsPerThread) {
+        rowRanges.append({start, qMin(start + rowsPerThread, height)});
+    }
+
     if (needNeighbors) {
-        neighborPixels.resize(9);
-        for (int i = 0; i < 9; ++i) {
-            neighborPixels[i].resize(static_cast<size_t>(width) * height);
-        }
-        originalPixels.resize(static_cast<size_t>(width) * height);
-        
-        for (int y = 0; y < height; ++y) {
-            const QRgb* line = reinterpret_cast<const QRgb*>(result.scanLine(y));
-            for (int x = 0; x < width; ++x) {
-                int idx = y * width + x;
-                originalPixels[idx] = line[x];
-                
-                for (int ky = -1; ky <= 1; ++ky) {
-                    for (int kx = -1; kx <= 1; ++kx) {
-                        int nx = qBound(0, x + kx, width - 1);
-                        int ny = qBound(0, y + ky, height - 1);
-                        const QRgb* neighborLine = reinterpret_cast<const QRgb*>(result.scanLine(ny));
-                        int neighborIdx = (ky + 1) * 3 + (kx + 1);
-                        neighborPixels[neighborIdx][idx] = neighborLine[nx];
+        ensureNeighborBuffers(width, height);
+
+        QtConcurrent::blockingMap(rowRanges, [&](QPair<int,int>& range) {
+            for (int y = range.first; y < range.second; ++y) {
+                const QRgb* line = reinterpret_cast<const QRgb*>(result.scanLine(y));
+                for (int x = 0; x < width; ++x) {
+                    int idx = y * width + x;
+                    m_originalPixels[idx] = line[x];
+
+                    for (int ky = -1; ky <= 1; ++ky) {
+                        for (int kx = -1; kx <= 1; ++kx) {
+                            int nx = qBound(0, x + kx, width - 1);
+                            int ny = qBound(0, y + ky, height - 1);
+                            const QRgb* neighborLine = reinterpret_cast<const QRgb*>(result.scanLine(ny));
+                            int neighborIdx = (ky + 1) * 3 + (kx + 1);
+                            m_neighborPixels[neighborIdx][idx] = neighborLine[nx];
+                        }
                     }
                 }
             }
-        }
+        });
     }
 
-    for (int y = 0; y < height; ++y) {
-        QRgb* line = reinterpret_cast<QRgb*>(result.scanLine(y));
-        
-        for (int x = 0; x < width; ++x) {
-            float r = qRed(line[x]) / 255.0f;
-            float g = qGreen(line[x]) / 255.0f;
-            float b = qBlue(line[x]) / 255.0f;
-            
-            if (std::abs(params.exposure) > 0.001f) {
-                float factor = std::pow(2.0f, params.exposure);
-                r *= factor;
-                g *= factor;
-                b *= factor;
-            }
-            
-            if (std::abs(params.brightness) > 0.001f) {
-                r = qBound(0.0f, r + params.brightness, 1.0f);
-                g = qBound(0.0f, g + params.brightness, 1.0f);
-                b = qBound(0.0f, b + params.brightness, 1.0f);
-            }
-            
-            if (std::abs(params.contrast - 1.0f) > 0.001f) {
-                r = qBound(0.0f, (r - 0.5f) * params.contrast + 0.5f, 1.0f);
-                g = qBound(0.0f, (g - 0.5f) * params.contrast + 0.5f, 1.0f);
-                b = qBound(0.0f, (b - 0.5f) * params.contrast + 0.5f, 1.0f);
-            }
-            
-            if (std::abs(params.saturation - 1.0f) > 0.001f) {
-                float gray = 0.2126f * r + 0.7152f * g + 0.0722f * b;
-                r = qBound(0.0f, gray + params.saturation * (r - gray), 1.0f);
-                g = qBound(0.0f, gray + params.saturation * (g - gray), 1.0f);
-                b = qBound(0.0f, gray + params.saturation * (b - gray), 1.0f);
-            }
-            
-            if (std::abs(params.hue) > 0.001f) {
-                float h, s, v;
-                rgb2hsv(r, g, b, h, s, v);
-                h = std::fmod(h + params.hue + 1.0f, 1.0f);
-                hsv2rgb(h, s, v, r, g, b);
-            }
-            
-            if (std::abs(params.gamma - 1.0f) > 0.001f) {
-                float invGamma = 1.0f / params.gamma;
-                r = std::pow(r, invGamma);
-                g = std::pow(g, invGamma);
-                b = std::pow(b, invGamma);
-            }
-            
-            if (std::abs(params.temperature) > 0.001f) {
-                r = qBound(0.0f, r + params.temperature * 0.2f, 1.0f);
-                b = qBound(0.0f, b - params.temperature * 0.2f, 1.0f);
-            }
-            
-            if (std::abs(params.tint) > 0.001f) {
-                g = qBound(0.0f, g + params.tint * 0.2f, 1.0f);
-            }
-            
-            if (std::abs(params.highlights) > 0.001f) {
-                float luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b;
-                if (luminance > 0.5f) {
-                    float factor = (luminance - 0.5f) * 2.0f;
-                    float adjustment = params.highlights * factor * 0.3f;
-                    r = qBound(0.0f, r + adjustment, 1.0f);
-                    g = qBound(0.0f, g + adjustment, 1.0f);
-                    b = qBound(0.0f, b + adjustment, 1.0f);
+    QtConcurrent::blockingMap(rowRanges, [&](QPair<int,int>& range) {
+        for (int y = range.first; y < range.second; ++y) {
+            QRgb* line = reinterpret_cast<QRgb*>(result.scanLine(y));
+
+            for (int x = 0; x < width; ++x) {
+                float r = qRed(line[x]) * kInv255;
+                float g = qGreen(line[x]) * kInv255;
+                float b = qBlue(line[x]) * kInv255;
+
+                if (std::abs(params.exposure) > 0.001f) {
+                    float factor = std::pow(2.0f, params.exposure);
+                    r *= factor;
+                    g *= factor;
+                    b *= factor;
                 }
-            }
-            
-            if (std::abs(params.shadows) > 0.001f) {
-                float luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b;
-                if (luminance < 0.5f) {
-                    float factor = (0.5f - luminance) * 2.0f;
-                    float adjustment = params.shadows * factor * 0.3f;
-                    r = qBound(0.0f, r + adjustment, 1.0f);
-                    g = qBound(0.0f, g + adjustment, 1.0f);
-                    b = qBound(0.0f, b + adjustment, 1.0f);
+
+                if (std::abs(params.brightness) > 0.001f) {
+                    r = qBound(0.0f, r + params.brightness, 1.0f);
+                    g = qBound(0.0f, g + params.brightness, 1.0f);
+                    b = qBound(0.0f, b + params.brightness, 1.0f);
                 }
+
+                if (std::abs(params.contrast - 1.0f) > 0.001f) {
+                    r = qBound(0.0f, (r - 0.5f) * params.contrast + 0.5f, 1.0f);
+                    g = qBound(0.0f, (g - 0.5f) * params.contrast + 0.5f, 1.0f);
+                    b = qBound(0.0f, (b - 0.5f) * params.contrast + 0.5f, 1.0f);
+                }
+
+                if (std::abs(params.saturation - 1.0f) > 0.001f) {
+                    float gray = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+                    r = qBound(0.0f, gray + params.saturation * (r - gray), 1.0f);
+                    g = qBound(0.0f, gray + params.saturation * (g - gray), 1.0f);
+                    b = qBound(0.0f, gray + params.saturation * (b - gray), 1.0f);
+                }
+
+                if (std::abs(params.hue) > 0.001f) {
+                    float h, s, v;
+                    rgb2hsv(r, g, b, h, s, v);
+                    h = std::fmod(h + params.hue + 1.0f, 1.0f);
+                    hsv2rgb(h, s, v, r, g, b);
+                }
+
+                if (std::abs(params.gamma - 1.0f) > 0.001f) {
+                    r = m_gammaLUT[clampChannelInt(qRound(r * 255.0f))] * kInv255;
+                    g = m_gammaLUT[clampChannelInt(qRound(g * 255.0f))] * kInv255;
+                    b = m_gammaLUT[clampChannelInt(qRound(b * 255.0f))] * kInv255;
+                }
+
+                if (std::abs(params.temperature) > 0.001f) {
+                    r = qBound(0.0f, r + params.temperature * 0.2f, 1.0f);
+                    b = qBound(0.0f, b - params.temperature * 0.2f, 1.0f);
+                }
+
+                if (std::abs(params.tint) > 0.001f) {
+                    g = qBound(0.0f, g + params.tint * 0.2f, 1.0f);
+                }
+
+                if (std::abs(params.highlights) > 0.001f) {
+                    float luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+                    if (luminance > 0.5f) {
+                        float factor = (luminance - 0.5f) * 2.0f;
+                        float adjustment = params.highlights * factor * 0.3f;
+                        r = qBound(0.0f, r + adjustment, 1.0f);
+                        g = qBound(0.0f, g + adjustment, 1.0f);
+                        b = qBound(0.0f, b + adjustment, 1.0f);
+                    }
+                }
+
+                if (std::abs(params.shadows) > 0.001f) {
+                    float luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+                    if (luminance < 0.5f) {
+                        float factor = (0.5f - luminance) * 2.0f;
+                        float adjustment = params.shadows * factor * 0.3f;
+                        r = qBound(0.0f, r + adjustment, 1.0f);
+                        g = qBound(0.0f, g + adjustment, 1.0f);
+                        b = qBound(0.0f, b + adjustment, 1.0f);
+                    }
+                }
+
+                if (params.vignette > 0.001f) {
+                    float centerX = 0.5f;
+                    float centerY = 0.5f;
+                    float texX = static_cast<float>(x) / width;
+                    float texY = static_cast<float>(y) / height;
+                    float dist = std::sqrt((texX - centerX) * (texX - centerX) +
+                                           (texY - centerY) * (texY - centerY)) * 1.414f;
+                    float vignetteFactor = qBound(0.0f, 1.0f - params.vignette * dist * dist, 1.0f);
+                    r *= vignetteFactor;
+                    g *= vignetteFactor;
+                    b *= vignetteFactor;
+                }
+
+                line[x] = qRgb(clampChannel(r), clampChannel(g), clampChannel(b));
             }
-            
-            if (params.vignette > 0.001f) {
-                float centerX = 0.5f;
-                float centerY = 0.5f;
-                float texX = static_cast<float>(x) / width;
-                float texY = static_cast<float>(y) / height;
-                float dist = std::sqrt((texX - centerX) * (texX - centerX) + 
-                                       (texY - centerY) * (texY - centerY)) * 1.414f;
-                float vignetteFactor = qBound(0.0f, 1.0f - params.vignette * dist * dist, 1.0f);
-                r *= vignetteFactor;
-                g *= vignetteFactor;
-                b *= vignetteFactor;
-            }
-            
-            line[x] = qRgb(clampChannel(r), clampChannel(g), clampChannel(b));
         }
-    }
+    });
 
     if (needBlur) {
         applyBlur(result, params.blur);
     }
 
     if (needDenoise && needNeighbors) {
-        applyDenoiseWithNeighbors(result, params.denoise, neighborPixels, originalPixels, width, height);
+        applyDenoiseWithNeighbors(result, params.denoise, m_neighborPixels, m_originalPixels, width, height);
     }
 
     if (needSharpness && needNeighbors) {
-        applySharpenWithNeighbors(result, params.sharpness, neighborPixels, originalPixels, width, height);
+        applySharpenWithNeighbors(result, params.sharpness, m_neighborPixels, m_originalPixels, width, height);
     }
 
     return result;
@@ -354,66 +403,79 @@ void ImageProcessor::applyBlur(QImage& image, float blurAmount)
     float blurRadius = blurAmount * 1.5f;
     
     QImage temp(width, height, QImage::Format_RGB32);
+    temp.detach();
     
-    for (int y = 0; y < height; ++y) {
-        QRgb* srcLine = reinterpret_cast<QRgb*>(image.scanLine(y));
-        QRgb* dstLine = reinterpret_cast<QRgb*>(temp.scanLine(y));
-        
-        for (int x = 0; x < width; ++x) {
-            float r = qRed(srcLine[x]) * weights[0];
-            float g = qGreen(srcLine[x]) * weights[0];
-            float b = qBlue(srcLine[x]) * weights[0];
-            
-            for (int i = 1; i <= 4; ++i) {
-                int offset = qRound(i * blurRadius);
-                int left = qMax(0, x - offset);
-                int right = qMin(width - 1, x + offset);
-                
-                r += (qRed(srcLine[left]) + qRed(srcLine[right])) * weights[i];
-                g += (qGreen(srcLine[left]) + qGreen(srcLine[right])) * weights[i];
-                b += (qBlue(srcLine[left]) + qBlue(srcLine[right])) * weights[i];
-            }
-            
-            dstLine[x] = qRgb(clampChannelInt(qRound(r)), 
-                              clampChannelInt(qRound(g)), 
-                              clampChannelInt(qRound(b)));
-        }
+    int numThreads = qMax(1, QThread::idealThreadCount());
+    int rowsPerThread = qMax(1, height / numThreads);
+    QVector<QPair<int,int>> rowRanges;
+    rowRanges.reserve(numThreads);
+    for (int start = 0; start < height; start += rowsPerThread) {
+        rowRanges.append({start, qMin(start + rowsPerThread, height)});
     }
+
+    QtConcurrent::blockingMap(rowRanges, [&](QPair<int,int>& range) {
+        for (int y = range.first; y < range.second; ++y) {
+            QRgb* srcLine = reinterpret_cast<QRgb*>(image.scanLine(y));
+            QRgb* dstLine = reinterpret_cast<QRgb*>(temp.scanLine(y));
+            
+            for (int x = 0; x < width; ++x) {
+                float r = qRed(srcLine[x]) * weights[0];
+                float g = qGreen(srcLine[x]) * weights[0];
+                float b = qBlue(srcLine[x]) * weights[0];
+                
+                for (int i = 1; i <= 4; ++i) {
+                    int offset = qRound(i * blurRadius);
+                    int left = qMax(0, x - offset);
+                    int right = qMin(width - 1, x + offset);
+                    
+                    r += (qRed(srcLine[left]) + qRed(srcLine[right])) * weights[i];
+                    g += (qGreen(srcLine[left]) + qGreen(srcLine[right])) * weights[i];
+                    b += (qBlue(srcLine[left]) + qBlue(srcLine[right])) * weights[i];
+                }
+                
+                dstLine[x] = qRgb(clampChannelInt(qRound(r)), 
+                                  clampChannelInt(qRound(g)), 
+                                  clampChannelInt(qRound(b)));
+            }
+        }
+    });
     
-    for (int y = 0; y < height; ++y) {
-        QRgb* dstLine = reinterpret_cast<QRgb*>(image.scanLine(y));
-        QRgb* tempLine = reinterpret_cast<QRgb*>(temp.scanLine(y));
-        
-        for (int x = 0; x < width; ++x) {
-            float r = qRed(tempLine[x]) * weights[0];
-            float g = qGreen(tempLine[x]) * weights[0];
-            float b = qBlue(tempLine[x]) * weights[0];
+    QtConcurrent::blockingMap(rowRanges, [&](QPair<int,int>& range) {
+        for (int y = range.first; y < range.second; ++y) {
+            QRgb* dstLine = reinterpret_cast<QRgb*>(image.scanLine(y));
+            QRgb* tempLine = reinterpret_cast<QRgb*>(temp.scanLine(y));
             
-            for (int i = 1; i <= 4; ++i) {
-                int offset = qRound(i * blurRadius);
-                int top = qMax(0, y - offset);
-                int bottom = qMin(height - 1, y + offset);
+            for (int x = 0; x < width; ++x) {
+                float r = qRed(tempLine[x]) * weights[0];
+                float g = qGreen(tempLine[x]) * weights[0];
+                float b = qBlue(tempLine[x]) * weights[0];
                 
-                QRgb* topLine = reinterpret_cast<QRgb*>(temp.scanLine(top));
-                QRgb* bottomLine = reinterpret_cast<QRgb*>(temp.scanLine(bottom));
+                for (int i = 1; i <= 4; ++i) {
+                    int offset = qRound(i * blurRadius);
+                    int top = qMax(0, y - offset);
+                    int bottom = qMin(height - 1, y + offset);
+                    
+                    QRgb* topLine = reinterpret_cast<QRgb*>(temp.scanLine(top));
+                    QRgb* bottomLine = reinterpret_cast<QRgb*>(temp.scanLine(bottom));
+                    
+                    r += (qRed(topLine[x]) + qRed(bottomLine[x])) * weights[i];
+                    g += (qGreen(topLine[x]) + qGreen(bottomLine[x])) * weights[i];
+                    b += (qBlue(topLine[x]) + qBlue(bottomLine[x])) * weights[i];
+                }
                 
-                r += (qRed(topLine[x]) + qRed(bottomLine[x])) * weights[i];
-                g += (qGreen(topLine[x]) + qGreen(bottomLine[x])) * weights[i];
-                b += (qBlue(topLine[x]) + qBlue(bottomLine[x])) * weights[i];
+                float origR = qRed(dstLine[x]);
+                float origG = qGreen(dstLine[x]);
+                float origB = qBlue(dstLine[x]);
+                
+                float mixFactor = blurAmount * 0.6f;
+                int finalR = clampChannelInt(qRound(origR * (1.0f - mixFactor) + r * mixFactor));
+                int finalG = clampChannelInt(qRound(origG * (1.0f - mixFactor) + g * mixFactor));
+                int finalB = clampChannelInt(qRound(origB * (1.0f - mixFactor) + b * mixFactor));
+                
+                dstLine[x] = qRgb(finalR, finalG, finalB);
             }
-            
-            float origR = qRed(dstLine[x]);
-            float origG = qGreen(dstLine[x]);
-            float origB = qBlue(dstLine[x]);
-            
-            float mixFactor = blurAmount * 0.6f;
-            int finalR = clampChannelInt(qRound(origR * (1.0f - mixFactor) + r * mixFactor));
-            int finalG = clampChannelInt(qRound(origG * (1.0f - mixFactor) + g * mixFactor));
-            int finalB = clampChannelInt(qRound(origB * (1.0f - mixFactor) + b * mixFactor));
-            
-            dstLine[x] = qRgb(finalR, finalG, finalB);
         }
-    }
+    });
 }
 
 void ImageProcessor::applyDenoiseWithNeighbors(QImage& image, float denoise,
@@ -421,35 +483,45 @@ void ImageProcessor::applyDenoiseWithNeighbors(QImage& image, float denoise,
                                                 const std::vector<QRgb>& originalPixels,
                                                 int width, int height)
 {
-    for (int y = 0; y < height; ++y) {
-        QRgb* line = reinterpret_cast<QRgb*>(image.scanLine(y));
-        
-        for (int x = 0; x < width; ++x) {
-            int idx = y * width + x;
-            
-            float rValues[9], gValues[9], bValues[9];
-            for (int i = 0; i < 9; ++i) {
-                rValues[i] = qRed(neighborPixels[i][idx]) / 255.0f;
-                gValues[i] = qGreen(neighborPixels[i][idx]) / 255.0f;
-                bValues[i] = qBlue(neighborPixels[i][idx]) / 255.0f;
-            }
-            
-            float medianR = quickMedian9(rValues);
-            float medianG = quickMedian9(gValues);
-            float medianB = quickMedian9(bValues);
-            
-            float curR = qRed(line[x]) / 255.0f;
-            float curG = qGreen(line[x]) / 255.0f;
-            float curB = qBlue(line[x]) / 255.0f;
-            
-            float mixFactor = denoise * 0.8f;
-            curR = qBound(0.0f, curR * (1.0f - mixFactor) + medianR * mixFactor, 1.0f);
-            curG = qBound(0.0f, curG * (1.0f - mixFactor) + medianG * mixFactor, 1.0f);
-            curB = qBound(0.0f, curB * (1.0f - mixFactor) + medianB * mixFactor, 1.0f);
-            
-            line[x] = qRgb(clampChannel(curR), clampChannel(curG), clampChannel(curB));
-        }
+    int numThreads = qMax(1, QThread::idealThreadCount());
+    int rowsPerThread = qMax(1, height / numThreads);
+    QVector<QPair<int,int>> rowRanges;
+    rowRanges.reserve(numThreads);
+    for (int start = 0; start < height; start += rowsPerThread) {
+        rowRanges.append({start, qMin(start + rowsPerThread, height)});
     }
+
+    QtConcurrent::blockingMap(rowRanges, [&](QPair<int,int>& range) {
+        for (int y = range.first; y < range.second; ++y) {
+            QRgb* line = reinterpret_cast<QRgb*>(image.scanLine(y));
+            
+            for (int x = 0; x < width; ++x) {
+                int idx = y * width + x;
+                
+                float rValues[9], gValues[9], bValues[9];
+                for (int i = 0; i < 9; ++i) {
+                    rValues[i] = qRed(neighborPixels[i][idx]) / 255.0f;
+                    gValues[i] = qGreen(neighborPixels[i][idx]) / 255.0f;
+                    bValues[i] = qBlue(neighborPixels[i][idx]) / 255.0f;
+                }
+                
+                float medianR = quickMedian9(rValues);
+                float medianG = quickMedian9(gValues);
+                float medianB = quickMedian9(bValues);
+                
+                float curR = qRed(line[x]) / 255.0f;
+                float curG = qGreen(line[x]) / 255.0f;
+                float curB = qBlue(line[x]) / 255.0f;
+                
+                float mixFactor = denoise * 0.8f;
+                curR = qBound(0.0f, curR * (1.0f - mixFactor) + medianR * mixFactor, 1.0f);
+                curG = qBound(0.0f, curG * (1.0f - mixFactor) + medianG * mixFactor, 1.0f);
+                curB = qBound(0.0f, curB * (1.0f - mixFactor) + medianB * mixFactor, 1.0f);
+                
+                line[x] = qRgb(clampChannel(curR), clampChannel(curG), clampChannel(curB));
+            }
+        }
+    });
 }
 
 void ImageProcessor::applySharpenWithNeighbors(QImage& image, float sharpness,
@@ -457,54 +529,64 @@ void ImageProcessor::applySharpenWithNeighbors(QImage& image, float sharpness,
                                                 const std::vector<QRgb>& originalPixels,
                                                 int width, int height)
 {
-    for (int y = 0; y < height; ++y) {
-        QRgb* line = reinterpret_cast<QRgb*>(image.scanLine(y));
-        
-        for (int x = 0; x < width; ++x) {
-            int idx = y * width + x;
-            
-            float origR = qRed(originalPixels[idx]) / 255.0f;
-            float origG = qGreen(originalPixels[idx]) / 255.0f;
-            float origB = qBlue(originalPixels[idx]) / 255.0f;
-            
-            float blurR = (qRed(neighborPixels[3][idx]) + qRed(neighborPixels[5][idx]) + 
-                          qRed(neighborPixels[1][idx]) + qRed(neighborPixels[7][idx])) / 4.0f / 255.0f;
-            float blurG = (qGreen(neighborPixels[3][idx]) + qGreen(neighborPixels[5][idx]) + 
-                          qGreen(neighborPixels[1][idx]) + qGreen(neighborPixels[7][idx])) / 4.0f / 255.0f;
-            float blurB = (qBlue(neighborPixels[3][idx]) + qBlue(neighborPixels[5][idx]) + 
-                          qBlue(neighborPixels[1][idx]) + qBlue(neighborPixels[7][idx])) / 4.0f / 255.0f;
-            
-            float sharpenR = origR - blurR;
-            float sharpenG = origG - blurG;
-            float sharpenB = origB - blurB;
-            
-            float meanR = (origR + blurR) * 0.5f;
-            float meanG = (origG + blurG) * 0.5f;
-            float meanB = (origB + blurB) * 0.5f;
-            
-            float localVariance = 0.0f;
-            for (int i = 0; i < 9; ++i) {
-                float nR = qRed(neighborPixels[i][idx]) / 255.0f - meanR;
-                float nG = qGreen(neighborPixels[i][idx]) / 255.0f - meanG;
-                float nB = qBlue(neighborPixels[i][idx]) / 255.0f - meanB;
-                localVariance += nR * nR + nG * nG + nB * nB;
-            }
-            localVariance /= 9.0f;
-            
-            float edgeFactor = 1.0f - gpuSmoothstep(0.0f, 0.02f, localVariance);
-            float factor = 0.5f + edgeFactor * 0.5f;
-            
-            float curR = qRed(line[x]) / 255.0f;
-            float curG = qGreen(line[x]) / 255.0f;
-            float curB = qBlue(line[x]) / 255.0f;
-            
-            curR = qBound(0.0f, curR + sharpness * sharpenR * factor, 1.0f);
-            curG = qBound(0.0f, curG + sharpness * sharpenG * factor, 1.0f);
-            curB = qBound(0.0f, curB + sharpness * sharpenB * factor, 1.0f);
-            
-            line[x] = qRgb(clampChannel(curR), clampChannel(curG), clampChannel(curB));
-        }
+    int numThreads = qMax(1, QThread::idealThreadCount());
+    int rowsPerThread = qMax(1, height / numThreads);
+    QVector<QPair<int,int>> rowRanges;
+    rowRanges.reserve(numThreads);
+    for (int start = 0; start < height; start += rowsPerThread) {
+        rowRanges.append({start, qMin(start + rowsPerThread, height)});
     }
+
+    QtConcurrent::blockingMap(rowRanges, [&](QPair<int,int>& range) {
+        for (int y = range.first; y < range.second; ++y) {
+            QRgb* line = reinterpret_cast<QRgb*>(image.scanLine(y));
+            
+            for (int x = 0; x < width; ++x) {
+                int idx = y * width + x;
+                
+                float origR = qRed(originalPixels[idx]) / 255.0f;
+                float origG = qGreen(originalPixels[idx]) / 255.0f;
+                float origB = qBlue(originalPixels[idx]) / 255.0f;
+                
+                float blurR = (qRed(neighborPixels[3][idx]) + qRed(neighborPixels[5][idx]) + 
+                              qRed(neighborPixels[1][idx]) + qRed(neighborPixels[7][idx])) / 4.0f / 255.0f;
+                float blurG = (qGreen(neighborPixels[3][idx]) + qGreen(neighborPixels[5][idx]) + 
+                              qGreen(neighborPixels[1][idx]) + qGreen(neighborPixels[7][idx])) / 4.0f / 255.0f;
+                float blurB = (qBlue(neighborPixels[3][idx]) + qBlue(neighborPixels[5][idx]) + 
+                              qBlue(neighborPixels[1][idx]) + qBlue(neighborPixels[7][idx])) / 4.0f / 255.0f;
+                
+                float sharpenR = origR - blurR;
+                float sharpenG = origG - blurG;
+                float sharpenB = origB - blurB;
+                
+                float meanR = (origR + blurR) * 0.5f;
+                float meanG = (origG + blurG) * 0.5f;
+                float meanB = (origB + blurB) * 0.5f;
+                
+                float localVariance = 0.0f;
+                for (int i = 0; i < 9; ++i) {
+                    float nR = qRed(neighborPixels[i][idx]) / 255.0f - meanR;
+                    float nG = qGreen(neighborPixels[i][idx]) / 255.0f - meanG;
+                    float nB = qBlue(neighborPixels[i][idx]) / 255.0f - meanB;
+                    localVariance += nR * nR + nG * nG + nB * nB;
+                }
+                localVariance /= 9.0f;
+                
+                float edgeFactor = 1.0f - gpuSmoothstep(0.0f, 0.02f, localVariance);
+                float factor = 0.5f + edgeFactor * 0.5f;
+                
+                float curR = qRed(line[x]) / 255.0f;
+                float curG = qGreen(line[x]) / 255.0f;
+                float curB = qBlue(line[x]) / 255.0f;
+                
+                curR = qBound(0.0f, curR + sharpness * sharpenR * factor, 1.0f);
+                curG = qBound(0.0f, curG + sharpness * sharpenG * factor, 1.0f);
+                curB = qBound(0.0f, curB + sharpness * sharpenB * factor, 1.0f);
+                
+                line[x] = qRgb(clampChannel(curR), clampChannel(curG), clampChannel(curB));
+            }
+        }
+    });
 }
 
 void ImageProcessor::processImageAsync(const QString& inputPath,
@@ -595,7 +677,10 @@ void ImageProcessor::processImageAsyncWithReporter(const QString& inputPath,
             }
 
             reportStageProgress(ProcessingStage::ColorAdjust, 0.0);
-            
+
+            updateGammaLUT(params.gamma);
+            constexpr float kInv255 = 1.0f / 255.0f;
+
             int pixelReportInterval = std::max(1, totalPixels / 20);
             int nextReportPixel = pixelReportInterval;
             int pixelsProcessed = 0;
@@ -604,9 +689,9 @@ void ImageProcessor::processImageAsyncWithReporter(const QString& inputPath,
                 QRgb* line = reinterpret_cast<QRgb*>(result.scanLine(y));
                 
                 for (int x = 0; x < width; ++x) {
-                    float r = qRed(line[x]) / 255.0f;
-                    float g = qGreen(line[x]) / 255.0f;
-                    float b = qBlue(line[x]) / 255.0f;
+                    float r = qRed(line[x]) * kInv255;
+                    float g = qGreen(line[x]) * kInv255;
+                    float b = qBlue(line[x]) * kInv255;
                     
                     if (std::abs(params.exposure) > 0.001f) {
                         float factor = std::pow(2.0f, params.exposure);
@@ -642,10 +727,9 @@ void ImageProcessor::processImageAsyncWithReporter(const QString& inputPath,
                     }
                     
                     if (std::abs(params.gamma - 1.0f) > 0.001f) {
-                        float invGamma = 1.0f / params.gamma;
-                        r = std::pow(r, invGamma);
-                        g = std::pow(g, invGamma);
-                        b = std::pow(b, invGamma);
+                        r = m_gammaLUT[clampChannelInt(qRound(r * 255.0f))] * kInv255;
+                        g = m_gammaLUT[clampChannelInt(qRound(g * 255.0f))] * kInv255;
+                        b = m_gammaLUT[clampChannelInt(qRound(b * 255.0f))] * kInv255;
                     }
                     
                     if (std::abs(params.temperature) > 0.001f) {

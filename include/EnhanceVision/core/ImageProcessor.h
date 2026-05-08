@@ -19,6 +19,7 @@
 #include <memory>
 #include <atomic>
 #include <vector>
+#include <array>
 #include "EnhanceVision/models/DataTypes.h"
 
 namespace EnhanceVision {
@@ -110,6 +111,15 @@ private:
     void reportProgress(int progress, const QString& status);
     void reportStageProgress(ProcessingStage stage, double stageProgress);
     QString stageToString(ProcessingStage stage) const;
+
+    std::array<uint8_t, 256> m_gammaLUT;
+    float m_gammaLUTValue = 0.0f;
+    void updateGammaLUT(float gamma);
+
+    std::vector<std::vector<QRgb>> m_neighborPixels;
+    std::vector<QRgb> m_originalPixels;
+    int m_lastBufferSize = 0;
+    void ensureNeighborBuffers(int width, int height);
 
     bool m_isProcessing;
     bool m_cancelled;

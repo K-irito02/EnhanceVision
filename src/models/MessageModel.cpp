@@ -7,13 +7,17 @@
 #include "EnhanceVision/models/MessageModel.h"
 #include "EnhanceVision/controllers/ProcessingController.h"
 #include "EnhanceVision/controllers/MessageStatusResolver.h"
+#include "EnhanceVision/controllers/SettingsController.h"
 #include "EnhanceVision/core/TaskCoordinator.h"
 #include "EnhanceVision/providers/ThumbnailProvider.h"
+#include "EnhanceVision/utils/FileUtils.h"
 #include <QUuid>
 #include <QDateTime>
 #include <QtMath>
 #include <QCoreApplication>
 #include <QFile>
+#include <QFileInfo>
+#include <QTimer>
 
 namespace EnhanceVision {
 
@@ -391,26 +395,8 @@ bool MessageModel::removeMessage(const QString &messageId)
         m_processingController->cancelMessageTasks(messageId);
     }
 
-    // 【资源清理】清理消息中所有文件的缩略图缓存和结果文件
     const Message& message = m_messages.at(index);
-    ThumbnailProvider* thumbnailProvider = ThumbnailProvider::instance();
-    for (const MediaFile& file : message.mediaFiles) {
-        // 清理处理结果文件
-        if (!file.resultPath.isEmpty()) {
-            QFile resultFile(file.resultPath);
-            if (resultFile.exists()) {
-                resultFile.remove();
-            }
-            // 清理处理后的缩略图缓存
-            if (thumbnailProvider) {
-                thumbnailProvider->removeThumbnail("processed_" + file.id);
-            }
-        }
-        // 清理原始文件的缩略图缓存
-        if (thumbnailProvider && !file.filePath.isEmpty()) {
-            thumbnailProvider->removeThumbnail(file.filePath);
-        }
-    }
+    cleanupMessageResources(message);
 
     beginRemoveRows(QModelIndex(), index, index);
     m_messages.removeAt(index);
@@ -419,6 +405,7 @@ bool MessageModel::removeMessage(const QString &messageId)
     m_messageFileStatsCache.remove(messageId);
     emit countChanged();
     emit messageRemoved(messageId);
+    scheduleCacheRefresh();
     return true;
 }
 
@@ -466,6 +453,7 @@ int MessageModel::removeSelectedMessages()
     for (auto it = toDelete.rbegin(); it != toDelete.rend(); ++it) {
         int index = findMessageIndex(*it);
         if (index >= 0) {
+            cleanupMessageResources(m_messages.at(index));
             beginRemoveRows(QModelIndex(), index, index);
             m_messages.removeAt(index);
             endRemoveRows();
@@ -477,6 +465,7 @@ int MessageModel::removeSelectedMessages()
 
     if (deletedCount > 0) {
         emit countChanged();
+        scheduleCacheRefresh();
     }
 
     return deletedCount;
@@ -492,11 +481,16 @@ void MessageModel::clear()
         m_processingController->cancelSessionTasks(m_currentSessionId);
     }
 
+    for (const Message& message : m_messages) {
+        cleanupMessageResources(message);
+    }
+
     beginResetModel();
     m_messages.clear();
     endResetModel();
     resetMessageFileStatsCache();
     emit countChanged();
+    scheduleCacheRefresh();
 }
 
 void MessageModel::setProcessingController(ProcessingController* controller)
@@ -1020,6 +1014,7 @@ bool MessageModel::removeMediaFile(const QString &messageId, int fileIndex)
     }
 
     m_removingFileIds.remove(removedFileId);
+    scheduleCacheRefresh();
     return true;
 }
 
@@ -1079,4 +1074,292 @@ void MessageModel::resetMessageFileStatsCache()
     m_messageFileStatsCache.clear();
 }
 
+void MessageModel::cleanupMessageResources(const Message& message)
+{
+    ThumbnailProvider* thumbnailProvider = ThumbnailProvider::instance();
+    for (const MediaFile& file : message.mediaFiles) {
+        if (!file.resultPath.isEmpty()) {
+            QFile resultFile(file.resultPath);
+            if (resultFile.exists()) {
+                resultFile.remove();
+            }
+            if (thumbnailProvider) {
+                thumbnailProvider->removeThumbnail("processed_" + file.id);
+            }
+        }
+        if (thumbnailProvider && !file.filePath.isEmpty()) {
+            thumbnailProvider->removeThumbnail(file.filePath);
+        }
+    }
+}
+
+void MessageModel::scheduleCacheRefresh()
+{
+    QTimer::singleShot(500, this, []() {
+        SettingsController::instance()->refreshDataSize();
+    });
+}
+
+QVariantMap MessageModel::getDeletionPreview(const QString &messageId) const
+{
+    QVariantMap result;
+    int index = findMessageIndex(messageId);
+    if (index < 0) {
+        result[QStringLiteral("found")] = false;
+        return result;
+    }
+
+    const Message& message = m_messages.at(index);
+    result[QStringLiteral("found")] = true;
+    result[QStringLiteral("messageId")] = messageId;
+    result[QStringLiteral("modeName")] = getModeText(message.mode);
+
+    bool isProcessing = (message.status == ProcessingStatus::Processing);
+    result[QStringLiteral("isProcessing")] = isProcessing;
+    if (isProcessing) {
+        result[QStringLiteral("cancelHint")] = tr("此任务正在处理中，删除后将取消处理");
+    }
+
+    QVariantMap taskRecord;
+    taskRecord[QStringLiteral("description")] = tr("消息卡片记录，删除后将从列表中移除此任务");
+    taskRecord[QStringLiteral("required")] = true;
+    result[QStringLiteral("taskRecord")] = taskRecord;
+
+    QVariantList resultFileList;
+    qint64 totalResultSize = 0;
+    int resultFileCount = 0;
+    for (const MediaFile& file : message.mediaFiles) {
+        if (!file.resultPath.isEmpty()) {
+            QFileInfo fi(file.resultPath);
+            if (fi.exists()) {
+                QVariantMap fileEntry;
+                fileEntry[QStringLiteral("path")] = file.resultPath;
+                fileEntry[QStringLiteral("fileName")] = fi.fileName();
+                qint64 size = fi.size();
+                fileEntry[QStringLiteral("size")] = size;
+                fileEntry[QStringLiteral("sizeText")] = FileUtils::humanReadableSize(size);
+                resultFileList.append(fileEntry);
+                totalResultSize += size;
+                resultFileCount++;
+            }
+        }
+    }
+
+    QVariantMap resultFiles;
+    resultFiles[QStringLiteral("description")] = tr("处理后的输出文件，删除后无法恢复处理成果");
+    resultFiles[QStringLiteral("count")] = resultFileCount;
+    resultFiles[QStringLiteral("totalSize")] = totalResultSize;
+    resultFiles[QStringLiteral("totalSizeText")] = FileUtils::humanReadableSize(totalResultSize);
+    resultFiles[QStringLiteral("files")] = resultFileList;
+    result[QStringLiteral("resultFiles")] = resultFiles;
+
+    int thumbCount = 0;
+    QVariantList thumbItems;
+    for (const MediaFile& file : message.mediaFiles) {
+        if (!file.resultPath.isEmpty()) {
+            thumbCount++;
+            QVariantMap item;
+            item[QStringLiteral("id")] = QStringLiteral("processed_") + file.id;
+            item[QStringLiteral("type")] = tr("处理后缩略图");
+            thumbItems.append(item);
+        }
+        if (!file.filePath.isEmpty()) {
+            thumbCount++;
+            QVariantMap item;
+            item[QStringLiteral("id")] = file.filePath;
+            item[QStringLiteral("type")] = tr("原始文件缩略图");
+            thumbItems.append(item);
+        }
+    }
+
+    QVariantMap thumbnails;
+    thumbnails[QStringLiteral("description")] = tr("用于快速加载预览的缩略图缓存，删除后会自动重新生成");
+    thumbnails[QStringLiteral("count")] = thumbCount;
+    thumbnails[QStringLiteral("items")] = thumbItems;
+    result[QStringLiteral("thumbnails")] = thumbnails;
+
+    return result;
+}
+
+QVariantMap MessageModel::getBatchDeletionPreview(const QVariantList &messageIds) const
+{
+    QVariantMap result;
+    result[QStringLiteral("messageCount")] = messageIds.size();
+    result[QStringLiteral("modeName")] = tr("混合模式");
+
+    bool anyProcessing = false;
+    QVariantList allResultFiles;
+    qint64 totalResultSize = 0;
+    int totalResultFileCount = 0;
+    int totalThumbCount = 0;
+
+    for (const QVariant& v : messageIds) {
+        QString messageId = v.toString();
+        int index = findMessageIndex(messageId);
+        if (index < 0) continue;
+
+        const Message& message = m_messages.at(index);
+        if (message.status == ProcessingStatus::Processing) {
+            anyProcessing = true;
+        }
+
+        for (const MediaFile& file : message.mediaFiles) {
+            if (!file.resultPath.isEmpty()) {
+                QFileInfo fi(file.resultPath);
+                if (fi.exists()) {
+                    QVariantMap fileEntry;
+                    fileEntry[QStringLiteral("path")] = file.resultPath;
+                    fileEntry[QStringLiteral("fileName")] = fi.fileName();
+                    qint64 size = fi.size();
+                    fileEntry[QStringLiteral("size")] = size;
+                    fileEntry[QStringLiteral("sizeText")] = FileUtils::humanReadableSize(size);
+                    allResultFiles.append(fileEntry);
+                    totalResultSize += size;
+                    totalResultFileCount++;
+                }
+            }
+            if (!file.resultPath.isEmpty()) totalThumbCount++;
+            if (!file.filePath.isEmpty()) totalThumbCount++;
+        }
+    }
+
+    result[QStringLiteral("isProcessing")] = anyProcessing;
+    if (anyProcessing) {
+        result[QStringLiteral("cancelHint")] = tr("部分任务正在处理中，删除后将取消处理");
+    }
+
+    QVariantMap taskRecord;
+    taskRecord[QStringLiteral("description")] = tr("%1 条消息卡片记录，删除后将从列表中移除").arg(messageIds.size());
+    taskRecord[QStringLiteral("required")] = true;
+    result[QStringLiteral("taskRecord")] = taskRecord;
+
+    QVariantMap resultFiles;
+    resultFiles[QStringLiteral("description")] = tr("处理后的输出文件，删除后无法恢复处理成果");
+    resultFiles[QStringLiteral("count")] = totalResultFileCount;
+    resultFiles[QStringLiteral("totalSize")] = totalResultSize;
+    resultFiles[QStringLiteral("totalSizeText")] = FileUtils::humanReadableSize(totalResultSize);
+    resultFiles[QStringLiteral("files")] = allResultFiles;
+    result[QStringLiteral("resultFiles")] = resultFiles;
+
+    QVariantMap thumbnails;
+    thumbnails[QStringLiteral("description")] = tr("用于快速加载预览的缩略图缓存，删除后会自动重新生成");
+    thumbnails[QStringLiteral("count")] = totalThumbCount;
+    result[QStringLiteral("thumbnails")] = thumbnails;
+
+    return result;
+}
+
+bool MessageModel::removeMessageWithOptions(const QString &messageId, const QVariantMap &options)
+{
+    int index = findMessageIndex(messageId);
+    if (index < 0) {
+        emit errorOccurred(tr("Message does not exist: %1").arg(messageId));
+        return false;
+    }
+
+    emit messageRemoving(messageId);
+
+    if (m_processingController) {
+        m_processingController->cancelMessageTasks(messageId);
+    }
+
+    const Message& message = m_messages.at(index);
+
+    bool deleteResultFiles = options.value(QStringLiteral("deleteResultFiles"), true).toBool();
+    bool deleteThumbnails = options.value(QStringLiteral("deleteThumbnails"), true).toBool();
+
+    if (deleteResultFiles || deleteThumbnails) {
+        ThumbnailProvider* thumbnailProvider = ThumbnailProvider::instance();
+        for (const MediaFile& file : message.mediaFiles) {
+            if (deleteResultFiles && !file.resultPath.isEmpty()) {
+                QFile resultFile(file.resultPath);
+                if (resultFile.exists()) {
+                    resultFile.remove();
+                }
+            }
+            if (deleteThumbnails && thumbnailProvider) {
+                if (!file.resultPath.isEmpty()) {
+                    thumbnailProvider->removeThumbnail("processed_" + file.id);
+                }
+                if (!file.filePath.isEmpty()) {
+                    thumbnailProvider->removeThumbnail(file.filePath);
+                }
+            }
+        }
+    }
+
+    beginRemoveRows(QModelIndex(), index, index);
+    m_messages.removeAt(index);
+    endRemoveRows();
+
+    m_messageFileStatsCache.remove(messageId);
+    emit countChanged();
+    emit messageRemoved(messageId);
+    scheduleCacheRefresh();
+    return true;
+}
+
+int MessageModel::removeSelectedMessagesWithOptions(const QVariantMap &options)
+{
+    int deletedCount = 0;
+    QList<QString> toDelete;
+
+    for (const Message &message : m_messages) {
+        if (message.isSelected) {
+            toDelete.append(message.id);
+        }
+    }
+
+    if (m_processingController) {
+        for (const QString& messageId : toDelete) {
+            emit messageRemoving(messageId);
+            m_processingController->cancelMessageTasks(messageId);
+        }
+    }
+
+    bool deleteResultFiles = options.value(QStringLiteral("deleteResultFiles"), true).toBool();
+    bool deleteThumbnails = options.value(QStringLiteral("deleteThumbnails"), true).toBool();
+
+    for (auto it = toDelete.rbegin(); it != toDelete.rend(); ++it) {
+        int index = findMessageIndex(*it);
+        if (index >= 0) {
+            const Message& message = m_messages.at(index);
+            if (deleteResultFiles || deleteThumbnails) {
+                ThumbnailProvider* thumbnailProvider = ThumbnailProvider::instance();
+                for (const MediaFile& file : message.mediaFiles) {
+                    if (deleteResultFiles && !file.resultPath.isEmpty()) {
+                        QFile resultFile(file.resultPath);
+                        if (resultFile.exists()) {
+                            resultFile.remove();
+                        }
+                    }
+                    if (deleteThumbnails && thumbnailProvider) {
+                        if (!file.resultPath.isEmpty()) {
+                            thumbnailProvider->removeThumbnail("processed_" + file.id);
+                        }
+                        if (!file.filePath.isEmpty()) {
+                            thumbnailProvider->removeThumbnail(file.filePath);
+                        }
+                    }
+                }
+            }
+
+            beginRemoveRows(QModelIndex(), index, index);
+            m_messages.removeAt(index);
+            endRemoveRows();
+            m_messageFileStatsCache.remove(*it);
+            emit messageRemoved(*it);
+            deletedCount++;
+        }
+    }
+
+    if (deletedCount > 0) {
+        emit countChanged();
+        scheduleCacheRefresh();
+    }
+
+    return deletedCount;
+}
+
 } // namespace EnhanceVision
+

@@ -233,6 +233,11 @@ public:
      */
     Q_INVOKABLE QVariantMap getShaderParams(const QString &messageId) const;
 
+    Q_INVOKABLE QVariantMap getDeletionPreview(const QString &messageId) const;
+    Q_INVOKABLE QVariantMap getBatchDeletionPreview(const QVariantList &messageIds) const;
+    Q_INVOKABLE bool removeMessageWithOptions(const QString &messageId, const QVariantMap &options);
+    Q_INVOKABLE int removeSelectedMessagesWithOptions(const QVariantMap &options);
+
     /**
      * @brief 获取消息列表
      * @return 消息列表
@@ -420,6 +425,8 @@ private:
     FileStats calculateFileStats(const Message& message) const;
     void emitMessageFileStatsChanged(const QString& messageId, const Message& message);
     void resetMessageFileStatsCache();
+    void cleanupMessageResources(const Message& message);
+    void scheduleCacheRefresh();
 
     QList<Message> m_messages;  ///< 消息列表
     QString m_currentSessionId; ///< 当前会话ID

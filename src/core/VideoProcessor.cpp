@@ -21,6 +21,62 @@
 
 namespace EnhanceVision {
 
+VideoProcessor::EncoderInfo VideoProcessor::findAvailableEncoder() const
+{
+    struct Candidate {
+        const char* name;
+        bool isHardware;
+    };
+
+    static const Candidate candidates[] = {
+        {"h264_nvenc", true},
+        {"h264_qsv", true},
+        {"h264_amf", true},
+        {"libx264", false}
+    };
+
+    for (const auto& candidate : candidates) {
+        const AVCodec* codec = avcodec_find_encoder_by_name(candidate.name);
+        if (!codec) continue;
+
+        AVCodecContext* testCtx = avcodec_alloc_context3(codec);
+        if (!testCtx) continue;
+
+        testCtx->width = 1920;
+        testCtx->height = 1080;
+        testCtx->pix_fmt = AV_PIX_FMT_YUV420P;
+        testCtx->time_base = {1, 25};
+
+        AVDictionary* opts = nullptr;
+        if (candidate.isHardware) {
+            av_dict_set(&opts, "preset", "p4", 0);
+        } else {
+            av_dict_set(&opts, "preset", "fast", 0);
+        }
+
+        int ret = avcodec_open2(testCtx, codec, &opts);
+        av_dict_free(&opts);
+        avcodec_free_context(&testCtx);
+
+        if (ret >= 0) {
+            EncoderInfo info;
+            info.codec = codec;
+            info.isHardware = candidate.isHardware;
+            info.codecName = QString::fromUtf8(candidate.name);
+            qDebug() << "[VideoProcessor] Selected encoder:" << candidate.name
+                     << "(hardware:" << candidate.isHardware << ")";
+            return info;
+        }
+    }
+
+    const AVCodec* fallback = avcodec_find_encoder(AV_CODEC_ID_H264);
+    EncoderInfo info;
+    info.codec = fallback;
+    info.isHardware = false;
+    info.codecName = QStringLiteral("libx264");
+    return info;
+}
+
 VideoProcessor::VideoProcessor(QObject *parent)
     : QObject(parent)
     , m_isProcessing(false)
@@ -310,10 +366,11 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         }
         outVideoStreamIndex = outVideoStream->index;
 
-        const AVCodec* encoder = avcodec_find_encoder(AV_CODEC_ID_H264);
-        if (!encoder) {
-            encoder = avcodec_find_encoder(outputFormatContext->oformat->video_codec);
-        }
+        const AVCodec* encoder = nullptr;
+
+        EncoderInfo encoderInfo = findAvailableEncoder();
+        encoder = encoderInfo.codec;
+
         if (!encoder) {
             throw std::runtime_error(tr("No suitable video encoder found").toStdString());
         }
@@ -339,16 +396,30 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
 
         videoEncoderContext->bit_rate = static_cast<int64_t>(srcWidth) * srcHeight * 4;
         videoEncoderContext->gop_size = 12;
-        videoEncoderContext->max_b_frames = 2;
-        videoEncoderContext->thread_count = qMin(QThread::idealThreadCount(), 8);
+        videoEncoderContext->max_b_frames = 0;
+        videoEncoderContext->thread_count = QThread::idealThreadCount();
 
         if (outputFormatContext->oformat->flags & AVFMT_GLOBALHEADER) {
             videoEncoderContext->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
         }
 
         AVDictionary* encoderOpts = nullptr;
-        av_dict_set(&encoderOpts, "preset", "medium", 0);
-        av_dict_set(&encoderOpts, "crf", "18", 0);
+        if (encoderInfo.isHardware) {
+            if (encoderInfo.codecName == QStringLiteral("h264_nvenc")) {
+                av_dict_set(&encoderOpts, "preset", "p4", 0);
+                av_dict_set(&encoderOpts, "rc", "vbr", 0);
+                av_dict_set(&encoderOpts, "cq", "23", 0);
+            } else if (encoderInfo.codecName == QStringLiteral("h264_qsv")) {
+                av_dict_set(&encoderOpts, "preset", "medium", 0);
+                av_dict_set(&encoderOpts, "global_quality", "23", 0);
+            } else if (encoderInfo.codecName == QStringLiteral("h264_amf")) {
+                av_dict_set(&encoderOpts, "quality", "balanced", 0);
+                av_dict_set(&encoderOpts, "rc", "vbr_peak", 0);
+            }
+        } else {
+            av_dict_set(&encoderOpts, "preset", "fast", 0);
+            av_dict_set(&encoderOpts, "crf", "23", 0);
+        }
 
         if (avcodec_open2(videoEncoderContext, encoder, &encoderOpts) < 0) {
             av_dict_free(&encoderOpts);
@@ -396,7 +467,7 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         swsContextToRGB = sws_getContext(
             srcWidth, srcHeight, srcPixFmt,
             srcWidth, srcHeight, AV_PIX_FMT_RGB32,
-            SWS_BILINEAR, nullptr, nullptr, nullptr
+            SWS_FAST_BILINEAR, nullptr, nullptr, nullptr
         );
         if (!swsContextToRGB) {
             throw std::runtime_error(tr("Cannot create RGB conversion context").toStdString());
@@ -405,7 +476,7 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
         swsContextToYUV = sws_getContext(
             srcWidth, srcHeight, AV_PIX_FMT_RGB32,
             srcWidth, srcHeight, AV_PIX_FMT_YUV420P,
-            SWS_BILINEAR, nullptr, nullptr, nullptr
+            SWS_FAST_BILINEAR, nullptr, nullptr, nullptr
         );
         if (!swsContextToYUV) {
             throw std::runtime_error(tr("Cannot create YUV conversion context").toStdString());
@@ -500,11 +571,11 @@ void VideoProcessor::processVideoInternal(const QString& inputPath,
                     
                     QImage processedImage = imageProcessor.applyShader(image, params);
 
-                    QImage converted = processedImage.convertToFormat(QImage::Format_RGB32);
-                    if (converted.bytesPerLine() == rgbFrame->linesize[0]) {
-                        memcpy(rgbFrame->data[0], converted.constBits(), 
+                    if (processedImage.format() == QImage::Format_RGB32 && processedImage.bytesPerLine() == rgbFrame->linesize[0]) {
+                        memcpy(rgbFrame->data[0], processedImage.constBits(),
                                static_cast<size_t>(srcHeight) * rgbFrame->linesize[0]);
                     } else {
+                        QImage converted = processedImage.convertToFormat(QImage::Format_RGB32);
                         for (int y = 0; y < srcHeight; ++y) {
                             memcpy(rgbFrame->data[0] + y * rgbFrame->linesize[0],
                                    converted.constScanLine(y),
