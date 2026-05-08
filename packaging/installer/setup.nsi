@@ -193,9 +193,9 @@ Var InstallDirInputHandle
 ; 以普通用户权限启动应用程序
 ; ----------------------------------------------------------------------------
 Function LaunchAppAsUser
-    ; 使用 ExecShell 以普通用户权限启动应用程序
-    ; 这解决了从提升权限的安装程序启动应用导致的拖拽被禁止问题
-    ExecShell "" "$INSTDIR\EnhanceVision.exe"
+    ; Use explorer as a medium-integrity broker to avoid launching the app in
+    ; elevated context from the admin installer finish page.
+    Exec '"$WINDIR\explorer.exe" "$INSTDIR\EnhanceVision.exe"'
 FunctionEnd
 
 ; ----------------------------------------------------------------------------

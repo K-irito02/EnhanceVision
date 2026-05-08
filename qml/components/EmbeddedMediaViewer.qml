@@ -65,7 +65,11 @@ Item {
 
     onShowOriginalChanged: {
         if (isVideo && _mediaPlayer) {
-            playbackController.prepareSourceResultSwitch()
+            var newSource = _getSource(currentSource)
+            var activeSource = _mediaPlayer.source ? _mediaPlayer.source.toString() : ""
+            if (newSource !== "" && newSource !== activeSource) {
+                playbackController.prepareSourceResultSwitch()
+            }
         }
     }
 

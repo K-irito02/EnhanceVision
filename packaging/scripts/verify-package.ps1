@@ -23,6 +23,7 @@ $excludedRuntimeEntries = @(
 
 $requiredFiles = @(
     "EnhanceVision.exe",
+    "qt.conf",
     "LICENSE",
     "THIRD_PARTY_LICENSES.md",
     "README.txt"

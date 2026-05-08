@@ -84,10 +84,14 @@ Rectangle {
         
         onDropped: function(drop) {
             if (drop.hasUrls) {
+                var localUrls = _sanitizeLocalDropUrls(drop.urls)
+                if (localUrls.length === 0)
+                    return
+
                 if (typeof fileController !== "undefined")
-                    fileController.addFiles(drop.urls)
+                    fileController.addFiles(localUrls)
                 else
-                    _addDemoFiles(drop.urls)
+                    _addDemoFiles(localUrls)
             }
         }
     }
@@ -586,6 +590,15 @@ Rectangle {
         function onDataChanged(topLeft, bottomRight, roles) { _syncPendingViewerWindow() }
         function onModelReset() { _syncPendingViewerWindow() }
     }
+
+    // 监听 fileController 错误信号，显示错误提示
+    Connections {
+        target: typeof fileController !== "undefined" ? fileController : null
+        enabled: typeof fileController !== "undefined"
+        function onErrorOccurred(message) {
+            NotificationManager.showError(message)
+        }
+    }
     
     // 监听 pendingFilesModel 变化（demo 模式）
     Connections {
@@ -605,17 +618,21 @@ Rectangle {
         title: qsTr("选择媒体文件")
         fileMode: FileDialog.OpenFiles
         nameFilters: [
-            qsTr("所有支持的文件 (*.jpg *.jpeg *.png *.bmp *.webp *.tiff *.tif *.mp4 *.avi *.mkv *.mov *.flv)"),
-            qsTr("图片文件 (*.jpg *.jpeg *.png *.bmp *.webp *.tiff *.tif)"),
-            qsTr("视频文件 (*.mp4 *.avi *.mkv *.mov *.flv)"),
+            qsTr("所有支持的文件 (*.jpg *.jpeg *.png *.bmp *.webp *.tiff *.tif *.gif *.ico *.svg *.mp4 *.avi *.mkv *.mov *.flv *.wmv *.webm *.m4v *.mpg *.mpeg *.ts *.mts *.m2ts *.3gp)"),
+            qsTr("图片文件 (*.jpg *.jpeg *.png *.bmp *.webp *.tiff *.tif *.gif *.ico *.svg)"),
+            qsTr("视频文件 (*.mp4 *.avi *.mkv *.mov *.flv *.wmv *.webm *.m4v *.mpg *.mpeg *.ts *.mts *.m2ts *.3gp)"),
             qsTr("所有文件 (*.*)")
         ]
         
         onAccepted: {
+            var localUrls = _sanitizeLocalDropUrls(fileDialog.selectedFiles)
+            if (localUrls.length === 0)
+                return
+
             if (typeof fileController !== "undefined") {
-                fileController.addFiles(fileDialog.selectedFiles)
+                fileController.addFiles(localUrls)
             } else {
-                _addDemoFiles(fileDialog.selectedFiles)
+                _addDemoFiles(localUrls)
             }
         }
     }
@@ -630,6 +647,52 @@ Rectangle {
             p = p.parent
         }
         return defaultValue
+    }
+
+    function _sanitizeLocalDropUrls(urls) {
+        var cleaned = []
+        if (!urls)
+            return cleaned
+
+        for (var i = 0; i < urls.length; i++) {
+            var url = urls[i]
+            if (!url) {
+                console.debug("[MainPage] Ignore invalid dropped item at index", i)
+                continue
+            }
+
+            var localPath = ""
+            if (url.toLocalFile) {
+                localPath = url.toLocalFile()
+            } else {
+                var urlText = (typeof url === "string") ? url : (url.toString ? url.toString() : String(url))
+                if (!urlText || urlText.trim() === "") {
+                    console.debug("[MainPage] Ignore empty dropped URL text", url)
+                    continue
+                }
+
+                if (/^[a-zA-Z]:[\\/]/.test(urlText) || /^\\\\/.test(urlText)) {
+                    localPath = urlText
+                } else if (/^file:\/\//i.test(urlText)) {
+                    localPath = urlText
+                } else {
+                    console.debug("[MainPage] Ignore non-local dropped URL text", urlText)
+                    continue
+                }
+            }
+
+            if (!localPath || localPath.trim() === "") {
+                console.debug("[MainPage] Ignore non-local/empty dropped URL", url)
+                continue
+            }
+
+            cleaned.push(url)
+        }
+
+        if (cleaned.length !== urls.length) {
+            console.debug("[MainPage] Dropped URL cleanup:", urls.length, "->", cleaned.length)
+        }
+        return cleaned
     }
     
     function _sendForProcessing() {
@@ -769,11 +832,11 @@ Rectangle {
         for (var i = 0; i < urls.length; i++) {
             var url = urls[i]
             var path = url.toString()
-            
+
             var localPath = url.toLocalFile ? url.toLocalFile() : path
             var name = localPath.split(/[/\\]/).pop()
-            var isVideo = /\.(mp4|avi|mkv|mov|flv)$/i.test(name)
-            
+            var isVideo = /\.(mp4|avi|mkv|mov|flv|wmv|webm|m4v|mpg|mpeg|ts|mts|m2ts|3gp)$/i.test(name)
+
             pendingFilesModel.append({
                 "filePath": localPath,
                 "fileName": name,

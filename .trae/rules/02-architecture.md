@@ -33,6 +33,7 @@ trigger: glob
 | TaskCoordinator | 任务协调与调度 |
 | VideoProcessor | 视频处理管道 |
 | ImageProcessor | 图像处理管道 |
+| SupportedFormats | 统一格式注册表（唯一真相源） |
 
 ## 启动恢复约束
 

@@ -15,9 +15,11 @@
 #include <QLocale>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QStringList>
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include <string>
 #include "EnhanceVision/app/Application.h"
 #include "EnhanceVision/controllers/SettingsController.h"
 #include "EnhanceVision/core/LifecycleSupervisor.h"
@@ -27,6 +29,7 @@
 #include <windows.h>
 #include <processthreadsapi.h>
 #include <shellapi.h>
+#include <securitybaseapi.h>
 #endif
 
 namespace {
@@ -157,6 +160,104 @@ namespace {
     }
 
 #ifdef Q_OS_WIN
+    constexpr const char* kSkipDeelevateArg = "--enhancevision-skip-deelevate";
+
+    QString windowsQuoteArgument(const QString& argument)
+    {
+        if (argument.isEmpty()) {
+            return QStringLiteral("\"\"");
+        }
+
+        QString escaped = argument;
+        escaped.replace(QStringLiteral("\""), QStringLiteral("\\\""));
+
+        if (escaped.contains(QLatin1Char(' ')) || escaped.contains(QLatin1Char('\t')) || escaped.contains(QLatin1Char('"'))) {
+            return QStringLiteral("\"%1\"").arg(escaped);
+        }
+
+        return escaped;
+    }
+
+    bool hasProcessArgument(int argc, char* argv[], const char* flag)
+    {
+        for (int i = 1; i < argc; ++i) {
+            if (argv[i] && std::strcmp(argv[i], flag) == 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    QString currentExecutablePath()
+    {
+        wchar_t modulePath[MAX_PATH] = {};
+        const DWORD pathLength = GetModuleFileNameW(nullptr, modulePath, MAX_PATH);
+        if (pathLength == 0 || pathLength >= MAX_PATH) {
+            return {};
+        }
+        return QDir::toNativeSeparators(QString::fromWCharArray(modulePath, static_cast<int>(pathLength)));
+    }
+
+    bool isProcessElevated()
+    {
+        HANDLE token = nullptr;
+        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+            return false;
+        }
+
+        TOKEN_ELEVATION elevation = {};
+        DWORD returnedLength = 0;
+        const BOOL success = GetTokenInformation(
+            token,
+            TokenElevation,
+            &elevation,
+            sizeof(elevation),
+            &returnedLength);
+
+        CloseHandle(token);
+        return success == TRUE && elevation.TokenIsElevated != 0;
+    }
+
+    bool relaunchAsStandardUserViaExplorer(int argc, char* argv[])
+    {
+        const QString executablePath = currentExecutablePath();
+        if (executablePath.isEmpty()) {
+            return false;
+        }
+
+        QStringList forwardedArgs;
+        forwardedArgs.reserve(qMax(0, argc - 1));
+        for (int i = 1; i < argc; ++i) {
+            if (!argv[i]) {
+                continue;
+            }
+            const QString arg = QString::fromLocal8Bit(argv[i]);
+            if (arg == QString::fromLatin1(kSkipDeelevateArg)) {
+                continue;
+            }
+            forwardedArgs.append(windowsQuoteArgument(arg));
+        }
+        forwardedArgs.append(QString::fromLatin1(kSkipDeelevateArg));
+
+        QString parameters = windowsQuoteArgument(executablePath);
+        if (!forwardedArgs.isEmpty()) {
+            parameters += QLatin1Char(' ');
+            parameters += forwardedArgs.join(QLatin1Char(' '));
+        }
+
+        SHELLEXECUTEINFOW shellExecuteInfo = {};
+        shellExecuteInfo.cbSize = sizeof(shellExecuteInfo);
+        shellExecuteInfo.fMask = SEE_MASK_FLAG_NO_UI | SEE_MASK_NOASYNC;
+        shellExecuteInfo.lpVerb = L"open";
+        shellExecuteInfo.lpFile = L"explorer.exe";
+
+        const std::wstring parametersWide = parameters.toStdWString();
+        shellExecuteInfo.lpParameters = parametersWide.c_str();
+        shellExecuteInfo.nShow = SW_SHOWNORMAL;
+
+        return ShellExecuteExW(&shellExecuteInfo) == TRUE;
+    }
+
     void enableCrossIntegrityDropMessages()
     {
         // When launched from elevated installer, the process can run elevated.
@@ -261,6 +362,20 @@ int main(int argc, char *argv[])
 #ifdef Q_OS_WIN
     // 设置 SEH 异常处理器，捕获崩溃并强制终止进程
     SetUnhandledExceptionFilter(SehExceptionHandler);
+
+    if (!hasProcessArgument(argc, argv, kSkipDeelevateArg) && isProcessElevated()) {
+        if (relaunchAsStandardUserViaExplorer(argc, argv)) {
+            return 0;
+        }
+
+        fprintf(stderr, "[WARN] Running elevated and failed to relaunch as standard user. Drag-and-drop may be unavailable.\n");
+        MessageBoxW(
+            nullptr,
+            L"EnhanceVision 当前以管理员权限运行，系统可能会阻止拖拽导入。\n请从开始菜单或桌面快捷方式重新启动应用。",
+            L"EnhanceVision",
+            MB_OK | MB_ICONWARNING);
+    }
+
     enableCrossIntegrityDropMessages();
 #endif
 

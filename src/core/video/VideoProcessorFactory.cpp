@@ -8,6 +8,7 @@
 #include "EnhanceVision/core/video/AIVideoProcessor.h"
 #include "EnhanceVision/core/AIEngine.h"
 #include "EnhanceVision/models/DataTypes.h"
+#include "EnhanceVision/utils/SupportedFormats.h"
 #include <QFileInfo>
 #include <QSet>
 
@@ -32,12 +33,7 @@ std::unique_ptr<AIVideoProcessor> VideoProcessorFactory::createAIProcessor(
 
 bool VideoProcessorFactory::isVideoFile(const QString& path)
 {
-    static const QSet<QString> videoExtensions = {
-        "mp4", "avi", "mov", "mkv", "webm", "flv", "wmv", "m4v", "mpg", "mpeg", "ts", "mts", "m2ts"
-    };
-    
-    QFileInfo info(path);
-    return videoExtensions.contains(info.suffix().toLower());
+    return SupportedFormats::isVideoFile(path);
 }
 
 VideoMetadata VideoProcessorFactory::probeVideoMetadata(const QString& path)

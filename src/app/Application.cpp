@@ -43,6 +43,11 @@
 #include <limits>
 #include <cstdlib>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <shellapi.h>
+#endif
+
 namespace EnhanceVision {
 
 namespace {
@@ -79,6 +84,36 @@ QStringList uniqueStringList(const QStringList& list)
     }
     return result;
 }
+
+#ifdef Q_OS_WIN
+void allowDropMessagesForWindow(HWND hwnd)
+{
+    if (!hwnd) {
+        return;
+    }
+
+    CHANGEFILTERSTRUCT filterStruct{};
+    filterStruct.cbSize = sizeof(filterStruct);
+
+    using ChangeWindowMessageFilterExFn = BOOL (WINAPI*)(HWND, UINT, DWORD, PCHANGEFILTERSTRUCT);
+    auto* user32 = GetModuleHandleW(L"user32.dll");
+    auto* changeFilterEx = user32
+        ? reinterpret_cast<ChangeWindowMessageFilterExFn>(
+              GetProcAddress(user32, "ChangeWindowMessageFilterEx"))
+        : nullptr;
+
+    constexpr DWORD kMsgFilterAllow = 1; // MSGFLT_ALLOW
+    constexpr UINT kWmCopyGlobalData = 0x0049;
+
+    if (changeFilterEx) {
+        changeFilterEx(hwnd, WM_DROPFILES, kMsgFilterAllow, &filterStruct);
+        changeFilterEx(hwnd, WM_COPYDATA, kMsgFilterAllow, &filterStruct);
+        changeFilterEx(hwnd, kWmCopyGlobalData, kMsgFilterAllow, &filterStruct);
+    }
+
+    DragAcceptFiles(hwnd, TRUE);
+}
+#endif
 
 class FrameTimeProbe final : public QObject
 {
@@ -290,11 +325,26 @@ void Application::initialize()
     }
 
     m_mainWindow->installEventFilter(this);
+    configureWindowsDragAndDrop();
     WindowHelper::instance()->setWindow(m_mainWindow);
+    configureWindowsDragAndDrop();
     m_imageExportService->setQmlEngine(m_rootObject);
 
     setupLifecycleGuard();
     new FrameTimeProbe(m_mainWindow, m_mainWindow);
+}
+
+void Application::configureWindowsDragAndDrop()
+{
+#ifdef Q_OS_WIN
+    if (!m_mainWindow) {
+        return;
+    }
+
+    // Ensure the native window exists before adjusting the Windows message filter.
+    HWND hwnd = reinterpret_cast<HWND>(m_mainWindow->winId());
+    allowDropMessagesForWindow(hwnd);
+#endif
 }
 
 void Application::show()
@@ -567,6 +617,9 @@ bool Application::eventFilter(QObject* watched, QEvent* event)
         case QEvent::Resize:
         case QEvent::WindowStateChange:
             scheduleMainWindowLayoutSave();
+            break;
+        case QEvent::Show:
+            configureWindowsDragAndDrop();
             break;
         case QEvent::Close:
             saveMainWindowLayoutNow();
