@@ -106,6 +106,11 @@ Item {
             return Math.max(0, Math.min(cy, parent.height - implicitHeight))
         }
 
+        MouseArea {
+            anchors.fill: parent
+            onClicked: function(mouse) { mouse.accepted = true }
+        }
+
         Flickable {
             id: contentFlickable
             anchors.fill: parent
