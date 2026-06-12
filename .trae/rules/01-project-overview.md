@@ -34,12 +34,12 @@ EnhanceVision/
 │   ├── core/              # 核心引擎
 │   ├── models/            # QML 数据模型
 │   ├── providers/         # QML 图像提供者
-│   ├── services/          # 服务层
-│   └── utils/             # 工具类
+│   ├── services/          # 服务层（安装维护、跨模块复用业务）
+│   └── utils/             # 工具类（格式注册表、存储路径等）
 ├── include/EnhanceVision/ # C++ 头文件
 ├── qml/                   # QML 源码
 │   ├── pages/            # 页面
-│   ├── components/       # 可复用组件
+│   ├── components/       # 可复用组件（DropOverlay, DeleteConfirmDialog 等）
 │   ├── controls/         # 自定义控件
 │   ├── shaders/          # ShaderEffect 封装
 │   └── styles/           # 样式定义
@@ -47,8 +47,13 @@ EnhanceVision/
 │   ├── shaders/          # GLSL Shader
 │   ├── icons/            # SVG 图标
 │   ├── models/           # AI 模型
+│   ├── font/             # 字体文件
 │   └── i18n/             # 翻译文件
 ├── tests/                # 测试
 ├── docs/                 # 文档
-└── third_party/          # 第三方库
+│   ├── Plan/            # 设计文档
+│   ├── Notes/           # 实现笔记
+│   ├── images/          # 截图资源
+│   └── preReleasePrep/  # 发布准备文档
+└── third_party/          # 第三方库（NCNN, FFmpeg, OpenCV）
 ```

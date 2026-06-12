@@ -2,7 +2,7 @@
 
 ---
 
-<h2 id="中文">🎉 EnhanceVision v0.1.0 - 首次发布！</h2>
+<h2 id="中文">🎉 EnhanceVision v0.1.1</h2>
 
 ### 这是什么软件？
 
@@ -89,19 +89,19 @@ EnhanceVision 是一款**图像处理与 AI推理（Real-ESRGAN） 画质增强�
 
 | 文件 | 大小 | 说明 |
 |------|------|------|
-| `EnhanceVision-v0.1.0-windows-x64-installer.exe` | ~162.84 MB | 安装版，双击安装即可 |
-| `EnhanceVision-v0.1.0-windows-x64-portable.zip` | ~206.62 MB | 便携版，解压即用 |
+| `EnhanceVision-v0.1.1-windows-x64-installer.exe` | ~162.93 MB | 安装版，双击安装即可 |
+| `EnhanceVision-v0.1.1-windows-x64-portable.zip` | ~203.12 MB | 便携版，解压即用 |
 
 ### 校验码
 
 **安装版 SHA256：**
 ```
-114D303357FD2D6706DCDC5D35635C673035F3B876594622DD7CCBF7A4194450
+CF6413CFA35A69A02B8D9F9107382BF140F54F803D5BA94D64E84A4EC254ABAD
 ```
 
 **便携版 SHA256：**
 ```
-747CE99ED50395083C86D0F6F784660BDEB1ED58B88642EFA6EC1336EFDD7DC5
+15F994CDB67D0749F3B3ABFF7202CD2CED454E43227887A5D0D8CACE9801B9E4
 ```
 
 ### 反馈问题
@@ -175,7 +175,7 @@ EnhanceVision 是一款**图像处理与 AI推理（Real-ESRGAN） 画质增强�
 ---
 ---
 
-<h2 id="english">🎉 EnhanceVision v0.1.0 - First Release!</h2>
+<h2 id="english">🎉 EnhanceVision v0.1.1</h2>
 
 ### What is this software?
 
@@ -262,19 +262,19 @@ EnhanceVision is an **image processing and AI-powered（Real-ESRGAN） quality e
 
 | File | Size | Description |
 |------|------|-------------|
-| `EnhanceVision-v0.1.0-windows-x64-installer.exe` | ~162.84 MB | Installer, double-click to install |
-| `EnhanceVision-v0.1.0-windows-x64-portable.zip` | ~206.62 MB | Portable, extract and run |
+| `EnhanceVision-v0.1.1-windows-x64-installer.exe` | ~162.93 MB | Installer, double-click to install |
+| `EnhanceVision-v0.1.1-windows-x64-portable.zip` | ~203.12 MB | Portable, extract and run |
 
 ### Checksums
 
 **Installer SHA256:**
 ```
-114D303357FD2D6706DCDC5D35635C673035F3B876594622DD7CCBF7A4194450
+CF6413CFA35A69A02B8D9F9107382BF140F54F803D5BA94D64E84A4EC254ABAD
 ```
 
 **Portable SHA256:**
 ```
-747CE99ED50395083C86D0F6F784660BDEB1ED58B88642EFA6EC1336EFDD7DC5
+15F994CDB67D0749F3B3ABFF7202CD2CED454E43227887A5D0D8CACE9801B9E4
 ```
 
 ### Feedback
@@ -512,6 +512,8 @@ cmake --build build/msvc2022/Release --config Release -j 8
 
 | Version | File | Description |
 |---------|------|-------------|
+| v0.1.1 | [Installer](https://github.com/K-irito02/EnhanceVision/releases/download/v0.1.1/EnhanceVision-v0.1.1-windows-x64-installer.exe) | Standard installation with uninstall support |
+| v0.1.1 | [Portable](https://github.com/K-irito02/EnhanceVision/releases/download/v0.1.1/EnhanceVision-v0.1.1-windows-x64-portable.zip) | Green version, extract and run |
 | v0.1.0 | [Installer](https://github.com/K-irito02/EnhanceVision/releases/download/v0.1.0/EnhanceVision-v0.1.0-windows-x64-installer.exe) | Standard installation with uninstall support |
 | v0.1.0 | [Portable](https://github.com/K-irito02/EnhanceVision/releases/download/v0.1.0/EnhanceVision-v0.1.0-windows-x64-portable.zip) | Green version, extract and run |
 

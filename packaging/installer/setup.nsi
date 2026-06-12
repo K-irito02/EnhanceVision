@@ -18,7 +18,7 @@
 ; 应用程序信息
 ; ----------------------------------------------------------------------------
 !define APP_NAME "EnhanceVision"
-!define APP_VERSION "0.1.0"
+!define APP_VERSION "0.1.1"
 !define APP_PUBLISHER "EnhanceVision Contributors"
 !define APP_URL "https://github.com/K-irito02/EnhanceVision"
 !define APP_GUID "EnhanceVision-${APP_VERSION}"

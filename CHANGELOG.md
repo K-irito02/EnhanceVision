@@ -5,7 +5,7 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [0.1.1] - 2026-06-13
 
 ### Added
 - **DropOverlay Animation Enhancement** - Enhanced drag-and-drop visual feedback with artistic text and raindrop splash animation
@@ -15,6 +15,16 @@
   - Implemented gradient background with theme adaptation and bottom collision line with glow effect
   - Added complete animation state reset to ensure fresh start on each drag attempt
   - Created comprehensive design documentation and implementation notes
+- **Shader Mode Parallel Processing** - Implement QtConcurrent parallel row processing in shader mode for 4-8x speedup
+  - Parallelized applyShader(), applyBlur(), applyDenoiseWithNeighbors(), applySharpenWithNeighbors()
+  - Fixed Shader mode ETA estimation: added CPU thread count and frequency calibration
+  - Dynamic time correction cap increased from 1.2x to 5.0x with EMA smoothing
+  - Architecture rules updated with ImageProcessor and TaskTimeEstimator documentation
+- **Delete Confirmation Dialog** - Added comprehensive dialog for batch deletion with category selection
+  - Three-category checkboxes: task records, result files, thumbnail cache
+  - Collapsible file path list for reviewing files to delete
+  - Added MessageModel::getDeletionPreview() and removeMessageWithOptions() APIs
+  - Schedule cache refresh after all deletion paths
 
 ### Fixed
 - **安装版拖拽导入修复**：修复 Windows 安装包部署后应用无法从资源管理器拖拽导入多媒体文件的问题
@@ -76,6 +86,18 @@
 - 消息查看器缩略图栏改为增量同步，避免文件连续完成时整栏闪烁，并修复首次打开时默认跳到首个文件的问题
 - 缓存清理结果改为可解释摘要，明确显示残留文件、占用空间、路径和后续处理建议
 - 设置页新增缓存清理相关文案的中英翻译，并移除不必要的成功调试输出
+- **文件格式统一与格式扩展**：移除 2GB 文件大小限制，统一格式注册体系，扩展多媒体格式支持
+  - 创建 `SupportedFormats` 工具类作为格式校验的唯一数据源
+  - 扩展视频格式：wmv, webm, m4v, mpg, mpeg, ts, mts, m2ts, 3gp
+  - 扩展图片格式：gif, ico, svg
+  - 重构 FileController、FileModel、ImageUtils、VideoProcessorFactory 统一使用 SupportedFormats
+  - 添加文件错误反馈至 MainPage
+- **Shader 模式加载动画修复**：修复源/结果切换时加载动画持续显示的 Bug
+  - 添加 5 秒安全超时机制，防止 isLoading 永久卡住
+- **删除确认对话框点击穿透修复**：修复点击对话框卡片时误关闭对话框的问题
+  - 在 dialogRect 添加 MouseArea 拦截点击事件，阻止穿透到背景遮罩层
+- **拖拽清洗器多 URL 类型支持**：修复拖拽时接受多种 URL 值类型的兼容性问题
+  - 在清洗器中增加对多值 URL 类型的支持，提升安装版拖拽兼容性
 
 ### Fixed
 - **Message Card Scroll Animation Optimization** - Fixed stuttering when new messages are added to the list

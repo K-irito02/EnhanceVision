@@ -165,6 +165,8 @@ cmake --build build/msvc2022/Release --config Release -j 8
 
 | 版本 | 文件 | 说明 |
 |------|------|------|
+| v0.1.1 | [安装程序](https://github.com/K-irito02/EnhanceVision/releases/download/v0.1.1/EnhanceVision-v0.1.1-windows-x64-installer.exe) | 标准安装，支持卸载 |
+| v0.1.1 | [便携版](https://github.com/K-irito02/EnhanceVision/releases/download/v0.1.1/EnhanceVision-v0.1.1-windows-x64-portable.zip) | 绿色版，解压即用 |
 | v0.1.0 | [安装程序](https://github.com/K-irito02/EnhanceVision/releases/download/v0.1.0/EnhanceVision-v0.1.0-windows-x64-installer.exe) | 标准安装，支持卸载 |
 | v0.1.0 | [便携版](https://github.com/K-irito02/EnhanceVision/releases/download/v0.1.0/EnhanceVision-v0.1.0-windows-x64-portable.zip) | 绿色版，解压即用 |
 

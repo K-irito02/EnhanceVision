@@ -35,8 +35,7 @@ EnhanceVision/
 ├── include/EnhanceVision/ # C++ 头文件
 ├── qml/                   # QML 源码
 │   ├── pages/            # 页面
-│   ├── components/       # 可复用组件
-│   │   └── DropOverlay.qml # Drag overlay with raindrop animation
+│   ├── components/       # 可复用组件（DropOverlay, DeleteConfirmDialog 等）
 │   ├── controls/         # 自定义控件
 │   ├── shaders/          # ShaderEffect 封装
 │   └── styles/           # 样式定义
@@ -51,8 +50,7 @@ EnhanceVision/
 ├── tests/                # 测试
 ├── docs/                 # 文档
 │   ├── Plan/            # 设计文档
-│   │   └── DropOverlay-Animation-Design.md
-│   └── Notes/           # 实现笔记
-│       ├── dropoverlay-animation-implementation-notes.md
-│       └── file-format-unification-and-loading-fix-notes.md
-└── third_party/          # 第三方库
+│   ├── Notes/           # 实现笔记
+│   ├── images/          # 截图资源
+│   └── preReleasePrep/  # 发布准备文档
+└── third_party/          # 第三方库（NCNN, FFmpeg, OpenCV）
